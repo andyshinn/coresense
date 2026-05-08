@@ -8,6 +8,7 @@ import { type WebSocket, WebSocketServer } from 'ws';
 import type { BleDevice, RawPacket, TransportState, WsMessage } from '../shared/types';
 import { apiKeyAuth, checkWsKey } from './api/middleware/auth';
 import { createRoutes } from './api/routes';
+import type { BridgeHandle } from './bridge';
 import { bus } from './events/bus';
 import { transportManager } from './transport/manager';
 
@@ -19,7 +20,10 @@ interface StartServerResult {
   close: () => Promise<void>;
 }
 
-export async function startServer(rendererDir: string | null): Promise<StartServerResult> {
+export async function startServer(
+  rendererDir: string | null,
+  bridge: BridgeHandle,
+): Promise<StartServerResult> {
   const app = new Hono();
   const clients = new Set<WebSocket>();
 
@@ -37,7 +41,14 @@ export async function startServer(rendererDir: string | null): Promise<StartServ
     }),
   );
   app.use('*', apiKeyAuth);
-  app.route('/', createRoutes({ port: () => boundPort, wsClients: () => clients.size }));
+  app.route(
+    '/',
+    createRoutes({
+      port: () => boundPort,
+      wsClients: () => clients.size,
+      bridgeStatus: () => bridge.getStatus(),
+    }),
+  );
 
   if (rendererDir) {
     app.get('/', (c) => c.html(readFileSync(join(rendererDir, 'index.html'), 'utf8')));
@@ -85,11 +96,16 @@ export async function startServer(rendererDir: string | null): Promise<StartServ
 
   wss.on('connection', (ws: WebSocket, _req: IncomingMessage) => {
     clients.add(ws);
-    const initial: WsMessage = {
+    const initialState: WsMessage = {
       type: 'transportState',
       payload: transportManager.getState(),
     };
-    ws.send(JSON.stringify(initial));
+    ws.send(JSON.stringify(initialState));
+    const initialBridge: WsMessage = {
+      type: 'bridgeStatus',
+      payload: bridge.getStatus(),
+    };
+    ws.send(JSON.stringify(initialBridge));
     ws.on('close', () => clients.delete(ws));
     ws.on('error', () => clients.delete(ws));
   });
@@ -109,17 +125,20 @@ export async function startServer(rendererDir: string | null): Promise<StartServ
   const onScanResults = (devices: BleDevice[]) =>
     broadcast({ type: 'scanResults', payload: devices });
   const onError = (message: string) => broadcast({ type: 'error', payload: { message } });
+  const onBridgeStatus = () => broadcast({ type: 'bridgeStatus', payload: bridge.getStatus() });
 
   bus.on('packet', onPacket);
   bus.on('transportState', onTransportState);
   bus.on('scanResults', onScanResults);
   bus.on('error', onError);
+  bridge.on('statusChanged', onBridgeStatus);
 
   const close = async () => {
     bus.off('packet', onPacket);
     bus.off('transportState', onTransportState);
     bus.off('scanResults', onScanResults);
     bus.off('error', onError);
+    bridge.off('statusChanged', onBridgeStatus);
     for (const c of clients) c.close();
     await new Promise<void>((resolve) => wss.close(() => resolve()));
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));

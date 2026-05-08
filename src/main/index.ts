@@ -2,6 +2,7 @@ import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
 import started from 'electron-squirrel-startup';
 import { getApiKey } from './api/middleware/auth';
+import { type BridgeHandle, startBridge } from './bridge';
 import { startServer } from './server';
 import { BleTransport } from './transport/ble';
 import { transportManager } from './transport/manager';
@@ -16,6 +17,7 @@ declare const MAIN_WINDOW_VITE_NAME: string;
 const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
 
 let serverHandle: { port: number; close: () => Promise<void> } | null = null;
+let bridgeHandle: BridgeHandle | null = null;
 
 async function bootstrap() {
   // Initialise API key (logs banner on first run).
@@ -24,9 +26,15 @@ async function bootstrap() {
   // Register the default BLE transport.
   transportManager.setTransport(new BleTransport());
 
+  bridgeHandle = await startBridge();
+  // eslint-disable-next-line no-console
+  console.log(
+    `CoreSense bridge: TCP=${bridgeHandle.tcpPort ?? 'off'} WS=${bridgeHandle.wsPort ?? 'off'} mDNS=${bridgeHandle.serviceName ?? 'off'}`,
+  );
+
   const rendererDir = isDev ? null : path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`);
 
-  serverHandle = await startServer(rendererDir);
+  serverHandle = await startServer(rendererDir, bridgeHandle);
   // eslint-disable-next-line no-console
   console.log(`CoreSense server listening on http://127.0.0.1:${serverHandle.port}`);
 
@@ -95,9 +103,16 @@ app.on('before-quit', () => {
 });
 
 async function shutdown() {
+  const tasks: Promise<unknown>[] = [];
   if (serverHandle) {
     const handle = serverHandle;
     serverHandle = null;
-    await handle.close().catch(() => undefined);
+    tasks.push(handle.close().catch(() => undefined));
   }
+  if (bridgeHandle) {
+    const handle = bridgeHandle;
+    bridgeHandle = null;
+    tasks.push(handle.close().catch(() => undefined));
+  }
+  await Promise.allSettled(tasks);
 }

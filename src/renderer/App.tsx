@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { BleDevice, RawPacket, TransportState, WsMessage } from '../shared/types';
+import type {
+  BleDevice,
+  BridgeStatus,
+  RawPacket,
+  TransportState,
+  WsMessage,
+} from '../shared/types';
 import { ApiKeyGate } from './components/ApiKeyGate';
 import { ConnectionPanel } from './components/ConnectionPanel';
 import { PacketLog } from './components/PacketLog';
@@ -22,6 +28,7 @@ export function App() {
   const [devices, setDevices] = useState<BleDevice[]>([]);
   const [packets, setPackets] = useState<RawPacket[]>([]);
   const [wsClients, setWsClients] = useState<number>(0);
+  const [bridge, setBridge] = useState<BridgeStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,6 +87,9 @@ export function App() {
       case 'error':
         setError(msg.payload.message);
         break;
+      case 'bridgeStatus':
+        setBridge(msg.payload);
+        break;
     }
   }, []);
 
@@ -92,7 +102,10 @@ export function App() {
     const tick = async () => {
       try {
         const s = await api.status(client);
-        if (!cancelled) setWsClients(s.wsClients);
+        if (!cancelled) {
+          setWsClients(s.wsClients);
+          setBridge(s.bridge);
+        }
       } catch {
         // ignore transient
       }
@@ -184,7 +197,12 @@ export function App() {
         <PacketLog packets={packets} />
       </main>
 
-      <StatusBar port={port} wsClients={wsClients} transportState={transportState} />
+      <StatusBar
+        port={port}
+        wsClients={wsClients}
+        transportState={transportState}
+        bridge={bridge}
+      />
     </div>
   );
 }

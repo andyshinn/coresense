@@ -1,14 +1,15 @@
 import { app } from 'electron';
 import { Hono } from 'hono';
-import type { Capabilities, ServerStatus } from '../../shared/types';
+import type { BridgeStatus, Capabilities, ServerStatus } from '../../shared/types';
 import { transportManager } from '../transport/manager';
 
 interface RoutesDeps {
   port: () => number;
   wsClients: () => number;
+  bridgeStatus: () => BridgeStatus;
 }
 
-export function createRoutes({ port, wsClients }: RoutesDeps) {
+export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   const api = new Hono();
 
   api.get('/api/capabilities', (c) => {
@@ -28,6 +29,7 @@ export function createRoutes({ port, wsClients }: RoutesDeps) {
       wsClients: wsClients(),
       transport: t.state,
       deviceId: t.deviceId,
+      bridge: bridgeStatus(),
     };
     return c.json(payload);
   });

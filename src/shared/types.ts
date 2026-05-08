@@ -13,11 +13,23 @@ export interface RawPacket {
   bytes: number[];
 }
 
+export interface BridgeStatus {
+  tcpPort: number | null;
+  wsPort: number | null;
+  bindAddress: string;
+  lanAddress: string | null;
+  tcpClients: number;
+  wsClients: number;
+  mdnsServiceName: string | null;
+  radioConnected: boolean;
+}
+
 export type WsMessage =
   | { type: 'packet'; payload: RawPacket }
   | { type: 'transportState'; payload: { state: TransportState; deviceId?: string } }
   | { type: 'scanResults'; payload: BleDevice[] }
-  | { type: 'error'; payload: { message: string } };
+  | { type: 'error'; payload: { message: string } }
+  | { type: 'bridgeStatus'; payload: BridgeStatus };
 
 export interface Capabilities {
   isElectron: boolean;
@@ -31,4 +43,5 @@ export interface ServerStatus {
   wsClients: number;
   transport: TransportState;
   deviceId?: string;
+  bridge: BridgeStatus;
 }
