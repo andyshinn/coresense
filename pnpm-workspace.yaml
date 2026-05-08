@@ -1,0 +1,6 @@
+nodeLinker: hoisted
+allowBuilds:
+  '@abandonware/noble': true
+  electron-winstaller: true
+  esbuild: true
+blockExoticSubdeps: false

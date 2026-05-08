@@ -1,0 +1,64 @@
+{
+  "name": "coresense",
+  "productName": "coresense",
+  "version": "1.0.0",
+  "description": "My Electron application description",
+  "main": ".vite/build/index.js",
+  "private": true,
+  "scripts": {
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "publish": "electron-forge publish",
+    "lint": "biome check",
+    "format": "biome format --write",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": {
+    "name": "Andy Shinn",
+    "email": "andys@andyshinn.as"
+  },
+  "license": "MIT",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@abandonware/noble",
+      "electron",
+      "electron-winstaller"
+    ]
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.14",
+    "@electron-forge/cli": "^7.11.1",
+    "@electron-forge/maker-deb": "^7.11.1",
+    "@electron-forge/maker-rpm": "^7.11.1",
+    "@electron-forge/maker-squirrel": "^7.11.1",
+    "@electron-forge/maker-zip": "^7.11.1",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.11.1",
+    "@electron-forge/plugin-fuses": "^7.11.1",
+    "@electron-forge/plugin-vite": "^7.11.1",
+    "@electron-forge/shared-types": "^7.11.1",
+    "@electron/fuses": "^1.8.0",
+    "@types/electron-squirrel-startup": "^1.0.2",
+    "@types/noble": "^0.0.44",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "6.0.1",
+    "electron": "^42.0.0",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.10"
+  },
+  "dependencies": {
+    "@abandonware/noble": "1.9.2-26",
+    "@hono/node-server": "^2.0.1",
+    "@tailwindcss/vite": "^4.2.4",
+    "electron-squirrel-startup": "^1.0.1",
+    "hono": "^4.12.18",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "tailwindcss": "^4.2.4",
+    "ws": "^8.20.0"
+  }
+}
