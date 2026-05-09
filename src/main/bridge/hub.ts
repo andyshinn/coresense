@@ -1,7 +1,10 @@
 import { EventEmitter } from 'node:events';
 import type { BridgeStatus, RawPacket, TransportState } from '../../shared/types';
 import { bus, emit } from '../events/bus';
+import { child } from '../log';
 import { transportManager } from '../transport/manager';
+
+const logger = child('bridge:hub');
 
 export type ClientKind = 'tcp' | 'ws';
 
@@ -54,22 +57,34 @@ export class BridgeHub extends EventEmitter {
 
   add(client: BridgeClient): void {
     this.clients.add(client);
+    logger.debug(
+      `client added ${client.kind} ${client.remoteAddr} id=${client.id} (total=${this.clients.size})`,
+    );
     this.emit('statusChanged');
   }
 
   remove(client: BridgeClient): void {
     if (this.clients.delete(client)) {
+      logger.debug(
+        `client removed ${client.kind} ${client.remoteAddr} id=${client.id} (total=${this.clients.size})`,
+      );
       this.emit('statusChanged');
     }
   }
 
   handleClientFrame(client: BridgeClient, payload: Buffer): void {
     if (this.sendQueue.length >= SEND_QUEUE_MAX) {
+      logger.warn(
+        `send queue full; dropped ${payload.length}B from ${client.remoteAddr} (queue=${this.sendQueue.length})`,
+      );
       emit.error(
         `Bridge: send queue full; dropped ${payload.length} bytes from ${client.remoteAddr}`,
       );
       return;
     }
+    logger.trace(
+      `queue ← ${client.kind} ${client.remoteAddr} ${payload.length}B cmd=0x${(payload[0] ?? 0).toString(16).padStart(2, '0')} (queue=${this.sendQueue.length + 1})`,
+    );
     this.sendQueue.push({ payload, client });
     void this.runWorker();
   }
@@ -111,10 +126,14 @@ export class BridgeHub extends EventEmitter {
   private onPacket = (p: RawPacket) => {
     if (this.clients.size === 0) return;
     const buf = Buffer.from(p.bytes);
+    logger.trace(
+      `radio → fanout ${buf.length}B kind=${p.kind} code=0x${(buf[0] ?? 0).toString(16).padStart(2, '0')} clients=${this.clients.size}`,
+    );
     for (const client of this.clients) {
       try {
         client.send(buf);
       } catch (err) {
+        logger.warn(`fanout to ${client.remoteAddr} failed: ${(err as Error).message}`);
         emit.error(`Bridge: send to ${client.remoteAddr} failed: ${(err as Error).message}`);
       }
     }
@@ -137,14 +156,21 @@ export class BridgeHub extends EventEmitter {
         if (!item) break;
         const transport = transportManager.getTransport();
         if (!transport?.sendBytes) {
+          logger.warn(
+            `no radio attached; dropped ${item.payload.length}B from ${item.client.remoteAddr}`,
+          );
           emit.error(
             `Bridge: dropped ${item.payload.length} bytes from ${item.client.remoteAddr} (no radio)`,
           );
           continue;
         }
         try {
+          logger.trace(
+            `→ radio ${item.payload.length}B from ${item.client.remoteAddr} cmd=0x${(item.payload[0] ?? 0).toString(16).padStart(2, '0')}`,
+          );
           await transport.sendBytes(item.payload);
         } catch (err) {
+          logger.warn(`radio send failed for ${item.client.remoteAddr}: ${(err as Error).message}`);
           emit.error(
             `Bridge: send to radio failed for ${item.client.remoteAddr}: ${(err as Error).message}`,
           );

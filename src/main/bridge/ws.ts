@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { emit } from '../events/bus';
+import { child } from '../log';
 import type { BridgeClient, BridgeHub } from './hub';
+
+const logger = child('bridge:ws');
 
 export interface WsListenerHandle {
   port: number;
@@ -18,6 +21,7 @@ export async function startWsListener(
 ): Promise<WsListenerHandle> {
   const httpServer = await listenWithFallback(bindAddress, startPort);
   const boundPort = (httpServer.address() as { port: number } | null)?.port ?? startPort;
+  logger.info(`listening on ${bindAddress}:${boundPort}`);
 
   httpServer.on('request', (_req, res) => {
     res.statusCode = 426;
@@ -39,6 +43,9 @@ export async function startWsListener(
       remoteAddr,
       send(payload) {
         if (ws.readyState !== ws.OPEN) return;
+        logger.trace(
+          `PROXY_TX ${remoteAddr} ${payload.length}B code=0x${(payload[0] ?? 0).toString(16).padStart(2, '0')} hex=${payload.toString('hex')}`,
+        );
         ws.send(payload, { binary: true });
       },
       close(reason) {
@@ -50,17 +57,28 @@ export async function startWsListener(
       },
     };
 
+    logger.debug(`client connected ${remoteAddr} id=${client.id}`);
     hub.add(client);
 
     ws.on('message', (data, isBinary) => {
-      if (!isBinary) return;
+      if (!isBinary) {
+        logger.warn(`non-binary message from ${remoteAddr}; ignored`);
+        return;
+      }
       const buf = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
+      logger.trace(
+        `PROXY_RX ${remoteAddr} ${buf.length}B cmd=0x${(buf[0] ?? 0).toString(16).padStart(2, '0')} hex=${buf.toString('hex')}`,
+      );
       hub.handleClientFrame(client, buf);
     });
     ws.on('error', (err) => {
       emit.error(`Bridge WS ${remoteAddr}: ${err.message}`);
+      logger.warn(`socket error ${remoteAddr}: ${err.message}`);
     });
-    ws.on('close', () => hub.remove(client));
+    ws.on('close', () => {
+      logger.debug(`client disconnected ${remoteAddr}`);
+      hub.remove(client);
+    });
   });
 
   return {

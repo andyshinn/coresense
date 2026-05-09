@@ -3,9 +3,14 @@ import { app, BrowserWindow } from 'electron';
 import started from 'electron-squirrel-startup';
 import { getApiKey } from './api/middleware/auth';
 import { type BridgeHandle, startBridge } from './bridge';
+import { child, log } from './log';
 import { startServer } from './server';
 import { BleTransport } from './transport/ble';
 import { transportManager } from './transport/manager';
+
+const SHUTDOWN_BLE_TIMEOUT_MS = 5000;
+
+const rendererLog = child('renderer');
 
 if (started) {
   app.quit();
@@ -27,16 +32,14 @@ async function bootstrap() {
   transportManager.setTransport(new BleTransport());
 
   bridgeHandle = await startBridge();
-  // eslint-disable-next-line no-console
-  console.log(
-    `CoreSense bridge: TCP=${bridgeHandle.tcpPort ?? 'off'} WS=${bridgeHandle.wsPort ?? 'off'} mDNS=${bridgeHandle.serviceName ?? 'off'}`,
+  log.info(
+    `bridge: TCP=${bridgeHandle.tcpPort ?? 'off'} WS=${bridgeHandle.wsPort ?? 'off'} mDNS=${bridgeHandle.serviceName ?? 'off'}`,
   );
 
   const rendererDir = isDev ? null : path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`);
 
   serverHandle = await startServer(rendererDir, bridgeHandle);
-  // eslint-disable-next-line no-console
-  console.log(`CoreSense server listening on http://127.0.0.1:${serverHandle.port}`);
+  log.info(`server listening on http://127.0.0.1:${serverHandle.port}`);
 
   createWindow();
 }
@@ -52,21 +55,16 @@ function createWindow() {
     },
   });
 
-  // Pipe renderer console messages + page errors to the main process stdout so
+  // Pipe renderer console messages + page errors through the main logger so
   // we can see them when running headless via `pnpm start`.
   mainWindow.webContents.on('console-message', (event) => {
-    // eslint-disable-next-line no-console
-    console.log(
-      `[renderer:${event.level}] ${event.message} (${event.sourceId}:${event.lineNumber})`,
-    );
+    rendererLog.debug(`[${event.level}] ${event.message} (${event.sourceId}:${event.lineNumber})`);
   });
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
-    // eslint-disable-next-line no-console
-    console.error(`[renderer:gone] ${details.reason} (exit=${details.exitCode})`);
+    rendererLog.error(`gone: ${details.reason} (exit=${details.exitCode})`);
   });
   mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
-    // eslint-disable-next-line no-console
-    console.error(`[renderer:did-fail-load] ${code} ${desc} ${url}`);
+    rendererLog.error(`did-fail-load: ${code} ${desc} ${url}`);
   });
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -80,15 +78,23 @@ function createWindow() {
 
 app.on('ready', () => {
   bootstrap().catch((err) => {
-    // eslint-disable-next-line no-console
-    console.error('Failed to start CoreSense:', err);
+    log.fatal(`failed to start: ${(err as Error).stack ?? err}`);
     app.quit();
   });
 });
 
+let isShuttingDown = false;
+let shutdownPromise: Promise<void> | null = null;
+
+function beginShutdown(): Promise<void> {
+  if (!shutdownPromise) shutdownPromise = shutdown();
+  return shutdownPromise;
+}
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    void shutdown().finally(() => app.quit());
+    // app.quit() will fire before-quit which handles the awaited shutdown.
+    app.quit();
   }
 });
 
@@ -98,8 +104,11 @@ app.on('activate', () => {
   }
 });
 
-app.on('before-quit', () => {
-  void shutdown();
+app.on('before-quit', (event) => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  event.preventDefault();
+  beginShutdown().finally(() => app.exit(0));
 });
 
 async function shutdown() {
@@ -107,12 +116,35 @@ async function shutdown() {
   if (serverHandle) {
     const handle = serverHandle;
     serverHandle = null;
-    tasks.push(handle.close().catch(() => undefined));
+    tasks.push(
+      handle.close().catch((err) => log.warn(`server close failed: ${(err as Error).message}`)),
+    );
   }
   if (bridgeHandle) {
     const handle = bridgeHandle;
     bridgeHandle = null;
-    tasks.push(handle.close().catch(() => undefined));
+    tasks.push(
+      handle.close().catch((err) => log.warn(`bridge close failed: ${(err as Error).message}`)),
+    );
   }
+
+  // Transport shutdown releases noble's native CBCentralManager so the
+  // Electron process can terminate on macOS. Race against a timeout in case
+  // a flaky peripheral makes disconnect hang.
+  tasks.push(
+    Promise.race([
+      transportManager.shutdown().then(() => 'ok' as const),
+      new Promise<'timeout'>((resolve) =>
+        setTimeout(() => resolve('timeout'), SHUTDOWN_BLE_TIMEOUT_MS),
+      ),
+    ])
+      .then((result) => {
+        if (result === 'timeout') {
+          log.warn(`transport shutdown did not finish within ${SHUTDOWN_BLE_TIMEOUT_MS}ms`);
+        }
+      })
+      .catch((err) => log.warn(`transport shutdown threw: ${(err as Error).message}`)),
+  );
+
   await Promise.allSettled(tasks);
 }

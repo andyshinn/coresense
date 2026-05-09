@@ -40,7 +40,7 @@ export async function startServer(
       maxAge: 600,
     }),
   );
-  app.use('*', apiKeyAuth);
+  app.use('/api/*', apiKeyAuth);
   app.route(
     '/',
     createRoutes({

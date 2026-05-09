@@ -1,7 +1,11 @@
-import noble, { type Characteristic, type Peripheral } from '@abandonware/noble';
+import noble, { type Characteristic, type Peripheral } from '@stoprocent/noble';
 import type { BleDevice } from '../../shared/types';
 import { emit } from '../events/bus';
+import { child } from '../log';
+import { parseCompanionFrame } from './companionFrame';
 import type { ITransport } from './types';
+
+const logger = child('transport:ble');
 
 // MeshCore BLE UUIDs and known device-name prefixes.
 // Source: https://github.com/zjs81/meshcore-open/blob/main/lib/connector/meshcore_uuids.dart
@@ -97,14 +101,16 @@ export class BleTransport implements ITransport {
   async connect(deviceId: string): Promise<void> {
     this.userDisconnected = false;
     await this.stopScan();
+    logger.info(`connecting to ${deviceId}`);
     emit.transportState('connecting', deviceId);
 
     const peripheral = await this.findPeripheral(deviceId);
     this.peripheral = peripheral;
 
     await new Promise<void>((resolve, reject) => {
-      peripheral.connect((err) => (err ? reject(new Error(err)) : resolve()));
+      peripheral.connect((err) => (err ? reject(err) : resolve()));
     });
+    logger.debug(`gatt connected to ${deviceId}; discovering services`);
 
     const { characteristics } = await new Promise<{
       characteristics: Characteristic[];
@@ -113,7 +119,7 @@ export class BleTransport implements ITransport {
         [normalizeUuid(MESHCORE_SERVICE_UUID)],
         [normalizeUuid(MESHCORE_RX_CHAR_UUID), normalizeUuid(MESHCORE_TX_CHAR_UUID)],
         (err, _services, chars) =>
-          err ? reject(new Error(err)) : resolve({ characteristics: chars }),
+          err ? reject(err) : resolve({ characteristics: chars }),
       );
     });
 
@@ -124,10 +130,11 @@ export class BleTransport implements ITransport {
 
     tx.on('data', this.onData);
     await new Promise<void>((resolve, reject) =>
-      tx.subscribe((err) => (err ? reject(new Error(err)) : resolve())),
+      tx.subscribe((err) => (err ? reject(err) : resolve())),
     );
 
     peripheral.once('disconnect', () => this.onPeripheralDisconnect(deviceId));
+    logger.info(`connected ${deviceId}; notifications subscribed`);
     emit.transportState('connected', deviceId);
   }
 
@@ -149,6 +156,18 @@ export class BleTransport implements ITransport {
     emit.transportState('idle');
   }
 
+  // Releases noble's native CBCentralManager so the Electron process can exit
+  // on macOS. Only safe at app shutdown — noble cannot be re-initialized in
+  // the same process after stop().
+  async shutdown(): Promise<void> {
+    await this.disconnect();
+    try {
+      noble.stop();
+    } catch (err) {
+      logger.warn(`noble.stop() threw: ${(err as Error).message}`);
+    }
+  }
+
   async sendBytes(bytes: Buffer): Promise<void> {
     if (!this.peripheral) throw new Error('Not connected');
     // The device's RX characteristic is where we write commands.
@@ -156,8 +175,11 @@ export class BleTransport implements ITransport {
       .flatMap((s) => s.characteristics)
       .find((c) => c.uuid === normalizeUuid(MESHCORE_RX_CHAR_UUID));
     if (!rxChar) throw new Error('RX characteristic not found');
+    logger.trace(
+      `BLE_TX ${bytes.length}B cmd=0x${(bytes[0] ?? 0).toString(16).padStart(2, '0')} hex=${bytes.toString('hex')}`,
+    );
     await new Promise<void>((resolve, reject) =>
-      rxChar.write(bytes, false, (err) => (err ? reject(new Error(err)) : resolve())),
+      rxChar.write(bytes, false, (err) => (err ? reject(err) : resolve())),
     );
   }
 
@@ -165,8 +187,8 @@ export class BleTransport implements ITransport {
     // If we already saw this device in the most recent scan, use it directly.
     const existing = this.discovered.get(deviceId);
     if (existing) {
-      const peripheral = (noble as unknown as { _peripherals?: Record<string, Peripheral> })
-        ._peripherals?.[deviceId];
+      const peripheral = (noble as unknown as { _peripherals?: Map<string, Peripheral> })
+        ._peripherals?.get(deviceId);
       if (peripheral) return Promise.resolve(peripheral);
     }
     return new Promise((resolve, reject) => {
@@ -209,15 +231,51 @@ export class BleTransport implements ITransport {
   };
 
   private onData = (data: Buffer, _isNotification: boolean) => {
-    emit.packet({
-      timestamp: Date.now(),
-      transportType: 'ble',
-      hex: data.toString('hex'),
-      bytes: [...data],
-    });
+    const parsed = parseCompanionFrame(data);
+    const fullHex = data.toString('hex');
+    if (!parsed) {
+      logger.trace(`BLE_RX ${data.length}B (unparsed) hex=${fullHex}`);
+      return;
+    }
+    if (parsed.kind === 'companion') {
+      logger.trace(
+        `BLE_RX ${data.length}B ${parsed.codeName} (0x${parsed.code.toString(16).padStart(2, '0')}) payload=${parsed.payloadBytes.length}B hex=${fullHex}`,
+      );
+    } else {
+      logger.trace(
+        `BLE_RX ${data.length}B mesh snr=${parsed.snr} rssi=${parsed.rssi} bytes=${parsed.meshBytes.length} hex=${fullHex}`,
+      );
+    }
+    const fullBytes = [...data];
+    if (parsed.kind === 'mesh') {
+      emit.packet({
+        timestamp: Date.now(),
+        transportType: 'ble',
+        kind: 'mesh',
+        hex: fullHex,
+        bytes: fullBytes,
+        payloadHex: parsed.meshHex,
+        payloadBytes: [...parsed.meshBytes],
+        snr: parsed.snr,
+        rssi: parsed.rssi,
+      });
+    } else {
+      emit.packet({
+        timestamp: Date.now(),
+        transportType: 'ble',
+        kind: 'companion',
+        hex: fullHex,
+        bytes: fullBytes,
+        payloadHex: parsed.payloadHex,
+        payloadBytes: [...parsed.payloadBytes],
+        code: parsed.code,
+        codeName: parsed.codeName,
+      });
+    }
   };
 
   private onPeripheralDisconnect = (deviceId: string) => {
+    logger.warn(`peripheral disconnected ${deviceId} userInitiated=${this.userDisconnected}`);
     if (this.txChar) {
       this.txChar.removeListener('data', this.onData);
       this.txChar = null;
@@ -228,6 +286,7 @@ export class BleTransport implements ITransport {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect(deviceId).catch((err) => {
+        logger.warn(`reconnect to ${deviceId} failed: ${(err as Error).message}`);
         emit.error(`Reconnect to ${deviceId} failed: ${(err as Error).message}`);
       });
     }, RECONNECT_DELAY_MS);

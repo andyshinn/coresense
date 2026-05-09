@@ -6,7 +6,7 @@ export default defineConfig({
       external: [
         'electron',
         'electron-squirrel-startup',
-        '@abandonware/noble',
+        '@stoprocent/noble',
         'serialport',
         'ws',
         'bufferutil',

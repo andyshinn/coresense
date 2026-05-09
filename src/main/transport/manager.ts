@@ -26,6 +26,15 @@ class TransportManager {
   async disconnect(): Promise<void> {
     if (this.active) await this.active.disconnect();
   }
+
+  async shutdown(): Promise<void> {
+    if (!this.active) return;
+    if (this.active.shutdown) {
+      await this.active.shutdown();
+    } else {
+      await this.active.disconnect();
+    }
+  }
 }
 
 export const transportManager = new TransportManager();

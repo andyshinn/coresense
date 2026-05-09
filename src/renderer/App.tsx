@@ -184,7 +184,7 @@ export function App() {
         </div>
       )}
 
-      <main className="grid flex-1 grid-cols-1 gap-4 overflow-hidden p-4 lg:grid-cols-[360px_1fr]">
+      <main className="flex flex-1 flex-col gap-4 overflow-hidden p-4 lg:flex-row">
         <ConnectionPanel
           state={transportState}
           devices={devices}
