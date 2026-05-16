@@ -5,7 +5,25 @@ import { type ServerType, serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { type WebSocket, WebSocketServer } from 'ws';
-import type { BleDevice, RawPacket, TransportState, WsMessage } from '../shared/types';
+import type {
+  AppSettings,
+  BleDevice,
+  Channel,
+  Contact,
+  MenuAction,
+  Message,
+  MessageState,
+  Owner,
+  PathLearnedEvent,
+  RadioSettings,
+  RawPacket,
+  RepeaterStatusSnapshot,
+  RepeaterTelemetrySnapshot,
+  SyncProgress,
+  ThemePush,
+  TransportState,
+  WsMessage,
+} from '../shared/types';
 import { apiKeyAuth, checkWsKey } from './api/middleware/auth';
 import { createRoutes } from './api/routes';
 import type { BridgeHandle } from './bridge';
@@ -34,7 +52,7 @@ export async function startServer(
     '*',
     cors({
       origin: (origin) => origin ?? '*',
-      allowMethods: ['GET', 'POST', 'OPTIONS'],
+      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       allowHeaders: ['Authorization', 'Content-Type'],
       credentials: false,
       maxAge: 600,
@@ -126,21 +144,76 @@ export async function startServer(
     broadcast({ type: 'scanResults', payload: devices });
   const onError = (message: string) => broadcast({ type: 'error', payload: { message } });
   const onBridgeStatus = () => broadcast({ type: 'bridgeStatus', payload: bridge.getStatus() });
+  const onMenuAction = (action: MenuAction) => broadcast({ type: 'menuAction', payload: action });
+  const onTheme = (push: ThemePush) => broadcast({ type: 'theme', payload: push });
+  const onChannels = (channels: Channel[]) => broadcast({ type: 'channels', payload: channels });
+  const onChannelPresence = (keys: string[]) =>
+    broadcast({ type: 'channelPresence', payload: { keys } });
+  const onSyncProgress = (progress: SyncProgress) =>
+    broadcast({ type: 'syncProgress', payload: progress });
+  const onContacts = (contacts: Contact[]) => broadcast({ type: 'contacts', payload: contacts });
+  const onMessages = (key: string, messages: Message[]) =>
+    broadcast({ type: 'messages', payload: { key, messages } });
+  const onMessageState = (id: string, state: MessageState) =>
+    broadcast({ type: 'messageState', payload: { id, state } });
+  const onOwner = (owner: Owner | null) => broadcast({ type: 'owner', payload: owner });
+  const onAppSettings = (settings: AppSettings) =>
+    broadcast({ type: 'appSettings', payload: settings });
+  const onRadioSettings = (settings: RadioSettings) =>
+    broadcast({ type: 'radioSettings', payload: settings });
+  const onRepeaterStatus = (snap: RepeaterStatusSnapshot) =>
+    broadcast({ type: 'repeaterStatus', payload: snap });
+  const onRepeaterTelemetry = (snap: RepeaterTelemetrySnapshot) =>
+    broadcast({ type: 'repeaterTelemetry', payload: snap });
+  const onPathLearned = (event: PathLearnedEvent) =>
+    broadcast({ type: 'pathLearned', payload: event });
 
   bus.on('packet', onPacket);
   bus.on('transportState', onTransportState);
   bus.on('scanResults', onScanResults);
-  bus.on('error', onError);
+  bus.on('errorMessage', onError);
+  bus.on('menuAction', onMenuAction);
+  bus.on('theme', onTheme);
+  bus.on('channels', onChannels);
+  bus.on('channelPresence', onChannelPresence);
+  bus.on('syncProgress', onSyncProgress);
+  bus.on('contacts', onContacts);
+  bus.on('messages', onMessages);
+  bus.on('messageState', onMessageState);
+  bus.on('owner', onOwner);
+  bus.on('appSettings', onAppSettings);
+  bus.on('radioSettings', onRadioSettings);
+  bus.on('repeaterStatus', onRepeaterStatus);
+  bus.on('repeaterTelemetry', onRepeaterTelemetry);
+  bus.on('pathLearned', onPathLearned);
   bridge.on('statusChanged', onBridgeStatus);
 
   const close = async () => {
     bus.off('packet', onPacket);
     bus.off('transportState', onTransportState);
     bus.off('scanResults', onScanResults);
-    bus.off('error', onError);
+    bus.off('errorMessage', onError);
+    bus.off('menuAction', onMenuAction);
+    bus.off('theme', onTheme);
+    bus.off('channels', onChannels);
+    bus.off('channelPresence', onChannelPresence);
+    bus.off('syncProgress', onSyncProgress);
+    bus.off('contacts', onContacts);
+    bus.off('messages', onMessages);
+    bus.off('messageState', onMessageState);
+    bus.off('owner', onOwner);
+    bus.off('appSettings', onAppSettings);
+    bus.off('radioSettings', onRadioSettings);
+    bus.off('repeaterStatus', onRepeaterStatus);
+    bus.off('repeaterTelemetry', onRepeaterTelemetry);
+    bus.off('pathLearned', onPathLearned);
     bridge.off('statusChanged', onBridgeStatus);
-    for (const c of clients) c.close();
+    // Force-terminate WS clients and HTTP keep-alives. The renderer is still
+    // alive during shutdown (before-quit preventDefault), so graceful close
+    // would wait forever for the renderer to ack the close frame.
+    for (const c of clients) c.terminate();
     await new Promise<void>((resolve) => wss.close(() => resolve()));
+    (httpServer as { closeAllConnections?: () => void }).closeAllConnections?.();
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
   };
 

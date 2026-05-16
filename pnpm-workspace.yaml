@@ -3,6 +3,7 @@ allowBuilds:
   '@serialport/bindings-cpp': true
   '@stoprocent/bluetooth-hci-socket': true
   '@stoprocent/noble': true
+  electron: true
   electron-winstaller: true
   es5-ext: set this to true or false
   esbuild: true

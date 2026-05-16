@@ -15,6 +15,7 @@ import type { ForgeConfig } from '@electron-forge/shared-types';
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    icon: 'build/icon',
     // The Vite plugin's default ignore excludes everything outside /.vite, but
     // we need /node_modules for native modules (@abandonware/noble, better-sqlite3)
     // that cannot be bundled by Rollup. AutoUnpackNativesPlugin moves the .node
@@ -52,9 +53,9 @@ const config: ForgeConfig = {
     },
   },
   makers: [
-    new MakerSquirrel({}),
+    new MakerSquirrel({ setupIcon: 'build/icon.ico' }),
     new MakerZIP({}, ['darwin', 'win32']),
-    new MakerDMG({}),
+    new MakerDMG({ icon: 'build/icon.icns' }),
     new MakerRpm({}),
     new MakerDeb({}),
   ],

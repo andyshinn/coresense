@@ -1,4 +1,71 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+/* Field Console palette. Default values are dark-mode; light-mode values are
+   written by applyTheme() in src/renderer/lib/theme.ts. Components reference
+   these via Tailwind arbitrary values (e.g. `bg-[rgb(var(--cs-bg))]`) or via
+   the named Tailwind tokens registered in the @theme block below. */
+:root {
+  color-scheme: dark;
+  --cs-bg: 12 10 6;
+  --cs-bg-2: 24 19 11;
+  --cs-bg-3: 34 27 16;
+  --cs-text: 245 241 230;
+  --cs-text-muted: 193 178 145;
+  --cs-text-dim: 128 117 96;
+  --cs-border: 42 36 25;
+  --cs-border-strong: 58 51 34;
+  --cs-accent: 245 158 11;
+  --cs-accent-soft: 146 64 14;
+  --cs-online: 132 204 22;
+  --cs-warn: 245 158 11;
+  --cs-danger: 220 38 38;
+}
+
+/* Map shadcn's semantic color tokens to the cs-* palette so primitives
+   (Dialog, Popover, Command, Input, etc.) render with the field-console theme
+   instead of falling through to transparent / unset Tailwind defaults. */
+@theme {
+  --color-background: rgb(var(--cs-bg));
+  --color-foreground: rgb(var(--cs-text));
+  --color-card: rgb(var(--cs-bg-2));
+  --color-card-foreground: rgb(var(--cs-text));
+  --color-popover: rgb(var(--cs-bg-2));
+  --color-popover-foreground: rgb(var(--cs-text));
+  --color-primary: rgb(var(--cs-accent));
+  --color-primary-foreground: rgb(var(--cs-bg));
+  --color-secondary: rgb(var(--cs-bg-3));
+  --color-secondary-foreground: rgb(var(--cs-text));
+  --color-muted: rgb(var(--cs-bg-3));
+  --color-muted-foreground: rgb(var(--cs-text-muted));
+  --color-accent: rgb(var(--cs-bg-3));
+  --color-accent-foreground: rgb(var(--cs-text));
+  --color-destructive: rgb(var(--cs-danger));
+  --color-destructive-foreground: rgb(var(--cs-text));
+  --color-border: rgb(var(--cs-border));
+  --color-input: rgb(var(--cs-border));
+  --color-ring: rgb(var(--cs-accent));
+}
+
+@theme {
+  --color-cs-bg: rgb(var(--cs-bg));
+  --color-cs-bg-2: rgb(var(--cs-bg-2));
+  --color-cs-bg-3: rgb(var(--cs-bg-3));
+  --color-cs-text: rgb(var(--cs-text));
+  --color-cs-text-muted: rgb(var(--cs-text-muted));
+  --color-cs-text-dim: rgb(var(--cs-text-dim));
+  --color-cs-border: rgb(var(--cs-border));
+  --color-cs-border-strong: rgb(var(--cs-border-strong));
+  --color-cs-accent: rgb(var(--cs-accent));
+  --color-cs-accent-soft: rgb(var(--cs-accent-soft));
+  --color-cs-online: rgb(var(--cs-online));
+  --color-cs-warn: rgb(var(--cs-warn));
+  --color-cs-danger: rgb(var(--cs-danger));
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+}
 
 html,
 body,
@@ -8,5 +75,17 @@ body,
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
+  background: rgb(var(--cs-bg));
+  color: rgb(var(--cs-text));
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Window-drag affordances for the custom title bar (Electron docs:
+   custom-window-interactions). Children opt out so buttons remain clickable. */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
 }

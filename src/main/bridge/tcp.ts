@@ -25,11 +25,13 @@ export async function startTcpListener(
 
   server.on('connection', (socket) => {
     const decoder = new FrameDecoder();
-    const remoteAddr = `${socket.remoteAddress ?? 'unknown'}:${socket.remotePort ?? 0}`;
+    const remoteIp = socket.remoteAddress ?? null;
+    const remoteAddr = `${remoteIp ?? 'unknown'}:${socket.remotePort ?? 0}`;
     const client: BridgeClient = {
       id: randomUUID(),
       kind: 'tcp',
       remoteAddr,
+      remoteIp,
       send(payload) {
         if (!socket.writable) return;
         logger.trace(
@@ -44,6 +46,9 @@ export async function startTcpListener(
     };
 
     socket.setNoDelay(true);
+    // Send TCP keepalive probes after 30s of idle so NATs / firewalls in the
+    // path don't silently drop the connection while BLE is recovering.
+    socket.setKeepAlive(true, 30_000);
     logger.debug(`client connected ${remoteAddr} id=${client.id}`);
     hub.add(client);
 

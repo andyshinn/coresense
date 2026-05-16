@@ -3,8 +3,10 @@ import type { BridgeStatus, RawPacket, TransportState } from '../../shared/types
 import { bus, emit } from '../events/bus';
 import { child } from '../log';
 import { transportManager } from '../transport/manager';
+import { InboxRouter } from './drain';
 
 const logger = child('bridge:hub');
+const inboxLogger = child('bridge:inbox');
 
 export type ClientKind = 'tcp' | 'ws';
 
@@ -12,11 +14,18 @@ export interface BridgeClient {
   id: string;
   kind: ClientKind;
   remoteAddr: string;
+  remoteIp: string | null;
   send(payload: Buffer): void;
   close(reason?: string): void;
 }
 
 const SEND_QUEUE_MAX = 100;
+// Defense in depth: even if a transport's sendBytes() promise hangs, this
+// per-item cap keeps the worker moving so the queue can't fill behind it.
+// Transports should have their own (tighter) write timeout; this is the
+// backstop. Kept generously above the BLE write timeout (15s) so a healthy
+// but slow write isn't pre-empted by the hub.
+const SEND_ITEM_TIMEOUT_MS = 20_000;
 
 interface QueuedSend {
   payload: Buffer;
@@ -33,9 +42,17 @@ export class BridgeHub extends EventEmitter {
   private tcpPort: number | null = null;
   private wsPort: number | null = null;
   private mdnsServiceName: string | null = null;
+  private readonly inboxRouter: InboxRouter;
 
   constructor() {
     super();
+    this.inboxRouter = new InboxRouter({
+      forwardToDevice: (client, payload) => this.enqueueToDevice(client, payload),
+      log: {
+        trace: (msg) => inboxLogger.trace(msg),
+        debug: (msg) => inboxLogger.debug(msg),
+      },
+    });
     bus.on('packet', this.onPacket);
     bus.on('transportState', this.onTransportState);
   }
@@ -60,11 +77,13 @@ export class BridgeHub extends EventEmitter {
     logger.debug(
       `client added ${client.kind} ${client.remoteAddr} id=${client.id} (total=${this.clients.size})`,
     );
+    this.inboxRouter.addClient(client);
     this.emit('statusChanged');
   }
 
   remove(client: BridgeClient): void {
     if (this.clients.delete(client)) {
+      this.inboxRouter.removeClient(client);
       logger.debug(
         `client removed ${client.kind} ${client.remoteAddr} id=${client.id} (total=${this.clients.size})`,
       );
@@ -73,6 +92,13 @@ export class BridgeHub extends EventEmitter {
   }
 
   handleClientFrame(client: BridgeClient, payload: Buffer): void {
+    if (this.inboxRouter.handleClientFrame(client, payload) === 'handled') {
+      return;
+    }
+    this.enqueueToDevice(client, payload);
+  }
+
+  private enqueueToDevice(client: BridgeClient, payload: Buffer): void {
     if (this.sendQueue.length >= SEND_QUEUE_MAX) {
       logger.warn(
         `send queue full; dropped ${payload.length}B from ${client.remoteAddr} (queue=${this.sendQueue.length})`,
@@ -124,10 +150,14 @@ export class BridgeHub extends EventEmitter {
   }
 
   private onPacket = (p: RawPacket) => {
-    if (this.clients.size === 0) return;
     const buf = Buffer.from(p.bytes);
+    const code = buf[0] ?? 0;
+    if (this.inboxRouter.handleDeviceFrame(code, buf) === 'consumed') {
+      return;
+    }
+    if (this.clients.size === 0) return;
     logger.trace(
-      `radio → fanout ${buf.length}B kind=${p.kind} code=0x${(buf[0] ?? 0).toString(16).padStart(2, '0')} clients=${this.clients.size}`,
+      `radio → fanout ${buf.length}B kind=${p.kind} code=0x${code.toString(16).padStart(2, '0')} clients=${this.clients.size}`,
     );
     for (const client of this.clients) {
       try {
@@ -143,6 +173,7 @@ export class BridgeHub extends EventEmitter {
     const next = state === 'connected';
     if (next !== this.radioConnected) {
       this.radioConnected = next;
+      if (next) this.inboxRouter.reset();
       this.emit('statusChanged');
     }
   };
@@ -168,7 +199,7 @@ export class BridgeHub extends EventEmitter {
           logger.trace(
             `→ radio ${item.payload.length}B from ${item.client.remoteAddr} cmd=0x${(item.payload[0] ?? 0).toString(16).padStart(2, '0')}`,
           );
-          await transport.sendBytes(item.payload);
+          await this.sendWithTimeout(transport.sendBytes(item.payload));
         } catch (err) {
           logger.warn(`radio send failed for ${item.client.remoteAddr}: ${(err as Error).message}`);
           emit.error(
@@ -179,5 +210,23 @@ export class BridgeHub extends EventEmitter {
     } finally {
       this.workerRunning = false;
     }
+  }
+
+  private sendWithTimeout(p: Promise<void>): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`hub send-worker timeout after ${SEND_ITEM_TIMEOUT_MS}ms`));
+      }, SEND_ITEM_TIMEOUT_MS);
+      p.then(
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      );
+    });
   }
 }

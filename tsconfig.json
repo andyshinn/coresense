@@ -17,7 +17,10 @@
     "sourceMap": true,
     "outDir": "dist",
     "types": ["vite/client", "node"],
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/renderer/*"]
+    }
   },
   "include": ["src", "forge.config.ts", "forge.env.d.ts", "vite.*.config.ts"]
 }

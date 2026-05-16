@@ -1,7 +1,24 @@
 import { app } from 'electron';
 import { Hono } from 'hono';
-import type { BridgeStatus, Capabilities, ServerStatus } from '../../shared/types';
+import type {
+  AppSettings,
+  BridgeStatus,
+  Capabilities,
+  Channel,
+  Contact,
+  RadioSettings,
+  ServerStatus,
+  StateSnapshot,
+  UiState,
+} from '../../shared/types';
+import { adminSessions } from '../bridge/adminSession';
+import { emit } from '../events/bus';
+import { child } from '../log';
+import { protocolSession } from '../protocol';
+import { stateHolder } from '../state/holder';
 import { transportManager } from '../transport/manager';
+
+const log = child('api');
 
 interface RoutesDeps {
   port: () => number;
@@ -34,7 +51,415 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     return c.json(payload);
   });
 
+  // Single hydration endpoint. Renderer calls this on cold boot or after a
+  // reconnect; thereafter it follows WS push events. Per-resource endpoints
+  // (PUT /api/settings/app, etc.) update state and trigger broadcasts.
+  api.get('/api/state/snapshot', (c) => {
+    const t = transportManager.getState();
+    const holder = stateHolder();
+    const payload: StateSnapshot = {
+      capabilities: {
+        isElectron: true,
+        version: app.getVersion(),
+        platform: process.platform,
+        httpPort: port(),
+      },
+      bridge: bridgeStatus(),
+      transport: { state: t.state, deviceId: t.deviceId },
+      owner: holder.getOwner(),
+      channels: holder.getChannels(),
+      channelPresence: protocolSession().getDevicePresence(),
+      syncProgress: protocolSession().getSyncProgress(),
+      contacts: holder.getContacts(),
+      messages: holder.getRecentMessages(),
+      appSettings: holder.getAppSettings(),
+      radioSettings: holder.getRadioSettings(),
+      uiState: holder.getUiState(),
+    };
+    return c.json(payload);
+  });
+
+  api.put('/api/ui-state', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as UiState | null;
+    if (!body) return c.json({ error: 'invalid body' }, 400);
+    stateHolder().setUiState(body);
+    emit.uiState(body);
+    return c.json({ ok: true });
+  });
+
+  api.put('/api/settings/app', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as AppSettings | null;
+    if (!body) return c.json({ error: 'invalid body' }, 400);
+    stateHolder().setAppSettings(body);
+    emit.appSettings(body);
+    return c.json({ ok: true });
+  });
+
+  api.put('/api/settings/radio', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as RadioSettings | null;
+    if (!body) return c.json({ error: 'invalid body' }, 400);
+    stateHolder().setRadioSettings(body);
+    emit.radioSettings(body);
+    return c.json({ ok: true });
+  });
+
+  api.get('/api/channels', (c) => c.json(stateHolder().getChannels()));
+  api.put('/api/channels/:key', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const body = (await c.req.json().catch(() => null)) as Channel | null;
+    if (!body || body.key !== key) return c.json({ error: 'invalid body' }, 400);
+    const holder = stateHolder();
+    holder.upsertChannel(body);
+    emit.channels(holder.getChannels());
+    return c.json({ ok: true });
+  });
+  api.delete('/api/channels/:key', (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const holder = stateHolder();
+    holder.removeChannel(key);
+    emit.channels(holder.getChannels());
+    return c.json({ ok: true });
+  });
+
+  // Reorder: renderer sends the full key array in desired order. We rewrite
+  // each channel's `order` field by position. Unknown keys are ignored.
+  api.post('/api/channels/reorder', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { keys?: string[] } | null;
+    if (!body || !Array.isArray(body.keys)) return c.json({ error: 'invalid body' }, 400);
+    const holder = stateHolder();
+    const orderByKey = new Map(body.keys.map((k, i) => [k, i]));
+    const next = holder.getChannels().map((ch) => {
+      const o = orderByKey.get(ch.key);
+      return o === undefined ? ch : { ...ch, order: o };
+    });
+    holder.setChannels(next);
+    emit.channels(next);
+    return c.json({ ok: true });
+  });
+
+  // Push an app-stored channel to a free slot on the connected device. If the
+  // channel already has a confirmed `idx` (i.e. it's already on the device),
+  // we overwrite that slot — effectively an "edit in place".
+  api.post('/api/channels/:key/push-to-device', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const holder = stateHolder();
+    const channel = holder.getChannels().find((ch) => ch.key === key);
+    if (!channel) return c.json({ error: `unknown channel ${key}` }, 404);
+    const session = protocolSession();
+    const presence = new Set(session.getDevicePresence());
+    const slotInUse = presence.has(key) && typeof channel.idx === 'number';
+    const idx = slotInUse ? (channel.idx as number) : session.pickFreeSlot();
+    if (idx === null) return c.json({ error: 'all 16 channel slots are in use' }, 409);
+    const secret = channel.secretHex ?? session.deriveSecret(channel.name);
+    const ok = await session.setChannel(idx, channel.name, secret);
+    if (!ok) return c.json({ error: 'radio rejected SET_CHANNEL or timed out' }, 503);
+    // Stamp the now-confirmed idx + derived secret onto our copy so future
+    // sends route to the right slot even before the next enumeration.
+    const updated = { ...channel, idx, secretHex: secret };
+    holder.upsertChannel(updated);
+    // Firmware doesn't push a CHANNEL_INFO back for SET — update local
+    // presence state ourselves so the renderer un-grays the channel
+    // immediately rather than waiting for the next reconnect enumeration.
+    session.markChannelPresent(updated);
+    emit.channels(holder.getChannels());
+    return c.json({ ok: true, idx });
+  });
+
+  // "Remove from device" — zero out the slot so the firmware's empty-key
+  // filter hides it on next enumeration. The channel stays in app storage
+  // (history is preserved). Caller can DELETE /api/channels/:key separately
+  // to forget it entirely.
+  api.post('/api/channels/:key/remove-from-device', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const holder = stateHolder();
+    const channel = holder.getChannels().find((ch) => ch.key === key);
+    if (!channel) return c.json({ error: `unknown channel ${key}` }, 404);
+    if (typeof channel.idx !== 'number') {
+      return c.json({ error: 'channel has no known device slot' }, 409);
+    }
+    const session = protocolSession();
+    const ok = await session.setChannel(channel.idx, '', '00'.repeat(16));
+    if (!ok) return c.json({ error: 'radio rejected SET_CHANNEL or timed out' }, 503);
+    // Free the slot in the dispatch map + clear presence so the renderer
+    // grays the channel without waiting for the next enumeration.
+    session.markChannelAbsent(channel.idx);
+    // Forget the device slot — channel becomes "app-only" until pushed again.
+    holder.upsertChannel({ ...channel, idx: undefined });
+    emit.channels(holder.getChannels());
+    return c.json({ ok: true });
+  });
+
+  api.get('/api/contacts', (c) => c.json(stateHolder().getContacts()));
+  api.put('/api/contacts/:key', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const body = (await c.req.json().catch(() => null)) as Contact | null;
+    if (!body || body.key !== key) return c.json({ error: 'invalid body' }, 400);
+    const holder = stateHolder();
+    holder.upsertContact(body);
+    emit.contacts(holder.getContacts());
+    return c.json({ ok: true });
+  });
+  api.delete('/api/contacts/:key', (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const holder = stateHolder();
+    holder.removeContact(key);
+    emit.contacts(holder.getContacts());
+    return c.json({ ok: true });
+  });
+
+  api.get('/api/messages/:key', (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const limit = Number(c.req.query('limit') ?? '200');
+    const before = c.req.query('before') ? Number(c.req.query('before')) : undefined;
+    return c.json(stateHolder().getMessagesForKey(key, { limit, before }));
+  });
+
+  api.post('/api/messages/:key', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    if (!key.startsWith('ch:') && !key.startsWith('c:')) {
+      return c.json({ error: 'key must be ch:<name> or c:<pubkey>' }, 400);
+    }
+    const body = (await c.req.json().catch(() => null)) as { body?: string } | null;
+    if (!body || typeof body.body !== 'string' || body.body.length === 0) {
+      return c.json({ error: 'body is required' }, 400);
+    }
+    const holder = stateHolder();
+    const id = `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+    // Record the message locally first so the UI sees it immediately, then
+    // hand to the protocol session for TX. The state starts as 'sending' and
+    // flips to 'sent' on a successful write, 'failed' if the transport rejects.
+    holder.insertMessage({
+      id,
+      key,
+      body: body.body,
+      ts: Date.now(),
+      state: 'sending',
+    });
+    emit.messages(key, holder.getMessagesForKey(key));
+
+    if (key.startsWith('ch:')) {
+      const result = await protocolSession().sendChannelText(key, body.body);
+      const nextState = result.ok ? 'sent' : 'failed';
+      holder.setMessageState(id, nextState);
+      emit.messageState(id, nextState);
+      return result.ok ? c.json({ ok: true, id }) : c.json({ error: result.error }, 503);
+    }
+
+    // DM: returns immediately after the first transport-level write so the UI
+    // can render the optimistic message; sendDmTextWithRetry then drives the
+    // 3-known-path + 2-flood retry loop in the background, transitioning the
+    // message state via emit.messageState and emitting `pathLearned` if the
+    // radio discovers a new out_path during fallback.
+    protocolSession()
+      .sendDmTextWithRetry(key, body.body, id)
+      .catch((err) => {
+        holder.setMessageState(id, 'failed');
+        emit.messageState(id, 'failed');
+        log.warn(`sendDmTextWithRetry id=${id}: ${(err as Error).message}`);
+      });
+    return c.json({ ok: true, id });
+  });
+
+  // ---- Per-contact path ------------------------------------------------
+  // Writes the path back to the radio (firmware is the source of truth) and
+  // updates the local Contact record on success. preferDirect is a local-only
+  // flag — no firmware write needed.
+  api.put('/api/contacts/:key/path', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const body = (await c.req.json().catch(() => null)) as {
+      outPathHex?: string;
+      preferDirect?: boolean;
+    } | null;
+    if (!body) return c.json({ error: 'body required' }, 400);
+    const outPathHex = (body.outPathHex ?? '').toLowerCase().replace(/[^0-9a-f]/g, '');
+    try {
+      if (typeof body.preferDirect === 'boolean') {
+        protocolSession().setContactPreferDirect(key, body.preferDirect);
+      }
+      await protocolSession().setContactPath(key, outPathHex, {
+        manual: true,
+        preferDirect: body.preferDirect,
+      });
+      return c.json({ ok: true });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  api.delete('/api/contacts/:key/path', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    try {
+      await protocolSession().resetContactPath(key);
+      return c.json({ ok: true });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  // Radio-wide path-hash mode (1, 2, or 4 bytes per hop).
+  api.put('/api/radio/path-hash-mode', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { size?: number } | null;
+    const size = body?.size;
+    if (size !== 1 && size !== 2 && size !== 4) {
+      return c.json({ error: 'size must be 1, 2, or 4' }, 400);
+    }
+    try {
+      await protocolSession().setPathHashMode(size);
+      return c.json({ ok: true });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
   api.get('/api/transport/state', (c) => c.json(transportManager.getState()));
+
+  // Repeater admin: request a status / telemetry snapshot from a contact.
+  // Synchronous response = "did the radio accept the write"; the snapshot
+  // itself arrives as a separate WS push event after the mesh round-trip.
+  api.post('/api/repeater/:key/status', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const result = await protocolSession().sendStatusReq(key);
+    if (!result.ok) return c.json({ error: result.error }, 503);
+    return c.json({ ok: true });
+  });
+
+  api.post('/api/repeater/:key/telemetry', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const result = await protocolSession().sendTelemetryReq(key);
+    if (!result.ok) return c.json({ error: result.error }, 503);
+    return c.json({ ok: true });
+  });
+
+  // Repeater admin: full session-bearing flow. Login/logout track state in the
+  // adminSessions store; ACL / neighbours / owner-info / CLI awaits the mesh
+  // round-trip and returns the parsed result inline (5-30s typical).
+  api.get('/api/repeater/:key/session', (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    return c.json({ session: adminSessions.getSession(key) });
+  });
+
+  api.post('/api/repeater/:key/login', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const body = (await c.req.json().catch(() => null)) as {
+      password?: string;
+    } | null;
+    if (!body || typeof body.password !== 'string') {
+      return c.json({ error: 'password is required' }, 400);
+    }
+    try {
+      const result = await protocolSession().repeaterLogin(key, body.password);
+      return c.json({ ok: true, session: adminSessions.getSession(key), login: result });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  api.post('/api/repeater/:key/logout', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    try {
+      await protocolSession().repeaterLogout(key);
+      return c.json({ ok: true });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  api.post('/api/repeater/:key/acl', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    try {
+      const entries = await protocolSession().repeaterRequestAcl(key);
+      return c.json({ ok: true, entries });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  api.post('/api/repeater/:key/neighbours', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const body = (await c.req.json().catch(() => ({}))) as {
+      count?: number;
+      offset?: number;
+      orderBy?: number;
+      prefixLen?: number;
+    };
+    try {
+      const page = await protocolSession().repeaterRequestNeighbours(key, body);
+      return c.json({ ok: true, page });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  api.post('/api/repeater/:key/owner', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    try {
+      const info = await protocolSession().repeaterRequestOwnerInfo(key);
+      return c.json({ ok: true, info });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  api.post('/api/repeater/:key/cli', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const body = (await c.req.json().catch(() => null)) as { command?: string } | null;
+    if (!body || typeof body.command !== 'string' || body.command.length === 0) {
+      return c.json({ error: 'command is required' }, 400);
+    }
+    try {
+      const reply = await protocolSession().repeaterSendCli(key, body.command);
+      return c.json({ ok: true, reply });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  api.post('/api/repeater/:key/trace', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as {
+      tag?: number;
+      authCode?: number;
+      flags?: number;
+      pathHex?: string;
+    } | null;
+    if (!body || typeof body.tag !== 'number' || typeof body.pathHex !== 'string') {
+      return c.json({ error: 'tag and pathHex are required' }, 400);
+    }
+    try {
+      const trace = await protocolSession().repeaterTracePath({
+        tag: body.tag,
+        authCode: body.authCode ?? 0,
+        flags: body.flags,
+        pathHex: body.pathHex,
+      });
+      return c.json({ ok: true, trace });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  api.post('/api/repeater/local/stats', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as {
+      subtype?: 'CORE' | 'RADIO' | 'PACKETS';
+    };
+    const subtype = body.subtype ?? 'CORE';
+    if (subtype !== 'CORE' && subtype !== 'RADIO' && subtype !== 'PACKETS') {
+      return c.json({ error: 'invalid subtype' }, 400);
+    }
+    try {
+      const stats = await protocolSession().repeaterGetLocalStats(subtype);
+      return c.json({ ok: true, stats });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  api.post('/api/transport/advert', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { flood?: boolean };
+    const result = await protocolSession().sendSelfAdvert(body.flood ?? true);
+    if (!result.ok) return c.json({ error: result.error }, 503);
+    return c.json({ ok: true });
+  });
 
   api.post('/api/transport/scan', async (c) => {
     const transport = transportManager.getTransport();

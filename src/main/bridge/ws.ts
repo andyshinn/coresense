@@ -36,11 +36,13 @@ export async function startWsListener(
 
   wss.on('connection', (ws: WebSocket, req) => {
     ws.binaryType = 'nodebuffer';
-    const remoteAddr = `${req.socket.remoteAddress ?? 'unknown'}:${req.socket.remotePort ?? 0}`;
+    const remoteIp = req.socket.remoteAddress ?? null;
+    const remoteAddr = `${remoteIp ?? 'unknown'}:${req.socket.remotePort ?? 0}`;
     const client: BridgeClient = {
       id: randomUUID(),
       kind: 'ws',
       remoteAddr,
+      remoteIp,
       send(payload) {
         if (ws.readyState !== ws.OPEN) return;
         logger.trace(
