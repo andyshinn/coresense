@@ -2,7 +2,7 @@ import type { Message, MessageMeta, MessageState } from '../../shared/types';
 import { openDb } from './db';
 
 interface Row {
-  id: string;
+  mid: string;
   kind: string;
   key: string;
   ts: number;
@@ -15,7 +15,7 @@ interface Row {
 function rowToMessage(row: Row): Message {
   const meta = row.meta ? (JSON.parse(row.meta) as MessageMeta) : undefined;
   return {
-    id: row.id,
+    id: row.mid,
     key: row.key,
     fromPublicKeyHex: row.from_pk ?? undefined,
     body: row.body,
@@ -31,20 +31,37 @@ function kindFromKey(key: string): 'channel' | 'dm' {
   throw new Error(`unrecognized message key '${key}'`);
 }
 
+// search.ts wraps FTS5 snippet output with a private-use-area sentinel pair
+// to round-trip <mark> tags through HTML escape. If a message body somehow
+// contains the sentinel (effectively impossible — they're rare codepoints
+// only emitted by us), strip it on the way in so a search snippet can't
+// gain an unintended <mark>. Belt and braces; ~free.
+const SENTINEL_RE = /\u{1F539}(?:START|END)\u{1F539}/gu;
+function sanitizeBody(body: string): string {
+  return body.replace(SENTINEL_RE, '');
+}
+
 export const messagesStore = {
   insert(message: Message): void {
     const db = openDb();
     const kind = kindFromKey(message.key);
+    // Idempotent on app-level id (`mid`). The integer rowid is assigned by
+    // SQLite and is internal — FTS5 uses it as the anchor. Updating an
+    // existing row triggers the AU sync to messages_fts.
     db.prepare(
-      `INSERT OR REPLACE INTO messages (id, kind, key, ts, from_pk, body, state, meta)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO messages (mid, kind, key, ts, from_pk, body, state, meta)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(mid) DO UPDATE SET
+         kind=excluded.kind, key=excluded.key, ts=excluded.ts,
+         from_pk=excluded.from_pk, body=excluded.body, state=excluded.state,
+         meta=excluded.meta`,
     ).run(
       message.id,
       kind,
       message.key,
       message.ts,
       message.fromPublicKeyHex ?? null,
-      message.body,
+      sanitizeBody(message.body),
       message.state,
       message.meta ? JSON.stringify(message.meta) : null,
     );
@@ -55,10 +72,16 @@ export const messagesStore = {
     const limit = opts.limit ?? 200;
     const rows = opts.before
       ? (db
-          .prepare(`SELECT * FROM messages WHERE key = ? AND ts < ? ORDER BY ts DESC LIMIT ?`)
+          .prepare(
+            `SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages
+             WHERE key = ? AND ts < ? ORDER BY ts DESC LIMIT ?`,
+          )
           .all(key, opts.before, limit) as unknown as Row[])
       : (db
-          .prepare(`SELECT * FROM messages WHERE key = ? ORDER BY ts DESC LIMIT ?`)
+          .prepare(
+            `SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages
+             WHERE key = ? ORDER BY ts DESC LIMIT ?`,
+          )
           .all(key, limit) as unknown as Row[]);
     return rows.map(rowToMessage).reverse();
   },
@@ -66,18 +89,22 @@ export const messagesStore = {
   recent(limit = 500): Message[] {
     const db = openDb();
     const rows = db
-      .prepare(`SELECT * FROM messages ORDER BY ts DESC LIMIT ?`)
+      .prepare(
+        `SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages
+         ORDER BY ts DESC LIMIT ?`,
+      )
       .all(limit) as unknown as Row[];
     return rows.map(rowToMessage).reverse();
   },
 
   markState(id: string, state: MessageState): void {
     const db = openDb();
-    db.prepare(`UPDATE messages SET state = ? WHERE id = ?`).run(state, id);
+    db.prepare(`UPDATE messages SET state = ? WHERE mid = ?`).run(state, id);
   },
 
   // Trim per-key history to keep the DB bounded. Default 1000 keeps the last
-  // thousand messages per channel/DM.
+  // thousand messages per channel/DM. The DELETE trigger keeps messages_fts
+  // in sync.
   trimPerKey(key: string, keep = 1000): void {
     const db = openDb();
     db.prepare(

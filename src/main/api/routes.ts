@@ -6,7 +6,9 @@ import type {
   Capabilities,
   Channel,
   Contact,
+  MapSettings,
   RadioSettings,
+  SearchOptions,
   ServerStatus,
   StateSnapshot,
   UiState,
@@ -14,9 +16,12 @@ import type {
 import { adminSessions } from '../bridge/adminSession';
 import { emit } from '../events/bus';
 import { child } from '../log';
+import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
 import { protocolSession } from '../protocol';
 import { stateHolder } from '../state/holder';
+import { searchMessages } from '../storage/search';
 import { transportManager } from '../transport/manager';
+import { buildTileManifest, registerTileRoutes } from './tiles';
 
 const log = child('api');
 
@@ -28,6 +33,8 @@ interface RoutesDeps {
 
 export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   const api = new Hono();
+
+  registerTileRoutes(api);
 
   api.get('/api/capabilities', (c) => {
     const payload: Capabilities = {
@@ -54,7 +61,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // Single hydration endpoint. Renderer calls this on cold boot or after a
   // reconnect; thereafter it follows WS push events. Per-resource endpoints
   // (PUT /api/settings/app, etc.) update state and trigger broadcasts.
-  api.get('/api/state/snapshot', (c) => {
+  api.get('/api/state/snapshot', async (c) => {
     const t = transportManager.getState();
     const holder = stateHolder();
     const payload: StateSnapshot = {
@@ -74,6 +81,8 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       messages: holder.getRecentMessages(),
       appSettings: holder.getAppSettings(),
       radioSettings: holder.getRadioSettings(),
+      mapSettings: holder.getMapSettings(),
+      mapManifest: await buildTileManifest(),
       uiState: holder.getUiState(),
     };
     return c.json(payload);
@@ -101,6 +110,58 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     stateHolder().setRadioSettings(body);
     emit.radioSettings(body);
     return c.json({ ok: true });
+  });
+
+  // Map panel preferences. `hasProtomapsApiKey` is server-owned (derived from
+  // the encrypted blob's presence — Phase 4) and ignored from inbound bodies
+  // so the renderer can't fake it. The API key itself never travels through
+  // this endpoint; see /api/map/api-key (Phase 4).
+  api.put('/api/settings/map', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as MapSettings | null;
+    if (!body) return c.json({ error: 'invalid body' }, 400);
+    const holder = stateHolder();
+    const current = holder.getMapSettings();
+    // hasProtomapsApiKey is server-owned (derived from the encrypted blob's
+    // existence); ignore the inbound value so the renderer can't forge it.
+    const sanitized: MapSettings = {
+      ...body,
+      hasProtomapsApiKey: current.hasProtomapsApiKey,
+    };
+    holder.setMapSettings(sanitized);
+    emit.mapSettings(sanitized);
+    return c.json({ ok: true });
+  });
+
+  // Protomaps hosted-API key. The plaintext is accepted only by POST and is
+  // immediately written to an OS-encrypted blob via safeStorage; it is never
+  // returned by any endpoint. Renderer learns key presence via
+  // MapSettings.hasProtomapsApiKey (broadcast after set/clear).
+  api.post('/api/map/api-key', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { key?: string } | null;
+    if (!body || typeof body.key !== 'string' || body.key.trim().length === 0) {
+      return c.json({ error: 'key is required' }, 400);
+    }
+    try {
+      await setApiKey(body.key);
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+    const holder = stateHolder();
+    const next: MapSettings = { ...holder.getMapSettings(), hasProtomapsApiKey: true };
+    holder.setMapSettings(next);
+    emit.mapSettings(next);
+    return c.json({ ok: true, hasKey: true });
+  });
+
+  api.get('/api/map/api-key', (c) => c.json({ hasKey: hasApiKey() }));
+
+  api.delete('/api/map/api-key', async (c) => {
+    await clearApiKey();
+    const holder = stateHolder();
+    const next: MapSettings = { ...holder.getMapSettings(), hasProtomapsApiKey: false };
+    holder.setMapSettings(next);
+    emit.mapSettings(next);
+    return c.json({ ok: true, hasKey: false });
   });
 
   api.get('/api/channels', (c) => c.json(stateHolder().getChannels()));
@@ -313,6 +374,21 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   });
 
   api.get('/api/transport/state', (c) => c.json(transportManager.getState()));
+
+  // Full-text search over messages + conversations. Always a POST so the
+  // (potentially long) query body isn't URL-encoded into a GET. Synchronous —
+  // even at 100k messages, FTS5 returns in single-digit ms.
+  api.post('/api/search', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as SearchOptions | null;
+    if (
+      !body ||
+      typeof body.query !== 'string' ||
+      (body.sort !== 'relevance' && body.sort !== 'recency')
+    ) {
+      return c.json({ error: 'query and sort are required' }, 400);
+    }
+    return c.json(searchMessages(body));
+  });
 
   // Repeater admin: request a status / telemetry snapshot from a contact.
   // Synchronous response = "did the radio accept the write"; the snapshot

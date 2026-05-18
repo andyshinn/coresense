@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { RawPacket } from '../../shared/types';
 import { type PacketSummary, summarizePacket } from '../lib/decodePacket';
+import { useStore } from '../lib/store';
 
 interface Props {
   packets: RawPacket[];
@@ -11,8 +13,6 @@ function formatTime(ts: number): string {
   return `${d.toLocaleTimeString()}.${d.getMilliseconds().toString().padStart(3, '0')}`;
 }
 
-// Map packet types to Field Console palette tokens. We keep enough distinction
-// for log skimming without reintroducing the old rainbow hues.
 const typeColor: Record<string, string> = {
   Advert: 'text-cs-online',
   'Text Message': 'text-cs-text',
@@ -62,9 +62,12 @@ function CompanionRow({ packet }: { packet: RawPacket }) {
   );
 }
 
+const STICK_THRESHOLD_PX = 24;
+const ESTIMATED_ROW_HEIGHT = 22;
+
 export function PacketLog({ packets }: Props) {
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const [showCompanion, setShowCompanion] = useState(false);
+  const showCompanion = useStore((s) => s.ui.packetLogFilter.showCompanion);
+  const setPacketLogFilter = useStore((s) => s.setPacketLogFilter);
 
   const visible = useMemo(
     () => (showCompanion ? packets : packets.filter((p) => p.kind !== 'companion')),
@@ -72,10 +75,35 @@ export function PacketLog({ packets }: Props) {
   );
   const count = visible.length;
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on length-change only.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [stick, setStick] = useState(true);
+
+  const virtualizer = useVirtualizer({
+    count,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 12,
+  });
+
+  // Track whether the user is parked near the bottom; if so, follow new rows.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [count]);
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setStick(dist <= STICK_THRESHOLD_PX);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Auto-follow new rows when stuck to the bottom. useLayoutEffect to avoid a
+  // visible jump; the virtualizer's scrollToIndex is cheaper than scrollIntoView
+  // because it only touches the scroll container.
+  useLayoutEffect(() => {
+    if (!stick || count === 0) return;
+    virtualizer.scrollToIndex(count - 1, { align: 'end' });
+  }, [count, stick, virtualizer]);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col rounded border border-cs-border bg-cs-bg-2">
@@ -88,7 +116,7 @@ export function PacketLog({ packets }: Props) {
             <input
               type="checkbox"
               checked={showCompanion}
-              onChange={(e) => setShowCompanion(e.target.checked)}
+              onChange={(e) => setPacketLogFilter({ showCompanion: e.target.checked })}
               className="h-3 w-3 accent-cs-accent"
             />
             Show BLE frames
@@ -98,23 +126,35 @@ export function PacketLog({ packets }: Props) {
           </span>
         </div>
       </header>
-      <div className="flex-1 overflow-y-auto px-4 py-2 font-mono text-xs">
-        {visible.length === 0 ? (
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-2 font-mono text-xs">
+        {count === 0 ? (
           <div className="py-8 text-center text-cs-text-dim">
             No packets received yet — connect to a MeshCore device to start streaming.
           </div>
         ) : (
-          visible.map((p, i) =>
-            p.kind === 'companion' ? (
-              // biome-ignore lint/suspicious/noArrayIndexKey: append-only ring buffer; index is stable per render.
-              <CompanionRow key={`${p.timestamp}-${p.payloadBytes.length}-${i}`} packet={p} />
-            ) : (
-              // biome-ignore lint/suspicious/noArrayIndexKey: append-only ring buffer; index is stable per render.
-              <MeshRow key={`${p.timestamp}-${p.payloadBytes.length}-${i}`} packet={p} />
-            ),
-          )
+          <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+            {virtualizer.getVirtualItems().map((vi) => {
+              const p = visible[vi.index];
+              if (!p) return null;
+              return (
+                <div
+                  key={vi.key}
+                  data-index={vi.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${vi.start}px)`,
+                  }}
+                >
+                  {p.kind === 'companion' ? <CompanionRow packet={p} /> : <MeshRow packet={p} />}
+                </div>
+              );
+            })}
+          </div>
         )}
-        <div ref={bottomRef} />
       </div>
     </section>
   );

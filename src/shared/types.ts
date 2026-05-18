@@ -106,6 +106,11 @@ export interface Contact {
   pathManual?: boolean;
   /** Wall-clock ms of the most recent auto-learn that wrote `outPathHex`. */
   pathLearnedAt?: number;
+  /** Last advertised position in WGS84 degrees. Both present together or both
+   *  absent — a partial fix is never written. 0/0 from firmware is treated as
+   *  absent (default for radios without a GPS module). */
+  gpsLat?: number;
+  gpsLon?: number;
 }
 
 export type MessageState = 'sending' | 'sent' | 'ack' | 'failed' | 'received';
@@ -132,6 +137,59 @@ export interface Owner {
   name: string;
   publicKeyHex: string;
   publicKeyShort: string;
+}
+
+export type SearchSort = 'relevance' | 'recency';
+
+export interface SearchOptions {
+  query: string;
+  sort: SearchSort;
+  kinds?: ('channel' | 'dm')[];
+  /** Restrict to a single conversation key. */
+  key?: string;
+  /** Hex public key of sender. Self-sent messages have from_pk = NULL, so
+   *  use the literal 'self' to filter for those. */
+  fromPk?: string;
+  tsFrom?: number;
+  tsTo?: number;
+  /** Default 100. Capped server-side to keep payloads bounded. */
+  limit?: number;
+  /** Pagination — fetched in lockstep with `limit`. Server clamps to a
+   *  reasonable max to keep absurd offsets from scanning the world. */
+  offset?: number;
+}
+
+export interface MessageHit {
+  /** App-level message id (the `mid` column, matches Message.id). */
+  id: string;
+  key: string;
+  ts: number;
+  fromPublicKeyHex: string | null;
+  body: string;
+  /** Snippet with `<mark>…</mark>` around matched terms. Already
+   *  HTML-escaped server-side except for the mark tags themselves. */
+  snippet: string;
+  score: number;
+}
+
+export interface ConversationHit {
+  key: string;
+  kind: 'channel' | 'contact';
+  name: string;
+  /** For contacts: hex public key. For channels: undefined. */
+  publicKeyHex?: string;
+  score: number;
+  /** Count of messages in this conversation matching the same query. */
+  messageMatches: number;
+}
+
+export interface SearchResults {
+  conversations: ConversationHit[];
+  /** The current page of message hits. */
+  messages: MessageHit[];
+  /** `messages` is the FULL match count across all pages — drives Load more.
+   *  `conversations` is the visible count (we don't paginate that section). */
+  total: { conversations: number; messages: number };
 }
 
 export type ThemePrefValue = 'auto' | 'dark' | 'light';
@@ -176,6 +234,25 @@ export interface AppSettings {
    *  'nested': one Contacts section with four sub-collapsibles per kind.
    *  'top-level': four sibling sections (Users / Repeaters / Room Servers / Sensors). */
   contactGrouping: ContactGrouping;
+  /** Cap the number of rows shown under each LeftNav branch (channels, each
+   *  contact kind), with a "Show N more" button that reveals the rest for the
+   *  current session. Reduces scroll fatigue when a node has hundreds of
+   *  contacts. Reveal state is ephemeral — collapsing back to the limit on
+   *  next launch is intentional. */
+  leftNavCollapseLists: {
+    enabled: boolean;
+    /** Number of items shown before the "Show more" affordance. Minimum 1. */
+    limit: number;
+  };
+  /** Show the quick-filter input above the Conversations section in the LeftNav.
+   *  Cmd/Ctrl+F focuses it. Independent of the command palette. */
+  showLeftNavSearch: boolean;
+  /** Persistent search defaults. The Search Results panel still toggles
+   *  sort in-session, but writes back to AppSettings so the preference
+   *  sticks across launches. */
+  search: {
+    defaultSort: SearchSort;
+  };
 }
 
 export type ContactGrouping = 'nested' | 'top-level';
@@ -205,6 +282,68 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   autoReconnect: false,
   hideUnsyncedChannels: false,
   contactGrouping: 'nested',
+  leftNavCollapseLists: { enabled: true, limit: 10 },
+  showLeftNavSearch: true,
+  search: { defaultSort: 'recency' },
+};
+
+/** Bundled vector basemap + raster terrain sources for the Map panel.
+ *  The renderer fetches tiles via the local Hono server (`/api/tiles/:source`)
+ *  using HTTP Range requests; the manifest summarizes each extract's header. */
+export type TileSource = 'basemap' | 'terrain';
+
+export interface TileManifestEntry {
+  source: TileSource;
+  bytes: number;
+  minZoom: number;
+  maxZoom: number;
+  /** [west, south, east, north] */
+  bounds: [number, number, number, number];
+  center: { lng: number; lat: number; zoom: number };
+  /** PMTiles tileType enum (0=Unknown, 1=Mvt, 2=Png, 3=Jpeg, 4=Webp, 5=Avif). */
+  tileType: number;
+}
+
+export interface TileManifest {
+  /** True when neither basemap nor terrain is available on disk — the Map
+   *  panel renders an empty-state with instructions instead of mounting MapLibre. */
+  missing: boolean;
+  basemap: TileManifestEntry | null;
+  terrain: TileManifestEntry | null;
+}
+
+export interface MapSettings {
+  /** Hillshade overlay rendered from the terrain source. */
+  terrainHillshadeEnabled: boolean;
+  /** 3D terrain via map.setTerrain(...). Independent of hillshade — hillshade
+   *  is a 2D paint layer; 3D is exaggeration applied during render. */
+  terrain3DEnabled: boolean;
+  /** Derived from the existence of the encrypted blob on disk; never written
+   *  by the renderer. When true, the renderer extends the map past the bundled
+   *  extract's maxZoom by proxying tiles from the Protomaps hosted API through
+   *  main (the API key never leaves main). */
+  hasProtomapsApiKey: boolean;
+  /** Which @protomaps/basemaps flavor to compose. Follows the app theme by default. */
+  styleTheme: 'light' | 'dark';
+  /** Markers older than this many days render at reduced opacity. 0 disables
+   *  fading. UI exposes a 0–30 slider. */
+  staleFadeDays: number;
+  /** Show the contact's name as a small label next to each marker. */
+  showMarkerLabels: boolean;
+  /** Persisted viewport so the Map panel re-opens where the user left off. */
+  lastCenter?: { lng: number; lat: number };
+  lastZoom?: number;
+  lastBearing?: number;
+  lastPitch?: number;
+}
+
+export const DEFAULT_MAP_SETTINGS: MapSettings = {
+  terrainHillshadeEnabled: true,
+  terrain3DEnabled: false,
+  hasProtomapsApiKey: false,
+  styleTheme: 'light',
+  staleFadeDays: 7,
+  showMarkerLabels: true,
 };
 
 export interface RadioSettings {
@@ -231,6 +370,13 @@ export const DEFAULT_RADIO_SETTINGS: RadioSettings = {
   pathHashMode: 2,
 };
 
+// LeftNav branch open/closed state. Keys cover the three Collapsible
+// containers in LeftNav (Channels parent, Contacts wrapper in nested mode,
+// and each ContactKind group).
+export type LeftNavGroupId = 'channels' | 'contacts' | 'chat' | 'repeater' | 'room' | 'sensor';
+
+export type ThemePref = 'auto' | 'dark' | 'light';
+
 export interface UiState {
   activeKey: string;
   pinned: string[]; // keys in pin order (channel + contact keys)
@@ -239,6 +385,17 @@ export interface UiState {
   rightWidth: number;
   // section id (e.g. 'channel.members') → collapsed/expanded
   openRailSections: Record<string, boolean>;
+  // LeftNav Collapsible open/closed flags (Channels parent, Contacts wrapper,
+  // and the four ContactKind groups).
+  leftNavOpen: Record<LeftNavGroupId, boolean>;
+  // Per-conversation composer drafts. Keyed by channel/contact key. Entries
+  // are deleted when the message is sent or the textarea is cleared.
+  drafts: Record<string, string>;
+  // Packet log view options.
+  packetLogFilter: { showCompanion: boolean };
+  // Theme preference. Migrated from localStorage on first launch after this
+  // field was added; see App.tsx hydration path.
+  themePref: ThemePref;
   // Contact key (`c:<pkhex>`) to surface in the right rail regardless of
   // activeKey. Set when the user clicks an @mention pill; cleared on
   // activeKey change. Takes precedence over the active conversation's
@@ -261,6 +418,17 @@ export const DEFAULT_UI_STATE: UiState = {
   rightOpen: false,
   rightWidth: 320,
   openRailSections: {},
+  leftNavOpen: {
+    channels: true,
+    contacts: true,
+    chat: true,
+    repeater: true,
+    room: true,
+    sensor: true,
+  },
+  drafts: {},
+  packetLogFilter: { showCompanion: false },
+  themePref: 'auto',
   selectedContactKey: null,
   lastReadByKey: {},
   recentKeys: [],
@@ -280,6 +448,11 @@ export interface StateSnapshot {
   messages: Message[];
   appSettings: AppSettings;
   radioSettings: RadioSettings;
+  mapSettings: MapSettings;
+  /** Snapshot of which bundled PMTiles extracts exist on disk + their headers.
+   *  Renderer uses this to gate the Map panel's empty-state and pick an
+   *  initial view if no last-position is persisted. */
+  mapManifest: TileManifest;
   uiState: UiState;
 }
 
@@ -438,9 +611,12 @@ export type WsMessage =
   | { type: 'owner'; payload: Owner | null }
   | { type: 'appSettings'; payload: AppSettings }
   | { type: 'radioSettings'; payload: RadioSettings }
+  | { type: 'mapSettings'; payload: MapSettings }
+  | { type: 'mapManifest'; payload: TileManifest }
   | { type: 'repeaterStatus'; payload: RepeaterStatusSnapshot }
   | { type: 'repeaterTelemetry'; payload: RepeaterTelemetrySnapshot }
-  | { type: 'pathLearned'; payload: PathLearnedEvent };
+  | { type: 'pathLearned'; payload: PathLearnedEvent }
+  | { type: 'wsClients'; payload: { count: number } };
 
 export interface PathLearnedEvent {
   contactKey: string;

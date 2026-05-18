@@ -3,6 +3,7 @@ import {
   Activity,
   BellOff,
   Bluetooth,
+  ChevronRight,
   Cog,
   Copy,
   DoorOpen,
@@ -13,19 +14,25 @@ import {
   Megaphone,
   MessageCircle,
   Minus,
+  MoreHorizontal,
   PinIcon,
   PinOff,
   Plus,
   Radio,
   RotateCw,
   ScrollText,
+  Search,
   Star,
   Trash2,
+  User,
   Users,
+  X,
 } from 'lucide-react';
+import { Collapsible } from 'radix-ui';
 import {
   type DragEvent,
   type MouseEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -41,7 +48,6 @@ import type {
   SyncProgress,
   TransportState,
 } from '../../shared/types';
-import { Collapsible } from '../components/Collapsible';
 import {
   ContextMenu,
   type ContextMenuEntry,
@@ -50,6 +56,22 @@ import {
   menuSeparator,
 } from '../components/ContextMenu';
 import { Progress } from '../components/ui/progress';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarRail,
+  useSidebar,
+} from '../components/ui/sidebar';
 import { type ApiClient, api } from '../lib/api';
 import { loadLastDevice } from '../lib/lastDevice';
 import { notify } from '../lib/notify';
@@ -69,6 +91,13 @@ const CONTACT_ICON: Record<ContactKind, LucideIcon> = {
   room: DoorOpen,
 };
 
+const CONTACT_GROUP_ICON: Record<ContactKind, LucideIcon> = {
+  chat: Users,
+  repeater: Radio,
+  room: DoorOpen,
+  sensor: Activity,
+};
+
 const CONTACT_GROUP_LABEL: Record<ContactKind, string> = {
   chat: 'Users',
   repeater: 'Repeaters',
@@ -76,7 +105,7 @@ const CONTACT_GROUP_LABEL: Record<ContactKind, string> = {
   sensor: 'Sensors',
 };
 
-// Render order for the four kind groups, both in nested and top-level modes.
+// Render order for the four kind groups.
 const CONTACT_GROUP_ORDER: ContactKind[] = ['chat', 'repeater', 'room', 'sensor'];
 
 interface ToolEntry {
@@ -86,11 +115,30 @@ interface ToolEntry {
 }
 
 const TOOLS: ToolEntry[] = [
+  { key: 'tool:search', label: 'Search', icon: Search },
   { key: 'tool:packetlog', label: 'Packet Log', icon: ScrollText },
   { key: 'tool:contacts', label: 'Contact Management', icon: Users },
   { key: 'tool:map', label: 'Map', icon: MapIcon },
   { key: 'tool:settings:app', label: 'Settings', icon: Cog },
 ];
+
+// Shared active styling: a visible left bar on the menu item (in addition to
+// the indent border that SidebarMenuSub already draws) plus a soft accent fill.
+// Applied to both top-level buttons and sub buttons so the visual cue is the
+// same regardless of depth.
+// Active styling that survives hover. The base SidebarMenuButton CVA applies
+// `hover:bg-sidebar-accent`, which would otherwise flip an active row off its
+// accent fill mid-hover — looks like the highlight is inverted. Re-asserting
+// the active treatment under `hover:` keeps it stable.
+const ACTIVE_BUTTON_CLASS = cn(
+  'border-l-2 border-transparent rounded-l-none text-cs-text-muted hover:text-cs-text',
+  // Keep icons at full brightness even when the text is dimmed — matches the
+  // sub-button CVA, which pins svg color via `[&>svg]:text-sidebar-accent-foreground`.
+  // Without this, a top-level button's icon inherits currentColor and dims with the label.
+  '[&>svg]:text-cs-text',
+  'data-[active=true]:border-cs-accent data-[active=true]:bg-cs-accent-soft/30 data-[active=true]:text-cs-text data-[active=true]:font-normal',
+  'data-[active=true]:hover:bg-cs-accent-soft/30 data-[active=true]:hover:text-cs-text',
+);
 
 interface ChannelMenuState {
   channel: Channel;
@@ -142,22 +190,6 @@ export function LeftNav({ client }: LeftNavProps) {
   }, [messagesByKey, lastReadByKey]);
 
   const contactGrouping = useStore((s) => s.appSettings.contactGrouping);
-
-  const [openChannels, setOpenChannels] = useState(true);
-  const [openContacts, setOpenContacts] = useState(true);
-  const [openContactGroups, setOpenContactGroups] = useState<Record<ContactKind, boolean>>({
-    chat: true,
-    repeater: true,
-    room: true,
-    sensor: true,
-  });
-  const toggleContactGroup = useCallback((kind: ContactKind) => {
-    setOpenContactGroups((g) => ({ ...g, [kind]: !g[kind] }));
-  }, []);
-  const [openTools, setOpenTools] = useState(true);
-  const [menu, setMenu] = useState<ChannelMenuState | null>(null);
-  const [contactMenu, setContactMenu] = useState<ContactMenuState | null>(null);
-
   const togglePin = useStore((s) => s.togglePin);
 
   const pinSet = useMemo(() => new Set(pinned), [pinned]);
@@ -182,16 +214,113 @@ export function LeftNav({ client }: LeftNavProps) {
     return out;
   }, [sortedContacts]);
 
-  const renderContactItem = useCallback(
+  const showLeftNavSearch = useStore((s) => s.appSettings.showLeftNavSearch);
+  const searchQuery = useStore((s) => s.searchQuery);
+  const setSearchQuery = useStore((s) => s.setSearchQuery);
+  const clearSearch = useStore((s) => s.clearSearch);
+  const searchRef = useRef<HTMLInputElement>(null);
+  // The activeKey before the user opened the search panel. On Esc we restore
+  // it — so typing then escaping doesn't leave the user staring at an empty
+  // search result page.
+  const preSearchKeyRef = useRef<string | null>(null);
+
+  // Cmd/Ctrl+F focuses the sidebar search — distinct from the command palette
+  // (Cmd+K). Typing into it routes to the tool:search panel; the sidebar tree
+  // itself is no longer mutated by search.
+  useEffect(() => {
+    if (!showLeftNavSearch) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showLeftNavSearch]);
+
+  const onSearchChange = useCallback(
+    (next: string) => {
+      setSearchQuery(next);
+      if (next.length > 0) {
+        // Remember where the user was so Esc can restore it. If they're
+        // already on tool:search, leave the saved key alone.
+        if (activeKey !== 'tool:search') preSearchKeyRef.current = activeKey;
+        setActiveKey('tool:search');
+      }
+    },
+    [setSearchQuery, setActiveKey, activeKey],
+  );
+
+  const onSearchEscape = useCallback(() => {
+    clearSearch();
+    if (preSearchKeyRef.current && activeKey === 'tool:search') {
+      setActiveKey(preSearchKeyRef.current);
+    }
+    preSearchKeyRef.current = null;
+    searchRef.current?.blur();
+  }, [clearSearch, setActiveKey, activeKey]);
+
+  // Open state per parent branch. Per-branch booleans drive the Collapsibles.
+  // Persisted to ui-state.json so collapse choices survive across launches.
+  const leftNavOpen = useStore((s) => s.ui.leftNavOpen);
+  const setLeftNavGroup = useStore((s) => s.setLeftNavGroup);
+  const openChannels = leftNavOpen.channels;
+  const openContactGroups = leftNavOpen;
+  const toggleContactGroup = useCallback(
+    (kind: ContactKind) => {
+      setLeftNavGroup(kind, !leftNavOpen[kind]);
+    },
+    [leftNavOpen, setLeftNavGroup],
+  );
+
+  const [menu, setMenu] = useState<ChannelMenuState | null>(null);
+  const [contactMenu, setContactMenu] = useState<ContactMenuState | null>(null);
+
+  // Per-branch "user clicked Show more" flags. Session-only by design — each
+  // launch starts collapsed back to the limit so a bloated branch can't
+  // permanently wedge the nav into a multi-hundred-row scroll.
+  const collapseListsEnabled = useStore((s) => s.appSettings.leftNavCollapseLists.enabled);
+  const collapseListsLimit = useStore((s) => s.appSettings.leftNavCollapseLists.limit);
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const revealList = useCallback((key: string) => {
+    setRevealed((m) => ({ ...m, [key]: true }));
+  }, []);
+
+  // Aggregate counts shown on the parent button — sums per-key counts for items
+  // in the group, so a collapsed branch still surfaces "there's something new".
+  const channelUnreadTotal = useMemo(
+    () => sortedChannels.reduce((acc, ch) => acc + (unreadByKey[ch.key] ?? 0), 0),
+    [sortedChannels, unreadByKey],
+  );
+  const contactUnreadByKind = useMemo(() => {
+    const out: Record<ContactKind, number> = { chat: 0, repeater: 0, room: 0, sensor: 0 };
+    for (const c of sortedContacts) {
+      out[c.kind] += unreadByKey[c.key] ?? 0;
+    }
+    return out;
+  }, [sortedContacts, unreadByKey]);
+  const contactsUnreadTotal = useMemo(
+    () =>
+      contactUnreadByKind.chat +
+      contactUnreadByKind.repeater +
+      contactUnreadByKind.room +
+      contactUnreadByKind.sensor,
+    [contactUnreadByKind],
+  );
+
+  // Single combined open flag for the wrapping "Contacts" branch in nested mode.
+  const openContacts = leftNavOpen.contacts;
+
+  const renderContactSubItem = useCallback(
     (c: Contact) => (
-      <NavItem
+      <ContactSubItem
         key={c.key}
+        contact={c}
         active={activeKey === c.key}
         pinned={pinSet.has(c.key)}
-        icon={CONTACT_ICON[c.kind]}
-        label={c.name}
         unread={unreadByKey[c.key] ?? 0}
-        muted={c.muted}
         onSelect={() => setActiveKey(c.key)}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -200,6 +329,30 @@ export function LeftNav({ client }: LeftNavProps) {
       />
     ),
     [activeKey, pinSet, unreadByKey, setActiveKey],
+  );
+
+  const renderContactKindSub = useCallback(
+    (kind: ContactKind) => {
+      const items = contactsByKind[kind];
+      const key = `contact:${kind}`;
+      const shown =
+        collapseListsEnabled && !revealed[key] ? items.slice(0, collapseListsLimit) : items;
+      const hidden = items.length - shown.length;
+      return (
+        <SidebarMenuSub>
+          {shown.map(renderContactSubItem)}
+          {hidden > 0 && <ShowMoreRow count={hidden} onClick={() => revealList(key)} />}
+        </SidebarMenuSub>
+      );
+    },
+    [
+      contactsByKind,
+      collapseListsEnabled,
+      collapseListsLimit,
+      revealed,
+      revealList,
+      renderContactSubItem,
+    ],
   );
 
   const onReorder = useCallback(
@@ -215,121 +368,162 @@ export function LeftNav({ client }: LeftNavProps) {
   );
 
   return (
-    <nav
-      className="flex h-full w-60 shrink-0 flex-col border-r border-cs-border bg-cs-bg-2"
-      aria-label="Primary navigation"
-    >
-      <OwnerCard owner={owner} />
+    <Sidebar collapsible="icon" aria-label="Primary navigation">
+      <SidebarHeader>
+        <OwnerCard owner={owner} />
+      </SidebarHeader>
 
-      <div className="flex-1 overflow-y-auto py-1">
-        <Collapsible
-          label="Channels"
-          sectionHeader
-          open={openChannels}
-          onToggle={() => setOpenChannels((v) => !v)}
-          trailing={<AddButton title="New channel" />}
-        >
-          {sortedChannels.length === 0 ? (
-            <EmptyHint>No channels yet.</EmptyHint>
-          ) : (
-            <ChannelList
-              channels={sortedChannels}
-              activeKey={activeKey}
-              pinSet={pinSet}
-              presence={channelPresence}
-              unreadByKey={unreadByKey}
-              onSelect={setActiveKey}
-              onReorder={onReorder}
-              onContext={(channel, e) => {
-                e.preventDefault();
-                setMenu({
-                  channel,
-                  onDevice: channelPresence.has(channel.key),
-                  x: e.clientX,
-                  y: e.clientY,
-                });
-              }}
-            />
-          )}
-        </Collapsible>
-
-        {contactGrouping === 'top-level' ? (
-          sortedContacts.length === 0 ? (
-            <Collapsible
-              label="Contacts"
-              sectionHeader
-              open={openContacts}
-              onToggle={() => setOpenContacts((v) => !v)}
-              trailing={<AddButton title="Add contact" />}
+      <SidebarContent className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {showLeftNavSearch && (
+          <div className="px-2 pt-2 group-data-[collapsible=icon]:hidden">
+            <div className="relative">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-cs-text-dim"
+              />
+              <input
+                ref={searchRef}
+                type="search"
+                value={searchQuery}
+                onChange={(e) => onSearchChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    onSearchEscape();
+                  }
+                }}
+                placeholder="Search messages…"
+                aria-label="Search messages, channels, and contacts"
+                className="h-7 w-full rounded-md border border-cs-border bg-cs-bg-3 pl-7 pr-7 text-xs text-cs-text outline-none placeholder:text-cs-text-dim focus:border-cs-accent"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={onSearchEscape}
+                  aria-label="Clear search"
+                  className="absolute right-1 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        <SidebarGroup>
+          <SidebarGroupLabel>Conversations</SidebarGroupLabel>
+          <SidebarMenu>
+            <ParentBranch
+              label="Channels"
+              icon={Hash}
+              open={openChannels}
+              onToggle={() => setLeftNavGroup('channels', !openChannels)}
+              unreadTotal={channelUnreadTotal}
             >
-              <EmptyHint>Connect a radio to discover contacts.</EmptyHint>
-            </Collapsible>
-          ) : (
-            CONTACT_GROUP_ORDER.filter((k) => contactsByKind[k].length > 0).map((kind) => (
-              <Collapsible
-                key={kind}
-                label={CONTACT_GROUP_LABEL[kind]}
-                sectionHeader
-                open={openContactGroups[kind]}
-                onToggle={() => toggleContactGroup(kind)}
-              >
-                <ul>{contactsByKind[kind].map(renderContactItem)}</ul>
-              </Collapsible>
-            ))
-          )
-        ) : (
-          <Collapsible
-            label="Contacts"
-            sectionHeader
-            open={openContacts}
-            onToggle={() => setOpenContacts((v) => !v)}
-            trailing={<AddButton title="Add contact" />}
-          >
-            {sortedContacts.length === 0 ? (
-              <EmptyHint>Connect a radio to discover contacts.</EmptyHint>
-            ) : (
+              {sortedChannels.length === 0 ? (
+                <EmptySubHint>No channels yet.</EmptySubHint>
+              ) : (
+                <ChannelSubList
+                  channels={sortedChannels}
+                  activeKey={activeKey}
+                  pinSet={pinSet}
+                  presence={channelPresence}
+                  unreadByKey={unreadByKey}
+                  limit={collapseListsEnabled ? collapseListsLimit : null}
+                  revealed={!!revealed.channels}
+                  onShowMore={() => revealList('channels')}
+                  onSelect={setActiveKey}
+                  onReorder={onReorder}
+                  onContext={(channel, e) => {
+                    e.preventDefault();
+                    setMenu({
+                      channel,
+                      onDevice: channelPresence.has(channel.key),
+                      x: e.clientX,
+                      y: e.clientY,
+                    });
+                  }}
+                />
+              )}
+            </ParentBranch>
+
+            {contactGrouping === 'top-level' ? (
               CONTACT_GROUP_ORDER.filter((k) => contactsByKind[k].length > 0).map((kind) => (
-                <Collapsible
+                <ParentBranch
                   key={kind}
                   label={CONTACT_GROUP_LABEL[kind]}
+                  icon={CONTACT_GROUP_ICON[kind]}
                   open={openContactGroups[kind]}
                   onToggle={() => toggleContactGroup(kind)}
+                  unreadTotal={contactUnreadByKind[kind]}
                 >
-                  <ul>{contactsByKind[kind].map(renderContactItem)}</ul>
-                </Collapsible>
+                  {renderContactKindSub(kind)}
+                </ParentBranch>
               ))
+            ) : sortedContacts.length === 0 ? (
+              <SidebarMenuItem>
+                <SidebarMenuButton disabled className="italic text-cs-text-dim">
+                  <Users />
+                  <span>No contacts yet</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ) : (
+              <ParentBranch
+                label="Contacts"
+                icon={Users}
+                open={openContacts}
+                onToggle={() => setLeftNavGroup('contacts', !openContacts)}
+                unreadTotal={contactsUnreadTotal}
+              >
+                <SidebarMenuSub>
+                  {CONTACT_GROUP_ORDER.filter((k) => contactsByKind[k].length > 0).map((kind) => (
+                    <KindBranch
+                      key={kind}
+                      label={CONTACT_GROUP_LABEL[kind]}
+                      icon={CONTACT_GROUP_ICON[kind]}
+                      open={openContactGroups[kind]}
+                      onToggle={() => toggleContactGroup(kind)}
+                      unreadTotal={contactUnreadByKind[kind]}
+                    >
+                      {renderContactKindSub(kind)}
+                    </KindBranch>
+                  ))}
+                </SidebarMenuSub>
+              </ParentBranch>
             )}
-          </Collapsible>
-        )}
+          </SidebarMenu>
+        </SidebarGroup>
 
-        <Collapsible
-          label="Tools"
-          sectionHeader
-          open={openTools}
-          onToggle={() => setOpenTools((v) => !v)}
-        >
-          <ul>
+        <SidebarGroup>
+          <SidebarGroupLabel>Tools</SidebarGroupLabel>
+          <SidebarMenu>
             {TOOLS.map((t) => (
-              <NavItem
-                key={t.key}
-                active={activeKey === t.key}
-                pinned={false}
-                icon={t.icon}
-                label={t.label}
-                onSelect={() => setActiveKey(t.key)}
-              />
+              <SidebarMenuItem key={t.key}>
+                <SidebarMenuButton
+                  tooltip={t.label}
+                  isActive={activeKey === t.key}
+                  onClick={() => setActiveKey(t.key)}
+                  className={ACTIVE_BUTTON_CLASS}
+                >
+                  <t.icon />
+                  <span>{t.label}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             ))}
-          </ul>
-        </Collapsible>
-      </div>
+          </SidebarMenu>
+        </SidebarGroup>
+      </SidebarContent>
 
-      <ConnectionFooter
-        client={client}
-        state={transport}
-        sync={syncProgress}
-        onClick={() => setActiveKey('tool:bleconnect')}
-        active={activeKey === 'tool:bleconnect'}
-      />
+      <SidebarFooter>
+        <ConnectionFooter
+          client={client}
+          state={transport}
+          sync={syncProgress}
+          onClick={() => setActiveKey('tool:bleconnect')}
+          active={activeKey === 'tool:bleconnect'}
+        />
+      </SidebarFooter>
+
+      <SidebarRail />
 
       {menu && (
         <ChannelContextMenu
@@ -349,16 +543,127 @@ export function LeftNav({ client }: LeftNavProps) {
           onClose={() => setContactMenu(null)}
         />
       )}
-    </nav>
+    </Sidebar>
   );
 }
 
-function ChannelList({
+// A top-level menu row that opens a submenu. Sidebar-07 pattern: icon + label
+// + rotating chevron on the parent button, SidebarMenuSub as the body. The
+// chevron rotates via the radix Collapsible's data-state attribute.
+function ParentBranch({
+  label,
+  icon: Icon,
+  open,
+  onToggle,
+  unreadTotal,
+  children,
+}: {
+  label: string;
+  icon: LucideIcon;
+  open: boolean;
+  onToggle: () => void;
+  unreadTotal: number;
+  children: ReactNode;
+}) {
+  // In icon-collapsed mode the submenu is hidden via CSS, so a normal
+  // Collapsible-toggle click does nothing visible. Treat the click as
+  // "expand the sidebar and ensure this branch is open" instead — the user's
+  // intent (see this group's contents) is the same either way.
+  const { state, setOpen } = useSidebar();
+  const handleClick = () => {
+    if (state === 'collapsed') {
+      setOpen(true);
+      if (!open) onToggle();
+      return;
+    }
+    onToggle();
+  };
+  return (
+    <Collapsible.Root open={open} className="group/collapsible" asChild>
+      <SidebarMenuItem>
+        <SidebarMenuButton tooltip={label} onClick={handleClick}>
+          <Icon />
+          <span>{label}</span>
+          {unreadTotal > 0 && (
+            <span
+              role="status"
+              aria-label={`${unreadTotal} unread`}
+              className="ml-auto rounded-full bg-cs-accent px-1.5 py-px font-mono text-[10px] leading-none text-cs-bg tabular-nums"
+            >
+              {unreadTotal > 99 ? '99+' : unreadTotal}
+            </span>
+          )}
+          <ChevronRight
+            className={cn(
+              'transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90',
+              unreadTotal > 0 ? '' : 'ml-auto',
+            )}
+          />
+        </SidebarMenuButton>
+        <Collapsible.Content>{children}</Collapsible.Content>
+      </SidebarMenuItem>
+    </Collapsible.Root>
+  );
+}
+
+// Inner branch nested inside a SidebarMenuSub. Follows the sidebar-11 tree
+// pattern: chevron-first button (svg:first-child rotates on open), then icon
+// + label. Renders as a SidebarMenuItem (li) inside the parent SidebarMenuSub,
+// with its own SidebarMenuSub for children — so a second left border + indent
+// stacks naturally to mark the nested level.
+function KindBranch({
+  label,
+  icon: Icon,
+  open,
+  onToggle,
+  unreadTotal,
+  children,
+}: {
+  label: string;
+  icon: LucideIcon;
+  open: boolean;
+  onToggle: () => void;
+  unreadTotal: number;
+  children: ReactNode;
+}) {
+  return (
+    <SidebarMenuItem>
+      <Collapsible.Root
+        open={open}
+        onOpenChange={onToggle}
+        className="group/kind [&[data-state=open]>button>svg:first-child]:rotate-90"
+      >
+        <Collapsible.Trigger asChild>
+          <SidebarMenuButton className="h-7 text-xs">
+            <ChevronRight className="transition-transform" />
+            <Icon />
+            <span>{label}</span>
+            {unreadTotal > 0 && (
+              <span
+                role="status"
+                aria-label={`${unreadTotal} unread`}
+                className="ml-auto rounded-full bg-cs-accent px-1.5 py-px font-mono text-[10px] leading-none text-cs-bg tabular-nums"
+              >
+                {unreadTotal > 99 ? '99+' : unreadTotal}
+              </span>
+            )}
+          </SidebarMenuButton>
+        </Collapsible.Trigger>
+        <Collapsible.Content>{children}</Collapsible.Content>
+      </Collapsible.Root>
+    </SidebarMenuItem>
+  );
+}
+
+function ChannelSubList({
   channels,
   activeKey,
   pinSet,
   presence,
   unreadByKey,
+  limit,
+  revealed,
+  onShowMore,
   onSelect,
   onReorder,
   onContext,
@@ -368,6 +673,10 @@ function ChannelList({
   pinSet: Set<string>;
   presence: Set<string>;
   unreadByKey: Record<string, number>;
+  /** Max rows to render before the Show-more affordance; `null` disables capping. */
+  limit: number | null;
+  revealed: boolean;
+  onShowMore: () => void;
   onSelect: (key: string) => void;
   onReorder: (orderedKeys: string[]) => void;
   onContext: (channel: Channel, e: MouseEvent) => void;
@@ -378,7 +687,6 @@ function ChannelList({
   const onDragStart = (e: DragEvent, key: string) => {
     dragKey.current = key;
     e.dataTransfer.effectAllowed = 'move';
-    // Some browsers require setData to actually start a drag.
     e.dataTransfer.setData('text/plain', key);
   };
   const onDragOver = (e: DragEvent, key: string) => {
@@ -402,32 +710,130 @@ function ChannelList({
     onReorder(keys);
   };
 
+  const shown = limit !== null && !revealed ? channels.slice(0, limit) : channels;
+  const hidden = channels.length - shown.length;
   return (
-    <ul>
-      {channels.map((ch) => {
+    <SidebarMenuSub>
+      {shown.map((ch) => {
         const onDevice = presence.has(ch.key);
+        const Icon = CHANNEL_ICON[ch.kind];
+        const unread = unreadByKey[ch.key] ?? 0;
+        const active = activeKey === ch.key;
+        const showUnread = unread > 0 && !active;
         return (
-          <NavItem
+          <SidebarMenuSubItem
             key={ch.key}
-            active={activeKey === ch.key}
-            pinned={pinSet.has(ch.key)}
-            icon={CHANNEL_ICON[ch.kind]}
-            label={ch.name}
-            unread={unreadByKey[ch.key] ?? 0}
-            muted={ch.muted}
-            dimmed={!onDevice}
-            dragging={dragOver === ch.key}
             draggable
             onDragStart={(e) => onDragStart(e, ch.key)}
             onDragOver={(e) => onDragOver(e, ch.key)}
             onDragLeave={() => setDragOver((k) => (k === ch.key ? null : k))}
             onDrop={(e) => onDrop(e, ch.key)}
-            onSelect={() => onSelect(ch.key)}
-            onContextMenu={(e) => onContext(ch, e)}
-          />
+            className={dragOver === ch.key ? 'border-t border-cs-accent' : undefined}
+          >
+            <SidebarMenuSubButton
+              isActive={active}
+              onClick={() => onSelect(ch.key)}
+              onContextMenu={(e) => onContext(ch, e)}
+              className={cn(ACTIVE_BUTTON_CLASS, !onDevice && 'opacity-50')}
+              asChild
+            >
+              <button type="button">
+                <Icon />
+                <span className={cn('flex-1 truncate', !onDevice && 'italic')}>{ch.name}</span>
+                {showUnread && <UnreadChip count={unread} />}
+                {ch.muted && <BellOff aria-label="muted" className="size-3 text-cs-text-dim" />}
+                {pinSet.has(ch.key) && (
+                  <Star aria-hidden="true" className="size-3 text-cs-accent" fill="currentColor" />
+                )}
+              </button>
+            </SidebarMenuSubButton>
+          </SidebarMenuSubItem>
         );
       })}
-    </ul>
+      {hidden > 0 && <ShowMoreRow count={hidden} onClick={onShowMore} />}
+    </SidebarMenuSub>
+  );
+}
+
+function ContactSubItem({
+  contact,
+  active,
+  pinned,
+  unread,
+  onSelect,
+  onContextMenu,
+}: {
+  contact: Contact;
+  active: boolean;
+  pinned: boolean;
+  unread: number;
+  onSelect: () => void;
+  onContextMenu: (e: MouseEvent) => void;
+}) {
+  const Icon = CONTACT_ICON[contact.kind];
+  const showUnread = unread > 0 && !active;
+  return (
+    <SidebarMenuSubItem>
+      <SidebarMenuSubButton
+        isActive={active}
+        onClick={onSelect}
+        onContextMenu={onContextMenu}
+        className={ACTIVE_BUTTON_CLASS}
+        asChild
+      >
+        <button type="button">
+          <Icon />
+          <span className="flex-1 truncate">{contact.name}</span>
+          {showUnread && <UnreadChip count={unread} />}
+          {contact.muted && <BellOff aria-label="muted" className="size-3 text-cs-text-dim" />}
+          {pinned && (
+            <Star aria-hidden="true" className="size-3 text-cs-accent" fill="currentColor" />
+          )}
+        </button>
+      </SidebarMenuSubButton>
+    </SidebarMenuSubItem>
+  );
+}
+
+function UnreadChip({ count }: { count: number }) {
+  return (
+    <span
+      role="status"
+      aria-label={`${count} unread`}
+      className="rounded-full bg-cs-accent px-1.5 py-px font-mono text-[10px] leading-none text-cs-bg tabular-nums"
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
+// Trailing affordance for capped branches. Reveals the rest of the list for
+// the current session — there's no Show-less counterpart by design (the
+// re-collapse happens implicitly on next launch).
+function ShowMoreRow({ count, onClick }: { count: number; onClick: () => void }) {
+  return (
+    <SidebarMenuSubItem>
+      <SidebarMenuSubButton
+        onClick={onClick}
+        className="text-cs-text-muted hover:text-cs-text"
+        asChild
+      >
+        <button type="button">
+          <MoreHorizontal />
+          <span>Show {count} more</span>
+        </button>
+      </SidebarMenuSubButton>
+    </SidebarMenuSubItem>
+  );
+}
+
+function EmptySubHint({ children }: { children: ReactNode }) {
+  return (
+    <SidebarMenuSub>
+      <SidebarMenuSubItem>
+        <span className="px-2 py-1 text-[11px] italic text-cs-text-dim">{children}</span>
+      </SidebarMenuSubItem>
+    </SidebarMenuSub>
   );
 }
 
@@ -587,120 +993,32 @@ function ContactContextMenu({
   return <ContextMenu x={x} y={y} items={items} onClose={onClose} />;
 }
 
+// Header card — team-switcher pattern from sidebar-07 so it collapses
+// gracefully to just the avatar tile in icon mode.
 function OwnerCard({ owner }: { owner: Owner | null }) {
   return (
-    <div className="border-b border-cs-border px-3 py-3">
-      <div className="text-sm font-medium text-cs-text">{owner?.name ?? 'No identity'}</div>
-      <div className="mt-0.5 font-mono text-[10px] tracking-wide text-cs-text-dim">
-        {owner?.publicKeyShort ?? 'configure to send adverts'}
-      </div>
-    </div>
-  );
-}
-
-interface NavItemProps {
-  active: boolean;
-  pinned: boolean;
-  icon: LucideIcon;
-  label: string;
-  onSelect: () => void;
-  unread?: number;
-  muted?: boolean;
-  dimmed?: boolean;
-  dragging?: boolean;
-  draggable?: boolean;
-  onDragStart?: (e: DragEvent) => void;
-  onDragOver?: (e: DragEvent) => void;
-  onDragLeave?: () => void;
-  onDrop?: (e: DragEvent) => void;
-  onContextMenu?: (e: MouseEvent) => void;
-}
-
-function NavItem({
-  active,
-  pinned,
-  icon: Icon,
-  label,
-  onSelect,
-  unread = 0,
-  muted,
-  dimmed,
-  dragging,
-  draggable,
-  onDragStart,
-  onDragOver,
-  onDragLeave,
-  onDrop,
-  onContextMenu,
-}: NavItemProps) {
-  // Hide chip when we're already viewing this conversation — the chip is
-  // about "you have unread here"; on the active row the count would only
-  // tick down as messages arrive, which is noisy.
-  const showUnread = unread > 0 && !active;
-  return (
-    <li
-      draggable={draggable}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-      className={dragging ? 'border-t border-cs-accent' : undefined}
-    >
-      <button
-        type="button"
-        onClick={onSelect}
-        onContextMenu={onContextMenu}
-        className={cn(
-          'flex w-full items-center gap-2 px-3 py-1 text-left text-sm transition-colors',
-          active
-            ? 'border-l-2 border-cs-accent bg-cs-accent-soft/30 text-cs-text'
-            : 'border-l-2 border-transparent text-cs-text-muted hover:bg-cs-bg-3 hover:text-cs-text',
-          dimmed && 'opacity-50',
-        )}
-      >
-        <Icon size={12} aria-hidden="true" className="shrink-0" />
-        <span
-          className={cn(
-            'flex-1 truncate',
-            dimmed && 'italic',
-            showUnread && 'font-medium text-cs-text',
-          )}
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          size="lg"
+          tooltip={owner?.name ?? 'No identity'}
+          className="cursor-default hover:bg-transparent hover:text-cs-text"
         >
-          {label}
-        </span>
-        {showUnread && (
-          <span
-            role="status"
-            aria-label={`${unread} unread`}
-            className="rounded-full bg-cs-accent px-1.5 py-px font-mono text-[10px] leading-none text-cs-bg tabular-nums"
-          >
-            {unread > 99 ? '99+' : unread}
-          </span>
-        )}
-        {muted && <BellOff size={10} aria-label="muted" className="text-cs-text-dim" />}
-        {pinned && (
-          <Star size={10} aria-hidden="true" className="text-cs-accent" fill="currentColor" />
-        )}
-      </button>
-    </li>
+          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-cs-accent-soft/40 text-cs-accent">
+            <User className="size-4" />
+          </div>
+          <div className="grid flex-1 text-left text-sm leading-tight">
+            <span className="truncate font-medium text-cs-text">
+              {owner?.name ?? 'No identity'}
+            </span>
+            <span className="truncate font-mono text-[10px] tracking-wide text-cs-text-dim">
+              {owner?.publicKeyShort ?? 'configure to send adverts'}
+            </span>
+          </div>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
-}
-
-function AddButton({ title }: { title: string }) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      className="ml-1 rounded p-0.5 text-cs-text-dim opacity-0 transition-opacity hover:bg-cs-bg-3 hover:text-cs-text group-hover:opacity-100"
-    >
-      <Plus size={11} />
-    </button>
-  );
-}
-
-function EmptyHint({ children }: { children: React.ReactNode }) {
-  return <p className="px-3 py-1.5 text-[11px] italic text-cs-text-dim">{children}</p>;
 }
 
 const TRANSPORT_LABEL: Record<TransportState, string> = {
@@ -759,9 +1077,6 @@ function ConnectionFooter({
     },
     [client, lastDevice],
   );
-  // Track whether the post-sync fade is still in flight. We render the bar at
-  // 100% during this window with opacity-0, letting the transition animate it
-  // out. Once the timer fires the bar is fully removed from the DOM.
   const [showFinishedBar, setShowFinishedBar] = useState(false);
   useEffect(() => {
     if (!justFinished) {
@@ -781,53 +1096,64 @@ function ConnectionFooter({
   const label = syncing ? 'Syncing' : TRANSPORT_LABEL[state];
 
   return (
-    <div
-      className={cn(
-        'flex w-full items-stretch border-t border-cs-border text-xs transition-colors',
-        active ? 'bg-cs-accent-soft/20 text-cs-text' : 'text-cs-text-muted',
-      )}
-    >
-      <button
-        type="button"
-        onClick={onClick}
-        className={cn(
-          'flex flex-1 flex-col gap-1.5 px-3 py-2 text-left transition-colors',
-          active ? '' : 'hover:bg-cs-bg-3 hover:text-cs-text',
-        )}
-      >
-        <span className="flex items-center gap-2">
-          <span className={cn('h-2 w-2 shrink-0 rounded-full', dotClass)} />
-          <span className="flex-1 truncate">{label}</span>
-          {syncing && (
-            <span className="tabular-nums text-[10px] text-cs-text-dim">
-              {done}/{total}
-            </span>
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          tooltip={label}
+          isActive={active}
+          onClick={onClick}
+          className={cn(
+            ACTIVE_BUTTON_CLASS,
+            'h-auto flex-col items-stretch gap-1.5 group-data-[collapsible=icon]:flex-row',
           )}
-          <Bluetooth size={11} aria-hidden="true" className="text-cs-text-dim" />
-        </span>
-        {showProgress && (
-          <Progress
-            value={pct}
-            aria-label="Sync progress"
-            className={cn(
-              'h-1 bg-cs-warn/20 transition-opacity duration-500 *:data-[slot=progress-indicator]:bg-cs-warn',
-              syncing ? 'opacity-100' : 'opacity-0',
-            )}
-          />
-        )}
-      </button>
-      {canReconnect && (
-        <button
-          type="button"
-          onClick={handleReconnect}
-          title={`Reconnect to ${lastDevice?.name ?? 'last radio'}`}
-          aria-label={`Reconnect to ${lastDevice?.name ?? 'last radio'}`}
-          className="flex items-center justify-center border-l border-cs-border px-3 text-cs-text-muted transition-colors hover:bg-cs-bg-3 hover:text-cs-text"
         >
-          <RotateCw size={14} aria-hidden="true" />
-        </button>
-      )}
-    </div>
+          <span className="flex w-full items-center gap-2">
+            <Bluetooth
+              aria-hidden="true"
+              className="shrink-0 group-data-[collapsible=icon]:hidden"
+            />
+            {/* In icon mode this dot is the only visible element. Bumping it
+                from size-2 to size-2.5 there gives a more legible target inside
+                the 32px icon button. */}
+            <span
+              className={cn(
+                'size-2 shrink-0 rounded-full group-data-[collapsible=icon]:size-2.5',
+                dotClass,
+              )}
+            />
+            <span className="flex-1 truncate text-left group-data-[collapsible=icon]:hidden">
+              {label}
+            </span>
+            {syncing && (
+              <span className="tabular-nums text-[10px] text-cs-text-dim group-data-[collapsible=icon]:hidden">
+                {done}/{total}
+              </span>
+            )}
+          </span>
+          {showProgress && (
+            <Progress
+              value={pct}
+              aria-label="Sync progress"
+              className={cn(
+                'h-1 bg-cs-warn/20 transition-opacity duration-500 *:data-[slot=progress-indicator]:bg-cs-warn',
+                syncing ? 'opacity-100' : 'opacity-0',
+              )}
+            />
+          )}
+        </SidebarMenuButton>
+        {canReconnect && (
+          <button
+            type="button"
+            onClick={handleReconnect}
+            title={`Reconnect to ${lastDevice?.name ?? 'last radio'}`}
+            aria-label={`Reconnect to ${lastDevice?.name ?? 'last radio'}`}
+            className="absolute right-1 top-1/2 flex aspect-square size-7 -translate-y-1/2 items-center justify-center rounded-md text-cs-text-muted transition-colors hover:bg-cs-bg-3 hover:text-cs-text group-data-[collapsible=icon]:hidden"
+          >
+            <RotateCw aria-hidden="true" className="size-4" />
+          </button>
+        )}
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }
 

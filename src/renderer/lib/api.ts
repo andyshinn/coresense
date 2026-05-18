@@ -2,6 +2,7 @@ import type {
   AppSettings,
   Capabilities,
   Contact,
+  MapSettings,
   Message,
   RadioSettings,
   RepeaterAclEntry,
@@ -11,6 +12,8 @@ import type {
   RepeaterNeighboursPage,
   RepeaterOwnerInfo,
   RepeaterTrace,
+  SearchOptions,
+  SearchResults,
   ServerStatus,
   StateSnapshot,
   UiState,
@@ -69,6 +72,18 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(settings),
     }),
+  putMapSettings: (c: ApiClient, settings: MapSettings) =>
+    request<{ ok: true }>(c, '/api/settings/map', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    }),
+  setProtomapsApiKey: (c: ApiClient, key: string) =>
+    request<{ ok: true; hasKey: true }>(c, '/api/map/api-key', {
+      method: 'POST',
+      body: JSON.stringify({ key }),
+    }),
+  clearProtomapsApiKey: (c: ApiClient) =>
+    request<{ ok: true; hasKey: false }>(c, '/api/map/api-key', { method: 'DELETE' }),
   getMessages: (c: ApiClient, key: string) =>
     request<Message[]>(c, `/api/messages/${encodeURIComponent(key)}`),
   sendMessage: (c: ApiClient, key: string, body: string) =>
@@ -198,5 +213,10 @@ export const api = {
     request<{ ok: true; stats: RepeaterLocalStats }>(c, '/api/repeater/local/stats', {
       method: 'POST',
       body: JSON.stringify({ subtype }),
+    }),
+  search: (c: ApiClient, opts: SearchOptions) =>
+    request<SearchResults>(c, '/api/search', {
+      method: 'POST',
+      body: JSON.stringify(opts),
     }),
 };

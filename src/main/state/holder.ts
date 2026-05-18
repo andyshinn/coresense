@@ -2,12 +2,15 @@ import type {
   AppSettings,
   Channel,
   Contact,
+  MapSettings,
   Message,
   Owner,
   RadioSettings,
   UiState,
 } from '../../shared/types';
+import { hasApiKey } from '../map/api-key';
 import { messagesStore } from '../storage/messages';
+import { rebuildConversationsIndex } from '../storage/search';
 import { settingsStore } from '../storage/settings';
 
 // Persistent state holder. Settings/channels/contacts/ui live in JSON files;
@@ -19,6 +22,7 @@ class StateHolder {
   private owner: Owner | null = null;
   private appSettings: AppSettings;
   private radioSettings: RadioSettings;
+  private mapSettings: MapSettings;
   private uiState: UiState;
 
   constructor() {
@@ -26,6 +30,12 @@ class StateHolder {
     this.contacts = settingsStore.loadContacts();
     this.appSettings = settingsStore.loadAppSettings();
     this.radioSettings = settingsStore.loadRadioSettings();
+    // hasProtomapsApiKey is server-owned — recompute from the encrypted blob's
+    // presence so flipping the file on/off out of band stays consistent.
+    this.mapSettings = {
+      ...settingsStore.loadMapSettings(),
+      hasProtomapsApiKey: hasApiKey(),
+    };
     this.uiState = settingsStore.loadUiState();
 
     // Seed the well-known Public channel on first run so the UI has something
@@ -40,7 +50,15 @@ class StateHolder {
           order: 0,
         },
       ]);
+    } else {
+      // setChannels handles the seed path; for the already-populated case we
+      // still need to seed the FTS index since the DB was just (re)opened.
+      this.refreshConversationsIndex();
     }
+  }
+
+  private refreshConversationsIndex(): void {
+    rebuildConversationsIndex({ channels: this.channels, contacts: this.contacts });
   }
 
   getChannels(): Channel[] {
@@ -49,6 +67,7 @@ class StateHolder {
   setChannels(next: Channel[]): void {
     this.channels = next;
     settingsStore.saveChannels(next);
+    this.refreshConversationsIndex();
   }
   upsertChannel(channel: Channel): void {
     const idx = this.channels.findIndex((c) => c.key === channel.key);
@@ -68,6 +87,7 @@ class StateHolder {
   setContacts(next: Contact[]): void {
     this.contacts = next;
     settingsStore.saveContacts(next);
+    this.refreshConversationsIndex();
   }
   upsertContact(contact: Contact): void {
     const idx = this.contacts.findIndex((c) => c.key === contact.key);
@@ -102,6 +122,14 @@ class StateHolder {
   setRadioSettings(next: RadioSettings): void {
     this.radioSettings = next;
     settingsStore.saveRadioSettings(next);
+  }
+
+  getMapSettings(): MapSettings {
+    return this.mapSettings;
+  }
+  setMapSettings(next: MapSettings): void {
+    this.mapSettings = next;
+    settingsStore.saveMapSettings(next);
   }
 
   getUiState(): UiState {

@@ -1,5 +1,6 @@
 import { PanelLeftOpen, PanelRightOpen } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { SidebarInset, SidebarProvider } from '../components/ui/sidebar';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
 import { cn } from '../lib/utils';
@@ -37,18 +38,30 @@ export function AppShell({ title, children, showShell = true, client = null }: A
         title={title}
         trailing={
           <RailToggles
-            leftOpen={leftOpen}
+            // When the sidebar is in icon mode, the rail itself is still visible — only
+            // expose the "show left nav" button when the user has fully hidden it. Since
+            // collapsible="icon" never fully hides, hide this button when leftOpen is
+            // also false (icon rail visible) too.
+            leftOpen={true}
             rightOpen={rightOpen}
             onToggleLeft={toggleLeftNav}
             onToggleRight={toggleRightRail}
           />
         }
       />
-      <div className="flex flex-1 overflow-hidden">
-        {leftOpen && <LeftNav client={client} />}
-        <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
+      <SidebarProvider
+        open={leftOpen}
+        onOpenChange={(v) => {
+          if (v !== leftOpen) toggleLeftNav();
+        }}
+        className="flex-1 overflow-hidden"
+      >
+        <LeftNav client={client} />
+        <SidebarInset className="flex flex-1 flex-col overflow-hidden bg-cs-bg">
+          {children}
+        </SidebarInset>
         {rightOpen && <RightRail client={client} />}
-      </div>
+      </SidebarProvider>
     </div>
   );
 }

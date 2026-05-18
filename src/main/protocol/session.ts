@@ -77,7 +77,18 @@ const log = child('protocol');
 
 const APP_NAME = 'coresense';
 const APP_VERSION = 1;
-const CHANNEL_SLOT_COUNT = 16; // enumerate idx 0..15 on connect
+const CHANNEL_SLOT_COUNT = 40; // enumerate idx 0..39 on connect (matches official firmware)
+
+// Cap on how long the handshake waits for RESP_CONTACTS_START before falling
+// back to enumerating channels with an unknown contact total. The radio
+// normally answers within a frame; this just keeps us from stalling forever on
+// a misbehaving device.
+const CONTACTS_START_WAIT_MS = 3000;
+
+// Cap on how long the handshake waits for RESP_END_OF_CONTACTS after the
+// channel-enumeration loop completes. Without this, a dropped end-frame leaves
+// the UI stuck in 'syncing' forever.
+const CONTACTS_DONE_WAIT_MS = 10_000;
 
 // Small delay between consecutive cmd writes so the BLE link doesn't queue too
 // many frames the radio can't ack in time. Empirical on Heltec/RAK hardware.
@@ -168,6 +179,20 @@ export class ProtocolSession {
    *  fresh RESP_CONTACTS_START arrives; consumed in RESP_END_OF_CONTACTS. */
   private contactsIterTotal = 0;
   private contactsIterCount = 0;
+  /** Resolved when RESP_CONTACTS_START arrives during the handshake, so the
+   *  channel-enumeration loop can wait for the contact total and avoid the
+   *  progress bar jumping backwards when total grows mid-sync. */
+  private contactsStartWaiter: {
+    resolve: () => void;
+    timer: NodeJS.Timeout;
+  } | null = null;
+  /** Resolved when RESP_END_OF_CONTACTS arrives. The handshake awaits this
+   *  after the channel loop so we can flip phase to 'done' inline rather than
+   *  juggling completion flags across two async streams. */
+  private contactsDoneWaiter: {
+    resolve: () => void;
+    timer: NodeJS.Timeout;
+  } | null = null;
   /** FIFO of admin sends still awaiting their RESP_SENT tag echo. Drained
    *  ahead of `dmSendQueue` in handleSent — admin writes are serialised, so
    *  the oldest entry is always the one the radio just acknowledged. */
@@ -758,7 +783,7 @@ export class ProtocolSession {
       this.stopLivenessPoll();
       this.devicePresence.clear();
       emit.channelPresence([...this.devicePresence]);
-      this.setSyncProgress({ ...DEFAULT_SYNC_PROGRESS });
+      this.updateSyncProgress({ ...DEFAULT_SYNC_PROGRESS });
       // Resolve any in-flight acks as failures rather than leaving callers hung.
       for (const p of this.pendingAcks.splice(0)) {
         clearTimeout(p.timer);
@@ -807,8 +832,11 @@ export class ProtocolSession {
     };
   }
 
-  private setSyncProgress(next: SyncProgress): void {
-    this.syncProgress = next;
+  /** Shallow-merge a patch into the current sync progress and broadcast. Each
+   *  sub-object (channels, contacts) is replaced wholesale if present in the
+   *  patch — callers pass the new `{done,total}` pair rather than mutating. */
+  private updateSyncProgress(patch: Partial<SyncProgress>): void {
+    this.syncProgress = { ...this.syncProgress, ...patch };
     emit.syncProgress(this.getSyncProgress());
   }
 
@@ -909,8 +937,26 @@ export class ProtocolSession {
     }
   }
 
+  /** Arm a one-shot waiter resolved by a future response handler (or a
+   *  timeout). Returns the promise; stores the slot so the handler can find
+   *  and resolve it. The slot is single-use — re-arming overwrites. */
+  private armWaiter(
+    slot: 'contactsStartWaiter' | 'contactsDoneWaiter',
+    timeoutMs: number,
+  ): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        if (this[slot]) {
+          this[slot] = null;
+          resolve();
+        }
+      }, timeoutMs);
+      this[slot] = { resolve, timer };
+    });
+  }
+
   private async handshake(): Promise<void> {
-    this.setSyncProgress({
+    this.updateSyncProgress({
       phase: 'syncing',
       channels: { done: 0, total: CHANNEL_SLOT_COUNT },
       contacts: { done: 0, total: 0 },
@@ -924,29 +970,49 @@ export class ProtocolSession {
       await sleep(WRITE_GAP_MS);
       await this.writeFrame(buildAppStart(APP_NAME, APP_VERSION));
       await sleep(WRITE_GAP_MS);
+      // Kick the contact iterator FIRST so RESP_CONTACTS_START gives us the
+      // contact total before we start incrementing channel progress, and so
+      // RESP_CONTACT × N can stream in via onPacket while the channel loop
+      // runs below. We arm contactsDone *before* writing GET_CONTACTS so a
+      // very fast END_OF_CONTACTS can't race past us.
+      const contactsStart = this.armWaiter('contactsStartWaiter', CONTACTS_START_WAIT_MS);
+      const contactsDone = this.armWaiter('contactsDoneWaiter', CONTACTS_DONE_WAIT_MS);
+      await this.writeFrame(buildGetContacts());
+      await contactsStart;
+      await sleep(WRITE_GAP_MS);
       // Enumerate channels. Empty slots return RESP_ERR or an all-zero key
       // RESP_CHANNEL_INFO; both are filtered by parseChannelInfo / our handler.
       for (let i = 0; i < CHANNEL_SLOT_COUNT; i += 1) {
         await this.writeFrame(buildGetChannel(i));
         await sleep(WRITE_GAP_MS);
-        this.setSyncProgress({
-          phase: 'syncing',
+        this.updateSyncProgress({
           channels: { done: i + 1, total: CHANNEL_SLOT_COUNT },
-          contacts: { ...this.syncProgress.contacts },
         });
       }
-      // Kick the contact iterator. RESP_CONTACTS_START → RESP_CONTACT × N →
-      // RESP_END_OF_CONTACTS arrives async via onPacket; we flip phase to 'done'
-      // there. If the radio has no contacts, RESP_END_OF_CONTACTS still fires
-      // with count=0.
-      await this.writeFrame(buildGetContacts());
-      // The connect-time drain + self-advert are deferred to the
-      // END_OF_CONTACTS handler so they don't race with the contact iterator.
-      // Leave phase as 'syncing'; END_OF_CONTACTS will finalize it.
+      // Wait for the contact stream to finish (or its watchdog to fire)
+      // before flipping phase, so the UI doesn't show 'done' while contacts
+      // are still ticking in.
+      await contactsDone;
+      this.updateSyncProgress({
+        phase: 'done',
+        channels: { done: CHANNEL_SLOT_COUNT, total: CHANNEL_SLOT_COUNT },
+      });
+      // Drain any messages queued during the disconnect window. Self-advert
+      // is user-initiated only (Cmd-Shift-A) — matching the official mobile
+      // clients, which never auto-advertise.
+      void this.scheduleDrain();
     } catch (err) {
       log.warn(`handshake failed: ${(err as Error).message}`);
-      this.setSyncProgress({ ...DEFAULT_SYNC_PROGRESS });
+      this.updateSyncProgress({ ...DEFAULT_SYNC_PROGRESS });
     }
+  }
+
+  private resolveWaiter(slot: 'contactsStartWaiter' | 'contactsDoneWaiter'): void {
+    const w = this[slot];
+    if (!w) return;
+    clearTimeout(w.timer);
+    this[slot] = null;
+    w.resolve();
   }
 
   private onPacket = (p: RawPacket) => {
@@ -967,13 +1033,10 @@ export class ProtocolSession {
       if (total !== null) {
         this.contactsIterTotal = total;
         this.contactsIterCount = 0;
-        this.setSyncProgress({
-          phase: 'syncing',
-          channels: { ...this.syncProgress.channels },
-          contacts: { done: 0, total },
-        });
+        this.updateSyncProgress({ contacts: { done: 0, total } });
         log.debug(`contacts iterator starting: total=${total}`);
       }
+      this.resolveWaiter('contactsStartWaiter');
       return;
     }
     if (code === RESP.CONTACT) {
@@ -981,9 +1044,13 @@ export class ProtocolSession {
       if (record) {
         this.ingestContact(record);
         this.contactsIterCount += 1;
-        this.setSyncProgress({
-          phase: 'syncing',
-          channels: { ...this.syncProgress.channels },
+        // Self-heal if the radio's CONTACTS_START total was optimistic (or
+        // never arrived): never let `done` exceed `total`, which would render
+        // as e.g. "41/40" in the footer.
+        if (this.contactsIterCount > this.contactsIterTotal) {
+          this.contactsIterTotal = this.contactsIterCount;
+        }
+        this.updateSyncProgress({
           contacts: { done: this.contactsIterCount, total: this.contactsIterTotal },
         });
       }
@@ -994,17 +1061,14 @@ export class ProtocolSession {
       log.debug(
         `contacts iterator done: ${this.contactsIterCount}/${this.contactsIterTotal} most_recent_lastmod=${mostRecent}`,
       );
-      this.setSyncProgress({
-        phase: 'done',
-        channels: { done: CHANNEL_SLOT_COUNT, total: CHANNEL_SLOT_COUNT },
+      // Snap contact total to the actual delivered count so the bar reads
+      // N/N even if the radio's CONTACTS_START total was optimistic.
+      this.updateSyncProgress({
         contacts: { done: this.contactsIterCount, total: this.contactsIterCount },
       });
       this.contactsIterTotal = 0;
       this.contactsIterCount = 0;
-      // Now that handshake is complete, drain any messages queued during the
-      // disconnect window. Self-advert is user-initiated only (Cmd-Shift-A) —
-      // matching the official mobile clients, which never auto-advertise.
-      void this.scheduleDrain();
+      this.resolveWaiter('contactsDoneWaiter');
       return;
     }
     if (code === PUSH.NEW_ADVERT) {
@@ -1195,6 +1259,11 @@ export class ProtocolSession {
       // by hand, drop the manual flag — the firmware is the source of truth.
       pathManual: pathChanged ? false : existing?.pathManual,
       pathLearnedAt: pathChanged && newOutPathHex ? Date.now() : existing?.pathLearnedAt,
+      // Adverts carry the radio's last GPS fix. 0/0 is the firmware default for
+      // radios without a GPS module — treat as "no fix" and fall back to the
+      // last known position instead of nuking it.
+      gpsLat: record.gpsLat !== 0 || record.gpsLon !== 0 ? record.gpsLat : existing?.gpsLat,
+      gpsLon: record.gpsLat !== 0 || record.gpsLon !== 0 ? record.gpsLon : existing?.gpsLon,
     };
     holder.upsertContact(contact);
 

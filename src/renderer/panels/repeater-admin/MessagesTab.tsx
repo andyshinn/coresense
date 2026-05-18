@@ -146,6 +146,7 @@ export function MessagesTab({ contact, client }: Props) {
         radioSettings={radioSettings}
         returnToSend={appSettings.composer.returnToSend}
         disabled={!client}
+        draftKey={contact.key}
       />
     </div>
   );

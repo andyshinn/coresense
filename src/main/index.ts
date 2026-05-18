@@ -10,10 +10,12 @@ import { startNotifications } from './notifications';
 import { protocolSession } from './protocol';
 import { startServer } from './server';
 import { closeDb } from './storage/db';
+import { optimizeFts } from './storage/search';
+import { flushSettings } from './storage/settings';
 import { BleTransport } from './transport/ble';
 import { transportManager } from './transport/manager';
 import { setMainWindow } from './window/registry';
-import { loadWindowState, trackWindow } from './window/state';
+import { flushWindowState, loadWindowState, trackWindow } from './window/state';
 
 const SHUTDOWN_BLE_TIMEOUT_MS = 5000;
 
@@ -69,19 +71,24 @@ function hardenSession() {
   // Allow ws: for WebSocket connections and the dev server's HMR, plus blob:
   // for source maps and worker shims.
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    // Protomaps glyph PBFs and sprite assets live on protomaps.github.io.
+    // MapLibre fetches glyphs as ArrayBuffers (connect-src) and the sprite
+    // PNG as an Image (img-src). TODO: bundle these into resources/ for a
+    // fully offline build.
+    const MAP_ASSETS = 'https://protomaps.github.io';
     const csp = isDev
       ? "default-src 'self'; " +
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; " +
         "style-src 'self' 'unsafe-inline'; " +
         'connect-src * ws: wss: http: https: data: blob:; ' +
-        "img-src 'self' data: blob:; " +
+        `img-src 'self' data: blob: ${MAP_ASSETS}; ` +
         "font-src 'self' data:; " +
         "worker-src 'self' blob:;"
       : "default-src 'self'; " +
         "script-src 'self'; " +
         "style-src 'self' 'unsafe-inline'; " +
-        "connect-src 'self' ws: wss:; " +
-        "img-src 'self' data: blob:; " +
+        `connect-src 'self' ws: wss: ${MAP_ASSETS}; ` +
+        `img-src 'self' data: blob: ${MAP_ASSETS}; ` +
         "font-src 'self' data:; " +
         "worker-src 'self' blob:; " +
         "object-src 'none'; " +
@@ -94,6 +101,14 @@ function hardenSession() {
       },
     });
   });
+}
+
+function safeOrigin(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
 }
 
 function wireTheme() {
@@ -164,12 +179,15 @@ function createWindow() {
     return { action: 'deny' };
   });
   mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
-    const allowed = MAIN_WINDOW_VITE_DEV_SERVER_URL
-      ? targetUrl.startsWith(MAIN_WINDOW_VITE_DEV_SERVER_URL)
+    // Compare full origins, not string prefixes — `startsWith` would let
+    // `http://127.0.0.1:7654.evil.com/` pass the allowlist.
+    const allowedOrigin = MAIN_WINDOW_VITE_DEV_SERVER_URL
+      ? safeOrigin(MAIN_WINDOW_VITE_DEV_SERVER_URL)
       : serverHandle
-        ? targetUrl.startsWith(`http://127.0.0.1:${serverHandle.port}`)
-        : false;
-    if (!allowed) {
+        ? `http://127.0.0.1:${serverHandle.port}`
+        : null;
+    const targetOrigin = safeOrigin(targetUrl);
+    if (!allowedOrigin || targetOrigin !== allowedOrigin) {
       event.preventDefault();
       if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
         void shell.openExternal(targetUrl);
@@ -181,10 +199,15 @@ function createWindow() {
   });
 
   // Pipe renderer console messages + page errors through the main logger so
-  // we can see them when running headless via `pnpm start`.
-  mainWindow.webContents.on('console-message', (event) => {
-    rendererLog.debug(`[${event.level}] ${event.message} (${event.sourceId}:${event.lineNumber})`);
-  });
+  // we can see them when running headless via `pnpm start`. Dev-only — in prod
+  // this is just IPC + log overhead on every console.log from chatty UI code.
+  if (isDev) {
+    mainWindow.webContents.on('console-message', (event) => {
+      rendererLog.debug(
+        `[${event.level}] ${event.message} (${event.sourceId}:${event.lineNumber})`,
+      );
+    });
+  }
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
     rendererLog.error(`gone: ${details.reason} (exit=${details.exitCode})`);
   });
@@ -272,5 +295,20 @@ async function shutdown() {
   );
 
   await Promise.allSettled(tasks);
+  // Drain any in-flight settings / window-state writes before exit so the
+  // user's last UI tweaks survive a quit.
+  await Promise.allSettled([
+    flushSettings().catch((err) => log.warn(`settings flush failed: ${(err as Error).message}`)),
+    flushWindowState().catch((err) =>
+      log.warn(`window state flush failed: ${(err as Error).message}`),
+    ),
+  ]);
+  // Compact the FTS5 index before closing the DB. Cheap on small indexes,
+  // worth doing periodically on larger ones to keep query latency low.
+  try {
+    optimizeFts();
+  } catch (err) {
+    log.warn(`fts optimize failed: ${(err as Error).message}`);
+  }
   closeDb();
 }

@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MenuAction, UiState, WsMessage } from '../shared/types';
 import { ApiKeyGate } from './components/ApiKeyGate';
-import { PacketLog } from './components/PacketLog';
 import { PathLearnedDialog } from './components/path/PathLearnedDialog';
 import { StatusBar } from './components/StatusBar';
 import { Toaster } from './components/ui/sonner';
@@ -13,16 +12,22 @@ import { notify } from './lib/notify';
 import { useStore } from './lib/store';
 import {
   applyTheme,
-  loadThemePref,
+  clearLegacyThemePref,
+  readLegacyThemePref,
   resolveTheme,
-  saveThemePref,
-  systemPrefersDark,
   type ThemePref,
 } from './lib/theme';
 import { AppShell } from './shell/AppShell';
-import { MainPane } from './shell/MainPane';
 
-const STATUS_POLL_MS = 2_000;
+// Lazy: MainPane drags in every panel module (~1.5k LOC of forms/tables that
+// aren't used until the user navigates to them).
+const MainPane = lazy(() => import('./shell/MainPane').then((m) => ({ default: m.MainPane })));
+// Lazy: PacketLog pulls in react-virtual + the protocol decoder; we only need
+// it when the user opens the packet log panel.
+const PacketLog = lazy(() =>
+  import('./components/PacketLog').then((m) => ({ default: m.PacketLog })),
+);
+
 const UI_STATE_DEBOUNCE_MS = 500;
 const FALLBACK_BASE_URL = 'http://127.0.0.1:7654';
 
@@ -30,41 +35,26 @@ export function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => loadApiKey());
   const [baseUrl, setBaseUrl] = useState<string | null>(null);
   const [port, setPort] = useState<number | null>(null);
-  const [themePref, setThemePref] = useState<ThemePref>(() => loadThemePref());
-  const [systemDark, setSystemDark] = useState<boolean>(() => systemPrefersDark());
+  const themePref = useStore((s) => s.ui.themePref);
+  const setThemePrefStore = useStore((s) => s.setThemePref);
+  // systemDark lives in the store so any component (MapCanvas et al.) can
+  // resolve the effective theme without prop-drilling. Seeded synchronously
+  // in the store from matchMedia; main pushes updates via the 'theme' WS event.
+  const systemDark = useStore((s) => s.systemDark);
+  const setSystemDark = useStore((s) => s.setSystemDark);
   const [hydrated, setHydrated] = useState(false);
 
-  const transportState = useStore((s) => s.transportState);
-  const bridge = useStore((s) => s.bridge);
-  const packets = useStore((s) => s.packets);
-  const wsClients = useStore((s) => s.wsClients);
   const ui = useStore((s) => s.ui);
 
-  const {
-    hydrate,
-    applyPacket,
-    applyTransportState,
-    applyDevices,
-    applyBridge,
-    applyMessages,
-    applyMessageState,
-    applyChannels,
-    applyChannelPresence,
-    applySyncProgress,
-    applyContacts,
-    applyOwner,
-    applyAppSettings,
-    applyRadioSettings,
-    applyRepeaterStatus,
-    applyRepeaterTelemetry,
-    applyPathLearned,
-    setBusy,
-    setWsClients,
-    toggleLeftNav,
-    toggleRightRail,
-    togglePin,
-    setActiveKey,
-  } = useStore();
+  // Action references are stable across renders (zustand returns the same
+  // function instance) — pulling them via getState() inside callbacks avoids
+  // subscribing App to every store mutation.
+  const hydrate = useStore((s) => s.hydrate);
+  const setBusy = useStore((s) => s.setBusy);
+  const toggleLeftNav = useStore((s) => s.toggleLeftNav);
+  const toggleRightRail = useStore((s) => s.toggleRightRail);
+  const togglePin = useStore((s) => s.togglePin);
+  const setActiveKey = useStore((s) => s.setActiveKey);
 
   useEffect(() => {
     applyTheme(resolveTheme(themePref, systemDark));
@@ -76,7 +66,9 @@ export function App() {
     const onChange = (e: MediaQueryListEvent) => setSystemDark(e.matches);
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
-  }, []);
+    // setSystemDark is a stable store action — including it just to satisfy
+    // the linter is the cheapest path forward.
+  }, [setSystemDark]);
 
   // Global Cmd/Ctrl+K listener. The menu accelerator handles it when nothing
   // else has focus, but a focused input swallows the keydown — this captures
@@ -93,12 +85,10 @@ export function App() {
   }, []);
 
   const cycleThemePref = useCallback(() => {
-    setThemePref((prev) => {
-      const next: ThemePref = prev === 'auto' ? 'dark' : prev === 'dark' ? 'light' : 'auto';
-      saveThemePref(next);
-      return next;
-    });
-  }, []);
+    const prev = useStore.getState().ui.themePref;
+    const next: ThemePref = prev === 'auto' ? 'dark' : prev === 'dark' ? 'light' : 'auto';
+    setThemePrefStore(next);
+  }, [setThemePrefStore]);
 
   const handleMenuAction = useCallback(
     (action: MenuAction) => {
@@ -198,6 +188,19 @@ export function App() {
     };
   }, [client, hydrate]);
 
+  // One-shot migration: if a legacy localStorage theme pref exists and the
+  // hydrated ui.themePref is still the default 'auto', adopt the legacy value
+  // and clear the localStorage key. Drop this branch in a follow-up release.
+  useEffect(() => {
+    if (!hydrated) return;
+    const legacy = readLegacyThemePref();
+    if (!legacy) return;
+    if (useStore.getState().ui.themePref === 'auto' && legacy !== 'auto') {
+      setThemePrefStore(legacy);
+    }
+    clearLegacyThemePref();
+  }, [hydrated, setThemePrefStore]);
+
   // Debounced persistence of UI state changes to ui-state.json. Skipped until
   // the first snapshot arrives so we don't overwrite the on-disk version with
   // the in-memory default.
@@ -225,21 +228,28 @@ export function App() {
 
   const onMessage = useCallback(
     (msg: WsMessage) => {
+      // Pull action references off the store at dispatch time. They're stable
+      // function identities, so this avoids subscribing App to every store
+      // mutation just to keep the callback's dep array honest.
+      const s = useStore.getState();
       switch (msg.type) {
         case 'packet':
-          applyPacket(msg.payload);
+          s.applyPacket(msg.payload);
           break;
         case 'transportState':
-          applyTransportState(msg.payload.state, msg.payload.deviceId);
+          s.applyTransportState(msg.payload.state, msg.payload.deviceId);
           break;
         case 'scanResults':
-          applyDevices(msg.payload);
+          s.applyDevices(msg.payload);
           break;
         case 'error':
           notify.error(msg.payload.message);
           break;
         case 'bridgeStatus':
-          applyBridge(msg.payload);
+          s.applyBridge(msg.payload);
+          break;
+        case 'wsClients':
+          s.setWsClients(msg.payload.count);
           break;
         case 'theme':
           setSystemDark(msg.payload.systemDark);
@@ -248,45 +258,48 @@ export function App() {
           handleMenuAction(msg.payload);
           break;
         case 'channels':
-          applyChannels(msg.payload);
+          s.applyChannels(msg.payload);
           break;
         case 'channelPresence':
-          applyChannelPresence(msg.payload.keys);
+          s.applyChannelPresence(msg.payload.keys);
           break;
         case 'syncProgress':
-          applySyncProgress(msg.payload);
+          s.applySyncProgress(msg.payload);
           break;
         case 'contacts':
-          applyContacts(msg.payload);
+          s.applyContacts(msg.payload);
           break;
         case 'messages':
-          applyMessages(msg.payload.key, msg.payload.messages);
+          s.applyMessages(msg.payload.key, msg.payload.messages);
           break;
         case 'messageState':
-          applyMessageState(msg.payload.id, msg.payload.state);
+          s.applyMessageState(msg.payload.id, msg.payload.state);
           break;
         case 'owner':
-          applyOwner(msg.payload);
+          s.applyOwner(msg.payload);
           break;
         case 'appSettings':
-          applyAppSettings(msg.payload);
+          s.applyAppSettings(msg.payload);
           break;
         case 'radioSettings':
-          applyRadioSettings(msg.payload);
+          s.applyRadioSettings(msg.payload);
+          break;
+        case 'mapSettings':
+          s.applyMapSettings(msg.payload);
+          break;
+        case 'mapManifest':
+          s.applyMapManifest(msg.payload);
           break;
         case 'repeaterStatus':
-          applyRepeaterStatus(msg.payload);
+          s.applyRepeaterStatus(msg.payload);
           break;
         case 'repeaterTelemetry':
-          applyRepeaterTelemetry(msg.payload);
+          s.applyRepeaterTelemetry(msg.payload);
           break;
         case 'pathLearned': {
-          applyPathLearned(msg.payload);
+          s.applyPathLearned(msg.payload);
           if (!msg.payload.previousManual) {
-            // Silent absorbed — surface a toast so the user can see what changed.
-            const contact = useStore
-              .getState()
-              .contacts.find((c) => c.key === msg.payload.contactKey);
+            const contact = s.contacts.find((c) => c.key === msg.payload.contactKey);
             const hops = Math.max(
               1,
               Math.floor(msg.payload.newOutPathHex.length / 2 / msg.payload.newOutPathHashSize),
@@ -301,50 +314,10 @@ export function App() {
         }
       }
     },
-    [
-      applyPacket,
-      applyTransportState,
-      applyDevices,
-      applyBridge,
-      applyMessages,
-      applyMessageState,
-      applyChannels,
-      applyChannelPresence,
-      applySyncProgress,
-      applyContacts,
-      applyOwner,
-      applyAppSettings,
-      applyRadioSettings,
-      applyRepeaterStatus,
-      applyRepeaterTelemetry,
-      applyPathLearned,
-      handleMenuAction,
-    ],
+    [handleMenuAction, setSystemDark],
   );
 
   useWebSocket({ url: wsUrl, onMessage });
-
-  useEffect(() => {
-    if (!client) return;
-    let cancelled = false;
-    const tick = async () => {
-      try {
-        const s = await api.status(client);
-        if (!cancelled) {
-          setWsClients(s.wsClients);
-          applyBridge(s.bridge);
-        }
-      } catch {
-        // ignore transient
-      }
-    };
-    void tick();
-    const id = window.setInterval(tick, STATUS_POLL_MS);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [client, applyBridge, setWsClients]);
 
   const handleScan = useCallback(async () => {
     if (!client) return;
@@ -408,23 +381,38 @@ export function App() {
       <PathLearnedDialogHost client={client} />
       <div className="flex h-full flex-1 flex-col">
         <div className="flex-1 overflow-hidden">
-          <MainPane
-            client={client}
-            onScan={handleScan}
-            onConnect={handleConnect}
-            onDisconnect={handleDisconnect}
-            renderPacketLog={() => <PacketLog packets={packets} />}
-          />
+          <Suspense fallback={null}>
+            <MainPane
+              client={client}
+              onScan={handleScan}
+              onConnect={handleConnect}
+              onDisconnect={handleDisconnect}
+              renderPacketLog={() => (
+                <Suspense fallback={null}>
+                  <PacketLogHost />
+                </Suspense>
+              )}
+            />
+          </Suspense>
         </div>
 
-        <StatusBar
-          port={port}
-          wsClients={wsClients}
-          transportState={transportState}
-          bridge={bridge}
-        />
+        <StatusBarHost port={port} />
       </div>
     </AppShell>
+  );
+}
+
+function PacketLogHost() {
+  const packets = useStore((s) => s.packets);
+  return <PacketLog packets={packets} />;
+}
+
+function StatusBarHost({ port }: { port: number | null }) {
+  const transportState = useStore((s) => s.transportState);
+  const bridge = useStore((s) => s.bridge);
+  const wsClients = useStore((s) => s.wsClients);
+  return (
+    <StatusBar port={port} wsClients={wsClients} transportState={transportState} bridge={bridge} />
   );
 }
 

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { readFile, stat } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 import { type ServerType, serve } from '@hono/node-server';
@@ -10,6 +10,7 @@ import type {
   BleDevice,
   Channel,
   Contact,
+  MapSettings,
   MenuAction,
   Message,
   MessageState,
@@ -21,6 +22,7 @@ import type {
   RepeaterTelemetrySnapshot,
   SyncProgress,
   ThemePush,
+  TileManifest,
   TransportState,
   WsMessage,
 } from '../shared/types';
@@ -69,23 +71,25 @@ export async function startServer(
   );
 
   if (rendererDir) {
-    app.get('/', (c) => c.html(readFileSync(join(rendererDir, 'index.html'), 'utf8')));
-    app.get('/*', (c) => {
+    // Preload index.html once at startup; the production bundle is immutable.
+    const indexHtml = await readFile(join(rendererDir, 'index.html'), 'utf8');
+    const normalizedRoot = normalize(rendererDir);
+    app.get('/', (c) => c.html(indexHtml));
+    app.get('/*', async (c) => {
       const reqPath = c.req.path === '/' ? '/index.html' : c.req.path;
       const filePath = normalize(join(rendererDir, reqPath));
-      if (!filePath.startsWith(normalize(rendererDir))) {
+      if (!filePath.startsWith(normalizedRoot)) {
         return c.json({ error: 'Forbidden' }, 403);
       }
-      if (!existsSync(filePath) || !statSync(filePath).isFile()) {
-        // SPA fallback for non-asset routes
-        if (extname(c.req.path) === '') {
-          return c.html(readFileSync(join(rendererDir, 'index.html'), 'utf8'));
-        }
+      try {
+        const s = await stat(filePath);
+        if (!s.isFile()) throw new Error('not a file');
+      } catch {
+        if (extname(c.req.path) === '') return c.html(indexHtml);
         return c.json({ error: 'Not found' }, 404);
       }
-      const body = readFileSync(filePath);
-      const type = mimeFor(extname(filePath));
-      return c.body(body, 200, { 'Content-Type': type });
+      const body = await readFile(filePath);
+      return c.body(body, 200, { 'Content-Type': mimeFor(extname(filePath)) });
     });
   }
 
@@ -112,6 +116,15 @@ export async function startServer(
     });
   });
 
+  const broadcast = (msg: WsMessage) => {
+    const data = JSON.stringify(msg);
+    for (const c of clients) {
+      if (c.readyState === c.OPEN) c.send(data);
+    }
+  };
+  const broadcastClientCount = () =>
+    broadcast({ type: 'wsClients', payload: { count: clients.size } });
+
   wss.on('connection', (ws: WebSocket, _req: IncomingMessage) => {
     clients.add(ws);
     const initialState: WsMessage = {
@@ -124,16 +137,15 @@ export async function startServer(
       payload: bridge.getStatus(),
     };
     ws.send(JSON.stringify(initialBridge));
-    ws.on('close', () => clients.delete(ws));
-    ws.on('error', () => clients.delete(ws));
+    ws.send(JSON.stringify({ type: 'wsClients', payload: { count: clients.size } } as WsMessage));
+    // Other clients should learn that the population just grew/shrank too.
+    broadcastClientCount();
+    const drop = () => {
+      if (clients.delete(ws)) broadcastClientCount();
+    };
+    ws.on('close', drop);
+    ws.on('error', drop);
   });
-
-  const broadcast = (msg: WsMessage) => {
-    const data = JSON.stringify(msg);
-    for (const c of clients) {
-      if (c.readyState === c.OPEN) c.send(data);
-    }
-  };
 
   const onPacket = (p: RawPacket) => broadcast({ type: 'packet', payload: p });
   const onTransportState = (state: TransportState, deviceId?: string) => {
@@ -161,6 +173,10 @@ export async function startServer(
     broadcast({ type: 'appSettings', payload: settings });
   const onRadioSettings = (settings: RadioSettings) =>
     broadcast({ type: 'radioSettings', payload: settings });
+  const onMapSettings = (settings: MapSettings) =>
+    broadcast({ type: 'mapSettings', payload: settings });
+  const onMapManifest = (manifest: TileManifest) =>
+    broadcast({ type: 'mapManifest', payload: manifest });
   const onRepeaterStatus = (snap: RepeaterStatusSnapshot) =>
     broadcast({ type: 'repeaterStatus', payload: snap });
   const onRepeaterTelemetry = (snap: RepeaterTelemetrySnapshot) =>
@@ -183,6 +199,8 @@ export async function startServer(
   bus.on('owner', onOwner);
   bus.on('appSettings', onAppSettings);
   bus.on('radioSettings', onRadioSettings);
+  bus.on('mapSettings', onMapSettings);
+  bus.on('mapManifest', onMapManifest);
   bus.on('repeaterStatus', onRepeaterStatus);
   bus.on('repeaterTelemetry', onRepeaterTelemetry);
   bus.on('pathLearned', onPathLearned);
@@ -204,6 +222,8 @@ export async function startServer(
     bus.off('owner', onOwner);
     bus.off('appSettings', onAppSettings);
     bus.off('radioSettings', onRadioSettings);
+    bus.off('mapSettings', onMapSettings);
+    bus.off('mapManifest', onMapManifest);
     bus.off('repeaterStatus', onRepeaterStatus);
     bus.off('repeaterTelemetry', onRepeaterTelemetry);
     bus.off('pathLearned', onPathLearned);
@@ -263,7 +283,7 @@ function listenWithFallback(
   return new Promise((resolve, reject) => {
     let attempt = 0;
     const tryPort = (port: number) => {
-      const server = serve({ fetch, port }, (info) => {
+      const server = serve({ fetch, port, hostname: '127.0.0.1' }, (info) => {
         onBound(info.port);
         resolve(server);
       });

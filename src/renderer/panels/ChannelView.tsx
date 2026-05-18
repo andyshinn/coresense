@@ -30,6 +30,8 @@ export function ChannelView({ channel, client }: Props) {
   const messages = useStore((s) => s.messagesByKey[channel.key]) ?? EMPTY_MESSAGES;
   const selectedId = useStore((s) => s.selectedMessageId);
   const setSelectedMessage = useStore((s) => s.setSelectedMessage);
+  const pendingJumpMid = useStore((s) => s.pendingJumpMid);
+  const setPendingJump = useStore((s) => s.setPendingJump);
   const appSettings = useStore((s) => s.appSettings);
   const radioSettings = useStore((s) => s.radioSettings);
   const applyMessages = useStore((s) => s.applyMessages);
@@ -138,6 +140,8 @@ export function ChannelView({ channel, client }: Props) {
           onMarkRead={(ts) => markRead(channel.key, ts)}
           onResend={(m) => onSend(m.body)}
           onReply={(name) => composerRef.current?.insertMention(name)}
+          jumpToId={pendingJumpMid}
+          onJumpConsumed={() => setPendingJump(null)}
         />
       </div>
 
@@ -154,6 +158,7 @@ export function ChannelView({ channel, client }: Props) {
         radioSettings={radioSettings}
         returnToSend={appSettings.composer.returnToSend}
         disabled={composerDisabled}
+        draftKey={channel.key}
       />
     </div>
   );

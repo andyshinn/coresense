@@ -1,4 +1,5 @@
-import { readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { app, type BrowserWindow, screen } from 'electron';
 import { child } from '../log';
@@ -40,15 +41,28 @@ export function loadWindowState(): WindowState {
   }
 }
 
+// Serialize writes so a flurry of resize/move events can't interleave with
+// each other (last call wins on disk).
+let writeChain: Promise<void> = Promise.resolve();
+
 function writeAtomic(state: WindowState): void {
   const target = statePath();
   const tmp = `${target}.tmp`;
-  try {
-    writeFileSync(tmp, JSON.stringify(state, null, 2), 'utf8');
-    renameSync(tmp, target);
-  } catch (err) {
-    log.warn(`failed to save window state: ${(err as Error).message}`);
-  }
+  const body = JSON.stringify(state, null, 2);
+  writeChain = writeChain
+    .catch(() => undefined)
+    .then(async () => {
+      try {
+        await writeFile(tmp, body, 'utf8');
+        await rename(tmp, target);
+      } catch (err) {
+        log.warn(`failed to save window state: ${(err as Error).message}`);
+      }
+    });
+}
+
+export function flushWindowState(): Promise<void> {
+  return writeChain;
 }
 
 export function trackWindow(window: BrowserWindow): void {

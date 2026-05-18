@@ -1,5 +1,29 @@
-export type ThemePref = 'auto' | 'dark' | 'light';
+import type { ThemePref } from '../../shared/types';
+
+export type { ThemePref };
 export type ThemeMode = 'dark' | 'light';
+
+// Legacy localStorage key, retained only for the one-shot migration into
+// ui-state.json. Read once on hydration; never written.
+export const LEGACY_THEME_PREF_KEY = 'coresense.theme';
+
+export function readLegacyThemePref(): ThemePref | null {
+  try {
+    const raw = localStorage.getItem(LEGACY_THEME_PREF_KEY);
+    if (raw === 'dark' || raw === 'light' || raw === 'auto') return raw;
+  } catch {
+    // localStorage may be unavailable in some embeddings.
+  }
+  return null;
+}
+
+export function clearLegacyThemePref(): void {
+  try {
+    localStorage.removeItem(LEGACY_THEME_PREF_KEY);
+  } catch {
+    // no-op
+  }
+}
 
 interface Palette {
   bg: string;
@@ -53,26 +77,6 @@ const LIGHT: Palette = {
 };
 
 const PALETTES: Record<ThemeMode, Palette> = { dark: DARK, light: LIGHT };
-
-export const THEME_PREF_KEY = 'coresense.theme';
-
-export function loadThemePref(): ThemePref {
-  try {
-    const raw = localStorage.getItem(THEME_PREF_KEY);
-    if (raw === 'dark' || raw === 'light' || raw === 'auto') return raw;
-  } catch {
-    // localStorage may be unavailable in some embeddings — fall through.
-  }
-  return 'auto';
-}
-
-export function saveThemePref(pref: ThemePref): void {
-  try {
-    localStorage.setItem(THEME_PREF_KEY, pref);
-  } catch {
-    // no-op
-  }
-}
 
 export function systemPrefersDark(): boolean {
   try {

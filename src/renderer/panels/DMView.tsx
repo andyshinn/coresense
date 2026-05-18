@@ -31,6 +31,8 @@ export function DMView({ contact, client }: Props) {
   const messages = useStore((s) => s.messagesByKey[contact.key]) ?? EMPTY_MESSAGES;
   const selectedId = useStore((s) => s.selectedMessageId);
   const setSelectedMessage = useStore((s) => s.setSelectedMessage);
+  const pendingJumpMid = useStore((s) => s.pendingJumpMid);
+  const setPendingJump = useStore((s) => s.setPendingJump);
   const appSettings = useStore((s) => s.appSettings);
   const radioSettings = useStore((s) => s.radioSettings);
   const applyMessages = useStore((s) => s.applyMessages);
@@ -105,6 +107,8 @@ export function DMView({ contact, client }: Props) {
           onMarkRead={(ts) => markRead(contact.key, ts)}
           onResend={(m) => onSend(m.body)}
           onReply={(name) => composerRef.current?.insertMention(name)}
+          jumpToId={pendingJumpMid}
+          onJumpConsumed={() => setPendingJump(null)}
         />
       </div>
 
@@ -114,6 +118,7 @@ export function DMView({ contact, client }: Props) {
         radioSettings={radioSettings}
         returnToSend={appSettings.composer.returnToSend}
         disabled={!client}
+        draftKey={contact.key}
       />
     </div>
   );

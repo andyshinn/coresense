@@ -11,6 +11,8 @@ interface Props {
   message: Message;
   isSelf: boolean;
   selected: boolean;
+  /** Briefly applies a pulsing background to mark a search-jump landing. */
+  flash?: boolean;
   onSelect: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   style: MessageStyle;
@@ -30,6 +32,7 @@ export function MessageRow({
   message,
   isSelf,
   selected,
+  flash,
   onSelect,
   onContextMenu,
   style,
@@ -45,7 +48,7 @@ export function MessageRow({
   const canReply = !isSelf && senderName !== '' && onReply != null;
 
   return (
-    <div className="group px-3 py-0.5">
+    <div className="group px-3 py-0.5" data-flash={flash ? 'true' : undefined}>
       {/* biome-ignore lint/a11y/useSemanticElements: cannot be a <button> because MentionPill renders a nested button */}
       <div
         role="button"

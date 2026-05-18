@@ -6,9 +6,12 @@ import {
   type Channel,
   type Contact,
   DEFAULT_APP_SETTINGS,
+  DEFAULT_MAP_SETTINGS,
   DEFAULT_RADIO_SETTINGS,
   DEFAULT_SYNC_PROGRESS,
   DEFAULT_UI_STATE,
+  type LeftNavGroupId,
+  type MapSettings,
   type Message,
   type MessageState,
   type Owner,
@@ -17,15 +20,36 @@ import {
   type RawPacket,
   type RepeaterStatusSnapshot,
   type RepeaterTelemetrySnapshot,
+  type SearchSort,
   type StateSnapshot,
   type SyncProgress,
+  type ThemePref,
+  type TileManifest,
   type TransportState,
   type UiState,
 } from '../../shared/types';
 
+const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null, terrain: null };
+
 const MAX_PACKETS = 500;
 
+interface SearchFilters {
+  kinds: ('channel' | 'dm')[];
+  key?: string;
+  /** Sender hex public key or the literal 'self' for owner-sent. */
+  fromPk?: string;
+  tsFrom?: number;
+  tsTo?: number;
+}
+
+const DEFAULT_SEARCH_FILTERS: SearchFilters = { kinds: ['channel', 'dm'] };
+
 interface CoreState {
+  // OS-level dark-mode signal pushed from main. Drives the resolved theme
+  // (combined with ui.themePref) wherever app code wants to react to dark
+  // mode — e.g. MapCanvas swapping basemap flavors.
+  systemDark: boolean;
+
   // Connection
   transportState: TransportState;
   connectedDeviceId: string | undefined;
@@ -51,6 +75,11 @@ interface CoreState {
   // Settings
   appSettings: AppSettings;
   radioSettings: RadioSettings;
+  mapSettings: MapSettings;
+  /** Snapshot of which bundled PMTiles extracts are available on disk.
+   *  Pushed by the snapshot endpoint; the Map panel uses it to gate mounting
+   *  MapLibre vs. showing a "missing tiles" empty-state. */
+  mapManifest: TileManifest;
 
   // Latest repeater admin snapshots keyed by contact key. Only the last
   // response is retained — the RightRail / RepeaterAdmin show it; we don't
@@ -69,6 +98,18 @@ interface CoreState {
   // Cmd+K palette open state. Not persisted across reloads.
   paletteOpen: boolean;
 
+  // Sidebar quick-filter / search panel state. Single source of truth — both
+  // the LeftNav input and the SearchResults panel input bind to this so they
+  // stay in sync as the user moves between them.
+  searchQuery: string;
+  searchFilters: SearchFilters;
+  searchSort: SearchSort;
+  // When set, the currently-active ChannelView/DMView should scroll the
+  // matching message into view and briefly flash it, then clear this. Set by
+  // a search-result click. Distinct from `selectedMessageId` (right-rail
+  // expansion) because we don't want every right-rail open to trigger a flash.
+  pendingJumpMid: string | null;
+
   // Hydration helpers
   hydrate: (snapshot: StateSnapshot) => void;
   applyPacket: (p: RawPacket) => void;
@@ -84,10 +125,13 @@ interface CoreState {
   applyOwner: (owner: Owner | null) => void;
   applyAppSettings: (settings: AppSettings) => void;
   applyRadioSettings: (settings: RadioSettings) => void;
+  applyMapSettings: (settings: MapSettings) => void;
+  applyMapManifest: (manifest: TileManifest) => void;
   applyRepeaterStatus: (snap: RepeaterStatusSnapshot) => void;
   applyRepeaterTelemetry: (snap: RepeaterTelemetrySnapshot) => void;
   applyPathLearned: (event: PathLearnedEvent) => void;
   setBusy: (b: boolean) => void;
+  setSystemDark: (dark: boolean) => void;
   // A path-learn event waiting for a user verdict (Keep mine / Accept new).
   // Only populated when previousManual=true; auto-learn over an empty or
   // already-learned slot is applied silently with a toast.
@@ -102,6 +146,10 @@ interface CoreState {
   toggleRightRail: () => void;
   setRightWidth: (w: number) => void;
   setRailSection: (id: string, open: boolean) => void;
+  setLeftNavGroup: (id: LeftNavGroupId, open: boolean) => void;
+  setDraft: (key: string, text: string) => void;
+  setPacketLogFilter: (patch: Partial<UiState['packetLogFilter']>) => void;
+  setThemePref: (mode: ThemePref) => void;
   togglePin: (key: string) => void;
   setSelectedMessage: (id: string | null) => void;
   markRead: (key: string, ts: number) => void;
@@ -110,11 +158,23 @@ interface CoreState {
   clearPackets: () => void;
   openPalette: () => void;
   closePalette: () => void;
+
+  setSearchQuery: (query: string) => void;
+  setSearchFilters: (patch: Partial<SearchFilters>) => void;
+  setSearchSort: (sort: SearchSort) => void;
+  clearSearch: () => void;
+  /** Set by a search-result click. ChannelView/DMView consume it (scroll +
+   *  flash) and then call this with null to clear. */
+  setPendingJump: (mid: string | null) => void;
 }
 
 const RECENT_KEYS_MAX = 10;
 
 export const useStore = create<CoreState>((set) => ({
+  systemDark:
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+      : false,
   transportState: 'idle',
   connectedDeviceId: undefined,
   syncProgress: DEFAULT_SYNC_PROGRESS,
@@ -132,6 +192,8 @@ export const useStore = create<CoreState>((set) => ({
 
   appSettings: DEFAULT_APP_SETTINGS,
   radioSettings: DEFAULT_RADIO_SETTINGS,
+  mapSettings: DEFAULT_MAP_SETTINGS,
+  mapManifest: DEFAULT_MAP_MANIFEST,
 
   repeaterStatusByKey: {},
   repeaterTelemetryByKey: {},
@@ -141,6 +203,11 @@ export const useStore = create<CoreState>((set) => ({
   busy: false,
   selectedMessageId: null,
   paletteOpen: false,
+
+  searchQuery: '',
+  searchFilters: DEFAULT_SEARCH_FILTERS,
+  searchSort: 'recency',
+  pendingJumpMid: null,
 
   hydrate: (snapshot) =>
     set(() => ({
@@ -155,7 +222,12 @@ export const useStore = create<CoreState>((set) => ({
       messagesByKey: groupMessagesByKey(snapshot.messages),
       appSettings: snapshot.appSettings,
       radioSettings: snapshot.radioSettings,
+      mapSettings: snapshot.mapSettings,
+      mapManifest: snapshot.mapManifest,
       ui: snapshot.uiState,
+      // Seed in-session sort from the persisted default so an existing user
+      // preference takes effect immediately on launch.
+      searchSort: snapshot.appSettings.search?.defaultSort ?? 'recency',
     })),
 
   applyPacket: (p) =>
@@ -193,6 +265,8 @@ export const useStore = create<CoreState>((set) => ({
   applyOwner: (owner) => set(() => ({ owner })),
   applyAppSettings: (settings) => set(() => ({ appSettings: settings })),
   applyRadioSettings: (settings) => set(() => ({ radioSettings: settings })),
+  applyMapSettings: (settings) => set(() => ({ mapSettings: settings })),
+  applyMapManifest: (manifest) => set(() => ({ mapManifest: manifest })),
   applyRepeaterStatus: (snap) =>
     set((s) => ({
       repeaterStatusByKey: { ...s.repeaterStatusByKey, [snap.contactKey]: snap },
@@ -213,6 +287,7 @@ export const useStore = create<CoreState>((set) => ({
   dismissPathLearned: () => set(() => ({ pendingPathLearn: null })),
 
   setBusy: (b) => set(() => ({ busy: b })),
+  setSystemDark: (dark) => set(() => ({ systemDark: dark })),
   setWsClients: (n) => set(() => ({ wsClients: n })),
 
   setActiveKey: (key) =>
@@ -235,6 +310,18 @@ export const useStore = create<CoreState>((set) => ({
   setRightWidth: (w) => set((s) => ({ ui: { ...s.ui, rightWidth: w } })),
   setRailSection: (id, open) =>
     set((s) => ({ ui: { ...s.ui, openRailSections: { ...s.ui.openRailSections, [id]: open } } })),
+  setLeftNavGroup: (id, open) =>
+    set((s) => ({ ui: { ...s.ui, leftNavOpen: { ...s.ui.leftNavOpen, [id]: open } } })),
+  setDraft: (key, text) =>
+    set((s) => {
+      const next = { ...s.ui.drafts };
+      if (text) next[key] = text;
+      else delete next[key];
+      return { ui: { ...s.ui, drafts: next } };
+    }),
+  setPacketLogFilter: (patch) =>
+    set((s) => ({ ui: { ...s.ui, packetLogFilter: { ...s.ui.packetLogFilter, ...patch } } })),
+  setThemePref: (mode) => set((s) => ({ ui: { ...s.ui, themePref: mode } })),
   togglePin: (key) =>
     set((s) => {
       const has = s.ui.pinned.includes(key);
@@ -247,6 +334,16 @@ export const useStore = create<CoreState>((set) => ({
     }),
   openPalette: () => set(() => ({ paletteOpen: true })),
   closePalette: () => set(() => ({ paletteOpen: false })),
+
+  setSearchQuery: (query) => set(() => ({ searchQuery: query })),
+  setSearchFilters: (patch) => set((s) => ({ searchFilters: { ...s.searchFilters, ...patch } })),
+  setSearchSort: (sort) => set(() => ({ searchSort: sort })),
+  clearSearch: () =>
+    set(() => ({
+      searchQuery: '',
+      searchFilters: DEFAULT_SEARCH_FILTERS,
+    })),
+  setPendingJump: (mid) => set(() => ({ pendingJumpMid: mid })),
   markRead: (key, ts) =>
     set((s) => {
       const prev = s.ui.lastReadByKey[key] ?? 0;

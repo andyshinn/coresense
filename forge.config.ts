@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
@@ -12,10 +13,19 @@ import { VitePlugin } from '@electron-forge/plugin-vite';
 import { PublisherGithub } from '@electron-forge/publisher-github';
 import type { ForgeConfig } from '@electron-forge/shared-types';
 
+// Bundled PMTiles extracts (basemap + terrain) ship as extraResource so they
+// land outside app.asar and remain accessible to fs ranged reads. They're
+// tracked in git-LFS but optional at build time — the app must package and
+// run without them (Map panel shows a "missing tiles" empty-state). Only
+// include files that actually exist on disk.
+const TILE_EXTRACTS = ['resources/tiles/basemap.pmtiles', 'resources/tiles/terrain.pmtiles'];
+const bundledTiles = TILE_EXTRACTS.filter((p) => existsSync(p));
+
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     icon: 'build/icon',
+    extraResource: bundledTiles,
     // The Vite plugin's default ignore excludes everything outside /.vite, but
     // we need /node_modules for native modules (@abandonware/noble, better-sqlite3)
     // that cannot be bundled by Rollup. AutoUnpackNativesPlugin moves the .node

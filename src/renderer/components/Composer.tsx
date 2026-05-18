@@ -2,6 +2,7 @@ import { Loader2, Send } from 'lucide-react';
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import type { RadioSettings } from '../../shared/types';
 import { loraAirtimeMs } from '../lib/airtime';
+import { useStore } from '../lib/store';
 import { cn } from '../lib/utils';
 
 export interface ComposerHandle {
@@ -17,13 +18,27 @@ interface Props {
   returnToSend: boolean;
   radioSettings: RadioSettings;
   placeholder?: string;
+  // Conversation key the textarea belongs to. When provided, the in-progress
+  // text is persisted to ui.drafts so it survives restarts and view switches.
+  draftKey?: string;
 }
 
 export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
-  { onSend, disabled, returnToSend, radioSettings, placeholder = 'Send a message…' },
+  { onSend, disabled, returnToSend, radioSettings, placeholder = 'Send a message…', draftKey },
   ref,
 ) {
-  const [value, setValue] = useState('');
+  const draft = useStore((s) => (draftKey ? (s.ui.drafts[draftKey] ?? '') : ''));
+  const setDraft = useStore((s) => s.setDraft);
+  const [localValue, setLocalValue] = useState('');
+  const value = draftKey ? draft : localValue;
+  const setValue = (v: string | ((prev: string) => string)) => {
+    if (draftKey) {
+      const next = typeof v === 'function' ? v(draft) : v;
+      setDraft(draftKey, next);
+    } else {
+      setLocalValue((prev) => (typeof v === 'function' ? v(prev) : v));
+    }
+  };
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 

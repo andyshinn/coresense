@@ -12,6 +12,7 @@ import {
   Select,
   Toggle,
 } from '../components/settings/Field';
+import { MapKeySection } from '../components/settings/MapKeySection';
 import { type ApiClient, api } from '../lib/api';
 import { notify } from '../lib/notify';
 import { useStore } from '../lib/store';
@@ -35,6 +36,11 @@ const MESSAGE_STYLE_OPTIONS = [
 const CONTACT_GROUPING_OPTIONS = [
   { value: 'nested', label: 'Nested (under Contacts)' },
   { value: 'top-level', label: 'Top-level sections' },
+] as const;
+
+const SEARCH_SORT_OPTIONS = [
+  { value: 'recency', label: 'Recency (newest first)' },
+  { value: 'relevance', label: 'Relevance (BM25)' },
 ] as const;
 
 interface Props {
@@ -267,10 +273,7 @@ export function AppSettings({ client }: Props) {
         />
       </Section>
 
-      <Section
-        title="Toasts"
-        description="In-app status messages shown in the bottom-right."
-      >
+      <Section title="Toasts" description="In-app status messages shown in the bottom-right.">
         <Row
           label="Enabled"
           control={
@@ -398,7 +401,68 @@ export function AppSettings({ client }: Props) {
             />
           }
         />
+        <Row
+          label="Default search sort"
+          description="Initial sort for new search sessions. The Search panel can still toggle in-session; that choice also writes back here."
+          control={
+            <Select
+              value={draft.search.defaultSort}
+              options={SEARCH_SORT_OPTIONS}
+              onChange={(sort) =>
+                update((s) => ({
+                  ...s,
+                  search: { ...s.search, defaultSort: sort as 'recency' | 'relevance' },
+                }))
+              }
+            />
+          }
+        />
+        <Row
+          label="Show sidebar search"
+          description="Display a quick-filter field above Conversations. Cmd/Ctrl+F focuses it."
+          control={
+            <Toggle
+              checked={draft.showLeftNavSearch}
+              onChange={(v) => update((s) => ({ ...s, showLeftNavSearch: v }))}
+            />
+          }
+        />
+        <Row
+          label="Collapse long lists"
+          description="Cap each LeftNav branch at a limit and add a Show-more button for the rest."
+          control={
+            <Toggle
+              checked={draft.leftNavCollapseLists.enabled}
+              onChange={(v) =>
+                update((s) => ({
+                  ...s,
+                  leftNavCollapseLists: { ...s.leftNavCollapseLists, enabled: v },
+                }))
+              }
+            />
+          }
+        />
+        <Row
+          label="Items before Show more"
+          description="Maximum rows shown under each branch before the Show-more button takes over."
+          control={
+            <NumberInput
+              value={draft.leftNavCollapseLists.limit}
+              min={1}
+              max={500}
+              disabled={!draft.leftNavCollapseLists.enabled}
+              onChange={(v) =>
+                update((s) => ({
+                  ...s,
+                  leftNavCollapseLists: { ...s.leftNavCollapseLists, limit: v },
+                }))
+              }
+            />
+          }
+        />
       </Section>
+
+      <MapKeySection client={client} />
     </PanelShell>
   );
 }

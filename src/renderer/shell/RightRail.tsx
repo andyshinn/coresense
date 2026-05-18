@@ -1,9 +1,10 @@
-import { PanelRightClose } from 'lucide-react';
+import { Crosshair, MessageSquare, PanelRightClose, Settings } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Channel, Contact, Message } from '../../shared/types';
 import { Collapsible } from '../components/Collapsible';
 import { SetPathEditor } from '../components/path/SetPathEditor';
 import type { ApiClient } from '../lib/api';
+import { publish as publishMapBus } from '../lib/map/bus';
 import { useStore } from '../lib/store';
 import { cn } from '../lib/utils';
 
@@ -346,7 +347,13 @@ function MentionedContactSection({ contact, onClear }: { contact: Contact; onCle
 }
 
 function ContactCardSection({ contact }: { contact: Contact | null }) {
+  const setActiveKey = useStore((s) => s.setActiveKey);
   if (!contact) return <Placeholder label="unknown contact" />;
+  const hasFix =
+    typeof contact.gpsLat === 'number' &&
+    typeof contact.gpsLon === 'number' &&
+    (contact.gpsLat !== 0 || contact.gpsLon !== 0);
+  const canAdminister = contact.kind === 'repeater' || contact.kind === 'sensor';
   return (
     <div className="space-y-1.5 text-cs-text-muted">
       <Field label="Name" value={contact.name} />
@@ -357,7 +364,63 @@ function ContactCardSection({ contact }: { contact: Contact | null }) {
       )}
       {contact.rssi != null && <Field label="RSSI" value={`${contact.rssi} dBm`} mono />}
       {contact.hops != null && <Field label="Hops" value={String(contact.hops)} mono />}
+      {hasFix && (
+        <>
+          <Field
+            label="Position"
+            value={`${(contact.gpsLat as number).toFixed(5)}, ${(contact.gpsLon as number).toFixed(5)}`}
+            mono
+          />
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            <CardActionButton
+              icon={MessageSquare}
+              label="Open conversation"
+              onClick={() => setActiveKey(contact.key)}
+            />
+            {canAdminister && (
+              <CardActionButton
+                icon={Settings}
+                label="Administer"
+                onClick={() => setActiveKey(contact.key)}
+              />
+            )}
+            <CardActionButton
+              icon={Crosshair}
+              label="Center on map"
+              onClick={() =>
+                publishMapBus({
+                  kind: 'flyTo',
+                  lng: contact.gpsLon as number,
+                  lat: contact.gpsLat as number,
+                  zoom: 12,
+                })
+              }
+            />
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+function CardActionButton({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: typeof MessageSquare;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1 rounded border border-cs-border bg-cs-bg-3 px-2 py-0.5 text-[10px] text-cs-text hover:bg-cs-border"
+    >
+      <Icon size={11} aria-hidden />
+      {label}
+    </button>
   );
 }
 

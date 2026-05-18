@@ -4,6 +4,7 @@ import type {
   BleDevice,
   Channel,
   Contact,
+  MapSettings,
   MenuAction,
   Message,
   MessageState,
@@ -15,6 +16,7 @@ import type {
   RepeaterTelemetrySnapshot,
   SyncProgress,
   ThemePush,
+  TileManifest,
   TransportState,
   UiState,
 } from '../../shared/types';
@@ -39,6 +41,8 @@ export const emit = {
   owner: (owner: Owner | null) => bus.emit('owner', owner),
   appSettings: (settings: AppSettings) => bus.emit('appSettings', settings),
   radioSettings: (settings: RadioSettings) => bus.emit('radioSettings', settings),
+  mapSettings: (settings: MapSettings) => bus.emit('mapSettings', settings),
+  mapManifest: (manifest: TileManifest) => bus.emit('mapManifest', manifest),
   repeaterStatus: (snap: RepeaterStatusSnapshot) => bus.emit('repeaterStatus', snap),
   repeaterTelemetry: (snap: RepeaterTelemetrySnapshot) => bus.emit('repeaterTelemetry', snap),
   pathLearned: (event: PathLearnedEvent) => bus.emit('pathLearned', event),
@@ -61,6 +65,8 @@ export type BusEvents = {
   owner: (owner: Owner | null) => void;
   appSettings: (settings: AppSettings) => void;
   radioSettings: (settings: RadioSettings) => void;
+  mapSettings: (settings: MapSettings) => void;
+  mapManifest: (manifest: TileManifest) => void;
   repeaterStatus: (snap: RepeaterStatusSnapshot) => void;
   repeaterTelemetry: (snap: RepeaterTelemetrySnapshot) => void;
   pathLearned: (event: PathLearnedEvent) => void;

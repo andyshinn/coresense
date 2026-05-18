@@ -1,14 +1,33 @@
-import { MapIcon, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
+import { lazy, Suspense } from 'react';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
-import { AppSettings } from '../panels/AppSettings';
-import { BleConnect } from '../panels/BleConnect';
-import { ChannelView } from '../panels/ChannelView';
-import { DMView } from '../panels/DMView';
-import { Identity } from '../panels/Identity';
+// Placeholder is small and used as a fallback — keep eager.
 import { PlaceholderPanel } from '../panels/PlaceholderPanel';
-import { RadioSettings } from '../panels/RadioSettings';
-import { RepeaterAdmin } from '../panels/repeater-admin';
+
+// Each panel is loaded on demand; only one is visible at a time, so eagerly
+// importing them all (~1.5k LOC of forms + tables) just bloats first paint.
+const AppSettings = lazy(() =>
+  import('../panels/AppSettings').then((m) => ({ default: m.AppSettings })),
+);
+const BleConnect = lazy(() =>
+  import('../panels/BleConnect').then((m) => ({ default: m.BleConnect })),
+);
+const ChannelView = lazy(() =>
+  import('../panels/ChannelView').then((m) => ({ default: m.ChannelView })),
+);
+const DMView = lazy(() => import('../panels/DMView').then((m) => ({ default: m.DMView })));
+const Identity = lazy(() => import('../panels/Identity').then((m) => ({ default: m.Identity })));
+const MapView = lazy(() => import('../panels/MapView').then((m) => ({ default: m.MapView })));
+const RadioSettings = lazy(() =>
+  import('../panels/RadioSettings').then((m) => ({ default: m.RadioSettings })),
+);
+const RepeaterAdmin = lazy(() =>
+  import('../panels/repeater-admin').then((m) => ({ default: m.RepeaterAdmin })),
+);
+const SearchResults = lazy(() =>
+  import('../panels/SearchResults').then((m) => ({ default: m.SearchResults })),
+);
 
 interface MainPaneProps {
   client: ApiClient | null;
@@ -18,7 +37,15 @@ interface MainPaneProps {
   renderPacketLog: () => React.ReactNode;
 }
 
-export function MainPane({
+export function MainPane(props: MainPaneProps) {
+  return (
+    <Suspense fallback={null}>
+      <MainPaneInner {...props} />
+    </Suspense>
+  );
+}
+
+function MainPaneInner({
   client,
   onScan,
   onConnect,
@@ -63,13 +90,10 @@ export function MainPane({
     return <Identity />;
   }
   if (activeKey === 'tool:map') {
-    return (
-      <PlaceholderPanel
-        title="Map"
-        description="Plot contacts with known positions. Deferred to post-v1."
-        icon={MapIcon}
-      />
-    );
+    return <MapView client={client} />;
+  }
+  if (activeKey === 'tool:search') {
+    return <SearchResults client={client} />;
   }
   if (activeKey === 'tool:contacts') {
     return (
