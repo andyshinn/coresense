@@ -1,15 +1,26 @@
 import { create } from 'zustand';
 import {
   type AppSettings,
+  type AutoAddConfig,
   type BleDevice,
   type BridgeStatus,
   type Channel,
   type Contact,
   DEFAULT_APP_SETTINGS,
+  DEFAULT_AUTO_ADD_CONFIG,
+  DEFAULT_DEVICE_CAPABILITIES,
+  DEFAULT_DEVICE_IDENTITY,
+  DEFAULT_DEVICE_INFO,
+  DEFAULT_GPS_CONFIG,
   DEFAULT_MAP_SETTINGS,
   DEFAULT_RADIO_SETTINGS,
   DEFAULT_SYNC_PROGRESS,
+  DEFAULT_TELEMETRY_POLICY,
   DEFAULT_UI_STATE,
+  type DeviceCapabilities,
+  type DeviceIdentity,
+  type DeviceInfo,
+  type GpsConfig,
   type LeftNavGroupId,
   type MapSettings,
   type Message,
@@ -23,6 +34,7 @@ import {
   type SearchSort,
   type StateSnapshot,
   type SyncProgress,
+  type TelemetryPolicy,
   type ThemePref,
   type TileManifest,
   type TransportState,
@@ -43,6 +55,65 @@ interface SearchFilters {
 }
 
 const DEFAULT_SEARCH_FILTERS: SearchFilters = { kinds: ['channel', 'dm'] };
+
+// ---- Settings panel UI state ----------------------------------------------
+// The redesigned Settings panel and the RightRail jump-list are sibling
+// components under AppShell, so their shared state (which sections exist,
+// which are dirty, the active section, the unsaved-changes prompt) lives here.
+export type SettingsTab = 'app' | 'radio' | 'extra';
+
+export interface SettingsSectionMeta {
+  id: string;
+  title: string;
+  tab: SettingsTab;
+}
+
+// Where the user was trying to go when a dirty section blocked them.
+export type SettingsPendingTarget =
+  | { kind: 'nav'; key: string }
+  | { kind: 'tab'; tab: SettingsTab }
+  | { kind: 'quit' };
+
+interface SettingsUiState {
+  activeTab: SettingsTab;
+  /** Ordered section metadata for the active tab — drives the jump rail. */
+  sections: SettingsSectionMeta[];
+  dirtyById: Record<string, boolean>;
+  /** Section currently scroll-spied into view; highlights in the jump rail. */
+  activeSectionId: string | null;
+  /** Set when navigation/quit was blocked by unsaved changes. */
+  pendingTarget: SettingsPendingTarget | null;
+  /** Jump-rail click target the panel should smooth-scroll to, then clear. */
+  pendingScrollSectionId: string | null;
+}
+
+const DEFAULT_SETTINGS_UI: SettingsUiState = {
+  activeTab: 'app',
+  sections: [],
+  dirtyById: {},
+  activeSectionId: null,
+  pendingTarget: null,
+  pendingScrollSectionId: null,
+};
+
+// Per-section save/reset callbacks. Kept in a plain module map rather than the
+// store so registering a section doesn't trigger a store-wide re-render — the
+// UnsavedChangesDialog reads them imperatively when resolving "Save all".
+interface SettingsSectionHandle {
+  save: () => Promise<void>;
+  reset: () => void;
+}
+const sectionHandles = new Map<string, SettingsSectionHandle>();
+
+export function registerSectionHandle(id: string, handle: SettingsSectionHandle): void {
+  sectionHandles.set(id, handle);
+}
+export function unregisterSectionHandle(id: string): void {
+  sectionHandles.delete(id);
+}
+export function getSectionHandle(id: string): SettingsSectionHandle | undefined {
+  return sectionHandles.get(id);
+}
 
 interface CoreState {
   // OS-level dark-mode signal pushed from main. Drives the resolved theme
@@ -75,6 +146,12 @@ interface CoreState {
   // Settings
   appSettings: AppSettings;
   radioSettings: RadioSettings;
+  deviceIdentity: DeviceIdentity;
+  autoAddConfig: AutoAddConfig;
+  telemetryPolicy: TelemetryPolicy;
+  gpsConfig: GpsConfig;
+  deviceInfo: DeviceInfo;
+  deviceCapabilities: DeviceCapabilities;
   mapSettings: MapSettings;
   /** Snapshot of which bundled PMTiles extracts are available on disk.
    *  Pushed by the snapshot endpoint; the Map panel uses it to gate mounting
@@ -89,6 +166,9 @@ interface CoreState {
 
   // UI state (left/right pane open, active key, pinned items, rail sections)
   ui: UiState;
+
+  // Settings panel UI (active tab, registered sections, dirty map, prompts)
+  settingsUi: SettingsUiState;
 
   // Transient
   busy: boolean;
@@ -125,6 +205,12 @@ interface CoreState {
   applyOwner: (owner: Owner | null) => void;
   applyAppSettings: (settings: AppSettings) => void;
   applyRadioSettings: (settings: RadioSettings) => void;
+  applyDeviceIdentity: (identity: DeviceIdentity) => void;
+  applyAutoAddConfig: (cfg: AutoAddConfig) => void;
+  applyTelemetryPolicy: (policy: TelemetryPolicy) => void;
+  applyGpsConfig: (cfg: GpsConfig) => void;
+  applyDeviceInfo: (info: DeviceInfo) => void;
+  applyDeviceCapabilities: (caps: DeviceCapabilities) => void;
   applyMapSettings: (settings: MapSettings) => void;
   applyMapManifest: (manifest: TileManifest) => void;
   applyRepeaterStatus: (snap: RepeaterStatusSnapshot) => void;
@@ -166,6 +252,40 @@ interface CoreState {
   /** Set by a search-result click. ChannelView/DMView consume it (scroll +
    *  flash) and then call this with null to clear. */
   setPendingJump: (mid: string | null) => void;
+
+  // ---- Settings panel mutators ----
+  /** Switch the active Settings tab. Guarded: prompts when a section is dirty. */
+  setSettingsTab: (tab: SettingsTab) => void;
+  /** Declared by SettingsPanel each tab change — the ordered jump-rail list. */
+  registerSettingsSections: (sections: SettingsSectionMeta[]) => void;
+  /** Each section reports its dirty flag here (drives rail + pill dots). */
+  setSectionDirty: (id: string, dirty: boolean) => void;
+  /** Scroll-spy result from the panel's IntersectionObserver. */
+  setActiveSettingsSection: (id: string | null) => void;
+  /** Jump-rail click — the panel watches this and smooth-scrolls. */
+  requestScrollToSection: (id: string) => void;
+  clearScrollRequest: () => void;
+  /** Stash a blocked navigation/quit so the panel can show the prompt. */
+  setPendingTarget: (target: SettingsPendingTarget) => void;
+  clearPendingTarget: () => void;
+  /** Run the blocked navigation/tab-switch after the user resolves the prompt. */
+  commitPendingTarget: () => void;
+  /** Reset settings UI state when the panel unmounts. */
+  clearSettingsUi: () => void;
+}
+
+// Shared navigation update — used by setActiveKey and commitPendingTarget so a
+// deferred navigation commits with exactly the same recents/selection logic.
+function navStateUpdate(s: CoreState, key: string): Partial<CoreState> {
+  const recentKeys = [key, ...s.ui.recentKeys.filter((k) => k !== key)].slice(0, RECENT_KEYS_MAX);
+  return {
+    ui: { ...s.ui, activeKey: key, selectedContactKey: null, recentKeys },
+    selectedMessageId: null,
+  };
+}
+
+function anyDirty(dirtyById: Record<string, boolean>): boolean {
+  return Object.values(dirtyById).some(Boolean);
 }
 
 const RECENT_KEYS_MAX = 10;
@@ -192,6 +312,12 @@ export const useStore = create<CoreState>((set) => ({
 
   appSettings: DEFAULT_APP_SETTINGS,
   radioSettings: DEFAULT_RADIO_SETTINGS,
+  deviceIdentity: DEFAULT_DEVICE_IDENTITY,
+  autoAddConfig: DEFAULT_AUTO_ADD_CONFIG,
+  telemetryPolicy: DEFAULT_TELEMETRY_POLICY,
+  gpsConfig: DEFAULT_GPS_CONFIG,
+  deviceInfo: DEFAULT_DEVICE_INFO,
+  deviceCapabilities: DEFAULT_DEVICE_CAPABILITIES,
   mapSettings: DEFAULT_MAP_SETTINGS,
   mapManifest: DEFAULT_MAP_MANIFEST,
 
@@ -199,6 +325,7 @@ export const useStore = create<CoreState>((set) => ({
   repeaterTelemetryByKey: {},
 
   ui: DEFAULT_UI_STATE,
+  settingsUi: DEFAULT_SETTINGS_UI,
 
   busy: false,
   selectedMessageId: null,
@@ -222,6 +349,12 @@ export const useStore = create<CoreState>((set) => ({
       messagesByKey: groupMessagesByKey(snapshot.messages),
       appSettings: snapshot.appSettings,
       radioSettings: snapshot.radioSettings,
+      deviceIdentity: snapshot.deviceIdentity ?? DEFAULT_DEVICE_IDENTITY,
+      autoAddConfig: snapshot.autoAddConfig ?? DEFAULT_AUTO_ADD_CONFIG,
+      telemetryPolicy: snapshot.telemetryPolicy ?? DEFAULT_TELEMETRY_POLICY,
+      gpsConfig: snapshot.gpsConfig ?? DEFAULT_GPS_CONFIG,
+      deviceInfo: snapshot.deviceInfo ?? DEFAULT_DEVICE_INFO,
+      deviceCapabilities: snapshot.deviceCapabilities ?? DEFAULT_DEVICE_CAPABILITIES,
       mapSettings: snapshot.mapSettings,
       mapManifest: snapshot.mapManifest,
       ui: snapshot.uiState,
@@ -265,6 +398,12 @@ export const useStore = create<CoreState>((set) => ({
   applyOwner: (owner) => set(() => ({ owner })),
   applyAppSettings: (settings) => set(() => ({ appSettings: settings })),
   applyRadioSettings: (settings) => set(() => ({ radioSettings: settings })),
+  applyDeviceIdentity: (identity) => set(() => ({ deviceIdentity: identity })),
+  applyAutoAddConfig: (cfg) => set(() => ({ autoAddConfig: cfg })),
+  applyTelemetryPolicy: (policy) => set(() => ({ telemetryPolicy: policy })),
+  applyGpsConfig: (cfg) => set(() => ({ gpsConfig: cfg })),
+  applyDeviceInfo: (info) => set(() => ({ deviceInfo: info })),
+  applyDeviceCapabilities: (caps) => set(() => ({ deviceCapabilities: caps })),
   applyMapSettings: (settings) => set(() => ({ mapSettings: settings })),
   applyMapManifest: (manifest) => set(() => ({ mapManifest: manifest })),
   applyRepeaterStatus: (snap) =>
@@ -292,16 +431,15 @@ export const useStore = create<CoreState>((set) => ({
 
   setActiveKey: (key) =>
     set((s) => {
-      // Recents are a most-recently-visited stack: the freshly-active key
-      // moves to the front, duplicates are removed, and the list is capped.
-      const recentKeys = [key, ...s.ui.recentKeys.filter((k) => k !== key)].slice(
-        0,
-        RECENT_KEYS_MAX,
-      );
-      return {
-        ui: { ...s.ui, activeKey: key, selectedContactKey: null, recentKeys },
-        selectedMessageId: null,
-      };
+      // Guard: if the user is leaving the Settings panel with unsaved section
+      // changes, stash the target and let the panel raise the prompt instead
+      // of navigating. recentKeys stay untouched until the move commits.
+      const leavingSettings =
+        s.ui.activeKey.startsWith('tool:settings') && !key.startsWith('tool:settings');
+      if (leavingSettings && anyDirty(s.settingsUi.dirtyById)) {
+        return { settingsUi: { ...s.settingsUi, pendingTarget: { kind: 'nav', key } } };
+      }
+      return navStateUpdate(s, key);
     }),
   setSelectedContact: (key) => set((s) => ({ ui: { ...s.ui, selectedContactKey: key } })),
   setSelectedMessage: (id) => set(() => ({ selectedMessageId: id })),
@@ -365,6 +503,55 @@ export const useStore = create<CoreState>((set) => ({
       return { ui: { ...s.ui, lastReadByKey: next } };
     }),
   clearPackets: () => set(() => ({ packets: [] })),
+
+  setSettingsTab: (tab) =>
+    set((s) => {
+      if (tab === s.settingsUi.activeTab) return {};
+      // Switching tabs unmounts the current tab's sections (losing their
+      // drafts), so prompt first when anything is dirty.
+      if (anyDirty(s.settingsUi.dirtyById)) {
+        return { settingsUi: { ...s.settingsUi, pendingTarget: { kind: 'tab', tab } } };
+      }
+      return { settingsUi: { ...s.settingsUi, activeTab: tab } };
+    }),
+  registerSettingsSections: (sections) =>
+    set((s) => ({ settingsUi: { ...s.settingsUi, sections } })),
+  setSectionDirty: (id, dirty) =>
+    set((s) => {
+      if ((s.settingsUi.dirtyById[id] ?? false) === dirty) return {};
+      return {
+        settingsUi: { ...s.settingsUi, dirtyById: { ...s.settingsUi.dirtyById, [id]: dirty } },
+      };
+    }),
+  setActiveSettingsSection: (id) =>
+    set((s) => {
+      if (s.settingsUi.activeSectionId === id) return {};
+      return { settingsUi: { ...s.settingsUi, activeSectionId: id } };
+    }),
+  requestScrollToSection: (id) =>
+    set((s) => ({ settingsUi: { ...s.settingsUi, pendingScrollSectionId: id } })),
+  clearScrollRequest: () =>
+    set((s) => ({ settingsUi: { ...s.settingsUi, pendingScrollSectionId: null } })),
+  setPendingTarget: (target) =>
+    set((s) => ({ settingsUi: { ...s.settingsUi, pendingTarget: target } })),
+  clearPendingTarget: () => set((s) => ({ settingsUi: { ...s.settingsUi, pendingTarget: null } })),
+  commitPendingTarget: () =>
+    set((s) => {
+      const t = s.settingsUi.pendingTarget;
+      if (!t) return {};
+      if (t.kind === 'nav') {
+        return {
+          ...navStateUpdate(s, t.key),
+          settingsUi: { ...s.settingsUi, pendingTarget: null },
+        };
+      }
+      if (t.kind === 'tab') {
+        return { settingsUi: { ...s.settingsUi, pendingTarget: null, activeTab: t.tab } };
+      }
+      // 'quit' is resolved by the dialog (POST /api/app/quit); just clear it.
+      return { settingsUi: { ...s.settingsUi, pendingTarget: null } };
+    }),
+  clearSettingsUi: () => set(() => ({ settingsUi: DEFAULT_SETTINGS_UI })),
 }));
 
 function groupMessagesByKey(messages: Message[]): Record<string, Message[]> {
@@ -380,3 +567,4 @@ function groupMessagesByKey(messages: Message[]): Record<string, Message[]> {
 // Useful narrow selectors for components.
 export const selectIsConnected = (s: CoreState) => s.transportState === 'connected';
 export const selectActiveMessages = (s: CoreState) => s.messagesByKey[s.ui.activeKey] ?? [];
+export const selectAnySettingsDirty = (s: CoreState) => anyDirty(s.settingsUi.dirtyById);

@@ -1,12 +1,22 @@
 import { Crosshair, MessageSquare, PanelRightClose, Settings } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { Channel, Contact, Message } from '../../shared/types';
+import {
+  type Channel,
+  type Contact,
+  hasValidFix,
+  type Message,
+  type MessageHop,
+  type MessagePath,
+} from '../../shared/types';
 import { Collapsible } from '../components/Collapsible';
+import { PathViewer } from '../components/path/PathViewer';
 import { SetPathEditor } from '../components/path/SetPathEditor';
 import type { ApiClient } from '../lib/api';
 import { publish as publishMapBus } from '../lib/map/bus';
 import { useStore } from '../lib/store';
+import { fmtDateTime, fmtRelative } from '../lib/time';
 import { cn } from '../lib/utils';
+import { SettingsJumpRail } from './SettingsJumpRail';
 
 // View "kind" derived from activeKey. Each kind has its own rail section set.
 export type ViewKind = 'channel' | 'dm' | 'repeater' | 'packetlog' | 'tool' | 'none';
@@ -23,6 +33,7 @@ interface RailData {
   contact: Contact | null;
   selectedMessage: Message | null;
   mentionedContact: Contact | null;
+  repeaters: Contact[];
 }
 
 const MIN_WIDTH = 240;
@@ -63,7 +74,8 @@ export function RightRail({ client }: RightRailProps) {
     const mentionedContact = selectedContactKey
       ? (contacts.find((c) => c.key === selectedContactKey) ?? null)
       : null;
-    return { channel, contact, selectedMessage, mentionedContact };
+    const repeaters = contacts.filter((c) => c.kind === 'repeater');
+    return { channel, contact, selectedMessage, mentionedContact, repeaters };
   }, [activeKey, channels, contacts, messagesByKey, selectedMessageId, selectedContactKey]);
 
   const sections = useMemo(
@@ -178,6 +190,7 @@ function viewKindFor(activeKey: string): ViewKind {
 }
 
 function railTitle(activeKey: string): string {
+  if (activeKey.startsWith('tool:settings')) return 'Settings';
   const kind = viewKindFor(activeKey);
   switch (kind) {
     case 'channel':
@@ -200,6 +213,19 @@ function sectionsFor(
   data: RailData,
   actions: { clearMentionedContact: () => void; client: ApiClient | null },
 ): RailSection[] {
+  // The Settings panel uses the rail as its section jump list — no message or
+  // contact sections apply here.
+  if (activeKey.startsWith('tool:settings')) {
+    return [
+      {
+        id: 'rail.settings.jump',
+        label: 'On this page',
+        defaultOpen: true,
+        body: () => <SettingsJumpRail />,
+      },
+    ];
+  }
+
   // A selected message always promotes a "Message info" + "Heard via" pair at
   // the top of whichever view it belongs to.
   const sel = data.selectedMessage;
@@ -214,7 +240,7 @@ function sectionsFor(
         {
           id: 'rail.message.heard',
           label: 'Heard via',
-          body: () => <HeardViaSection message={sel} />,
+          body: () => <HeardViaSection message={sel} repeaters={data.repeaters} />,
         },
       ]
     : [];
@@ -348,11 +374,9 @@ function MentionedContactSection({ contact, onClear }: { contact: Contact; onCle
 
 function ContactCardSection({ contact }: { contact: Contact | null }) {
   const setActiveKey = useStore((s) => s.setActiveKey);
+  const timeFormat = useStore((s) => s.appSettings.timeFormat);
   if (!contact) return <Placeholder label="unknown contact" />;
-  const hasFix =
-    typeof contact.gpsLat === 'number' &&
-    typeof contact.gpsLon === 'number' &&
-    (contact.gpsLat !== 0 || contact.gpsLon !== 0);
+  const hasFix = hasValidFix(contact);
   const canAdminister = contact.kind === 'repeater' || contact.kind === 'sensor';
   return (
     <div className="space-y-1.5 text-cs-text-muted">
@@ -360,7 +384,11 @@ function ContactCardSection({ contact }: { contact: Contact | null }) {
       <Field label="Kind" value={contact.kind} mono />
       <Field label="Public key" value={`${contact.publicKeyHex.slice(0, 16)}…`} mono />
       {contact.lastSeenMs != null && (
-        <Field label="Last seen" value={new Date(contact.lastSeenMs).toLocaleString()} />
+        <Field
+          label="Last seen"
+          value={fmtRelative(contact.lastSeenMs)}
+          title={fmtDateTime(contact.lastSeenMs, timeFormat)}
+        />
       )}
       {contact.rssi != null && <Field label="RSSI" value={`${contact.rssi} dBm`} mono />}
       {contact.hops != null && <Field label="Hops" value={String(contact.hops)} mono />}
@@ -387,14 +415,17 @@ function ContactCardSection({ contact }: { contact: Contact | null }) {
             <CardActionButton
               icon={Crosshair}
               label="Center on map"
-              onClick={() =>
+              onClick={() => {
+                // Open the Map panel first; if it isn't mounted yet the bus
+                // stashes this flyTo and replays it once MapCanvas subscribes.
+                setActiveKey('tool:map');
                 publishMapBus({
                   kind: 'flyTo',
                   lng: contact.gpsLon as number,
                   lat: contact.gpsLat as number,
                   zoom: 12,
-                })
-              }
+                });
+              }}
             />
           </div>
         </>
@@ -425,9 +456,10 @@ function CardActionButton({
 }
 
 function MessageInfoSection({ message }: { message: Message }) {
+  const timeFormat = useStore((s) => s.appSettings.timeFormat);
   return (
     <div className="space-y-1.5 text-cs-text-muted">
-      <Field label="Time" value={new Date(message.ts).toLocaleString()} mono />
+      <Field label="Time" value={fmtDateTime(message.ts, timeFormat)} mono />
       <Field label="State" value={message.state} mono />
       <Field label="From" value={message.fromPublicKeyHex ?? '(self)'} mono />
       {message.meta?.rssi != null && <Field label="RSSI" value={`${message.meta.rssi} dBm`} mono />}
@@ -440,29 +472,75 @@ function MessageInfoSection({ message }: { message: Message }) {
   );
 }
 
-function HeardViaSection({ message }: { message: Message }) {
-  const path = message.meta?.path;
-  if (!path || path.length === 0) return <Placeholder label="no path data" />;
+function HeardViaSection({ message, repeaters }: { message: Message; repeaters: Contact[] }) {
+  const paths = message.meta?.paths ?? [];
+  const fallbackHops = message.meta?.hops;
+
+  // Fallback for messages without correlated mesh observations (e.g. ones that
+  // came in before the bridge connected): synthesize a single path of N
+  // unnamed hops from the hop count alone so the user still sees a timeline.
+  const effectivePaths: MessagePath[] =
+    paths.length > 0
+      ? paths
+      : fallbackHops != null && fallbackHops > 0
+        ? [synthesizeUnnamedPath(message, fallbackHops)]
+        : [];
+
+  if (effectivePaths.length === 0) return <Placeholder label="no path data" />;
+
   return (
-    <ol className="space-y-0.5 font-mono text-[10px] text-cs-text-muted">
-      {path.map((hop, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: hop path can repeat a node; index disambiguates
-        <li key={`${message.id}.${i}.${hop}`} className="flex gap-2">
-          <span className="text-cs-text-dim">{i}</span>
-          <span className="truncate">{hop}</span>
-        </li>
-      ))}
-    </ol>
+    <PathViewer
+      paths={effectivePaths}
+      timesHeard={message.meta?.timesHeard ?? 1}
+      knownRepeaters={repeaters}
+    />
   );
 }
 
-function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function synthesizeUnnamedPath(message: Message, hopCount: number): MessagePath {
+  const hops: MessageHop[] = [];
+  const senderName = message.fromPublicKeyHex?.startsWith('name:')
+    ? message.fromPublicKeyHex.slice(5)
+    : null;
+  hops.push({
+    kind: 'origin',
+    shortId: senderName ? senderName.slice(0, 2).toLowerCase() : '??',
+    name: senderName ?? null,
+    pk: null,
+    unnamed: senderName == null,
+  });
+  for (let i = 0; i < hopCount; i++) {
+    hops.push({ kind: 'hop', shortId: '??', name: null, pk: null, unnamed: true });
+  }
+  hops.push({ kind: 'sink', shortId: 'me', name: 'My radio', pk: null });
+  return {
+    id: `synth-${message.id}`,
+    hops,
+    hashMode: 1,
+    finalSnr: message.meta?.snr ?? 0,
+  };
+}
+
+function Field({
+  label,
+  value,
+  mono,
+  title,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  /** Hover text — used to show the absolute timestamp behind a relative one. */
+  title?: string;
+}) {
   return (
     <div className="flex items-baseline gap-2">
       <span className="w-16 shrink-0 text-[10px] uppercase tracking-wider text-cs-text-dim">
         {label}
       </span>
-      <span className={cn('truncate text-cs-text', mono && 'font-mono text-[11px]')}>{value}</span>
+      <span title={title} className={cn('truncate text-cs-text', mono && 'font-mono text-[11px]')}>
+        {value}
+      </span>
     </div>
   );
 }

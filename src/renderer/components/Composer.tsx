@@ -1,5 +1,5 @@
 import { Loader2, Send } from 'lucide-react';
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { RadioSettings } from '../../shared/types';
 import { loraAirtimeMs } from '../lib/airtime';
 import { useStore } from '../lib/store';
@@ -21,10 +21,21 @@ interface Props {
   // Conversation key the textarea belongs to. When provided, the in-progress
   // text is persisted to ui.drafts so it survives restarts and view switches.
   draftKey?: string;
+  // When true, focus the textarea on mount and whenever the conversation
+  // (draftKey) changes, so the user can start typing immediately on navigate.
+  autoFocus?: boolean;
 }
 
 export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
-  { onSend, disabled, returnToSend, radioSettings, placeholder = 'Send a message…', draftKey },
+  {
+    onSend,
+    disabled,
+    returnToSend,
+    radioSettings,
+    placeholder = 'Send a message…',
+    draftKey,
+    autoFocus,
+  },
   ref,
 ) {
   const draft = useStore((s) => (draftKey ? (s.ui.drafts[draftKey] ?? '') : ''));
@@ -65,6 +76,14 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
       });
     },
   }));
+  // Focus the field on navigate. Keyed on draftKey so switching between
+  // conversations (which re-renders rather than remounts this component)
+  // still re-focuses. Skipped while disabled — nothing to type into.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: draftKey is the conversation-change trigger, not read inside the effect
+  useEffect(() => {
+    if (autoFocus && !disabled) textareaRef.current?.focus();
+  }, [autoFocus, disabled, draftKey]);
+
   const trimmed = value.trim();
   const airtime = loraAirtimeMs(
     byteLength(trimmed) + 32 /* rough wrapper overhead */,

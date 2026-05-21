@@ -14,14 +14,11 @@ export function openDb(): DatabaseSync {
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA synchronous = NORMAL');
   db.exec('PRAGMA foreign_keys = ON');
-  // Pre-release: drop the legacy string-keyed table so FTS5's external-content
-  // pattern can anchor to an INTEGER PRIMARY KEY rowid. The app-level message
-  // id is now stored in `mid` (UNIQUE) — same identity, different storage.
-  db.exec(`DROP TABLE IF EXISTS messages_fts`);
-  db.exec(`DROP TABLE IF EXISTS conversations_fts`);
-  db.exec(`DROP TABLE IF EXISTS messages`);
+
+  // Idempotent: existing tables/indexes/triggers survive across launches so
+  // persisted messages are retained.
   db.exec(`
-    CREATE TABLE messages (
+    CREATE TABLE IF NOT EXISTS messages (
       id      INTEGER PRIMARY KEY,         -- FTS5 anchor (rowid)
       mid     TEXT NOT NULL UNIQUE,        -- app-level message id
       kind    TEXT NOT NULL,               -- 'channel' | 'dm'
@@ -32,28 +29,28 @@ export function openDb(): DatabaseSync {
       state   TEXT NOT NULL,               -- 'sending' | 'sent' | 'ack' | 'failed' | 'received'
       meta    TEXT                         -- JSON-encoded MessageMeta
     );
-    CREATE INDEX messages_by_key_ts  ON messages (key, ts DESC);
-    CREATE INDEX messages_by_state   ON messages (state);
-    CREATE INDEX messages_by_from_pk ON messages (from_pk);
+    CREATE INDEX IF NOT EXISTS messages_by_key_ts  ON messages (key, ts DESC);
+    CREATE INDEX IF NOT EXISTS messages_by_state   ON messages (state);
+    CREATE INDEX IF NOT EXISTS messages_by_from_pk ON messages (from_pk);
 
     -- Full-text index over message bodies. External-content keeps the body
     -- in the messages table (so snippet()/highlight() return original text)
     -- and mirrors it via triggers. Stemmer stack: case-fold +
     -- diacritic-strip + porter stems English so 'run' matches 'running'.
-    CREATE VIRTUAL TABLE messages_fts USING fts5(
+    CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
       body,
       content='messages',
       content_rowid='id',
       tokenize = 'porter unicode61 remove_diacritics 2'
     );
 
-    CREATE TRIGGER messages_ai AFTER INSERT ON messages BEGIN
+    CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
       INSERT INTO messages_fts(rowid, body) VALUES (new.id, new.body);
     END;
-    CREATE TRIGGER messages_ad AFTER DELETE ON messages BEGIN
+    CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
       INSERT INTO messages_fts(messages_fts, rowid, body) VALUES('delete', old.id, old.body);
     END;
-    CREATE TRIGGER messages_au AFTER UPDATE ON messages BEGIN
+    CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
       INSERT INTO messages_fts(messages_fts, rowid, body) VALUES('delete', old.id, old.body);
       INSERT INTO messages_fts(rowid, body) VALUES (new.id, new.body);
     END;
@@ -64,7 +61,7 @@ export function openDb(): DatabaseSync {
     -- pk_prefix holds the first 16 hex chars; pk_suffix_rev holds the LAST
     -- 16 hex chars REVERSED so FTS5's prefix-only wildcard ('abc*') doubles
     -- as suffix matching when we reverse the user's hex query.
-    CREATE VIRTUAL TABLE conversations_fts USING fts5(
+    CREATE VIRTUAL TABLE IF NOT EXISTS conversations_fts USING fts5(
       kind UNINDEXED,
       key  UNINDEXED,
       name,

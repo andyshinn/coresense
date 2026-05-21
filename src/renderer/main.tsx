@@ -1,6 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { ErrorBoundary } from 'react-error-boundary';
 import { App } from './App';
+import { AppErrorFallback, logError } from './components/errors/ErrorFallback';
 import './index.css';
 import { applyTheme, readLegacyThemePref, resolveTheme, systemPrefersDark } from './lib/theme';
 
@@ -15,6 +17,8 @@ if (!container) throw new Error('#root element missing');
 
 createRoot(container).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary FallbackComponent={AppErrorFallback} onError={logError}>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );

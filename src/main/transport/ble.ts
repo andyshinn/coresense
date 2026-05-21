@@ -1,7 +1,10 @@
+import { createHash } from 'node:crypto';
 import noble, { type Characteristic, type Peripheral } from '@stoprocent/noble';
 import type { BleDevice } from '../../shared/types';
 import { emit } from '../events/bus';
 import { child } from '../log';
+import { record as recordMeshObservation } from '../protocol/meshObservations';
+import { PAYLOAD_TYPE, parseMeshPacket } from '../protocol/meshPacket';
 import { parseCompanionFrame } from './companionFrame';
 import type { ITransport } from './types';
 
@@ -341,6 +344,30 @@ export class BleTransport implements ITransport {
     }
     const fullBytes = [...data];
     if (parsed.kind === 'mesh') {
+      // PUSH_CODE_LOG_RX_DATA (0x88) carries the raw on-air mesh packet,
+      // including the per-hop path bytes our PathViewer renders. Decode it
+      // here and tee the observation into the side-channel buffer so the
+      // later RESP_CHANNEL_MSG_RECV_V3 can correlate.
+      if (parsed.source === 'log_rx') {
+        const mesh = parseMeshPacket(parsed.meshBytes);
+        if (mesh && mesh.payloadType === PAYLOAD_TYPE.GRP_TXT && mesh.payload.length >= 1) {
+          const channelHash = mesh.payload[0];
+          const encrypted = mesh.payload.subarray(1);
+          const payloadFingerprint = createHash('sha1')
+            .update(encrypted)
+            .digest('hex')
+            .slice(0, 16);
+          recordMeshObservation({
+            recordedAt: Date.now(),
+            channelHash,
+            hashSize: mesh.hashSize,
+            hashCount: mesh.hashCount,
+            pathHex: mesh.pathHex,
+            finalSnr: parsed.snr,
+            payloadFingerprint,
+          });
+        }
+      }
       emit.packet({
         timestamp: Date.now(),
         transportType: 'ble',

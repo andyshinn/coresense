@@ -1,0 +1,1360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>MeshCore — Path Viewer Explorations</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  html, body { margin: 0; padding: 0; background: #f0eee9;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+    color: #2a251f;
+  }
+  * { box-sizing: border-box; }
+
+  /* canvas grid */
+  .canvas {
+    min-height: 100vh;
+    background:
+      linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px) 0 0 / 24px 24px,
+      linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px) 0 0 / 24px 24px,
+      #f0eee9;
+    padding: 48px 56px 96px;
+  }
+
+  .canvas-head {
+    max-width: 1280px;
+    margin: 0 auto 56px;
+  }
+  .canvas-head h1 {
+    font-size: 22px; font-weight: 600; margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  .canvas-head p {
+    font-size: 13.5px; margin: 0; color: rgba(60,50,40,0.72); max-width: 720px;
+    line-height: 1.55;
+  }
+  .canvas-head .kicker {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10px; color: rgba(60,50,40,0.55); letter-spacing: 0.08em;
+    text-transform: uppercase; margin: 0 0 14px;
+  }
+
+  /* each variation row */
+  .row {
+    max-width: 1280px;
+    margin: 0 auto 72px;
+  }
+  .row-head {
+    display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(0,0,0,0.10);
+  }
+  .row-head .num {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px; color: rgba(60,50,40,0.45); letter-spacing: 0.08em;
+    width: 36px;
+  }
+  .row-head .title {
+    font-size: 16px; font-weight: 600; letter-spacing: -0.005em;
+  }
+  .row-head .desc {
+    font-size: 12.5px; color: rgba(60,50,40,0.65);
+    flex: 1; max-width: 600px; line-height: 1.5;
+  }
+
+  .pair {
+    display: flex; gap: 32px; align-items: flex-start;
+    padding-left: 36px;
+  }
+  .pair > .artboard {
+    flex: 0 0 380px;
+  }
+
+  .artboard-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10px; color: rgba(60,50,40,0.5); letter-spacing: 0.08em;
+    text-transform: uppercase; margin-bottom: 8px;
+  }
+
+  /* simulates the right inspector pane */
+  .pane {
+    width: 380px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.06);
+  }
+
+  /* hide scrollbar inside panes */
+  .pane *::-webkit-scrollbar { display: none; }
+  .pane * { scrollbar-width: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+window.PV_DATA = (() => {
+  // The hops for the expanded view, modeled on the user's screenshot.
+  // 'known' = we have a contact entry for this repeater
+  // 'pkShort' = the prefix byte(s) we matched the path byte against
+  // 'conflict' = multiple known repeaters share this prefix
+  const path1Hops = [
+    { kind: 'origin', shortId: 'K5', name: 'K5TH', pk: 'cd720283…43293e91', role: 'sent', known: true, accent: 'pink' },
+    { kind: 'hop',    shortId: 'a9', name: 'Mountain Crest Solar', pk: 'a9e16cc6…b0f412d1', repeaters: 2, conflict: true,  known: true, snr: 6.8 },
+    { kind: 'hop',    shortId: '25', name: 'Fischer Repeater',     pk: '25cbaf73…2bda1634', repeaters: 3, conflict: true,  known: true, snr: 5.2 },
+    { kind: 'hop',    shortId: '82', name: 'Mueller Repeater',     pk: '82ab8d34…0fea217d', repeaters: 2, conflict: true,  known: true, snr: 8.5 },
+    { kind: 'hop',    shortId: 'c5', name: 'EDM9/R Edwards Mtn',   pk: 'c5031665…b611461a', repeaters: 2, conflict: true,  known: true, snr: 3.8 },
+    { kind: 'hop',    shortId: '37', name: 'SOCO RAK Repeater 🛒', pk: '3768eaa2…41d567ba', repeaters: 2, conflict: true,  known: true, snr: 4.1 },
+    { kind: 'hop',    shortId: 'da', name: 'Independent SW',       pk: 'da15510c…ec04b623', repeaters: 1, conflict: false, known: true, snr: 1.6 },
+    { kind: 'hop',    shortId: '42', name: 'egrme.sh RAK3401',     pk: '42da7493…ac5d8e5a', repeaters: 2, conflict: true,  known: true, snr: 11.3 },
+    { kind: 'sink',   shortId: 'eH', name: 'egrme.sh Hand',        pk: '1a3d3c6a…590dd5d5', role: 'you',  known: true, accent: 'cyan' },
+  ];
+
+  const path2Hops = [
+    { kind: 'origin', shortId: 'K5', name: 'K5TH', pk: 'cd720283…43293e91', role: 'sent', known: true, accent: 'pink' },
+    { kind: 'hop',    shortId: 'a4', name: 'Lil Clari',           pk: 'a4ee882e…81476ed1', repeaters: 1, conflict: false, known: false, snr: -2.4 },
+    { kind: 'hop',    shortId: '78', name: 'UT1 — AustinMesh',    pk: '78cf9ac8…640aeb45', repeaters: 1, conflict: false, known: true,  snr: 4.1 },
+    { kind: 'hop',    shortId: '2c', name: 'Bender DT 🏙',         pk: '2cbaf738…2bda1634', repeaters: 1, conflict: false, known: true,  snr: 5.5 },
+    { kind: 'hop',    shortId: '68', name: 'Digitaino Downtown',  pk: '68eaa25c…41d567b0', repeaters: 1, conflict: false, known: true,  snr: 6.3 },
+    { kind: 'hop',    shortId: 'a1', name: 'Tarrytown East Solar',pk: 'a1e16cc6…b0f412d1', repeaters: 1, conflict: false, known: true,  snr: 3.2 },
+    { kind: 'hop',    shortId: 'f5', name: 'Unknown Repeater',    pk: 'f582bb6c…6cc37a80', repeaters: 0, conflict: false, known: false, snr: 0.4 },
+    { kind: 'hop',    shortId: '42', name: 'egrme.sh RAK3401',    pk: '42da7493…ac5d8e5a', repeaters: 2, conflict: true,  known: true,  snr: 0.25 },
+    { kind: 'sink',   shortId: 'eH', name: 'egrme.sh Hand',       pk: '1a3d3c6a…590dd5d5', role: 'you',  known: true, accent: 'cyan' },
+  ];
+
+  const path3Hops = [
+    { kind: 'origin', shortId: 'K5', name: 'K5TH', pk: 'cd720283…43293e91', role: 'sent', known: true, accent: 'pink' },
+    { kind: 'hop',    shortId: '15', name: '🦎 Geko EA Repeater', pk: '15510cb9…ec04b623', repeaters: 1, conflict: false, known: true, snr: -0.6 },
+    { kind: 'hop',    shortId: '2c', name: 'Bender DT 🏙',         pk: '2cbaf738…2bda1634', repeaters: 1, conflict: false, known: true,  snr: 3.1 },
+    { kind: 'hop',    shortId: '42', name: 'egrme.sh RAK3401',    pk: '42da7493…ac5d8e5a', repeaters: 2, conflict: true,  known: true,  snr: 9.4 },
+    { kind: 'sink',   shortId: 'eH', name: 'egrme.sh Hand',       pk: '1a3d3c6a…590dd5d5', role: 'you',  known: true, accent: 'cyan' },
+  ];
+
+  // Three paths through which the same message was heard.
+  const paths = [
+    { id: 'p1', hops: path1Hops, hopCount: 7,  finalSnr: 11.75, lastHop: 'egrme.sh RAK3401', hasConflict: true,  hasUnknown: false, heardAt: '11:32:08' },
+    { id: 'p2', hops: path2Hops, hopCount: 7,  finalSnr: 0.25,  lastHop: 'egrme.sh RAK3401', hasConflict: true,  hasUnknown: true,  heardAt: '11:32:14' },
+    { id: 'p3', hops: path3Hops, hopCount: 3,  finalSnr: 9.40,  lastHop: 'egrme.sh RAK3401', hasConflict: false, hasUnknown: false, heardAt: '11:32:21' },
+  ];
+
+  const message = {
+    from: 'K5TH', time: '11:32', body: 'Repeater check — anyone in Tarrytown copying?',
+    timesHeard: 3,
+  };
+  return { paths, message };
+})();
+</script>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" data-presets="env,react">
+// path-viewer-core.jsx
+// Shared building blocks for all variations: theme tokens, icons, avatar,
+// signal bars, and the inspector-pane chrome (title bar + "heard N times"
+// header + scroll container). Exposes everything on window for the
+// variations file to consume.
+
+const MONO = 'ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace';
+const SANS = '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif';
+
+// Lifted from field-console.jsx so the path viewer reads as part of the same
+// surface. accent is the amber the rest of the app uses for selection/focus;
+// online/warn/danger map to SNR bands later.
+const THEMES = {
+  dark: {
+    name: 'dark',
+    bg: '#0c0a06', bg2: '#13110b', bg3: '#1a1610', bg4: '#221c12',
+    border: '#2a2419', borderStrong: '#3a3322',
+    text: '#f5f1e6', textMuted: '#a39884', textDim: '#6b6253',
+    accent: '#f59e0b', accentDim: '#b45309', accentBg: 'rgba(245,158,11,0.10)',
+    online: '#84cc16', warn: '#f59e0b', danger: '#dc2626',
+    signalStrong: '#84cc16', signalMid: '#f59e0b', signalWeak: '#dc2626',
+    chip: '#1c1810',
+    // accents for origin/sink avatars (sender + receiver) — distinguish
+    // these from intermediate repeaters at a glance.
+    originAccent: '#e11d74', // pink
+    sinkAccent: '#22d3ee',   // cyan
+    hopAvatarBg: '#3a4a52',
+    hopAvatarText: '#e8edf0',
+    rail: '#2a2419',
+    bannerBg: 'rgba(34,211,238,0.08)',
+    bannerBorder: 'rgba(34,211,238,0.25)',
+    bannerText: '#9ddfeb',
+  },
+  light: {
+    name: 'light',
+    bg: '#fbf9f3', bg2: '#f5f1e6', bg3: '#ede7d6', bg4: '#e2dac1',
+    border: '#dcd4be', borderStrong: '#c4ba9f',
+    text: '#1c1810', textMuted: '#5c5340', textDim: '#8a8067',
+    accent: '#b45309', accentDim: '#92400e', accentBg: 'rgba(180,83,9,0.08)',
+    online: '#65a30d', warn: '#b45309', danger: '#b91c1c',
+    signalStrong: '#65a30d', signalMid: '#b45309', signalWeak: '#b91c1c',
+    chip: '#ede7d6',
+    originAccent: '#be185d',
+    sinkAccent: '#0891b2',
+    hopAvatarBg: '#a8b5bb',
+    hopAvatarText: '#1c1810',
+    rail: '#c4ba9f',
+    bannerBg: 'rgba(8,145,178,0.08)',
+    bannerBorder: 'rgba(8,145,178,0.30)',
+    bannerText: '#0e7490',
+  },
+};
+
+// SNR thresholds (in dB) used to color signal indicators / gradient lines.
+// MeshCore SF7 BW62.5kHz floor is roughly -7 dB; comfortable margin starts ~5.
+function snrBand(snr) {
+  if (snr >= 5) return 'strong';
+  if (snr >= 0) return 'mid';
+  return 'weak';
+}
+function snrColor(theme, snr) {
+  const b = snrBand(snr);
+  if (b === 'strong') return theme.signalStrong;
+  if (b === 'mid')    return theme.signalMid;
+  return theme.signalWeak;
+}
+
+// ─── Icons ────────────────────────────────────────────────────────────────
+const Icon = {
+  ChevronRight: ({ size = 12, color = 'currentColor' }) => (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4.5 2.5L8 6l-3.5 3.5" />
+    </svg>
+  ),
+  ChevronDown: ({ size = 12, color = 'currentColor' }) => (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 4.5L6 8l3.5-3.5" />
+    </svg>
+  ),
+  Warn: ({ size = 12, color = 'currentColor' }) => (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 1.5L11 10H1z" />
+      <path d="M6 5v2.5" />
+      <circle cx="6" cy="9" r="0.5" fill={color} stroke="none"/>
+    </svg>
+  ),
+  Copy: ({ size = 12, color = 'currentColor' }) => (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3.5" y="3.5" width="6" height="6.5" rx="1" />
+      <path d="M2.5 7.5V2.5h5" />
+    </svg>
+  ),
+  Kebab: ({ size = 12, color = 'currentColor' }) => (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill={color}>
+      <circle cx="6" cy="2.5" r="1" />
+      <circle cx="6" cy="6" r="1" />
+      <circle cx="6" cy="9.5" r="1" />
+    </svg>
+  ),
+  Back: ({ size = 14, color = 'currentColor' }) => (
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 3L4 7l5 4" />
+    </svg>
+  ),
+  Info: ({ size = 12, color = 'currentColor' }) => (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill="none">
+      <circle cx="6" cy="6" r="5" stroke={color} strokeWidth="1.4" />
+      <path d="M6 5.5v3" stroke={color} strokeWidth="1.4" strokeLinecap="round"/>
+      <circle cx="6" cy="3.6" r="0.6" fill={color}/>
+    </svg>
+  ),
+  Up: ({ size = 10, color = 'currentColor' }) => (
+    <svg width={size} height={size} viewBox="0 0 10 10" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 7.5V2.5M2.5 5L5 2.5 7.5 5"/>
+    </svg>
+  ),
+  Down: ({ size = 10, color = 'currentColor' }) => (
+    <svg width={size} height={size} viewBox="0 0 10 10" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 2.5v5M2.5 5L5 7.5 7.5 5"/>
+    </svg>
+  ),
+  Send: ({ size = 12, color = 'currentColor' }) => (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 6l8-4-3 9-2-4z"/>
+    </svg>
+  ),
+  Inbox: ({ size = 12, color = 'currentColor' }) => (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1.5" y="2" width="9" height="8" rx="1" />
+      <path d="M1.5 7h2l1 1.5h3L8.5 7h2"/>
+    </svg>
+  ),
+  Question: ({ size = 12, color = 'currentColor' }) => (
+    <svg width={size} height={size} viewBox="0 0 12 12" fill="none">
+      <circle cx="6" cy="6" r="5" stroke={color} strokeWidth="1.4"/>
+      <path d="M4.6 4.6c0-.8.7-1.4 1.4-1.4.8 0 1.4.6 1.4 1.4 0 1.4-1.4 1.2-1.4 2.4" stroke={color} strokeWidth="1.4" strokeLinecap="round"/>
+      <circle cx="6" cy="8.6" r="0.55" fill={color}/>
+    </svg>
+  ),
+};
+
+// ─── Avatar ───────────────────────────────────────────────────────────────
+// A 2-character circle. The 'role' field tints the bg (origin = pink,
+// sink = cyan, hop = neutral). 'unknown' = lower contrast for repeaters
+// we don't have a contact entry for.
+function Avatar({ hop, theme, size = 28, ring }) {
+  const bg = hop.kind === 'origin' ? theme.originAccent
+            : hop.kind === 'sink' ? theme.sinkAccent
+            : theme.hopAvatarBg;
+  const fg = hop.kind === 'origin' || hop.kind === 'sink' ? '#fff' : theme.hopAvatarText;
+  const opacity = (hop.known === false) ? 0.55 : 1;
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: bg, color: fg,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontFamily: MONO, fontSize: Math.round(size * 0.4), fontWeight: 600,
+      letterSpacing: 0.5,
+      flexShrink: 0,
+      opacity,
+      boxShadow: ring ? `0 0 0 2px ${ring}` : undefined,
+      // Border on unknown to telegraph "outline" treatment
+      border: hop.known === false ? `1.5px dashed ${theme.borderStrong}` : 'none',
+    }}>{hop.shortId}</div>
+  );
+}
+
+// ─── Signal Bars ──────────────────────────────────────────────────────────
+// Three ascending bars; colored by SNR band. Inspired by the mobile cell
+// indicator in the user's screenshot.
+function SignalBars({ snr, theme, size = 12 }) {
+  const band = snrBand(snr);
+  const color = snrColor(theme, snr);
+  const lit = band === 'strong' ? 3 : band === 'mid' ? 2 : 1;
+  const heights = [0.4, 0.7, 1.0];
+  return (
+    <svg width={size + 4} height={size} viewBox={`0 0 ${size + 4} ${size}`}>
+      {heights.map((h, i) => {
+        const barW = 3, gap = 2;
+        const x = i * (barW + gap);
+        const y = size - size * h;
+        const fill = i < lit ? color : theme.border;
+        return <rect key={i} x={x} y={y} width={barW} height={size * h} rx="0.5" fill={fill} />;
+      })}
+    </svg>
+  );
+}
+
+// ─── Pubkey chip ──────────────────────────────────────────────────────────
+function PkChip({ pk, theme, full = false }) {
+  return (
+    <span style={{
+      fontFamily: MONO, fontSize: 10,
+      color: theme.textDim,
+      background: theme.bg3,
+      padding: '1px 5px', borderRadius: 3,
+      border: `1px solid ${theme.border}`,
+      whiteSpace: 'nowrap',
+    }}>{full ? pk : pk}</span>
+  );
+}
+
+// ─── Conflict chip ────────────────────────────────────────────────────────
+function ConflictChip({ count, theme }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      fontFamily: MONO, fontSize: 9.5,
+      color: theme.warn,
+      background: 'transparent',
+      padding: '1px 4px', borderRadius: 3,
+      border: `1px solid ${theme.warn}55`,
+      whiteSpace: 'nowrap',
+      letterSpacing: 0.2,
+    }}>
+      <Icon.Warn size={9} color={theme.warn} />
+      <span>{count}× prefix</span>
+    </span>
+  );
+}
+
+// ─── KnownChip / UnknownChip ─────────────────────────────────────────────
+function KnownChip({ count, theme }) {
+  return (
+    <span style={{
+      fontFamily: MONO, fontSize: 9.5,
+      color: theme.textMuted,
+      whiteSpace: 'nowrap',
+    }}>{count} known{count === 1 ? '' : ''}</span>
+  );
+}
+
+// ─── Pane chrome ──────────────────────────────────────────────────────────
+// Top title bar (back / title / kebab) + info banner + scrollable body.
+// `title` and `subtitle` mirror the mobile views.
+function Pane({ theme, title, subtitle, banner, children, height = 720 }) {
+  return (
+    <div className="pane" style={{
+      background: theme.bg,
+      color: theme.text,
+      fontFamily: SANS,
+      fontSize: 13,
+      height,
+      display: 'flex', flexDirection: 'column',
+      borderRadius: 8,
+    }}>
+      {/* Title bar */}
+      <div style={{
+        flex: '0 0 auto',
+        height: 44,
+        display: 'flex', alignItems: 'center',
+        padding: '0 8px',
+        background: theme.bg2,
+        borderBottom: `1px solid ${theme.border}`,
+      }}>
+        <button style={iconBtnStyle(theme)} aria-label="Back">
+          <Icon.Back color={theme.textMuted} />
+        </button>
+        <div style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: theme.text, lineHeight: 1.1 }}>{title}</div>
+          {subtitle && (
+            <div style={{ fontSize: 10.5, color: theme.textDim, fontFamily: MONO, marginTop: 1 }}>{subtitle}</div>
+          )}
+        </div>
+        <button style={iconBtnStyle(theme)} aria-label="More">
+          <Icon.Kebab color={theme.textMuted} />
+        </button>
+      </div>
+
+      {/* Info banner */}
+      {banner && (
+        <div style={{
+          flex: '0 0 auto',
+          padding: '8px 12px',
+          background: theme.bannerBg,
+          borderBottom: `1px solid ${theme.bannerBorder}`,
+          color: theme.bannerText,
+          fontSize: 11.5, lineHeight: 1.4,
+          display: 'flex', alignItems: 'flex-start', gap: 8,
+        }}>
+          <span style={{ flexShrink: 0, marginTop: 1 }}>
+            <Icon.Info size={13} color={theme.bannerText} />
+          </span>
+          <span>{banner}</span>
+        </div>
+      )}
+
+      {/* Scrollable body */}
+      <div style={{
+        flex: 1, minHeight: 0,
+        overflowY: 'auto',
+      }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function iconBtnStyle(theme) {
+  return {
+    width: 28, height: 28, padding: 0,
+    background: 'transparent', border: 'none',
+    borderRadius: 4, cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: theme.textMuted,
+  };
+}
+
+// ─── Small section header inside the body ────────────────────────────────
+function SectionLabel({ children, theme, right }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center',
+      padding: '12px 14px 6px',
+      fontFamily: MONO, fontSize: 9.5, letterSpacing: 0.8,
+      color: theme.textDim, textTransform: 'uppercase',
+    }}>
+      <span style={{ flex: 1 }}>{children}</span>
+      {right}
+    </div>
+  );
+}
+
+// ─── Hop role glyph (origin / sink / hop) ─────────────────────────────────
+// Tiny inline label that explains what the avatar represents in expanded
+// timelines. Returned as a string so the variations can stitch it into
+// any phrase ("Hop 3 · Repeated the message" etc.)
+function hopLabel(hop, idx) {
+  if (hop.kind === 'origin') return 'Sent the message';
+  if (hop.kind === 'sink')   return 'You received the message';
+  return `Hop ${idx} · Repeated`;
+}
+
+// Expose for the variations file (separate <script> = separate Babel scope).
+Object.assign(window, {
+  MONO, SANS, THEMES,
+  Icon, Avatar, SignalBars, PkChip, ConflictChip, KnownChip,
+  Pane, SectionLabel,
+  snrBand, snrColor, hopLabel,
+});
+
+</script>
+<script type="text/babel" data-presets="env,react">
+// path-variations.jsx
+// Six variation treatments for the multi-path inspector. Each variation
+// exports a component that accepts { theme, paths, message } and returns
+// the contents of a <Pane> body — i.e. the stacked, collapsible path
+// cards (one expanded at a time).
+
+const { useState } = React;
+
+// Accordion behavior: a single openId per panel (one expanded at a time).
+function useAccordion(initial) {
+  const [openId, setOpenId] = useState(initial);
+  return [openId, (id) => setOpenId(openId === id ? null : id)];
+}
+
+// Format SNR with sign + 2 decimals like the mobile UI.
+function fmtSnr(s) {
+  return `${s >= 0 ? '' : ''}${s.toFixed(2)}dB`;
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// V1 — Classic vertical-line timeline (shadcn Collapsible + Timeline)
+// Each path is a Collapsible. Collapsed = single row with last-hop avatar,
+// name, hop count, SNR, conflict flag. Expanded = vertical rail running
+// through avatar centers, like the mobile View-Path screen.
+// ═════════════════════════════════════════════════════════════════════════
+function V1Classic({ theme, paths, message }) {
+  const [openId, toggle] = useAccordion(paths[0].id);
+  return (
+    <div>
+      <SectionLabel theme={theme} right={
+        <span style={{ fontFamily: MONO, fontSize: 9.5, color: theme.textDim }}>{paths.length} paths</span>
+      }>Paths</SectionLabel>
+      <div>
+        {paths.map((p, i) => (
+          <V1Path key={p.id} path={p} index={i} theme={theme}
+            open={openId === p.id} onToggle={() => toggle(p.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function V1Path({ path, index, theme, open, onToggle }) {
+  const last = path.hops[path.hops.length - 2]; // last repeater (not the sink)
+  return (
+    <div style={{ borderTop: `1px solid ${theme.border}` }}>
+      {/* Collapsed header — always visible */}
+      <button onClick={onToggle} style={{
+        width: '100%', textAlign: 'left',
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 12px',
+        background: open ? theme.bg2 : 'transparent',
+        border: 'none', cursor: 'pointer',
+        color: theme.text, fontFamily: SANS, fontSize: 13,
+        transition: 'background 80ms ease',
+      }}>
+        <span style={{ width: 12, color: theme.textDim, flexShrink: 0 }}>
+          {open ? <Icon.ChevronDown color={theme.textDim} /> : <Icon.ChevronRight color={theme.textDim} />}
+        </span>
+        <Avatar hop={last} theme={theme} size={26} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 12.5, fontWeight: 500, color: theme.text,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{last.name}</div>
+          <div style={{
+            fontFamily: MONO, fontSize: 10.5, color: theme.textDim,
+            display: 'flex', alignItems: 'center', gap: 6, marginTop: 2,
+          }}>
+            <span>{path.hopCount} hops</span>
+            <span>·</span>
+            <span>{path.heardAt}</span>
+            {path.hasConflict && (
+              <>
+                <span>·</span>
+                <span style={{ color: theme.warn, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                  <Icon.Warn size={10} color={theme.warn} /> conflict
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+          <SignalBars snr={path.finalSnr} theme={theme} />
+          <span style={{ fontFamily: MONO, fontSize: 10, color: snrColor(theme, path.finalSnr) }}>
+            {fmtSnr(path.finalSnr)}
+          </span>
+        </div>
+      </button>
+
+      {/* Expanded body — vertical timeline */}
+      {open && (
+        <div style={{ padding: '4px 14px 16px 14px', position: 'relative' }}>
+          <V1Timeline hops={path.hops} theme={theme} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function V1Timeline({ hops, theme }) {
+  const AVATAR = 28;
+  const ROW_PAD = 10;
+  return (
+    <div style={{ position: 'relative' }}>
+      {hops.map((hop, i) => {
+        const isFirst = i === 0;
+        const isLast = i === hops.length - 1;
+        const idx = (hop.kind === 'hop') ? (hops.slice(0, i).filter(h => h.kind === 'hop').length + 1) : null;
+        return (
+          <div key={i} style={{
+            position: 'relative',
+            display: 'flex', gap: 10,
+            padding: `${ROW_PAD}px 0`,
+          }}>
+            {/* rail */}
+            {!isLast && (
+              <span style={{
+                position: 'absolute',
+                left: AVATAR / 2 - 0.5,
+                top: ROW_PAD + AVATAR / 2,
+                bottom: -ROW_PAD,
+                width: 1,
+                background: theme.rail,
+                zIndex: 0,
+              }} />
+            )}
+            <Avatar hop={hop} theme={theme} size={AVATAR} />
+            <div style={{ flex: 1, minWidth: 0, paddingTop: 1 }}>
+              <div style={{
+                fontSize: 12.5, color: theme.text, fontWeight: 500,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>{hop.name}</div>
+              <div style={{
+                fontFamily: MONO, fontSize: 10.5, color: theme.textDim, marginTop: 2,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>
+                {hop.kind === 'origin' && 'Sent the message'}
+                {hop.kind === 'sink' && 'You received the message'}
+                {hop.kind === 'hop' && (
+                  <>
+                    <span>Hop {idx}</span>
+                    <span style={{ color: theme.text }}> · </span>
+                    <span>{hop.pk}</span>
+                  </>
+                )}
+              </div>
+              {hop.kind === 'hop' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                  {hop.conflict ? (
+                    <ConflictChip count={hop.repeaters} theme={theme} />
+                  ) : hop.known ? (
+                    <span style={{ fontFamily: MONO, fontSize: 9.5, color: theme.online }}>
+                      ● known
+                    </span>
+                  ) : (
+                    <span style={{ fontFamily: MONO, fontSize: 9.5, color: theme.textDim }}>
+                      ○ unknown
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+            {hop.kind === 'hop' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontFamily: MONO, fontSize: 10, color: snrColor(theme, hop.snr) }}>
+                  {fmtSnr(hop.snr)}
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// V2 — Horizontal breadcrumb (collapsed) → vertical timeline (expanded)
+// The collapsed row shows the entire chain as tiny avatar circles separated
+// by chevrons, so you can see the SHAPE of the path at a glance before
+// committing to expansion.
+// ═════════════════════════════════════════════════════════════════════════
+function V2Breadcrumb({ theme, paths, message }) {
+  const [openId, toggle] = useAccordion(paths[0].id);
+  return (
+    <div>
+      <SectionLabel theme={theme}>Paths</SectionLabel>
+      <div>
+        {paths.map((p) => (
+          <V2Path key={p.id} path={p} theme={theme}
+            open={openId === p.id} onToggle={() => toggle(p.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function V2Path({ path, theme, open, onToggle }) {
+  return (
+    <div style={{ borderTop: `1px solid ${theme.border}` }}>
+      <button onClick={onToggle} style={{
+        width: '100%', textAlign: 'left',
+        display: 'flex', flexDirection: 'column', gap: 6,
+        padding: '10px 12px',
+        background: open ? theme.bg2 : 'transparent',
+        border: 'none', cursor: 'pointer',
+        color: theme.text, fontFamily: SANS,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 12, color: theme.textDim, flexShrink: 0 }}>
+            {open ? <Icon.ChevronDown color={theme.textDim} /> : <Icon.ChevronRight color={theme.textDim} />}
+          </span>
+          <span style={{ fontFamily: MONO, fontSize: 10.5, color: theme.textDim, letterSpacing: 0.4 }}>
+            {path.hopCount} HOPS
+          </span>
+          <span style={{ flex: 1 }} />
+          {path.hasConflict && (
+            <span title="Multiple repeaters share a prefix in this path"
+                  style={{ color: theme.warn, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              <Icon.Warn size={11} color={theme.warn} />
+            </span>
+          )}
+          {path.hasUnknown && (
+            <span title="Path includes unknown repeaters"
+                  style={{ fontFamily: MONO, fontSize: 9.5, color: theme.textDim }}>○ unknown</span>
+          )}
+          <SignalBars snr={path.finalSnr} theme={theme} />
+          <span style={{ fontFamily: MONO, fontSize: 10.5, color: snrColor(theme, path.finalSnr), minWidth: 48, textAlign: 'right' }}>
+            {fmtSnr(path.finalSnr)}
+          </span>
+        </div>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 3,
+          paddingLeft: 20,
+          flexWrap: 'nowrap', overflow: 'hidden',
+        }}>
+          {path.hops.map((hop, i) => (
+            <React.Fragment key={i}>
+              {i > 0 && (
+                <span style={{ flex: '0 0 auto', opacity: 0.5, color: theme.textDim, lineHeight: 1 }}>
+                  <Icon.ChevronRight size={10} color={theme.textDim} />
+                </span>
+              )}
+              <Avatar hop={hop} theme={theme} size={18} />
+            </React.Fragment>
+          ))}
+        </div>
+      </button>
+      {open && (
+        <div style={{ padding: '4px 14px 16px 14px' }}>
+          <V1Timeline hops={path.hops} theme={theme} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// V3 — Console / monospace tree
+// Treats the path as a log entry. Box-drawing characters draw the rail.
+// Reads like a `traceroute` output. Density is the highest of any variant —
+// useful when you want to fit many paths on screen.
+// ═════════════════════════════════════════════════════════════════════════
+function V3Console({ theme, paths, message }) {
+  const [openId, toggle] = useAccordion(paths[0].id);
+  return (
+    <div style={{ fontFamily: MONO }}>
+      <SectionLabel theme={theme}>traceroute</SectionLabel>
+      <div>
+        {paths.map((p, i) => (
+          <V3Path key={p.id} path={p} index={i} theme={theme}
+            open={openId === p.id} onToggle={() => toggle(p.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function V3Path({ path, index, theme, open, onToggle }) {
+  return (
+    <div style={{ borderTop: `1px solid ${theme.border}` }}>
+      <button onClick={onToggle} style={{
+        width: '100%', textAlign: 'left',
+        display: 'grid',
+        gridTemplateColumns: '14px 24px 1fr auto',
+        alignItems: 'center', gap: 8,
+        padding: '8px 12px',
+        background: open ? theme.bg2 : 'transparent',
+        border: 'none', cursor: 'pointer', color: theme.text,
+        fontFamily: MONO, fontSize: 11.5,
+      }}>
+        <span style={{ color: theme.textDim, justifySelf: 'start' }}>
+          {open ? '▾' : '▸'}
+        </span>
+        <span style={{ color: theme.accent }}>
+          $0{index + 1}
+        </span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ color: theme.text }}>{path.hopCount}h</span>
+          <span style={{ color: theme.textDim }}> · last </span>
+          <span style={{ color: theme.text }}>{path.hops[path.hops.length - 2].shortId}</span>
+          <span style={{ color: theme.textDim }}> · </span>
+          <span style={{ color: theme.text }}>{path.hops[path.hops.length - 2].name}</span>
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: snrColor(theme, path.finalSnr) }}>
+          {path.hasConflict && <Icon.Warn size={10} color={theme.warn} />}
+          {fmtSnr(path.finalSnr)}
+        </span>
+      </button>
+      {open && (
+        <div style={{ padding: '4px 12px 12px' }}>
+          <V3Tree hops={path.hops} theme={theme} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function V3Tree({ hops, theme }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontFamily: MONO, fontSize: 11 }}>
+      {hops.map((hop, i) => {
+        const isFirst = i === 0;
+        const isLast = i === hops.length - 1;
+        const idx = (hop.kind === 'hop') ? (hops.slice(0, i).filter(h => h.kind === 'hop').length + 1) : null;
+        const branch = isFirst ? '┌' : isLast ? '└' : '├';
+        const accent = hop.kind === 'origin' ? theme.originAccent
+                      : hop.kind === 'sink' ? theme.sinkAccent
+                      : theme.accent;
+        return (
+          <div key={i} style={{ display: 'flex', gap: 0, padding: '2px 0', alignItems: 'flex-start' }}>
+            <span style={{ color: theme.rail, paddingRight: 6, lineHeight: '18px' }}>{branch}─</span>
+            <span style={{
+              color: accent, fontWeight: 600, width: 24, flexShrink: 0,
+              opacity: hop.known === false ? 0.55 : 1,
+            }}>{hop.shortId}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                color: theme.text,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                opacity: hop.known === false ? 0.55 : 1,
+              }}>
+                {hop.name}
+                {hop.kind === 'hop' && (
+                  <span style={{ color: snrColor(theme, hop.snr), marginLeft: 8 }}>
+                    {fmtSnr(hop.snr)}
+                  </span>
+                )}
+              </div>
+              {hop.kind === 'hop' && (hop.conflict || hop.known === false) && (
+                <div style={{ color: hop.known === false ? theme.textDim : theme.warn, fontSize: 10, marginTop: 1 }}>
+                  {hop.conflict && <>⚠ {hop.repeaters} known prefixes match</>}
+                  {!hop.conflict && hop.known === false && <>○ unknown repeater</>}
+                </div>
+              )}
+              {hop.kind !== 'hop' && (
+                <div style={{ color: theme.textDim, fontSize: 10, marginTop: 1 }}>
+                  {hop.kind === 'origin' ? '# origin' : '# you'}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// V4 — SNR-graded rail + signal bars
+// Same vertical timeline as V1, but the rail SEGMENTS between dots are
+// tinted by the SNR of the hop they lead INTO. Lets you read overall path
+// health as a single vertical color strip.
+// ═════════════════════════════════════════════════════════════════════════
+function V4Graded({ theme, paths, message }) {
+  const [openId, toggle] = useAccordion(paths[0].id);
+  return (
+    <div>
+      <SectionLabel theme={theme}>Paths</SectionLabel>
+      <div>
+        {paths.map((p) => (
+          <V4Path key={p.id} path={p} theme={theme}
+            open={openId === p.id} onToggle={() => toggle(p.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function V4Path({ path, theme, open, onToggle }) {
+  const last = path.hops[path.hops.length - 2];
+  return (
+    <div style={{ borderTop: `1px solid ${theme.border}` }}>
+      <button onClick={onToggle} style={{
+        width: '100%', textAlign: 'left',
+        display: 'flex', alignItems: 'stretch', gap: 0,
+        padding: 0,
+        background: open ? theme.bg2 : 'transparent',
+        border: 'none', cursor: 'pointer',
+      }}>
+        {/* Color strip — quick SNR read */}
+        <span style={{
+          width: 3,
+          background: snrColor(theme, path.finalSnr),
+          flexShrink: 0,
+        }} />
+        <div style={{
+          flex: 1, display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 12px', minWidth: 0,
+        }}>
+          <span style={{ width: 12, color: theme.textDim, flexShrink: 0 }}>
+            {open ? <Icon.ChevronDown color={theme.textDim} /> : <Icon.ChevronRight color={theme.textDim} />}
+          </span>
+          <Avatar hop={last} theme={theme} size={26} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 500, color: theme.text,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {last.name}
+            </div>
+            <div style={{ fontFamily: MONO, fontSize: 10.5, color: theme.textDim,
+              display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <span>{path.hopCount} hops</span>
+              {path.hasConflict && <span style={{ color: theme.warn, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                <Icon.Warn size={10} color={theme.warn} /> {path.hops.filter(h => h.conflict).length} conflicts
+              </span>}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+            <SignalBars snr={path.finalSnr} theme={theme} />
+            <span style={{ fontFamily: MONO, fontSize: 10, color: snrColor(theme, path.finalSnr) }}>
+              {fmtSnr(path.finalSnr)}
+            </span>
+          </div>
+        </div>
+      </button>
+      {open && (
+        <div style={{ padding: '6px 14px 16px 14px', position: 'relative' }}>
+          <V4Timeline hops={path.hops} theme={theme} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function V4Timeline({ hops, theme }) {
+  const AVATAR = 26;
+  const ROW = 56; // fixed row height for predictable rail segments
+  // Segment colors are derived from the hop at the BOTTOM of each segment.
+  return (
+    <div style={{ position: 'relative' }}>
+      {/* The full rail is drawn as a stack of colored segments */}
+      <svg style={{
+        position: 'absolute',
+        left: AVATAR / 2 - 1.5,
+        top: AVATAR / 2,
+        width: 3, height: ROW * (hops.length - 1),
+      }} viewBox={`0 0 3 ${ROW * (hops.length - 1)}`} preserveAspectRatio="none">
+        {hops.slice(1).map((hop, i) => {
+          const c = hop.kind === 'hop' ? snrColor(theme, hop.snr)
+                  : hop.kind === 'sink' ? theme.sinkAccent : theme.rail;
+          return <rect key={i} x="0.5" y={i * ROW} width="2" height={ROW} fill={c} opacity={hop.kind === 'sink' ? 0.5 : 0.85} />;
+        })}
+      </svg>
+
+      {hops.map((hop, i) => {
+        const idx = (hop.kind === 'hop') ? (hops.slice(0, i).filter(h => h.kind === 'hop').length + 1) : null;
+        const dotColor = hop.kind === 'origin' ? theme.originAccent
+                        : hop.kind === 'sink' ? theme.sinkAccent
+                        : snrColor(theme, hop.snr);
+        return (
+          <div key={i} style={{
+            position: 'relative',
+            display: 'flex', gap: 10,
+            height: ROW,
+            alignItems: 'center',
+          }}>
+            <div style={{ position: 'relative' }}>
+              <Avatar hop={hop} theme={theme} size={AVATAR} ring={theme.bg} />
+              {hop.kind === 'hop' && (
+                <span style={{
+                  position: 'absolute',
+                  right: -3, bottom: -3,
+                  width: 10, height: 10, borderRadius: 5,
+                  background: dotColor,
+                  border: `2px solid ${theme.bg}`,
+                }} />
+              )}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, color: theme.text, fontWeight: 500,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{hop.name}</div>
+              <div style={{ fontFamily: MONO, fontSize: 10.5, color: theme.textDim, marginTop: 2 }}>
+                {hop.kind === 'origin' && 'Sent the message'}
+                {hop.kind === 'sink' && 'You received'}
+                {hop.kind === 'hop' && (
+                  <>Hop {idx} · {hop.pk.split('…')[0]}</>
+                )}
+              </div>
+              {hop.kind === 'hop' && hop.conflict && (
+                <div style={{ marginTop: 3 }}><ConflictChip count={hop.repeaters} theme={theme} /></div>
+              )}
+            </div>
+            {hop.kind === 'hop' && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                <SignalBars snr={hop.snr} theme={theme} />
+                <span style={{ fontFamily: MONO, fontSize: 10, color: snrColor(theme, hop.snr) }}>
+                  {fmtSnr(hop.snr)}
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// V5 — Stacked avatars (collapsed) + pubkey-chip ladder (expanded)
+// Collapsed shows last 4 hops overlapping (a la GH avatar stack) with a
+// "+N" badge if there are more. Expanded shows hops as chip rows with the
+// public-key prefix prominent — closer to how you'd inspect a route for
+// debugging contact-resolution issues.
+// ═════════════════════════════════════════════════════════════════════════
+function V5Avatars({ theme, paths, message }) {
+  const [openId, toggle] = useAccordion(paths[0].id);
+  return (
+    <div>
+      <SectionLabel theme={theme}>Paths</SectionLabel>
+      <div>
+        {paths.map((p) => (
+          <V5Path key={p.id} path={p} theme={theme}
+            open={openId === p.id} onToggle={() => toggle(p.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function V5Path({ path, theme, open, onToggle }) {
+  const last = path.hops[path.hops.length - 2];
+  // Show the last 4 hop avatars overlapping (origin + last 3 repeaters) so
+  // the stack is visually meaningful at a glance.
+  const stackHops = path.hops.slice(0, 1).concat(path.hops.slice(-3, -1)).concat([last]);
+  const extra = path.hops.length - 1 - stackHops.length;
+  return (
+    <div style={{ borderTop: `1px solid ${theme.border}` }}>
+      <button onClick={onToggle} style={{
+        width: '100%', textAlign: 'left',
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '12px 12px',
+        background: open ? theme.bg2 : 'transparent',
+        border: 'none', cursor: 'pointer', color: theme.text,
+        fontFamily: SANS,
+      }}>
+        <span style={{ width: 12, color: theme.textDim, flexShrink: 0 }}>
+          {open ? <Icon.ChevronDown color={theme.textDim} /> : <Icon.ChevronRight color={theme.textDim} />}
+        </span>
+        {/* Overlapping stack */}
+        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
+          {stackHops.map((h, i) => (
+            <span key={i} style={{ marginLeft: i === 0 ? 0 : -10, zIndex: stackHops.length - i }}>
+              <Avatar hop={h} theme={theme} size={26} ring={theme.bg2} />
+            </span>
+          ))}
+          {extra > 0 && (
+            <span style={{
+              marginLeft: -10,
+              width: 26, height: 26, borderRadius: 13,
+              background: theme.bg3, color: theme.textMuted,
+              border: `2px solid ${theme.bg2}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: MONO, fontSize: 10, fontWeight: 600,
+              zIndex: 0,
+            }}>+{extra}</span>
+          )}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 500, color: theme.text,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {last.name}
+          </div>
+          <div style={{ fontFamily: MONO, fontSize: 10.5, color: theme.textDim, marginTop: 2 }}>
+            {path.hopCount}h · {fmtSnr(path.finalSnr)}
+            {path.hasConflict && <span style={{ color: theme.warn }}> · ⚠ conflict</span>}
+          </div>
+        </div>
+      </button>
+      {open && (
+        <div style={{ padding: '4px 12px 14px' }}>
+          <V5Chips hops={path.hops} theme={theme} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function V5Chips({ hops, theme }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {hops.map((hop, i) => {
+        const idx = (hop.kind === 'hop') ? (hops.slice(0, i).filter(h => h.kind === 'hop').length + 1) : null;
+        return (
+          <div key={i} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '6px 8px',
+            background: theme.bg2,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 4,
+            position: 'relative',
+            marginLeft: hop.kind === 'origin' ? 0 : hop.kind === 'sink' ? 0 : 12,
+          }}>
+            <Avatar hop={hop} theme={theme} size={22} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <span style={{
+                  fontSize: 12, color: theme.text, fontWeight: 500,
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  minWidth: 0,
+                }}>{hop.name}</span>
+                {hop.kind === 'hop' && (
+                  <span style={{ fontFamily: MONO, fontSize: 9.5, color: theme.textDim, flexShrink: 0 }}>
+                    hop {idx}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                <span style={{
+                  fontFamily: MONO, fontSize: 9.5, color: theme.textMuted,
+                  background: theme.bg3, padding: '1px 4px', borderRadius: 2,
+                }}>{hop.pk}</span>
+                {hop.conflict && <ConflictChip count={hop.repeaters} theme={theme} />}
+              </div>
+            </div>
+            {hop.kind === 'hop' && (
+              <span style={{ fontFamily: MONO, fontSize: 10, color: snrColor(theme, hop.snr) }}>
+                {fmtSnr(hop.snr)}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// V6 — Minimalist dense table
+// No avatars. Pure rows in a tight monospace grid. Maximum information
+// density — fits ~8 hops in roughly the same vertical real estate that
+// V1 uses for 4. Hover/click reveals the popover details.
+// ═════════════════════════════════════════════════════════════════════════
+function V6Dense({ theme, paths, message }) {
+  const [openId, toggle] = useAccordion(paths[0].id);
+  return (
+    <div>
+      <SectionLabel theme={theme}>Paths</SectionLabel>
+      <div>
+        {paths.map((p) => (
+          <V6Path key={p.id} path={p} theme={theme}
+            open={openId === p.id} onToggle={() => toggle(p.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function V6Path({ path, theme, open, onToggle }) {
+  const last = path.hops[path.hops.length - 2];
+  return (
+    <div style={{ borderTop: `1px solid ${theme.border}` }}>
+      <button onClick={onToggle} style={{
+        width: '100%', textAlign: 'left',
+        display: 'grid',
+        gridTemplateColumns: '14px 1fr auto auto',
+        gap: 10,
+        alignItems: 'center',
+        padding: '9px 12px',
+        background: open ? theme.bg2 : 'transparent',
+        border: 'none', cursor: 'pointer', color: theme.text, fontFamily: SANS,
+      }}>
+        <span style={{ color: theme.textDim }}>
+          {open ? <Icon.ChevronDown color={theme.textDim} /> : <Icon.ChevronRight color={theme.textDim} />}
+        </span>
+        <span style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: MONO, fontSize: 11, color: theme.accent, fontWeight: 600 }}>
+            {String(path.hopCount).padStart(2, '0')}h
+          </span>
+          <span style={{
+            fontSize: 12.5, color: theme.text,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{last.name}</span>
+        </span>
+        {path.hasConflict && <Icon.Warn size={11} color={theme.warn} />}
+        <span style={{ fontFamily: MONO, fontSize: 11, color: snrColor(theme, path.finalSnr) }}>
+          {fmtSnr(path.finalSnr)}
+        </span>
+      </button>
+      {open && (
+        <div style={{ padding: '4px 0 10px' }}>
+          <V6Table hops={path.hops} theme={theme} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function V6Table({ hops, theme }) {
+  return (
+    <div style={{ fontFamily: MONO, fontSize: 11 }}>
+      {hops.map((hop, i) => {
+        const idx = (hop.kind === 'hop') ? (hops.slice(0, i).filter(h => h.kind === 'hop').length + 1) : null;
+        const labelColor = hop.kind === 'origin' ? theme.originAccent
+                          : hop.kind === 'sink' ? theme.sinkAccent
+                          : theme.textDim;
+        return (
+          <div key={i} style={{
+            display: 'grid',
+            gridTemplateColumns: '14px 24px 26px 1fr auto',
+            alignItems: 'center', gap: 6,
+            padding: '4px 12px',
+            opacity: hop.known === false ? 0.6 : 1,
+          }}>
+            <span style={{ color: labelColor, fontWeight: 600, textAlign: 'right' }}>
+              {hop.kind === 'origin' ? '◆' : hop.kind === 'sink' ? '◇' : idx}
+            </span>
+            <span style={{ color: theme.accent, fontWeight: 600 }}>
+              {hop.shortId}
+            </span>
+            <span style={{ color: hop.conflict ? theme.warn : 'transparent', textAlign: 'center' }}>
+              {hop.conflict && <Icon.Warn size={10} color={theme.warn} />}
+            </span>
+            <span style={{
+              color: theme.text,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>{hop.name}</span>
+            <span style={{ color: hop.kind === 'hop' ? snrColor(theme, hop.snr) : theme.textDim, textAlign: 'right' }}>
+              {hop.kind === 'hop' ? fmtSnr(hop.snr) : (hop.kind === 'origin' ? 'origin' : 'you')}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Expose
+Object.assign(window, {
+  V1Classic, V2Breadcrumb, V3Console, V4Graded, V5Avatars, V6Dense,
+});
+
+</script>
+<script type="text/babel" data-presets="env,react">
+// path-viewer.jsx — top-level canvas layout
+// Stacks each of the six variations on the canvas as a dark+light pair,
+// wrapped in the inspector-pane chrome (title bar + info banner). Renders
+// 3 collapsible paths inside each pane, with the first one expanded.
+
+const { paths, message } = window.PV_DATA;
+
+const VARIATIONS = [
+  {
+    key: 'v1', title: 'Classic timeline',
+    desc: 'Standard shadcn Collapsible + vertical-rail timeline. The avatar IS the dot — the rail runs through every avatar center. Closest to the existing mobile View Path screen; the natural default.',
+    component: window.V1Classic,
+  },
+  {
+    key: 'v2', title: 'Horizontal breadcrumb → vertical',
+    desc: 'Collapsed row shows the full chain as a row of tiny avatars with chevrons — you can see the SHAPE of the path before deciding to expand. Expansion still uses the vertical timeline.',
+    component: window.V2Breadcrumb,
+  },
+  {
+    key: 'v3', title: 'Console / traceroute',
+    desc: 'Monospace, box-drawing characters, terminal vocabulary. Matches the existing packet.log + field-console aesthetic. Highest density. Best for users debugging routing.',
+    component: window.V3Console,
+  },
+  {
+    key: 'v4', title: 'SNR-graded rail',
+    desc: 'Same shape as V1 but each rail segment is tinted by the SNR of the hop it leads into. Reads the whole path’s signal health as one vertical color strip. A coloured strip on the collapsed row too.',
+    component: window.V4Graded,
+  },
+  {
+    key: 'v5', title: 'Avatar stack + pubkey chips',
+    desc: 'Collapsed shows the last hops as overlapping avatars (a la GitHub PR reviewers) with a +N spillover. Expanded shows hops as chip rows with the prefix bytes prominent — debugging-first.',
+    component: window.V5Avatars,
+  },
+  {
+    key: 'v6', title: 'Minimalist dense table',
+    desc: 'No avatars at all. Rows are a tight monospace grid: hop# · prefix · ⚠ · name · SNR. Fits roughly 2× the hops V1 does in the same space. Pairs well with a hover popover for full detail.',
+    component: window.V6Dense,
+  },
+];
+
+const BANNER_TEXT = 'Your companion radio heard this message via the following paths.';
+
+function PaneFor({ theme, Variation }) {
+  return (
+    <Pane theme={theme}
+      title={`Heard ${message.timesHeard} Times`}
+      subtitle={`${paths.length} paths · 7–3 hops`}
+      banner={BANNER_TEXT}
+      height={760}
+    >
+      <Variation theme={theme} paths={paths} message={message} />
+    </Pane>
+  );
+}
+
+function App() {
+  return (
+    <div className="canvas">
+      <div className="canvas-head">
+        <div className="kicker">MeshCore · Right Inspector Pane · 380px</div>
+        <h1>Path viewer — six directions</h1>
+        <p>
+          Six treatments of the “Heard N Times” inspector. Every variation
+          stacks paths as accordion-style Collapsibles (one expanded at a time);
+          they differ in how the rail is drawn, how the collapsed row summarises
+          a path, and how aggressive the engineering vocabulary is. Each shown
+          in both warm-dark and warm-light against the project palette.
+        </p>
+      </div>
+
+      {VARIATIONS.map((v, i) => (
+        <div className="row" key={v.key}>
+          <div className="row-head">
+            <span className="num">V{i + 1}</span>
+            <span className="title">{v.title}</span>
+            <span className="desc">{v.desc}</span>
+          </div>
+          <div className="pair">
+            <div className="artboard">
+              <div className="artboard-label">Dark</div>
+              <PaneFor theme={THEMES.dark} Variation={v.component} />
+            </div>
+            <div className="artboard">
+              <div className="artboard-label">Light</div>
+              <PaneFor theme={THEMES.light} Variation={v.component} />
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <div className="canvas-head" style={{ marginTop: 24 }}>
+        <div className="kicker">Notes</div>
+        <p>
+          All variations use the same accent / SNR-band colours from{' '}
+          <code style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>field-console.jsx</code>{' '}
+          (online → mid → danger). Conflict warnings (multiple known repeaters
+          share the matched prefix byte/s) appear on both the collapsed summary
+          and the relevant hop in the expanded view. Unknown repeaters are
+          rendered with a dashed-border avatar at reduced opacity.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+</script>
+
+</body>
+</html>

@@ -1,12 +1,19 @@
-import type {
-  AppSettings,
-  Channel,
-  Contact,
-  MapSettings,
-  Message,
-  Owner,
-  RadioSettings,
-  UiState,
+import {
+  type AppSettings,
+  type AutoAddConfig,
+  type Channel,
+  type Contact,
+  DEFAULT_DEVICE_CAPABILITIES,
+  type DeviceCapabilities,
+  type DeviceIdentity,
+  type DeviceInfo,
+  type GpsConfig,
+  type MapSettings,
+  type Message,
+  type Owner,
+  type RadioSettings,
+  type TelemetryPolicy,
+  type UiState,
 } from '../../shared/types';
 import { hasApiKey } from '../map/api-key';
 import { messagesStore } from '../storage/messages';
@@ -24,6 +31,15 @@ class StateHolder {
   private radioSettings: RadioSettings;
   private mapSettings: MapSettings;
   private uiState: UiState;
+  private deviceIdentity: DeviceIdentity;
+  private autoAddConfig: AutoAddConfig;
+  private telemetryPolicy: TelemetryPolicy;
+  private gpsConfig: GpsConfig;
+  private deviceInfo: DeviceInfo;
+  // Capabilities are derived from the live connection (firmware ver_code) so
+  // we don't persist them — the renderer resets to DEFAULT when the device
+  // disconnects.
+  private deviceCapabilities: DeviceCapabilities = { ...DEFAULT_DEVICE_CAPABILITIES };
 
   constructor() {
     this.channels = settingsStore.loadChannels();
@@ -37,6 +53,11 @@ class StateHolder {
       hasProtomapsApiKey: hasApiKey(),
     };
     this.uiState = settingsStore.loadUiState();
+    this.deviceIdentity = settingsStore.loadDeviceIdentity();
+    this.autoAddConfig = settingsStore.loadAutoAddConfig();
+    this.telemetryPolicy = settingsStore.loadTelemetryPolicy();
+    this.gpsConfig = settingsStore.loadGpsConfig();
+    this.deviceInfo = settingsStore.loadDeviceInfo();
 
     // Seed the well-known Public channel on first run so the UI has something
     // to address out of the box. Phase 6b will replace the seed once the
@@ -140,6 +161,53 @@ class StateHolder {
     settingsStore.saveUiState(next);
   }
 
+  getDeviceIdentity(): DeviceIdentity {
+    return this.deviceIdentity;
+  }
+  setDeviceIdentity(next: DeviceIdentity): void {
+    this.deviceIdentity = next;
+    settingsStore.saveDeviceIdentity(next);
+  }
+
+  getAutoAddConfig(): AutoAddConfig {
+    return this.autoAddConfig;
+  }
+  setAutoAddConfig(next: AutoAddConfig): void {
+    this.autoAddConfig = next;
+    settingsStore.saveAutoAddConfig(next);
+  }
+
+  getTelemetryPolicy(): TelemetryPolicy {
+    return this.telemetryPolicy;
+  }
+  setTelemetryPolicy(next: TelemetryPolicy): void {
+    this.telemetryPolicy = next;
+    settingsStore.saveTelemetryPolicy(next);
+  }
+
+  getGpsConfig(): GpsConfig {
+    return this.gpsConfig;
+  }
+  setGpsConfig(next: GpsConfig): void {
+    this.gpsConfig = next;
+    settingsStore.saveGpsConfig(next);
+  }
+
+  getDeviceInfo(): DeviceInfo {
+    return this.deviceInfo;
+  }
+  setDeviceInfo(next: DeviceInfo): void {
+    this.deviceInfo = next;
+    settingsStore.saveDeviceInfo(next);
+  }
+
+  getDeviceCapabilities(): DeviceCapabilities {
+    return this.deviceCapabilities;
+  }
+  setDeviceCapabilities(next: DeviceCapabilities): void {
+    this.deviceCapabilities = next;
+  }
+
   getRecentMessages(limit = 500): Message[] {
     return messagesStore.recent(limit);
   }
@@ -148,6 +216,53 @@ class StateHolder {
   }
   insertMessage(message: Message): void {
     messagesStore.insert(message);
+  }
+  /** Insert a new Message, or merge into the existing row when the id collides
+   *  (channel-msg ids are deterministic by ts + body so multi-path receipts
+   *  hit the same row). Merge rules:
+   *    - paths are unioned by MessagePath.id (keep all distinct routes)
+   *    - timesHeard increments by 1
+   *    - ts keeps the earliest receipt
+   *    - state only moves forward (received → ack), never backward */
+  upsertMessage(message: Message): void {
+    const existing = messagesStore.findById(message.id);
+    if (!existing) {
+      const meta = message.meta ? { ...message.meta } : undefined;
+      if (meta?.paths && meta.paths.length > 0 && meta.timesHeard == null) {
+        meta.timesHeard = 1;
+      }
+      messagesStore.insert({ ...message, meta });
+      return;
+    }
+    const existingPaths = existing.meta?.paths ?? [];
+    const incomingPaths = message.meta?.paths ?? [];
+    const byId = new Map<string, (typeof existingPaths)[number]>();
+    for (const p of existingPaths) byId.set(p.id, p);
+    for (const p of incomingPaths) if (!byId.has(p.id)) byId.set(p.id, p);
+    const mergedPaths = [...byId.values()];
+
+    const stateRank: Record<Message['state'], number> = {
+      sending: 0,
+      sent: 1,
+      received: 1,
+      ack: 2,
+      failed: 0,
+    };
+    const nextState =
+      stateRank[message.state] > stateRank[existing.state] ? message.state : existing.state;
+
+    const merged: Message = {
+      ...existing,
+      ts: Math.min(existing.ts, message.ts),
+      state: nextState,
+      meta: {
+        ...existing.meta,
+        ...message.meta,
+        paths: mergedPaths.length > 0 ? mergedPaths : undefined,
+        timesHeard: (existing.meta?.timesHeard ?? 1) + 1,
+      },
+    };
+    messagesStore.insert(merged);
   }
   setMessageState(id: string, state: Message['state']): void {
     messagesStore.markState(id, state);

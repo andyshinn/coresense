@@ -1,6 +1,6 @@
 import maplibregl, { type Map as MapLibreMap } from 'maplibre-gl';
 import { useEffect, useRef } from 'react';
-import type { Contact, ContactKind } from '../../../shared/types';
+import { type Contact, type ContactKind, hasValidFix } from '../../../shared/types';
 import { useStore } from '../../lib/store';
 
 interface Props {
@@ -28,14 +28,6 @@ const KIND_COLOR: Record<ContactKind, string> = {
   sensor: 'rgb(var(--cs-warn))',
   room: 'rgb(var(--cs-text-muted))',
 };
-
-function hasFix(c: Contact): c is Contact & { gpsLat: number; gpsLon: number } {
-  return (
-    typeof c.gpsLat === 'number' &&
-    typeof c.gpsLon === 'number' &&
-    (c.gpsLat !== 0 || c.gpsLon !== 0)
-  );
-}
 
 function buildElement(
   contact: Contact,
@@ -88,7 +80,7 @@ export function MapMarkers({ map }: Props) {
 
     const wanted = new Set<string>();
     for (const c of contacts) {
-      if (!hasFix(c)) continue;
+      if (!hasValidFix(c)) continue;
       wanted.add(c.key);
       const isSelected = c.key === selectedContactKey;
       const isFaded = typeof c.lastSeenMs === 'number' && now - c.lastSeenMs > fadeThresholdMs;

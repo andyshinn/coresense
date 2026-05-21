@@ -61,6 +61,42 @@ export const CMD = {
   //   contact). Values: 0=legacy/1-byte, 1=standard/2-byte, 2=strict/4-byte.
   //   Replies RESP_OK.
   SET_PATH_HASH_MODE: 0x3d,
+
+  // ---- Settings-parity commands (sourced from meshcore-open
+  //       lib/connector/meshcore_protocol.dart and meshcore_connector.dart). ----
+
+  // CMD_SET_ADVERT_NAME: [0x08][utf8 name, ≤31B, no null term]. Replies RESP_OK.
+  SET_ADVERT_NAME: 0x08,
+  // CMD_SET_RADIO_PARAMS: [0x0b][freq_hz u32 LE][bw_hz u32 LE][sf u8][cr u8]
+  //   (+[client_repeat u8] when firmware ver_code ≥ 9). Replies RESP_OK/ERR.
+  SET_RADIO_PARAMS: 0x0b,
+  // CMD_SET_RADIO_TX_POWER: [0x0c][dBm u8]. Replies RESP_OK/ERR.
+  SET_RADIO_TX_POWER: 0x0c,
+  // CMD_SET_ADVERT_LATLON: [0x0e][lat*1e6 i32 LE][lon*1e6 i32 LE]. Replies RESP_OK.
+  SET_ADVERT_LATLON: 0x0e,
+  // CMD_EXPORT_CONTACT: [0x11][32B pubkey] — also used to export the device's
+  //   own identity (when pubkey == self). Replies RESP_EXPORT_CONTACT.
+  EXPORT_CONTACT: 0x11,
+  // CMD_IMPORT_CONTACT: [0x12][serialized contact blob]. Replies RESP_OK/ERR.
+  IMPORT_CONTACT: 0x12,
+  // CMD_REBOOT: [0x13]"reboot" (literal 6 ASCII bytes). No reply — link drops.
+  REBOOT: 0x13,
+  // CMD_GET_BATT_AND_STORAGE: [0x14]. Replies RESP_BATT_AND_STORAGE.
+  GET_BATT_AND_STORAGE: 0x14,
+  // CMD_SET_OTHER_PARAMS: [0x26][reserved u8][telemetry_flags u8]
+  //   [advert_loc_policy u8][multi_acks u8]. Replies RESP_OK.
+  //   telemetry_flags = (env_mode << 4) | (loc_mode << 2) | base_mode (each 0..2)
+  SET_OTHER_PARAMS: 0x26,
+  // CMD_GET_CUSTOM_VAR: [0x28][key utf8]. Replies RESP_CUSTOM_VARS with the
+  //   key:value text the firmware tracks (gps, gps_interval, etc.).
+  GET_CUSTOM_VAR: 0x28,
+  // CMD_SET_CUSTOM_VAR: [0x29]"key:value" UTF-8. Replies RESP_OK/ERR.
+  SET_CUSTOM_VAR: 0x29,
+  // CMD_SET_AUTO_ADD_CONFIG: [0x3a][flags u8]. Replies RESP_OK.
+  //   flags: 0x01 overwrite_oldest | 0x02 chat | 0x04 repeater | 0x08 room | 0x10 sensor
+  SET_AUTO_ADD_CONFIG: 0x3a,
+  // CMD_GET_AUTO_ADD_CONFIG: [0x3b]. Replies RESP_AUTOADD_CONFIG.
+  GET_AUTO_ADD_CONFIG: 0x3b,
 } as const;
 
 // Protocol version we negotiate with the firmware. 4 matches the official
@@ -86,12 +122,27 @@ export const RESP = {
   CONTACT_MSG_RECV: 0x07,
   CHANNEL_MSG_RECV: 0x08,
   NO_MORE_MESSAGES: 0x0a,
+  // RESP_EXPORT_CONTACT [0x0b][serialized contact blob]
+  EXPORT_CONTACT: 0x0b,
+  // RESP_BATT_AND_STORAGE [0x0c][batt_mv u16 LE][storage_used_kb u32 LE][storage_total_kb u32 LE]
+  BATT_AND_STORAGE: 0x0c,
+  // RESP_DEVICE_INFO [0x0d][firmware_ver_code u8][max_contacts u8 (count/2)]
+  //   [max_channels u8][...firmware/radio metadata...]
+  //   v9+ adds client_repeat byte (~offset 80); v10+ adds path_hash_mode (~81).
+  DEVICE_INFO: 0x0d,
+  // RESP_PRIVATE_KEY [0x0e][32B private key] — only emitted by fw ≥1.7.0 in
+  //   response to a CLI export request.
+  PRIVATE_KEY: 0x0e,
   CONTACT_MSG_RECV_V3: 0x10,
   CHANNEL_MSG_RECV_V3: 0x11,
   CHANNEL_INFO: 0x12,
+  // RESP_CUSTOM_VARS [0x15] newline-separated "key:value" UTF-8 pairs.
+  CUSTOM_VARS: 0x15,
   // RESP_CODE_STATS reply to CMD_GET_STATS — second byte echoes the requested
   // STATS_TYPE so the caller can route the rest of the payload.
   STATS: 0x18,
+  // RESP_AUTOADD_CONFIG [0x19][flags u8] — mirrors SET_AUTO_ADD_CONFIG flags.
+  AUTOADD_CONFIG: 0x19,
 } as const;
 
 // ADV_TYPE values from src/helpers/AdvertDataHelpers.h, used in RESP_CONTACT

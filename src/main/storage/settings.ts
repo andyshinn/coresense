@@ -4,14 +4,24 @@ import { join } from 'node:path';
 import { app } from 'electron';
 import {
   type AppSettings,
+  type AutoAddConfig,
   type Channel,
   type Contact,
   DEFAULT_APP_SETTINGS,
+  DEFAULT_AUTO_ADD_CONFIG,
+  DEFAULT_DEVICE_IDENTITY,
+  DEFAULT_DEVICE_INFO,
+  DEFAULT_GPS_CONFIG,
   DEFAULT_MAP_SETTINGS,
   DEFAULT_RADIO_SETTINGS,
+  DEFAULT_TELEMETRY_POLICY,
   DEFAULT_UI_STATE,
+  type DeviceIdentity,
+  type DeviceInfo,
+  type GpsConfig,
   type MapSettings,
   type RadioSettings,
+  type TelemetryPolicy,
   type UiState,
 } from '../../shared/types';
 import { child } from '../log';
@@ -27,6 +37,11 @@ const FILES = {
   contacts: 'contacts.json',
   ui: 'ui-state.json',
   map: 'map-settings.json',
+  deviceIdentity: 'device-identity.json',
+  autoAdd: 'auto-add-config.json',
+  telemetryPolicy: 'telemetry-policy.json',
+  gps: 'gps-config.json',
+  deviceInfo: 'device-info.json',
 } as const;
 
 function pathFor(file: string): string {
@@ -96,19 +111,49 @@ export const settingsStore = {
   loadMapSettings: (): MapSettings =>
     mergeDefaults(readJson(FILES.map, DEFAULT_MAP_SETTINGS), DEFAULT_MAP_SETTINGS),
   saveMapSettings: (v: MapSettings): void => writeJson(FILES.map, v),
+
+  loadDeviceIdentity: (): DeviceIdentity =>
+    mergeDefaults(readJson(FILES.deviceIdentity, DEFAULT_DEVICE_IDENTITY), DEFAULT_DEVICE_IDENTITY),
+  saveDeviceIdentity: (v: DeviceIdentity): void => writeJson(FILES.deviceIdentity, v),
+
+  loadAutoAddConfig: (): AutoAddConfig =>
+    mergeDefaults(readJson(FILES.autoAdd, DEFAULT_AUTO_ADD_CONFIG), DEFAULT_AUTO_ADD_CONFIG),
+  saveAutoAddConfig: (v: AutoAddConfig): void => writeJson(FILES.autoAdd, v),
+
+  loadTelemetryPolicy: (): TelemetryPolicy =>
+    mergeDefaults(
+      readJson(FILES.telemetryPolicy, DEFAULT_TELEMETRY_POLICY),
+      DEFAULT_TELEMETRY_POLICY,
+    ),
+  saveTelemetryPolicy: (v: TelemetryPolicy): void => writeJson(FILES.telemetryPolicy, v),
+
+  loadGpsConfig: (): GpsConfig =>
+    mergeDefaults(readJson(FILES.gps, DEFAULT_GPS_CONFIG), DEFAULT_GPS_CONFIG),
+  saveGpsConfig: (v: GpsConfig): void => writeJson(FILES.gps, v),
+
+  loadDeviceInfo: (): DeviceInfo =>
+    mergeDefaults(readJson(FILES.deviceInfo, DEFAULT_DEVICE_INFO), DEFAULT_DEVICE_INFO),
+  saveDeviceInfo: (v: DeviceInfo): void => writeJson(FILES.deviceInfo, v),
 };
 
-// Shallow merge so new fields added in code get default values when reading
-// older files written before those fields existed. Skips top-level arrays.
+// Recursive merge so new fields added in code get default values when reading
+// older files written before those fields existed — including fields nested
+// inside an existing object (e.g. a new key under `composer`). Arrays and
+// primitives are taken wholesale from the stored value.
 function mergeDefaults<T>(stored: T, defaults: T): T {
   if (
     stored === null ||
     typeof stored !== 'object' ||
     Array.isArray(stored) ||
     typeof defaults !== 'object' ||
-    defaults === null
+    defaults === null ||
+    Array.isArray(defaults)
   ) {
     return stored;
   }
-  return { ...(defaults as object), ...(stored as object) } as T;
+  const out: Record<string, unknown> = { ...(defaults as object) };
+  for (const [key, storedVal] of Object.entries(stored as object)) {
+    out[key] = mergeDefaults(storedVal, (defaults as Record<string, unknown>)[key]);
+  }
+  return out as T;
 }

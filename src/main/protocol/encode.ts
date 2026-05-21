@@ -329,6 +329,148 @@ export function buildGetStats(subtype: (typeof STATS_TYPE)[keyof typeof STATS_TY
   return Buffer.from([CMD.GET_STATS, subtype & 0xff]);
 }
 
+// ---- Settings-parity encoders ------------------------------------------
+// All payloads sourced from /Users/andy/GitHub/zjs81/meshcore-open
+// (lib/connector/meshcore_protocol.dart).
+
+// CMD_SET_ADVERT_NAME: [0x08][utf8 name]. Firmware truncates beyond 31B; we
+// truncate client-side too so the wire format matches the official client.
+export function buildSetAdvertName(name: string): Buffer {
+  const nameBuf = Buffer.from(name, 'utf8').subarray(0, 31);
+  const out = Buffer.alloc(1 + nameBuf.length);
+  out[0] = CMD.SET_ADVERT_NAME;
+  nameBuf.copy(out, 1);
+  return out;
+}
+
+// CMD_SET_RADIO_PARAMS. firmware ver ≥ 9 accepts a trailing client_repeat byte;
+// older firmware rejects the longer frame, so the caller must know the version.
+export function buildSetRadioParams(opts: {
+  frequencyHz: number;
+  bandwidthHz: number;
+  spreadingFactor: number;
+  codingRate: number;
+  /** Repeat (firmware ver ≥ 9). When undefined, the byte is omitted. */
+  clientRepeat?: boolean;
+}): Buffer {
+  const includeRepeat = opts.clientRepeat !== undefined;
+  const out = Buffer.alloc(1 + 4 + 4 + 1 + 1 + (includeRepeat ? 1 : 0));
+  out[0] = CMD.SET_RADIO_PARAMS;
+  out.writeUInt32LE(opts.frequencyHz >>> 0, 1);
+  out.writeUInt32LE(opts.bandwidthHz >>> 0, 5);
+  out[9] = opts.spreadingFactor & 0xff;
+  out[10] = opts.codingRate & 0xff;
+  if (includeRepeat) out[11] = opts.clientRepeat ? 1 : 0;
+  return out;
+}
+
+// CMD_SET_RADIO_TX_POWER: [0x0c][dBm u8]. Firmware clamps to the per-board max.
+export function buildSetRadioTxPower(dBm: number): Buffer {
+  return Buffer.from([CMD.SET_RADIO_TX_POWER, dBm & 0xff]);
+}
+
+// CMD_SET_ADVERT_LATLON: lat/lon as signed micro-degrees.
+export function buildSetAdvertLatLon(lat: number, lon: number): Buffer {
+  const out = Buffer.alloc(1 + 4 + 4);
+  out[0] = CMD.SET_ADVERT_LATLON;
+  out.writeInt32LE(Math.round(lat * 1_000_000) | 0, 1);
+  out.writeInt32LE(Math.round(lon * 1_000_000) | 0, 5);
+  return out;
+}
+
+// CMD_REBOOT: literal "reboot" payload after the opcode. Anything else and the
+// firmware ignores the write (safety against accidental opcode collisions).
+export function buildReboot(): Buffer {
+  const tag = Buffer.from('reboot', 'utf8');
+  const out = Buffer.alloc(1 + tag.length);
+  out[0] = CMD.REBOOT;
+  tag.copy(out, 1);
+  return out;
+}
+
+// CMD_GET_BATT_AND_STORAGE: bare opcode. Reply RESP_BATT_AND_STORAGE.
+export function buildGetBattAndStorage(): Buffer {
+  return Buffer.from([CMD.GET_BATT_AND_STORAGE]);
+}
+
+// CMD_SET_OTHER_PARAMS: telemetry policy + advert-location-policy + multi-acks.
+// Layout: [0x26][reserved 0][telemetry_flags u8][advert_loc_policy u8][multi_acks u8].
+export interface OtherParamsInput {
+  telemetryBase: 0 | 1 | 2;
+  telemetryLoc: 0 | 1 | 2;
+  telemetryEnv: 0 | 1 | 2;
+  /** 1 = share GPS in self-adverts, 0 = withhold. */
+  advertLocationPolicy: 0 | 1;
+  /** Number of duplicate ACKs to emit per inbound DM (0..2 typical). */
+  multiAcks: number;
+}
+export function buildSetOtherParams(input: OtherParamsInput): Buffer {
+  const out = Buffer.alloc(5);
+  out[0] = CMD.SET_OTHER_PARAMS;
+  out[1] = 0; // reserved
+  out[2] =
+    ((input.telemetryEnv & 0x03) << 4) |
+    ((input.telemetryLoc & 0x03) << 2) |
+    (input.telemetryBase & 0x03);
+  out[3] = input.advertLocationPolicy & 0x01;
+  out[4] = input.multiAcks & 0xff;
+  return out;
+}
+
+// CMD_GET_CUSTOM_VAR: variable-length key. Empty key returns the full set.
+export function buildGetCustomVar(key = ''): Buffer {
+  const k = Buffer.from(key, 'utf8');
+  const out = Buffer.alloc(1 + k.length);
+  out[0] = CMD.GET_CUSTOM_VAR;
+  k.copy(out, 1);
+  return out;
+}
+
+// CMD_SET_CUSTOM_VAR: "key:value" UTF-8. Used for GPS enable / interval and
+// other firmware tunables the user-facing UI may surface in the future.
+export function buildSetCustomVar(key: string, value: string | number | boolean): Buffer {
+  const v = typeof value === 'boolean' ? (value ? '1' : '0') : String(value);
+  const body = Buffer.from(`${key}:${v}`, 'utf8');
+  const out = Buffer.alloc(1 + body.length);
+  out[0] = CMD.SET_CUSTOM_VAR;
+  body.copy(out, 1);
+  return out;
+}
+
+// CMD_SET_AUTO_ADD_CONFIG flags layout — see codes.ts.
+export interface AutoAddFlagsInput {
+  chat: boolean;
+  repeater: boolean;
+  room: boolean;
+  sensor: boolean;
+  overwriteOldest: boolean;
+}
+export function autoAddFlagsToByte(flags: AutoAddFlagsInput): number {
+  return (
+    (flags.overwriteOldest ? 0x01 : 0) |
+    (flags.chat ? 0x02 : 0) |
+    (flags.repeater ? 0x04 : 0) |
+    (flags.room ? 0x08 : 0) |
+    (flags.sensor ? 0x10 : 0)
+  );
+}
+export function autoAddByteToFlags(byte: number): AutoAddFlagsInput {
+  return {
+    overwriteOldest: (byte & 0x01) !== 0,
+    chat: (byte & 0x02) !== 0,
+    repeater: (byte & 0x04) !== 0,
+    room: (byte & 0x08) !== 0,
+    sensor: (byte & 0x10) !== 0,
+  };
+}
+export function buildSetAutoAddConfig(flags: AutoAddFlagsInput): Buffer {
+  return Buffer.from([CMD.SET_AUTO_ADD_CONFIG, autoAddFlagsToByte(flags) & 0xff]);
+}
+
+export function buildGetAutoAddConfig(): Buffer {
+  return Buffer.from([CMD.GET_AUTO_ADD_CONFIG]);
+}
+
 // Mesh-level admin request encoder. The connected radio wraps this for us via
 // CMD_SEND_BINARY_REQ (0x32) — `[0x32][32B pubkey][req_type byte + req_data]`.
 // The reply comes back as PUSH_BINARY_RESPONSE tagged with the same u32 the

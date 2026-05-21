@@ -1,3 +1,4 @@
+import { defaultFilter } from 'cmdk';
 import type { LucideIcon } from 'lucide-react';
 import {
   CheckCheck,
@@ -39,6 +40,27 @@ interface Props {
   cycleThemePref: () => void;
 }
 
+/**
+ * Builds a cmdk filter that ranks palette matches by where they hit. cmdk's
+ * default filter scores one concatenated string, so a query can match a
+ * description word (e.g. "radio" in BLE Connect's "Scan + connect a radio")
+ * and outrank a real label match ("Radio Settings") — command-score even
+ * penalizes the Title-cased label.
+ *
+ * Each CommandItem passes keywords as [label, hint, extraKeywords]. The label
+ * is scored at full weight; the hint/keywords are scaled by `hintWeight`
+ * (0 = ignore description text, 1 = rank it equal to the label). The weight is
+ * user-tunable via AppSettings.commandPalette.hintWeightPct.
+ */
+function makePaletteFilter(hintWeight: number) {
+  return (_value: string, search: string, keywords?: string[]): number => {
+    const [label = '', hint = '', extra = ''] = keywords ?? [];
+    const labelScore = defaultFilter(label, search);
+    const secondaryScore = defaultFilter(`${hint} ${extra}`.trim(), search);
+    return Math.max(labelScore, secondaryScore * hintWeight);
+  };
+}
+
 interface PaletteItem {
   id: string;
   label: string;
@@ -71,8 +93,10 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
   const markAllRead = useStore((s) => s.markAllRead);
   const markAllReadGlobal = useStore((s) => s.markAllReadGlobal);
   const clearPackets = useStore((s) => s.clearPackets);
+  const hintWeightPct = useStore((s) => s.appSettings.commandPalette.hintWeightPct);
 
   const lastDevice = useMemo(() => (open ? loadLastDevice() : null), [open]);
+  const paletteFilter = useMemo(() => makePaletteFilter(hintWeightPct / 100), [hintWeightPct]);
 
   const items = useMemo<PaletteItem[]>(() => {
     const list: PaletteItem[] = [];
@@ -400,8 +424,12 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
 
     let unreadKey: string | null = null;
     let unreadCount = 0;
-    const allConvKeys = [...channels.map((c) => c.key), ...contacts.map((c) => c.key)];
-    for (const key of allConvKeys) {
+    // Muted conversations are excluded from the unread tally so this matches
+    // the LeftNav badge and the Unreads panel.
+    const allConvs = [...channels, ...contacts];
+    for (const conv of allConvs) {
+      if (conv.muted) continue;
+      const key = conv.key;
       const msgs = messagesByKey[key];
       if (!msgs || msgs.length === 0) continue;
       const lastRead = lastReadByKey[key] ?? 0;
@@ -529,6 +557,7 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
       }}
       title="Command palette"
       description="Search channels, contacts, tools, and actions"
+      filter={paletteFilter}
       showCloseButton={false}
       className="border-cs-border bg-cs-bg sm:max-w-xl"
     >
@@ -542,7 +571,8 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
               return (
                 <CommandItem
                   key={it.id}
-                  value={`${it.id} ${it.label} ${it.hint ?? ''} ${it.keywords ?? ''}`}
+                  value={it.id}
+                  keywords={[it.label, it.hint ?? '', it.keywords ?? '']}
                   onSelect={() => it.run()}
                 >
                   <Icon aria-hidden="true" />
@@ -604,6 +634,12 @@ const TOOL_ITEMS: ToolItem[] = [
     label: 'Search Messages',
     hint: 'Full-text across channels + DMs',
     icon: Search,
+  },
+  {
+    key: 'tool:unreads',
+    label: 'Unreads',
+    hint: 'All missed activity in one place',
+    icon: Inbox,
   },
   { key: 'tool:packetlog', label: 'Packet Log', hint: 'Live RX/TX', icon: ScrollText },
   { key: 'tool:map', label: 'Map', hint: 'Contact locations', icon: MapIcon },

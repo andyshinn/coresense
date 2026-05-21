@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* resources/tiles/*.pmtiles are binary map archives. Tailwind v4's automatic
+   source detection doesn't treat the .pmtiles extension as binary, so it scans
+   their protobuf bytes and emits garbage arbitrary-value classes (e.g.
+   `.[direction:1]`). Exclude the directory to keep generated CSS clean. */
+@source not "../../resources";
+
 @custom-variant dark (&:is(.dark *));
 
 /* Field Console palette. Default values are dark-mode; light-mode values are

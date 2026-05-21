@@ -91,6 +91,9 @@ typings/
 # Electron-Forge
 out/
 
+# Build output
+dist/
+
 # General
 .DS_Store
 .localized

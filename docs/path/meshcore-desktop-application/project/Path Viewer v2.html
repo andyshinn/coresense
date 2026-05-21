@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>MeshCore — Path Viewer (Classic) · Handoff</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  html, body { margin: 0; padding: 0; background: #f0eee9;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+    color: #2a251f;
+  }
+  * { box-sizing: border-box; }
+  .canvas {
+    min-height: 100vh;
+    background:
+      linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px) 0 0 / 24px 24px,
+      linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px) 0 0 / 24px 24px,
+      #f0eee9;
+    padding: 56px 64px 96px;
+  }
+  .head { max-width: 1200px; margin: 0 auto 40px; }
+  .head .kicker {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10px; color: rgba(60,50,40,0.55); letter-spacing: 0.08em;
+    text-transform: uppercase; margin: 0 0 14px;
+  }
+  .head h1 { font-size: 22px; font-weight: 600; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .head p { font-size: 13.5px; margin: 0; color: rgba(60,50,40,0.72); max-width: 720px; line-height: 1.55; }
+
+  .stage { max-width: 1200px; margin: 0 auto; display: flex; gap: 48px; align-items: flex-start; flex-wrap: wrap; }
+  .stage > .artboard { flex: 0 0 380px; }
+  .artboard-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10px; color: rgba(60,50,40,0.55); letter-spacing: 0.08em;
+    text-transform: uppercase; margin-bottom: 8px;
+  }
+  .pane {
+    width: 380px; height: 760px;
+    border-radius: 8px; overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.06);
+  }
+  .pane *::-webkit-scrollbar { display: none; }
+  .pane * { scrollbar-width: none; }
+
+  /* spec block */
+  .spec {
+    max-width: 1200px; margin: 56px auto 0;
+    background: #fbf9f3; border: 1px solid #dcd4be; border-radius: 8px;
+    padding: 20px 24px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px; line-height: 1.6; color: #1c1810;
+    white-space: pre-wrap;
+  }
+  .spec h2 {
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+    font-size: 14px; font-weight: 600; margin: 0 0 12px; color: #1c1810;
+  }
+  .spec .key { color: #b45309; }
+  .spec .typ { color: #5c5340; }
+  .spec .cmt { color: #8a8067; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+// ─── Mock data (shape mirrors what Claude Code will wire to MeshCore SDK) ───
+window.PV_DATA = (() => {
+  // A "candidate" is a known repeater that matches the path-byte prefix(es)
+  // we saw in the routing table for a hop. When > 1 candidate matches, the
+  // resolver can't be certain which one actually relayed — that's the
+  // "conflict" UX.
+  const candidatesForPrefix = (prefix) => ({
+    '25': [
+      { name: 'Fischer Repeater',     pk: '25cbaf73…2bda1634', lastHeard: '12m ago', snr: 5.2,  known: true },
+      { name: 'Bender DT 🏙',         pk: '25aef912…44ab102e', lastHeard: '2h ago',  snr: 4.1,  known: true },
+      { name: 'Tarrytown East Solar', pk: '25e16cc6…b0f412d1', lastHeard: '4d ago',  snr: -2.3, known: true, stale: true },
+    ],
+    '82': [
+      { name: 'Mueller Repeater',     pk: '82ab8d34…0fea217d', lastHeard: '20m ago', snr: 8.5, known: true },
+      { name: 'Wooten Repeater 1w',   pk: '8231b094…e6113fa1', lastHeard: '1h ago',  snr: 3.8, known: true },
+    ],
+    'a9': [
+      { name: 'Mountain Crest Solar', pk: 'a9e16cc6…b0f412d1', lastHeard: '7m ago',  snr: 6.8, known: true },
+      { name: 'UT2 AustinMesh.org',   pk: 'a9026173…fa3c96d1', lastHeard: '3h ago',  snr: 5.1, known: true },
+    ],
+    'c5': [
+      { name: 'EDM9/R Edwards Mtn',   pk: 'c5031665…b611461a', lastHeard: '6m ago',  snr: 3.8, known: true },
+      { name: 'Digitaino Downtown',   pk: 'c568eaa2…41d567ba', lastHeard: '1h ago',  snr: 9.1, known: true },
+    ],
+    '37': [
+      { name: 'SOCO RAK Repeater 🛒', pk: '3768eaa2…41d567ba', lastHeard: '8m ago', snr: 4.1, known: true },
+      { name: '🦎 Geko EA Repeater',  pk: '37510cb9…ec04b623', lastHeard: '2d ago', snr: -1.2, known: true, stale: true },
+    ],
+    '42': [
+      { name: 'egrme.sh RAK3401',     pk: '42da7493…ac5d8e5a', lastHeard: '4m ago',  snr: 11.3, known: true },
+      { name: 'JWB2',                 pk: '42ee882e…81476ed1', lastHeard: '2d ago',  snr: -0.4, known: true, stale: true },
+    ],
+  }[prefix] || []);
+
+  // Path #1 — 2-byte hash mode, several prefix collisions.
+  // 'Independent SW' is the one cleanly-resolved hop in this path.
+  const path1Hops = [
+    { kind: 'origin', shortId: 'K5', name: 'K5TH',                 pk: 'cd720283…43293e91' },
+    { kind: 'hop',    shortId: 'a9', name: 'Mountain Crest Solar', pk: 'a9e16cc6…b0f412d1', candidates: candidatesForPrefix('a9') },
+    { kind: 'hop',    shortId: '25', name: 'Fischer Repeater',     pk: '25cbaf73…2bda1634', candidates: candidatesForPrefix('25') },
+    { kind: 'hop',    shortId: '82', name: 'Mueller Repeater',     pk: '82ab8d34…0fea217d', candidates: candidatesForPrefix('82') },
+    { kind: 'hop',    shortId: 'c5', name: 'EDM9/R Edwards Mtn',   pk: 'c5031665…b611461a', candidates: candidatesForPrefix('c5') },
+    { kind: 'hop',    shortId: '37', name: 'SOCO RAK Repeater 🛒', pk: '3768eaa2…41d567ba', candidates: candidatesForPrefix('37') },
+    { kind: 'hop',    shortId: 'da', name: 'Independent SW',       pk: 'da15510c…ec04b623', candidates: [] },
+    { kind: 'hop',    shortId: '42', name: 'egrme.sh RAK3401',     pk: '42da7493…ac5d8e5a', candidates: candidatesForPrefix('42') },
+    { kind: 'sink',   shortId: 'eH', name: 'egrme.sh Hand',        pk: '1a3d3c6a…590dd5d5' },
+  ];
+
+  // Path #2 — 1-byte hash mode (the most ambiguous; only the first byte of
+  // the pubkey is in the path). Includes two hops where we've never heard
+  // an advert and only know the prefix byte — name and pk are null.
+  const path2Hops = [
+    { kind: 'origin', shortId: 'K5', name: 'K5TH',                  pk: 'cd720283…43293e91' },
+    { kind: 'hop',    shortId: 'a4', name: null, pk: null, candidates: [], unnamed: true },
+    { kind: 'hop',    shortId: '78', name: 'UT1 — AustinMesh',      pk: '78cf9ac8…640aeb45', candidates: [] },
+    { kind: 'hop',    shortId: '2c', name: 'Bender DT 🏙',           pk: '2cbaf738…2bda1634', candidates: [] },
+    { kind: 'hop',    shortId: '68', name: 'Digitaino Downtown',    pk: '68eaa25c…41d567b0', candidates: [] },
+    { kind: 'hop',    shortId: 'a1', name: 'Tarrytown East Solar',  pk: 'a1e16cc6…b0f412d1', candidates: [] },
+    { kind: 'hop',    shortId: 'f5', name: null, pk: null, candidates: [], unnamed: true },
+    { kind: 'hop',    shortId: '42', name: 'egrme.sh RAK3401',      pk: '42da7493…ac5d8e5a', candidates: candidatesForPrefix('42') },
+    { kind: 'sink',   shortId: 'eH', name: 'egrme.sh Hand',         pk: '1a3d3c6a…590dd5d5' },
+  ];
+
+  // Path #3 — 3-byte hash mode (the safest; collisions are vanishingly rare
+  // at three bytes, so no candidates are shown).
+  const path3Hops = [
+    { kind: 'origin', shortId: 'K5', name: 'K5TH',                  pk: 'cd720283…43293e91' },
+    { kind: 'hop',    shortId: '15', name: '🦎 Geko EA Repeater',   pk: '15510cb9…ec04b623', candidates: [] },
+    { kind: 'hop',    shortId: '2c', name: 'Bender DT 🏙',           pk: '2cbaf738…2bda1634', candidates: [] },
+    { kind: 'hop',    shortId: '42', name: 'egrme.sh RAK3401',      pk: '42da7493…ac5d8e5a', candidates: [] },
+    { kind: 'sink',   shortId: 'eH', name: 'egrme.sh Hand',         pk: '1a3d3c6a…590dd5d5' },
+  ];
+
+  // hashMode is the number of bytes of each hop's pubkey carried in the
+  // message's PATH field — set at TX time on the originating message.
+  // finalSnr is the SNR our radio measured when receiving the message;
+  // intermediate-hop SNR is NOT available (only the receiving radio sees it).
+  return {
+    timesHeard: 3,
+    paths: [
+      { id: 'p1', hops: path1Hops, hashMode: 2, finalSnr: 11.75 },
+      { id: 'p2', hops: path2Hops, hashMode: 1, finalSnr: 0.25  },
+      { id: 'p3', hops: path3Hops, hashMode: 3, finalSnr: 9.40  },
+    ],
+  };
+})();
+</script>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" data-presets="env,react">
+// =============================================================================
+// PathViewer — MeshCore message-path inspector
+// =============================================================================
+//
+// Right-pane component that shows every path through which a single message
+// was heard, with per-hop signal & contact-resolution detail.
+//
+// Component tree:
+//   PathViewer
+//   └─ PathItem (collapsible, accordion behavior; one open at a time)
+//      ├─ PathSummary  ← collapsed row: last-hop avatar, hops, hashMode, final SNR
+//      └─ PathTimeline ← expanded body: vertical rail w/ avatars
+//         └─ HopRow
+//            ├─ HopAvatar
+//            ├─ HopMeta (name + pubkey + conflict chip)
+//            └─ ConflictPanel (inline; visible when conflict chip is clicked)
+//
+// Data shape (TypeScript-ish, see spec block at the bottom of the page):
+//   Hop  = { kind: 'origin' | 'hop' | 'sink', shortId, name?, pk?,
+//            candidates?: Candidate[], unnamed?: boolean }
+//   Path = { id, hops: Hop[], hashMode: 1|2|3, finalSnr: number }
+//   Props = { paths: Path[], timesHeard: number, onBack?, onMenu?,
+//             onHopClick?: (hop) => void, onSelectCandidate?: (hop, cand) => void }
+//
+// Notes:
+//   • The MeshCore protocol only reports SNR for the FINAL hop (our radio).
+//     Intermediate hops have no SNR — don't render one.
+//   • `hashMode` is per-message: 1, 2, or 3 bytes of each repeater's pubkey
+//     are stored in the routing path. Higher = less prefix ambiguity.
+//   • `unnamed: true` means we've never heard an advert from this prefix,
+//     so we only know the byte/s — render as italic "Unknown repeater" with
+//     a dashed avatar.
+//
+// All theming reads from CSS variables on .pv-root so it slots into a
+// shadcn dark/light theme without prop drilling.
+// =============================================================================
+
+const { useState, useCallback } = React;
+
+const MONO = 'ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace';
+const SANS = 'inherit';
+
+// Theme tokens — these become CSS variables on .pv-root so Claude Code can
+// either drop them into the shadcn `globals.css` token system or override
+// per-component. Kept identical to field-console.jsx so the path viewer
+// reads as part of the same surface.
+const PV_THEMES = {
+  dark: {
+    '--pv-bg':            '#0c0a06',
+    '--pv-bg-2':          '#13110b',
+    '--pv-bg-3':          '#1a1610',
+    '--pv-border':        '#2a2419',
+    '--pv-rail':          '#2a2419',
+    '--pv-text':          '#f5f1e6',
+    '--pv-text-muted':    '#a39884',
+    '--pv-text-dim':      '#6b6253',
+    '--pv-accent':        '#f59e0b',
+    '--pv-accent-bg':     'rgba(245,158,11,0.10)',
+    '--pv-online':        '#84cc16',
+    '--pv-warn':          '#f59e0b',
+    '--pv-warn-bg':       'rgba(245,158,11,0.08)',
+    '--pv-warn-border':   'rgba(245,158,11,0.40)',
+    '--pv-danger':        '#dc2626',
+    '--pv-banner-bg':     'rgba(34,211,238,0.08)',
+    '--pv-banner-border': 'rgba(34,211,238,0.25)',
+    '--pv-banner-text':   '#9ddfeb',
+    '--pv-origin':        '#e11d74',
+    '--pv-sink':          '#22d3ee',
+    '--pv-hop-bg':        '#3a4a52',
+    '--pv-hop-fg':        '#e8edf0',
+  },
+  light: {
+    '--pv-bg':            '#fbf9f3',
+    '--pv-bg-2':          '#f5f1e6',
+    '--pv-bg-3':          '#ede7d6',
+    '--pv-border':        '#dcd4be',
+    '--pv-rail':          '#c4ba9f',
+    '--pv-text':          '#1c1810',
+    '--pv-text-muted':    '#5c5340',
+    '--pv-text-dim':      '#8a8067',
+    '--pv-accent':        '#b45309',
+    '--pv-accent-bg':     'rgba(180,83,9,0.08)',
+    '--pv-online':        '#65a30d',
+    '--pv-warn':          '#b45309',
+    '--pv-warn-bg':       'rgba(180,83,9,0.08)',
+    '--pv-warn-border':   'rgba(180,83,9,0.40)',
+    '--pv-danger':        '#b91c1c',
+    '--pv-banner-bg':     'rgba(8,145,178,0.08)',
+    '--pv-banner-border': 'rgba(8,145,178,0.30)',
+    '--pv-banner-text':   '#0e7490',
+    '--pv-origin':        '#be185d',
+    '--pv-sink':          '#0891b2',
+    '--pv-hop-bg':        '#a8b5bb',
+    '--pv-hop-fg':        '#1c1810',
+  },
+};
+
+// SNR colour-band thresholds. Tuned to MeshCore SF7/BW62.5kHz where ~5dB is
+// comfortable margin and <0dB is approaching the noise floor.
+function snrBand(snr) {
+  if (snr == null) return 'mid';
+  if (snr >= 5) return 'strong';
+  if (snr >= 0) return 'mid';
+  return 'weak';
+}
+function snrVar(snr) {
+  const b = snrBand(snr);
+  if (b === 'strong') return 'var(--pv-online)';
+  if (b === 'mid')    return 'var(--pv-warn)';
+  return 'var(--pv-danger)';
+}
+function fmtSnr(s) {
+  return `${s.toFixed(2)}dB`;
+}
+
+// ─── Inline icons ─────────────────────────────────────────────────────────
+const SVG = (path, vb = '0 0 12 12', extra) => (props) => (
+  <svg width={props.size || 12} height={props.size || 12} viewBox={vb}
+       fill={props.fill || 'none'} stroke={props.stroke || 'currentColor'}
+       strokeWidth={props.strokeWidth || 1.5}
+       strokeLinecap="round" strokeLinejoin="round"
+       style={props.style}>
+    {extra}
+    {path}
+  </svg>
+);
+const ChevronRight = SVG(<path d="M4.5 2.5L8 6l-3.5 3.5" />);
+const ChevronDown  = SVG(<path d="M2.5 4.5L6 8l3.5-3.5" />);
+const Back         = SVG(<path d="M9 3L4 7l5 4" />, '0 0 14 14');
+const Kebab        = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 14 14" fill="currentColor">
+    <circle cx="7" cy="3" r="1.2" /><circle cx="7" cy="7" r="1.2" /><circle cx="7" cy="11" r="1.2" />
+  </svg>
+);
+const Warn = ({ size = 12, stroke }) => (
+  <svg width={size} height={size} viewBox="0 0 12 12" fill="none"
+       stroke={stroke || 'currentColor'} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 1.5L11 10H1z" /><path d="M6 5v2.5" />
+    <circle cx="6" cy="9" r="0.5" fill={stroke || 'currentColor'} stroke="none" />
+  </svg>
+);
+const InfoCircle = ({ size = 13, stroke }) => (
+  <svg width={size} height={size} viewBox="0 0 12 12" fill="none">
+    <circle cx="6" cy="6" r="5" stroke={stroke || 'currentColor'} strokeWidth="1.4" />
+    <path d="M6 5.5v3" stroke={stroke || 'currentColor'} strokeWidth="1.4" strokeLinecap="round" />
+    <circle cx="6" cy="3.6" r="0.6" fill={stroke || 'currentColor'} />
+  </svg>
+);
+const Check = ({ size = 12 }) => (
+  <svg width={size} height={size} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2.5 6.5l2.5 2.5 4.5-5.5" />
+  </svg>
+);
+
+// ─── SignalBars ──────────────────────────────────────────────────────────
+function SignalBars({ snr, size = 12 }) {
+  const band = snrBand(snr);
+  const lit = band === 'strong' ? 3 : band === 'mid' ? 2 : 1;
+  const color = snrVar(snr);
+  const heights = [0.4, 0.7, 1.0];
+  return (
+    <svg width={size + 4} height={size} viewBox={`0 0 ${size + 4} ${size}`}>
+      {heights.map((h, i) => {
+        const barW = 3, gap = 2;
+        const x = i * (barW + gap);
+        const y = size - size * h;
+        return (
+          <rect key={i} x={x} y={y} width={barW} height={size * h} rx="0.5"
+            fill={i < lit ? color : 'var(--pv-border)'} />
+        );
+      })}
+    </svg>
+  );
+}
+
+// ─── HopAvatar ────────────────────────────────────────────────────────────
+// Round 2-character avatar. kind=origin → pink, kind=sink → cyan,
+// kind=hop → neutral. unnamed=true (we only know the prefix byte/s, never
+// heard an advert) → dashed border + reduced opacity.
+function HopAvatar({ hop, size = 28 }) {
+  const bg = hop.kind === 'origin' ? 'var(--pv-origin)'
+           : hop.kind === 'sink'   ? 'var(--pv-sink)'
+           : 'var(--pv-hop-bg)';
+  const fg = (hop.kind === 'origin' || hop.kind === 'sink') ? '#fff' : 'var(--pv-hop-fg)';
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: bg, color: fg,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontFamily: MONO, fontSize: Math.round(size * 0.4), fontWeight: 600,
+      letterSpacing: 0.5,
+      flexShrink: 0,
+      opacity: hop.unnamed ? 0.6 : 1,
+      border: hop.unnamed ? '1.5px dashed var(--pv-border)' : 'none',
+      // Avatar sits on top of the rail behind it — see the .pv-rail rule for
+      // how the line is hidden behind these.
+      position: 'relative',
+      zIndex: 1,
+    }}>{hop.shortId}</div>
+  );
+}
+
+// ─── ConflictPanel ────────────────────────────────────────────────────────
+// Expands inline below the hop row. Lists every known repeater whose pubkey
+// shares the matched prefix byte(s); each has a "Use this" action that
+// fires onSelectCandidate so the host can pin the resolution.
+function ConflictPanel({ hop, onSelectCandidate }) {
+  const prefix = hop.shortId; // path-byte prefix used by MeshCore router
+  return (
+    <div style={{
+      marginTop: 8, padding: '10px 12px',
+      background: 'var(--pv-warn-bg)',
+      border: '1px solid var(--pv-warn-border)',
+      borderRadius: 6,
+      animation: 'pv-fade-in 120ms ease-out',
+    }}>
+      <div style={{
+        fontFamily: MONO, fontSize: 10, color: 'var(--pv-warn)',
+        letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 8,
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>
+        <Warn size={11} />
+        <span>Prefix <code style={{ background: 'var(--pv-bg-3)', padding: '0 4px', borderRadius: 2, color: 'var(--pv-text)' }}>{prefix}</code> matches {hop.candidates.length} known repeaters</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {hop.candidates.map((c, i) => (
+          <button key={i} onClick={() => onSelectCandidate?.(hop, c)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '6px 8px',
+              background: 'transparent',
+              border: '1px solid transparent',
+              borderRadius: 4, cursor: 'pointer',
+              color: 'var(--pv-text)', fontFamily: SANS, fontSize: 12,
+              textAlign: 'left',
+              transition: 'background 100ms ease, border-color 100ms ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--pv-bg-2)';
+              e.currentTarget.style.borderColor = 'var(--pv-border)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.borderColor = 'transparent';
+            }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: 4,
+              background: c.stale ? 'var(--pv-text-dim)' : 'var(--pv-online)',
+              flexShrink: 0,
+            }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontWeight: 500, fontSize: 12,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                opacity: c.stale ? 0.7 : 1,
+              }}>{c.name}</div>
+              <div style={{
+                fontFamily: MONO, fontSize: 10, color: 'var(--pv-text-dim)',
+                marginTop: 1,
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <span>{c.pk}</span>
+                <span>·</span>
+                <span>{c.lastHeard}</span>
+              </div>
+            </div>
+            <span style={{
+              fontFamily: MONO, fontSize: 10, color: snrVar(c.snr),
+            }}>{fmtSnr(c.snr)}</span>
+          </button>
+        ))}
+      </div>
+      <div style={{
+        fontSize: 11, color: 'var(--pv-text-dim)',
+        marginTop: 8, lineHeight: 1.4,
+      }}>
+        MeshCore identifies repeaters by the first byte(s) of their public key.
+        Pick the one you believe relayed this message to pin the resolution.
+      </div>
+    </div>
+  );
+}
+
+// ─── HopRow ───────────────────────────────────────────────────────────────
+function HopRow({ hop, hopIndex, isFirst, isLast, conflictOpen, onToggleConflict, onHopClick, onSelectCandidate }) {
+  const AVATAR = 28;
+  const ROW_PAD = 10;
+  const hasConflict = hop.candidates && hop.candidates.length > 1;
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div
+        onClick={() => onHopClick?.(hop)}
+        style={{
+          position: 'relative',
+          display: 'flex', gap: 10,
+          padding: `${ROW_PAD}px 0`,
+          cursor: onHopClick ? 'pointer' : 'default',
+          borderRadius: 4,
+        }}
+        onMouseEnter={(e) => onHopClick && (e.currentTarget.style.background = 'var(--pv-bg-2)')}
+        onMouseLeave={(e) => onHopClick && (e.currentTarget.style.background = 'transparent')}
+      >
+        {/* Rail segment connecting this avatar to the next.
+            ─────────────────────────────────────────────────
+            Rendered as the very FIRST child of the row, with zIndex:0,
+            while the avatar wrapper itself uses zIndex:1. That's what
+            keeps the line BEHIND the avatar at all times (previous
+            iteration had this stacking the wrong way). */}
+        {!isLast && (
+          <span aria-hidden="true" className="pv-rail" style={{
+            position: 'absolute',
+            left: AVATAR / 2 - 0.5,
+            top: ROW_PAD + AVATAR / 2,
+            bottom: -ROW_PAD,
+            width: 1,
+            background: 'var(--pv-rail)',
+            zIndex: 0,
+          }} />
+        )}
+
+        <HopAvatar hop={hop} size={AVATAR} />
+
+        <div style={{ flex: 1, minWidth: 0, paddingTop: 1, position: 'relative', zIndex: 1 }}>
+          {/* Name. For unnamed hops (we never heard an advert) we have
+              nothing but the prefix bytes — show those, dim + italic, so
+              the row reads as 'we have no contact for this byte'. */}
+          <div style={hop.unnamed ? {
+            fontSize: 12.5, color: 'var(--pv-text-dim)', fontStyle: 'italic',
+            fontWeight: 400,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          } : {
+            fontSize: 12.5, color: 'var(--pv-text)', fontWeight: 500,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{hop.unnamed ? 'Unknown repeater' : hop.name}</div>
+          <div style={{
+            fontFamily: MONO, fontSize: 10.5, color: 'var(--pv-text-dim)',
+            marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {hop.kind === 'origin' && 'Sent the message'}
+            {hop.kind === 'sink'   && 'You received the message'}
+            {hop.kind === 'hop'    && (hop.unnamed
+              ? <>Hop {hopIndex} · prefix 0x{hop.shortId} · no advert seen</>
+              : <>Hop {hopIndex} · {hop.pk}</>
+            )}
+          </div>
+          {hop.kind === 'hop' && hasConflict && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleConflict?.(); }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  fontFamily: MONO, fontSize: 9.5, fontWeight: 500,
+                  color: 'var(--pv-warn)',
+                  background: conflictOpen ? 'var(--pv-warn-bg)' : 'transparent',
+                  padding: '2px 6px', borderRadius: 3,
+                  border: '1px solid var(--pv-warn-border)',
+                  cursor: 'pointer',
+                  letterSpacing: 0.2,
+                  transition: 'background 100ms ease',
+                }}
+                aria-expanded={conflictOpen}
+                aria-label={`${hop.candidates.length} repeaters match this prefix — click to resolve`}
+              >
+                <Warn size={9} />
+                <span>{hop.candidates.length} known repeaters</span>
+                <span style={{ marginLeft: 2, opacity: 0.7, display: 'inline-flex' }}>
+                  {conflictOpen ? <ChevronDown size={9} /> : <ChevronRight size={9} />}
+                </span>
+              </button>
+            </div>
+          )}
+          {hasConflict && conflictOpen && (
+            <ConflictPanel hop={hop} onSelectCandidate={onSelectCandidate} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PathTimeline ─────────────────────────────────────────────────────────
+function PathTimeline({ hops, onHopClick, onSelectCandidate }) {
+  const [openConflict, setOpenConflict] = useState(null); // hop index
+  return (
+    <div style={{ padding: '4px 14px 16px 14px' }}>
+      {hops.map((hop, i) => {
+        const hopIndex = hop.kind === 'hop'
+          ? hops.slice(0, i).filter(h => h.kind === 'hop').length + 1
+          : null;
+        return (
+          <HopRow key={i} hop={hop} hopIndex={hopIndex}
+            isFirst={i === 0} isLast={i === hops.length - 1}
+            conflictOpen={openConflict === i}
+            onToggleConflict={() => setOpenConflict(openConflict === i ? null : i)}
+            onHopClick={onHopClick} onSelectCandidate={onSelectCandidate} />
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── PathItem (one Collapsible) ───────────────────────────────────────────
+function PathItem({ path, open, onToggle, onHopClick, onSelectCandidate }) {
+  const lastRepeater = path.hops[path.hops.length - 2]; // hop before the sink
+  const finalSnr = path.finalSnr;
+  const conflictCount = path.hops.filter(h => h.candidates && h.candidates.length > 1).length;
+  const hopCount = path.hops.filter(h => h.kind === 'hop').length;
+  return (
+    <div style={{ borderTop: '1px solid var(--pv-border)' }}>
+      <button onClick={onToggle} style={{
+        width: '100%', textAlign: 'left',
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 12px',
+        background: open ? 'var(--pv-bg-2)' : 'transparent',
+        border: 'none', cursor: 'pointer',
+        color: 'var(--pv-text)', fontFamily: SANS, fontSize: 13,
+        transition: 'background 80ms ease',
+      }}
+        aria-expanded={open}
+      >
+        <span style={{ width: 12, color: 'var(--pv-text-dim)', flexShrink: 0, display: 'inline-flex' }}>
+          {open ? <ChevronDown /> : <ChevronRight />}
+        </span>
+        <HopAvatar hop={lastRepeater} size={26} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 12.5, fontWeight: 500, color: 'var(--pv-text)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{lastRepeater.name}</div>
+          <div style={{
+            fontFamily: MONO, fontSize: 10.5, color: 'var(--pv-text-dim)',
+            display: 'flex', alignItems: 'center', gap: 6, marginTop: 2,
+          }}>
+            <span>{hopCount} hops</span>
+            <span>·</span>
+            {/* hashMode is the per-message setting that decides how many bytes
+                of each repeater's pubkey are carried in the routing path.
+                Higher = less ambiguity, but a larger message payload. */}
+            <span title="Bytes of each hop's pubkey carried in the routing path">
+              {path.hashMode}-byte path
+            </span>
+            {conflictCount > 0 && (
+              <>
+                <span>·</span>
+                <span style={{ color: 'var(--pv-warn)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                  <Warn size={10} /> {conflictCount} conflict{conflictCount === 1 ? '' : 's'}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+          <SignalBars snr={finalSnr} />
+          <span style={{ fontFamily: MONO, fontSize: 10, color: snrVar(finalSnr) }}>
+            {fmtSnr(finalSnr)}
+          </span>
+        </div>
+      </button>
+      {open && (
+        <PathTimeline hops={path.hops}
+          onHopClick={onHopClick} onSelectCandidate={onSelectCandidate} />
+      )}
+    </div>
+  );
+}
+
+// ─── PathViewer (the public component) ───────────────────────────────────
+function PathViewer({ paths, timesHeard, onBack, onMenu, onHopClick, onSelectCandidate, defaultOpenPathId }) {
+  // Accordion behavior: a single openId. Defaults to the first path.
+  const [openId, setOpenId] = useState(defaultOpenPathId ?? paths[0]?.id);
+  const toggle = useCallback((id) => setOpenId((cur) => cur === id ? null : id), []);
+  return (
+    <div className="pv-root" style={{
+      width: '100%', height: '100%',
+      background: 'var(--pv-bg)', color: 'var(--pv-text)',
+      fontFamily: SANS, fontSize: 13,
+      display: 'flex', flexDirection: 'column',
+    }}>
+      <style>{`
+        @keyframes pv-fade-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
+        .pv-root button { font: inherit; }
+      `}</style>
+
+      {/* Header */}
+      <div style={{
+        flex: '0 0 auto',
+        height: 44,
+        display: 'flex', alignItems: 'center',
+        padding: '0 8px',
+        background: 'var(--pv-bg-2)',
+        borderBottom: '1px solid var(--pv-border)',
+      }}>
+        <button onClick={onBack} aria-label="Back" style={iconBtn()}>
+          <Back stroke="var(--pv-text-muted)" />
+        </button>
+        <div style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.1 }}>
+            Heard {timesHeard} Times
+          </div>
+          <div style={{ fontSize: 10.5, color: 'var(--pv-text-dim)', fontFamily: MONO, marginTop: 1 }}>
+            {paths.length} paths
+          </div>
+        </div>
+        <button onClick={onMenu} aria-label="More" style={iconBtn()}>
+          <Kebab />
+        </button>
+      </div>
+
+      {/* Banner */}
+      <div style={{
+        flex: '0 0 auto',
+        padding: '8px 12px',
+        background: 'var(--pv-banner-bg)',
+        borderBottom: '1px solid var(--pv-banner-border)',
+        color: 'var(--pv-banner-text)',
+        fontSize: 11.5, lineHeight: 1.4,
+        display: 'flex', alignItems: 'flex-start', gap: 8,
+      }}>
+        <span style={{ flexShrink: 0, marginTop: 1 }}>
+          <InfoCircle size={13} stroke="var(--pv-banner-text)" />
+        </span>
+        <span>Your companion radio heard this message via the following paths.</span>
+      </div>
+
+      {/* Body */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <div style={{
+          padding: '12px 14px 6px',
+          fontFamily: MONO, fontSize: 9.5, letterSpacing: 0.8,
+          color: 'var(--pv-text-dim)', textTransform: 'uppercase',
+          display: 'flex',
+        }}>
+          <span style={{ flex: 1 }}>Paths</span>
+          <span>{paths.length} total</span>
+        </div>
+        {paths.map((p) => (
+          <PathItem key={p.id} path={p}
+            open={openId === p.id}
+            onToggle={() => toggle(p.id)}
+            onHopClick={onHopClick}
+            onSelectCandidate={onSelectCandidate} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function iconBtn() {
+  return {
+    width: 28, height: 28, padding: 0,
+    background: 'transparent', border: 'none', cursor: 'pointer',
+    borderRadius: 4,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: 'var(--pv-text-muted)',
+  };
+}
+
+// =============================================================================
+// Canvas demo wrapper — for hand-off review only.
+// In your codebase you'd drop <PathViewer ... /> directly into the right
+// pane and provide the theme via your existing dark/light token system.
+// =============================================================================
+
+const { paths, timesHeard } = window.PV_DATA;
+
+function Demo() {
+  const [selectedCandidates, setSelectedCandidates] = useState({});
+  return (
+    <div className="canvas">
+      <div className="head">
+        <div className="kicker">MeshCore · Path Viewer · v2 · ready for handoff</div>
+        <h1>Classic timeline — polished</h1>
+        <p>
+          One direction taken to handoff. The collapsed row now shows the
+          message’s <strong>path-hash mode</strong> (1-, 2-, or 3-byte) since
+          the timestamp lives in message details. Per-hop SNR has been
+          dropped — only the final-hop SNR (what our radio actually measured)
+          is shown, on the path summary. Hops where we’ve never heard an
+          advert render as italic <em>“Unknown repeater”</em> with the prefix
+          bytes in the subtitle. Click any <strong>“N known repeaters”</strong>{' '}
+          chip to resolve a prefix collision.
+        </p>
+      </div>
+
+      <div className="stage">
+        <div className="artboard">
+          <div className="artboard-label">Dark</div>
+          <div className="pane" style={{ ...PV_THEMES.dark }}>
+            <PathViewer
+              paths={paths}
+              timesHeard={timesHeard}
+              onBack={() => console.log('[pv] back')}
+              onMenu={() => console.log('[pv] menu')}
+              onHopClick={(h) => console.log('[pv] hop click', h.shortId, h.name)}
+              onSelectCandidate={(hop, cand) => {
+                console.log('[pv] resolve conflict', hop.shortId, '→', cand.name);
+                setSelectedCandidates((s) => ({ ...s, [hop.shortId]: cand }));
+              }}
+            />
+          </div>
+        </div>
+        <div className="artboard">
+          <div className="artboard-label">Light</div>
+          <div className="pane" style={{ ...PV_THEMES.light }}>
+            <PathViewer
+              paths={paths}
+              timesHeard={timesHeard}
+              onBack={() => {}} onMenu={() => {}}
+              onHopClick={(h) => console.log('[pv] hop click', h.shortId, h.name)}
+              onSelectCandidate={(hop, cand) =>
+                console.log('[pv] resolve conflict', hop.shortId, '→', cand.name)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Handoff spec */}
+      <div className="spec">
+        <h2>Handoff — TypeScript prop spec</h2>
+{`type Hop = {
+  `}<span className="key">kind</span>{`: 'origin' | 'hop' | 'sink';
+  `}<span className="key">shortId</span>{`: `}<span className="typ">string</span>{`;          `}<span className="cmt">// path-byte prefix, hex (1–3 bytes wide depending on hashMode)</span>{`
+  `}<span className="key">name</span>{`?: `}<span className="typ">string</span>{` | `}<span className="typ">null</span>{`;     `}<span className="cmt">// null when we have no advert for this prefix</span>{`
+  `}<span className="key">pk</span>{`?: `}<span className="typ">string</span>{` | `}<span className="typ">null</span>{`;       `}<span className="cmt">// null when unnamed</span>{`
+  `}<span className="key">unnamed</span>{`?: `}<span className="typ">boolean</span>{`;       `}<span className="cmt">// true when only shortId is known — render dashed avatar + italic name</span>{`
+  `}<span className="key">candidates</span>{`?: Candidate[]; `}<span className="cmt">// length &gt; 1 → conflict chip becomes clickable</span>{`
+};
+
+type Candidate = {
+  `}<span className="key">name</span>{`: `}<span className="typ">string</span>{`;
+  `}<span className="key">pk</span>{`: `}<span className="typ">string</span>{`;
+  `}<span className="key">lastHeard</span>{`: `}<span className="typ">string</span>{`;       `}<span className="cmt">// preformatted, e.g. "12m ago"</span>{`
+  `}<span className="key">snr</span>{`: `}<span className="typ">number</span>{`;          `}<span className="cmt">// from the last advert we received from this candidate</span>{`
+  `}<span className="key">stale</span>{`?: `}<span className="typ">boolean</span>{`;
+};
+
+type Path = {
+  `}<span className="key">id</span>{`: `}<span className="typ">string</span>{`;
+  `}<span className="key">hops</span>{`: Hop[];
+  `}<span className="key">hashMode</span>{`: 1 | 2 | 3;     `}<span className="cmt">// bytes of pubkey in routing path (per-message)</span>{`
+  `}<span className="key">finalSnr</span>{`: `}<span className="typ">number</span>{`;     `}<span className="cmt">// SNR our radio measured for this path (only the final hop has one)</span>{`
+};
+
+type PathViewerProps = {
+  `}<span className="key">paths</span>{`: Path[];
+  `}<span className="key">timesHeard</span>{`: `}<span className="typ">number</span>{`;
+  `}<span className="key">defaultOpenPathId</span>{`?: `}<span className="typ">string</span>{`;
+  `}<span className="key">onBack</span>{`?: () => `}<span className="typ">void</span>{`;
+  `}<span className="key">onMenu</span>{`?: () => `}<span className="typ">void</span>{`;
+  `}<span className="key">onHopClick</span>{`?: (hop: Hop) => `}<span className="typ">void</span>{`;        `}<span className="cmt">// open contact-detail panel</span>{`
+  `}<span className="key">onSelectCandidate</span>{`?: (hop: Hop, c: Candidate) => `}<span className="typ">void</span>{`; `}<span className="cmt">// pin resolution</span>{`
+};
+
+`}<span className="cmt">{
+`// shadcn migration:
+//   • Wrap PathItem in <Collapsible> + <CollapsibleTrigger> + <CollapsibleContent>
+//     (keep accordion-of-one behavior — the parent holds the openId state).
+//   • Replace inline buttons with <Button variant="ghost"> to match your surfaces.
+//   • Drop the PV_THEMES const — map every var(--pv-*) to your design tokens
+//     (e.g. var(--pv-bg) → var(--background), --pv-warn → --destructive, etc.).
+//   • The conflict chip is a good candidate for shadcn <Popover> + <Command>
+//     if you'd rather float the candidate list than expand it inline.`
+}</span>{`
+`}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

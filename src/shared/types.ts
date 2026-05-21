@@ -113,13 +113,61 @@ export interface Contact {
   gpsLon?: number;
 }
 
+/** True iff the contact carries a usable WGS84 fix: both coords present, not
+ *  the 0/0 "no GPS" sentinel, and within valid lat/lon ranges. Corrupt adverts
+ *  can yield out-of-range coords — treat those as no fix rather than letting
+ *  them reach MapLibre, which throws on an invalid LngLat. */
+export function hasValidFix(c: Contact): c is Contact & { gpsLat: number; gpsLon: number } {
+  return (
+    typeof c.gpsLat === 'number' &&
+    typeof c.gpsLon === 'number' &&
+    (c.gpsLat !== 0 || c.gpsLon !== 0) &&
+    c.gpsLat >= -90 &&
+    c.gpsLat <= 90 &&
+    c.gpsLon >= -180 &&
+    c.gpsLon <= 180
+  );
+}
+
 export type MessageState = 'sending' | 'sent' | 'ack' | 'failed' | 'received';
+
+/** One node in a routing path. `kind` distinguishes the message originator
+ *  (sender, derived from the "name: " prefix in channel messages), intermediate
+ *  repeaters, and the sink (our radio). `shortId` is the per-hop prefix hex
+ *  (1, 2, or 3 bytes wide) as encoded by the firmware in the on-air path.
+ *  `unnamed: true` means we only know the prefix byte(s) — no advert ever seen
+ *  for that prefix, so the UI renders a dashed avatar + italic placeholder. */
+export interface MessageHop {
+  kind: 'origin' | 'hop' | 'sink';
+  shortId: string;
+  name?: string | null;
+  pk?: string | null;
+  unnamed?: boolean;
+}
+
+/** One observed reception of a flood message: the sequence of hops it took
+ *  from origin to our radio. A single Message can carry multiple paths when
+ *  the same packet arrived via multiple flood routes (merged on receipt by
+ *  deterministic id). `hashMode` is the firmware-encoded per-hop hash byte
+ *  count (1, 2, or 3 — 4 is reserved). `finalSnr` is the SNR our radio
+ *  measured on the LAST hop only; per-hop SNR is never available on flood. */
+export interface MessagePath {
+  id: string;
+  hops: MessageHop[];
+  hashMode: number;
+  finalSnr: number;
+}
 
 export interface MessageMeta {
   hops?: number;
   rssi?: number;
   snr?: number;
-  path?: string[];
+  /** Decoded route(s) the message travelled, populated when a matching mesh
+   *  observation (PUSH_CODE_LOG_RX_DATA 0x88) preceded the channel-msg push. */
+  paths?: MessagePath[];
+  /** Number of distinct flood receptions merged into this Message row. Absent
+   *  ⇒ treat as 1. Bumped by holder.upsertMessage on collision. */
+  timesHeard?: number;
   signatureHex?: string;
 }
 
@@ -196,11 +244,20 @@ export type ThemePrefValue = 'auto' | 'dark' | 'light';
 
 export type MessageStyle = 'compact' | 'rich';
 
+/** Clock format for rendered timestamps. 'auto' follows the OS locale; the
+ *  explicit values force a 12- or 24-hour clock regardless of locale. */
+export type TimeFormatPref = 'auto' | '12h' | '24h';
+
 export interface AppSettings {
   theme: ThemePrefValue;
   messageStyle: MessageStyle;
+  /** 12/24-hour clock for all rendered timestamps. */
+  timeFormat: TimeFormatPref;
   composer: {
     returnToSend: boolean;
+    /** Focus the message field automatically when navigating to a channel or
+     *  DM, so you can start typing right away. */
+    autoFocus: boolean;
   };
   notifications: {
     directMessage: boolean;
@@ -253,6 +310,14 @@ export interface AppSettings {
   search: {
     defaultSort: SearchSort;
   };
+  /** Command palette match ranking. */
+  commandPalette: {
+    /** How strongly a query match in an item's description/keywords counts
+     *  relative to a match in its name, as a percentage. 100 = description
+     *  text ranks equal to the name; 0 = description text is ignored and only
+     *  names are searched. */
+    hintWeightPct: number;
+  };
 }
 
 export type ContactGrouping = 'nested' | 'top-level';
@@ -260,7 +325,8 @@ export type ContactGrouping = 'nested' | 'top-level';
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: 'auto',
   messageStyle: 'rich',
-  composer: { returnToSend: true },
+  timeFormat: 'auto',
+  composer: { returnToSend: true, autoFocus: true },
   notifications: {
     directMessage: true,
     channelMention: true,
@@ -285,6 +351,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   leftNavCollapseLists: { enabled: true, limit: 10 },
   showLeftNavSearch: true,
   search: { defaultSort: 'recency' },
+  commandPalette: { hintWeightPct: 50 },
 };
 
 /** Bundled vector basemap + raster terrain sources for the Map panel.
@@ -368,6 +435,124 @@ export const DEFAULT_RADIO_SETTINGS: RadioSettings = {
   txPowerDbm: 20,
   repeatMode: false,
   pathHashMode: 2,
+};
+
+// ---- Device-side settings (cached locally, device is source of truth) ----
+
+/** "Public info" the radio advertises about itself. Synced from RESP_SELF_INFO
+ *  and mutated via CMD_SET_ADVERT_NAME / CMD_SET_ADVERT_LATLON /
+ *  CMD_SET_OTHER_PARAMS.advertLocationPolicy. */
+export interface DeviceIdentity {
+  name: string;
+  publicKeyHex: string;
+  lat: number | null;
+  lon: number | null;
+  sharePositionInAdvert: boolean;
+}
+export const DEFAULT_DEVICE_IDENTITY: DeviceIdentity = {
+  name: '',
+  publicKeyHex: '',
+  lat: null,
+  lon: null,
+  sharePositionInAdvert: true,
+};
+
+/** Auto-add behaviour (CMD_SET_AUTO_ADD_CONFIG / GET_AUTO_ADD_CONFIG). `mode`
+ *  is an app-side convenience: "all" forces all four kind flags true on save;
+ *  "selected" respects the per-kind booleans. The radio flag byte only carries
+ *  the kinds + overwrite_oldest. */
+export type AutoAddMode = 'all' | 'selected';
+export interface AutoAddConfig {
+  mode: AutoAddMode;
+  chat: boolean;
+  repeater: boolean;
+  room: boolean;
+  sensor: boolean;
+  overwriteOldest: boolean;
+  /** App-side filter: drop adverts whose path has more hops than this. `null`
+   *  = no limit. The radio doesn't apply this; the companion does pre-upsert. */
+  maxHops: number | null;
+  /** App-side: pull-to-refresh in the contact list. */
+  pullToRefresh: boolean;
+  /** App-side: show pubkey prefix next to names in lists. */
+  showPublicKeys: boolean;
+}
+export const DEFAULT_AUTO_ADD_CONFIG: AutoAddConfig = {
+  mode: 'all',
+  chat: true,
+  repeater: true,
+  room: true,
+  sensor: true,
+  overwriteOldest: true,
+  maxHops: null,
+  pullToRefresh: true,
+  showPublicKeys: true,
+};
+
+/** Telemetry/messaging knobs from CMD_SET_OTHER_PARAMS. Each telemetry mode is
+ *  0=deny, 1=allow-per-contact-flag, 2=allow-all. `multiAcks` is 0..2 typical;
+ *  more ACKs increase reliability at the cost of airtime. */
+export interface TelemetryPolicy {
+  base: 0 | 1 | 2;
+  loc: 0 | 1 | 2;
+  env: 0 | 1 | 2;
+  multiAcks: number;
+}
+export const DEFAULT_TELEMETRY_POLICY: TelemetryPolicy = {
+  base: 1,
+  loc: 1,
+  env: 1,
+  multiAcks: 1,
+};
+
+/** GPS module config exchanged via CMD_SET_CUSTOM_VAR("gps:1"/"gps_interval:N"). */
+export interface GpsConfig {
+  enabled: boolean;
+  intervalSec: number;
+}
+export const DEFAULT_GPS_CONFIG: GpsConfig = {
+  enabled: false,
+  intervalSec: 300,
+};
+
+/** Aggregate read-only device info. firmwareVerCode 0 means "unknown/no
+ *  device connected" — the renderer uses that to gate firmware-version
+ *  features (identity key export needs ≥ 1.7.0, repeat mode needs ≥9, etc.). */
+export interface DeviceInfo {
+  firmwareVerCode: number;
+  deviceModel: string;
+  maxContacts: number;
+  maxChannels: number;
+  channelsUsed: number;
+  contactsUsed: number;
+  storageUsedKb: number;
+  storageTotalKb: number;
+  batteryMv: number;
+}
+export const DEFAULT_DEVICE_INFO: DeviceInfo = {
+  firmwareVerCode: 0,
+  deviceModel: '',
+  maxContacts: 0,
+  maxChannels: 0,
+  channelsUsed: 0,
+  contactsUsed: 0,
+  storageUsedKb: 0,
+  storageTotalKb: 0,
+  batteryMv: 0,
+};
+
+/** Per-tab "the device firmware doesn't expose this over BLE" capability flags.
+ *  Surfaced in the Settings tabs to disable rows the official open-source
+ *  protocol doesn't define. */
+export interface DeviceCapabilities {
+  /** Firmware version ≥ 1.7.0 — required for CLI-based private key export. */
+  identityKeyIO: boolean;
+  /** Firmware ver_code ≥ 9 — repeat mode and client_repeat byte. */
+  repeatMode: boolean;
+}
+export const DEFAULT_DEVICE_CAPABILITIES: DeviceCapabilities = {
+  identityKeyIO: false,
+  repeatMode: false,
 };
 
 // LeftNav branch open/closed state. Keys cover the three Collapsible
@@ -454,6 +639,12 @@ export interface StateSnapshot {
    *  initial view if no last-position is persisted. */
   mapManifest: TileManifest;
   uiState: UiState;
+  deviceIdentity: DeviceIdentity;
+  autoAddConfig: AutoAddConfig;
+  telemetryPolicy: TelemetryPolicy;
+  gpsConfig: GpsConfig;
+  deviceInfo: DeviceInfo;
+  deviceCapabilities: DeviceCapabilities;
 }
 
 export type MenuAction =
@@ -469,7 +660,10 @@ export type MenuAction =
   | { kind: 'addContact' }
   | { kind: 'pinToggle' }
   | { kind: 'disconnect' }
-  | { kind: 'cycleTheme' };
+  | { kind: 'cycleTheme' }
+  // Broadcast by the main process when a window-close / app-quit is attempted.
+  // The renderer decides whether unsaved Settings changes need a prompt.
+  | { kind: 'requestQuit' };
 
 export interface ThemePush {
   systemDark: boolean;
@@ -616,6 +810,12 @@ export type WsMessage =
   | { type: 'repeaterStatus'; payload: RepeaterStatusSnapshot }
   | { type: 'repeaterTelemetry'; payload: RepeaterTelemetrySnapshot }
   | { type: 'pathLearned'; payload: PathLearnedEvent }
+  | { type: 'deviceIdentity'; payload: DeviceIdentity }
+  | { type: 'autoAddConfig'; payload: AutoAddConfig }
+  | { type: 'telemetryPolicy'; payload: TelemetryPolicy }
+  | { type: 'gpsConfig'; payload: GpsConfig }
+  | { type: 'deviceInfo'; payload: DeviceInfo }
+  | { type: 'deviceCapabilities'; payload: DeviceCapabilities }
   | { type: 'wsClients'; payload: { count: number } };
 
 export interface PathLearnedEvent {

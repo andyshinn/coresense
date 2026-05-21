@@ -1,14 +1,17 @@
 import { Users } from 'lucide-react';
 import { lazy, Suspense } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
+import { logError, PanelErrorFallback } from '../components/errors/ErrorFallback';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
 // Placeholder is small and used as a fallback — keep eager.
 import { PlaceholderPanel } from '../panels/PlaceholderPanel';
+import { tabFromActiveKey } from '../panels/settings/routing';
 
 // Each panel is loaded on demand; only one is visible at a time, so eagerly
 // importing them all (~1.5k LOC of forms + tables) just bloats first paint.
-const AppSettings = lazy(() =>
-  import('../panels/AppSettings').then((m) => ({ default: m.AppSettings })),
+const SettingsPanel = lazy(() =>
+  import('../panels/settings/SettingsPanel').then((m) => ({ default: m.SettingsPanel })),
 );
 const BleConnect = lazy(() =>
   import('../panels/BleConnect').then((m) => ({ default: m.BleConnect })),
@@ -17,17 +20,14 @@ const ChannelView = lazy(() =>
   import('../panels/ChannelView').then((m) => ({ default: m.ChannelView })),
 );
 const DMView = lazy(() => import('../panels/DMView').then((m) => ({ default: m.DMView })));
-const Identity = lazy(() => import('../panels/Identity').then((m) => ({ default: m.Identity })));
 const MapView = lazy(() => import('../panels/MapView').then((m) => ({ default: m.MapView })));
-const RadioSettings = lazy(() =>
-  import('../panels/RadioSettings').then((m) => ({ default: m.RadioSettings })),
-);
 const RepeaterAdmin = lazy(() =>
   import('../panels/repeater-admin').then((m) => ({ default: m.RepeaterAdmin })),
 );
 const SearchResults = lazy(() =>
   import('../panels/SearchResults').then((m) => ({ default: m.SearchResults })),
 );
+const Unreads = lazy(() => import('../panels/Unreads').then((m) => ({ default: m.Unreads })));
 
 interface MainPaneProps {
   client: ApiClient | null;
@@ -38,10 +38,19 @@ interface MainPaneProps {
 }
 
 export function MainPane(props: MainPaneProps) {
+  // Keyed on the active panel so a crashed panel auto-clears the moment the
+  // user navigates elsewhere — no stale fallback lingering on the next view.
+  const activeKey = useStore((s) => s.ui.activeKey);
   return (
-    <Suspense fallback={null}>
-      <MainPaneInner {...props} />
-    </Suspense>
+    <ErrorBoundary
+      FallbackComponent={PanelErrorFallback}
+      resetKeys={[activeKey]}
+      onError={logError}
+    >
+      <Suspense fallback={null}>
+        <MainPaneInner {...props} />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 
@@ -80,20 +89,19 @@ function MainPaneInner({
     return <div className="h-full w-full overflow-hidden p-4">{renderPacketLog()}</div>;
   }
 
-  if (activeKey === 'tool:settings:app') {
-    return <AppSettings client={client} />;
-  }
-  if (activeKey === 'tool:settings:radio') {
-    return <RadioSettings client={client} />;
-  }
-  if (activeKey === 'tool:settings:identity') {
-    return <Identity />;
+  if (activeKey === 'tool:settings' || activeKey.startsWith('tool:settings:')) {
+    // Decode the legacy "tool:settings:<id>" deep links so older menu items
+    // still land on the right tab inside the new SettingsPanel.
+    return <SettingsPanel client={client} initialTab={tabFromActiveKey(activeKey)} />;
   }
   if (activeKey === 'tool:map') {
     return <MapView client={client} />;
   }
   if (activeKey === 'tool:search') {
     return <SearchResults client={client} />;
+  }
+  if (activeKey === 'tool:unreads') {
+    return <Unreads client={client} />;
   }
   if (activeKey === 'tool:contacts') {
     return (

@@ -14,7 +14,8 @@ import { optimizeFts } from './storage/search';
 import { flushSettings } from './storage/settings';
 import { BleTransport } from './transport/ble';
 import { transportManager } from './transport/manager';
-import { setMainWindow } from './window/registry';
+import { isQuitConfirmed } from './window/quit';
+import { getMainWindow, setMainWindow } from './window/registry';
 import { flushWindowState, loadWindowState, trackWindow } from './window/state';
 
 const SHUTDOWN_BLE_TIMEOUT_MS = 5000;
@@ -60,10 +61,14 @@ async function bootstrap() {
 }
 
 function hardenSession() {
-  // Deny all permission requests by default. Camera/microphone/etc. should be
+  // Deny permission requests by default. Camera/microphone/etc. should be
   // explicitly opted into when (and only when) we add a feature that needs them.
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) =>
-    callback(false),
+  // `clipboard-sanitized-write` is the one exception: navigator.clipboard
+  // .writeText() needs it, and a blanket deny is what silently breaks every
+  // copy-to-clipboard action in the UI. It only permits plain *sanitized*
+  // writes — not clipboard reads — so it's safe to allow.
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) =>
+    callback(permission === 'clipboard-sanitized-write'),
   );
 
   // Strict-ish CSP. The renderer is served by our own Hono server in prod (so
@@ -145,7 +150,8 @@ function createWindow() {
     ...(process.platform === 'darwin'
       ? {
           titleBarStyle: 'hiddenInset' as const,
-          trafficLightPosition: { x: 14, y: 14 },
+          // y centers the 12px buttons in the 36px (h-9) TitleBar: (36-12)/2.
+          // trafficLightPosition: { x: 20, y: 12 },  // TODO: This doesn't seem to have any effect?
         }
       : process.platform === 'win32'
         ? {
@@ -168,6 +174,14 @@ function createWindow() {
   if (saved.maximized) mainWindow.maximize();
   trackWindow(mainWindow);
   setMainWindow(mainWindow);
+
+  // Defer the close button so the renderer can prompt about unsaved Settings
+  // changes. It replies via POST /api/app/quit, which re-issues the close.
+  mainWindow.on('close', (event) => {
+    if (isShuttingDown || isQuitConfirmed()) return;
+    event.preventDefault();
+    emit.menuAction({ kind: 'requestQuit' });
+  });
 
   // Defense in depth on top of the deny-by-default permission handler:
   // refuse to attach <webview> tags and disable popup window creation.
@@ -254,6 +268,13 @@ app.on('activate', () => {
 
 app.on('before-quit', (event) => {
   if (isShuttingDown) return;
+  // First quit attempt with a window still up: let the renderer decide whether
+  // unsaved Settings changes need a prompt. It replies via POST /api/app/quit.
+  if (!isQuitConfirmed() && getMainWindow()) {
+    event.preventDefault();
+    emit.menuAction({ kind: 'requestQuit' });
+    return;
+  }
   isShuttingDown = true;
   event.preventDefault();
   beginShutdown().finally(() => app.exit(0));

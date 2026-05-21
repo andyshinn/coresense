@@ -7,9 +7,14 @@ import { cors } from 'hono/cors';
 import { type WebSocket, WebSocketServer } from 'ws';
 import type {
   AppSettings,
+  AutoAddConfig,
   BleDevice,
   Channel,
   Contact,
+  DeviceCapabilities,
+  DeviceIdentity,
+  DeviceInfo,
+  GpsConfig,
   MapSettings,
   MenuAction,
   Message,
@@ -21,6 +26,7 @@ import type {
   RepeaterStatusSnapshot,
   RepeaterTelemetrySnapshot,
   SyncProgress,
+  TelemetryPolicy,
   ThemePush,
   TileManifest,
   TransportState,
@@ -183,6 +189,16 @@ export async function startServer(
     broadcast({ type: 'repeaterTelemetry', payload: snap });
   const onPathLearned = (event: PathLearnedEvent) =>
     broadcast({ type: 'pathLearned', payload: event });
+  const onDeviceIdentity = (identity: DeviceIdentity) =>
+    broadcast({ type: 'deviceIdentity', payload: identity });
+  const onAutoAddConfig = (cfg: AutoAddConfig) =>
+    broadcast({ type: 'autoAddConfig', payload: cfg });
+  const onTelemetryPolicy = (policy: TelemetryPolicy) =>
+    broadcast({ type: 'telemetryPolicy', payload: policy });
+  const onGpsConfig = (cfg: GpsConfig) => broadcast({ type: 'gpsConfig', payload: cfg });
+  const onDeviceInfo = (info: DeviceInfo) => broadcast({ type: 'deviceInfo', payload: info });
+  const onDeviceCapabilities = (caps: DeviceCapabilities) =>
+    broadcast({ type: 'deviceCapabilities', payload: caps });
 
   bus.on('packet', onPacket);
   bus.on('transportState', onTransportState);
@@ -204,6 +220,12 @@ export async function startServer(
   bus.on('repeaterStatus', onRepeaterStatus);
   bus.on('repeaterTelemetry', onRepeaterTelemetry);
   bus.on('pathLearned', onPathLearned);
+  bus.on('deviceIdentity', onDeviceIdentity);
+  bus.on('autoAddConfig', onAutoAddConfig);
+  bus.on('telemetryPolicy', onTelemetryPolicy);
+  bus.on('gpsConfig', onGpsConfig);
+  bus.on('deviceInfo', onDeviceInfo);
+  bus.on('deviceCapabilities', onDeviceCapabilities);
   bridge.on('statusChanged', onBridgeStatus);
 
   const close = async () => {
@@ -227,6 +249,12 @@ export async function startServer(
     bus.off('repeaterStatus', onRepeaterStatus);
     bus.off('repeaterTelemetry', onRepeaterTelemetry);
     bus.off('pathLearned', onPathLearned);
+    bus.off('deviceIdentity', onDeviceIdentity);
+    bus.off('autoAddConfig', onAutoAddConfig);
+    bus.off('telemetryPolicy', onTelemetryPolicy);
+    bus.off('gpsConfig', onGpsConfig);
+    bus.off('deviceInfo', onDeviceInfo);
+    bus.off('deviceCapabilities', onDeviceCapabilities);
     bridge.off('statusChanged', onBridgeStatus);
     // Force-terminate WS clients and HTTP keep-alives. The renderer is still
     // alive during shutdown (before-quit preventDefault), so graceful close

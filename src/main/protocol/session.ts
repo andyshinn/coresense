@@ -1,9 +1,13 @@
 import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import type {
   Channel,
   Contact,
   ContactKind,
   Message,
+  MessageHop,
+  MessagePath,
+  Owner,
   RawPacket,
   SyncProgress,
   TransportState,
@@ -17,6 +21,8 @@ import { transportManager } from '../transport/manager';
 import { ADV_TYPE, PUSH, REQ_TYPE, RESP, STATS_TYPE, TXT_TYPE } from './codes';
 import {
   type ContactRecord,
+  parseAutoAddConfig,
+  parseBattAndStorage,
   parseChannelInfo,
   parseChannelMsgV1,
   parseChannelMsgV3,
@@ -24,22 +30,31 @@ import {
   parseContactMsgV1,
   parseContactMsgV3,
   parseContactsStart,
+  parseCustomVars,
+  parseDeviceInfo,
   parseEndOfContacts,
+  parseSelfInfo,
   parseSendConfirmed,
   parseSentAck,
   parseStatusResponse,
   parseTelemetryResponse,
 } from './decode';
 import {
+  type AutoAddFlagsInput,
+  autoAddByteToFlags,
   buildAddUpdateContact,
   buildAnonLogin,
   buildAppStart,
   buildDeviceQuery,
+  buildGetAutoAddConfig,
+  buildGetBattAndStorage,
   buildGetChannel,
   buildGetContacts,
+  buildGetCustomVar,
   buildGetNextMsg,
   buildGetStats,
   buildLogout,
+  buildReboot,
   buildResetPath,
   buildSendBinaryReq,
   buildSendChannelText,
@@ -49,11 +64,19 @@ import {
   buildSendStatusReq,
   buildSendTelemetryReq,
   buildSendTracePath,
+  buildSetAdvertLatLon,
+  buildSetAdvertName,
+  buildSetAutoAddConfig,
   buildSetChannel,
+  buildSetCustomVar,
+  buildSetOtherParams,
   buildSetPathHashMode,
+  buildSetRadioParams,
+  buildSetRadioTxPower,
   deriveChannelSecret,
   pathHashSizeToMode,
 } from './encode';
+import { consumeMatching as consumeMeshObs } from './meshObservations';
 import {
   type AclEntry,
   type LocalStats,
@@ -576,6 +599,251 @@ export class ProtocolSession {
     emit.radioSettings(holder.getRadioSettings());
   }
 
+  // ---- Settings-parity device writes -------------------------------------
+  // All of these go through awaitAck() to wait for RESP_OK/ERR; the FIFO is
+  // shared with SET_CHANNEL but each user-initiated save is one cmd, so it
+  // serialises naturally. Each method updates the holder + emits on RESP_OK.
+
+  /** Push LoRa modulation params (freq/bw/sf/cr) and TX power to the radio.
+   *  Sent as two separate frames since the firmware splits them. Includes the
+   *  trailing `clientRepeat` byte only when the connected firmware supports it
+   *  (ver_code ≥ 9 — surfaced via DeviceCapabilities.repeatMode). */
+  async setRadioParams(opts: {
+    frequencyHz: number;
+    bandwidthHz: number;
+    spreadingFactor: number;
+    codingRate: number;
+    txPowerDbm: number;
+    repeatMode: boolean;
+  }): Promise<boolean> {
+    if (!this.connected) return false;
+    const caps = stateHolder().getDeviceCapabilities();
+    const paramsAck = this.awaitAck();
+    try {
+      await this.writeFrame(
+        buildSetRadioParams({
+          frequencyHz: opts.frequencyHz,
+          bandwidthHz: opts.bandwidthHz,
+          spreadingFactor: opts.spreadingFactor,
+          codingRate: opts.codingRate,
+          clientRepeat: caps.repeatMode ? opts.repeatMode : undefined,
+        }),
+      );
+    } catch (err) {
+      this.popPendingAck(paramsAck.entry);
+      log.warn(`setRadioParams write failed: ${(err as Error).message}`);
+      return false;
+    }
+    const ok1 = await paramsAck.promise;
+    if (!ok1) return false;
+    await sleep(WRITE_GAP_MS);
+    const powerAck = this.awaitAck();
+    try {
+      await this.writeFrame(buildSetRadioTxPower(opts.txPowerDbm));
+    } catch (err) {
+      this.popPendingAck(powerAck.entry);
+      log.warn(`setRadioTxPower write failed: ${(err as Error).message}`);
+      return false;
+    }
+    const ok2 = await powerAck.promise;
+    if (!ok2) return false;
+    const holder = stateHolder();
+    const next = {
+      ...holder.getRadioSettings(),
+      frequencyHz: opts.frequencyHz,
+      bandwidthHz: opts.bandwidthHz,
+      spreadingFactor: opts.spreadingFactor,
+      codingRate: opts.codingRate,
+      txPowerDbm: opts.txPowerDbm,
+      repeatMode: opts.repeatMode,
+    };
+    holder.setRadioSettings(next);
+    emit.radioSettings(next);
+    return true;
+  }
+
+  /** Push the device's advertised display name. */
+  async setAdvertName(name: string): Promise<boolean> {
+    if (!this.connected) return false;
+    const ack = this.awaitAck();
+    try {
+      await this.writeFrame(buildSetAdvertName(name));
+    } catch (err) {
+      this.popPendingAck(ack.entry);
+      log.warn(`setAdvertName write failed: ${(err as Error).message}`);
+      return false;
+    }
+    const ok = await ack.promise;
+    if (!ok) return false;
+    const holder = stateHolder();
+    holder.setDeviceIdentity({ ...holder.getDeviceIdentity(), name });
+    emit.deviceIdentity(holder.getDeviceIdentity());
+    return true;
+  }
+
+  /** Push device GPS coords used in self-adverts. */
+  async setAdvertLatLon(lat: number, lon: number): Promise<boolean> {
+    if (!this.connected) return false;
+    const ack = this.awaitAck();
+    try {
+      await this.writeFrame(buildSetAdvertLatLon(lat, lon));
+    } catch (err) {
+      this.popPendingAck(ack.entry);
+      log.warn(`setAdvertLatLon write failed: ${(err as Error).message}`);
+      return false;
+    }
+    const ok = await ack.promise;
+    if (!ok) return false;
+    const holder = stateHolder();
+    holder.setDeviceIdentity({ ...holder.getDeviceIdentity(), lat, lon });
+    emit.deviceIdentity(holder.getDeviceIdentity());
+    return true;
+  }
+
+  /** Push telemetry policy + multi-acks + advert-location-policy as one frame.
+   *  The advert-location-policy flag mirrors `DeviceIdentity.sharePositionInAdvert`
+   *  and `TelemetryPolicy` fields drive the rest. */
+  async setOtherParams(
+    policy: { base: 0 | 1 | 2; loc: 0 | 1 | 2; env: 0 | 1 | 2; multiAcks: number },
+    sharePositionInAdvert: boolean,
+  ): Promise<boolean> {
+    if (!this.connected) return false;
+    const ack = this.awaitAck();
+    try {
+      await this.writeFrame(
+        buildSetOtherParams({
+          telemetryBase: policy.base,
+          telemetryLoc: policy.loc,
+          telemetryEnv: policy.env,
+          advertLocationPolicy: sharePositionInAdvert ? 1 : 0,
+          multiAcks: policy.multiAcks,
+        }),
+      );
+    } catch (err) {
+      this.popPendingAck(ack.entry);
+      log.warn(`setOtherParams write failed: ${(err as Error).message}`);
+      return false;
+    }
+    const ok = await ack.promise;
+    if (!ok) return false;
+    const holder = stateHolder();
+    holder.setTelemetryPolicy({ ...policy });
+    holder.setDeviceIdentity({ ...holder.getDeviceIdentity(), sharePositionInAdvert });
+    emit.telemetryPolicy(holder.getTelemetryPolicy());
+    emit.deviceIdentity(holder.getDeviceIdentity());
+    return true;
+  }
+
+  /** Push the auto-add flags byte. App-side `mode`/`maxHops`/`pullToRefresh`/
+   *  `showPublicKeys` are stored locally and don't go on the wire. */
+  async setAutoAddConfig(flags: AutoAddFlagsInput): Promise<boolean> {
+    if (!this.connected) return false;
+    const ack = this.awaitAck();
+    try {
+      await this.writeFrame(buildSetAutoAddConfig(flags));
+    } catch (err) {
+      this.popPendingAck(ack.entry);
+      log.warn(`setAutoAddConfig write failed: ${(err as Error).message}`);
+      return false;
+    }
+    const ok = await ack.promise;
+    if (!ok) return false;
+    return true;
+  }
+
+  /** Ask the radio for its current auto-add flags. RESP_AUTOADD_CONFIG lands in
+   *  onPacket → updates holder + emits. */
+  async requestAutoAddConfig(): Promise<void> {
+    if (!this.connected) return;
+    try {
+      await this.writeFrame(buildGetAutoAddConfig());
+    } catch (err) {
+      log.warn(`requestAutoAddConfig write failed: ${(err as Error).message}`);
+    }
+  }
+
+  /** Toggle the GPS module / change interval via custom-var KV. The firmware
+   *  ignores intervals outside [60, 86399]; we clamp client-side too. */
+  async setGpsConfig(cfg: { enabled: boolean; intervalSec: number }): Promise<boolean> {
+    if (!this.connected) return false;
+    const interval = Math.min(86399, Math.max(60, Math.floor(cfg.intervalSec)));
+    const ack1 = this.awaitAck();
+    try {
+      await this.writeFrame(buildSetCustomVar('gps', cfg.enabled));
+    } catch (err) {
+      this.popPendingAck(ack1.entry);
+      log.warn(`setCustomVar(gps) write failed: ${(err as Error).message}`);
+      return false;
+    }
+    if (!(await ack1.promise)) return false;
+    await sleep(WRITE_GAP_MS);
+    const ack2 = this.awaitAck();
+    try {
+      await this.writeFrame(buildSetCustomVar('gps_interval', interval));
+    } catch (err) {
+      this.popPendingAck(ack2.entry);
+      log.warn(`setCustomVar(gps_interval) write failed: ${(err as Error).message}`);
+      return false;
+    }
+    if (!(await ack2.promise)) return false;
+    const holder = stateHolder();
+    holder.setGpsConfig({ enabled: cfg.enabled, intervalSec: interval });
+    emit.gpsConfig(holder.getGpsConfig());
+    return true;
+  }
+
+  /** Reboot the connected device. The link drops within a few hundred ms; the
+   *  transport state machine will reflect that via its own state push. */
+  async reboot(): Promise<{ ok: boolean; error?: string }> {
+    if (!this.connected) return { ok: false, error: 'no radio attached' };
+    try {
+      await this.writeFrame(buildReboot());
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  }
+
+  /** Query battery + storage. Replies land in onPacket and update DeviceInfo. */
+  async requestBattAndStorage(): Promise<void> {
+    if (!this.connected) return;
+    try {
+      await this.writeFrame(buildGetBattAndStorage());
+    } catch (err) {
+      log.warn(`requestBattAndStorage write failed: ${(err as Error).message}`);
+    }
+  }
+
+  /** Re-issue DEVICE_QUERY to refresh DeviceInfo + capabilities. */
+  async requestDeviceInfo(): Promise<void> {
+    if (!this.connected) return;
+    try {
+      await this.writeFrame(buildDeviceQuery());
+    } catch (err) {
+      log.warn(`requestDeviceInfo write failed: ${(err as Error).message}`);
+    }
+  }
+
+  /** Query the firmware's custom-var store ("gps", "gps_interval", etc.).
+   *  Empty key requests all known keys. Reply: RESP_CUSTOM_VARS. */
+  async requestCustomVars(key = ''): Promise<void> {
+    if (!this.connected) return;
+    try {
+      await this.writeFrame(buildGetCustomVar(key));
+    } catch (err) {
+      log.warn(`requestCustomVars write failed: ${(err as Error).message}`);
+    }
+  }
+
+  /** Pop a still-pending ack entry off the FIFO. Used by setters that fail at
+   *  write time so a never-arriving RESP_OK doesn't permanently shift the FIFO
+   *  off-by-one. */
+  private popPendingAck(entry: PendingAck): void {
+    const i = this.pendingAcks.indexOf(entry);
+    if (i !== -1) this.pendingAcks.splice(i, 1);
+    clearTimeout(entry.timer);
+  }
+
   async repeaterLogout(contactKey: string): Promise<void> {
     const contact = this.lookupRepeaterContact(contactKey);
     if (!contact.ok) throw new Error(contact.error);
@@ -927,6 +1195,11 @@ export class ProtocolSession {
       this.writeFrame(buildDeviceQuery()).catch((err) => {
         log.debug(`liveness DEVICE_QUERY failed: ${(err as Error).message}`);
       });
+      // Refresh battery/storage on the same cadence so the identity card's
+      // battery readout stays current without a manual device refresh.
+      this.writeFrame(buildGetBattAndStorage()).catch((err) => {
+        log.debug(`liveness GET_BATT_AND_STORAGE failed: ${(err as Error).message}`);
+      });
     }, LIVENESS_POLL_MS);
   }
 
@@ -997,6 +1270,10 @@ export class ProtocolSession {
         phase: 'done',
         channels: { done: CHANNEL_SLOT_COUNT, total: CHANNEL_SLOT_COUNT },
       });
+      // Pull battery/storage once up front so the identity card has a reading
+      // immediately on connect; the liveness poll keeps it fresh thereafter.
+      await this.writeFrame(buildGetBattAndStorage());
+      await sleep(WRITE_GAP_MS);
       // Drain any messages queued during the disconnect window. Self-advert
       // is user-initiated only (Cmd-Shift-A) — matching the official mobile
       // clients, which never auto-advertise.
@@ -1139,6 +1416,100 @@ export class ProtocolSession {
         clearTimeout(this.pendingLocalStats.timer);
         this.pendingLocalStats.resolve(parsed);
         this.pendingLocalStats = null;
+      }
+      return;
+    }
+    if (code === RESP.SELF_INFO) {
+      const parsed = parseSelfInfo(frame);
+      if (parsed) {
+        const owner: Owner = {
+          name: parsed.name,
+          publicKeyHex: parsed.publicKeyHex,
+          // Codebase convention for pubkey prefixes is the first 12 hex chars
+          // (6 bytes); the identity card shows fewer but stores the full key.
+          publicKeyShort: parsed.publicKeyHex.slice(0, 12),
+        };
+        stateHolder().setOwner(owner);
+        emit.owner(owner);
+        log.debug(`self-info: "${owner.name}" (${owner.publicKeyShort})`);
+      }
+      return;
+    }
+    if (code === RESP.BATT_AND_STORAGE) {
+      const parsed = parseBattAndStorage(frame);
+      if (parsed) {
+        const holder = stateHolder();
+        const next = {
+          ...holder.getDeviceInfo(),
+          batteryMv: parsed.batteryMv,
+          storageUsedKb: parsed.storageUsedKb,
+          storageTotalKb: parsed.storageTotalKb,
+        };
+        holder.setDeviceInfo(next);
+        emit.deviceInfo(next);
+      }
+      return;
+    }
+    if (code === RESP.DEVICE_INFO) {
+      const parsed = parseDeviceInfo(frame);
+      if (parsed) {
+        const holder = stateHolder();
+        const next = {
+          ...holder.getDeviceInfo(),
+          firmwareVerCode: parsed.firmwareVerCode,
+          maxContacts: parsed.maxContacts,
+          maxChannels: parsed.maxChannels,
+          deviceModel: parsed.deviceModel || holder.getDeviceInfo().deviceModel,
+        };
+        holder.setDeviceInfo(next);
+        emit.deviceInfo(next);
+        // Capabilities follow firmware version codes verbatim — see the
+        // meshcore_protocol.dart firmware-version gates. We treat ver ≥ 9 as
+        // unlocking the repeat-mode byte; ≥ 25 (anecdotal, fw 1.7.0) gates the
+        // CLI export/import private-key flow. We pick the conservative cutoff
+        // and refine when we learn the actual ver_code that fw 1.7.0 reports.
+        const caps = {
+          repeatMode: parsed.firmwareVerCode >= 9,
+          identityKeyIO: parsed.firmwareVerCode >= 25,
+        };
+        holder.setDeviceCapabilities(caps);
+        emit.deviceCapabilities(caps);
+      }
+      return;
+    }
+    if (code === RESP.CUSTOM_VARS) {
+      const kv = parseCustomVars(frame);
+      if (kv.gps !== undefined || kv.gps_interval !== undefined) {
+        const holder = stateHolder();
+        const current = holder.getGpsConfig();
+        const next = {
+          enabled: kv.gps !== undefined ? kv.gps === '1' || kv.gps === 'true' : current.enabled,
+          intervalSec:
+            kv.gps_interval !== undefined
+              ? Number.parseInt(kv.gps_interval, 10) || current.intervalSec
+              : current.intervalSec,
+        };
+        holder.setGpsConfig(next);
+        emit.gpsConfig(next);
+      }
+      return;
+    }
+    if (code === RESP.AUTOADD_CONFIG) {
+      const byte = parseAutoAddConfig(frame);
+      if (byte !== null) {
+        const flags = autoAddByteToFlags(byte);
+        const holder = stateHolder();
+        const current = holder.getAutoAddConfig();
+        const next = {
+          ...current,
+          chat: flags.chat,
+          repeater: flags.repeater,
+          room: flags.room,
+          sensor: flags.sensor,
+          overwriteOldest: flags.overwriteOldest,
+        };
+        holder.setAutoAddConfig(next);
+        emit.autoAddConfig(next);
       }
       return;
     }
@@ -1446,8 +1817,38 @@ export class ProtocolSession {
     }
 
     const holder = stateHolder();
+    const owner = holder.getOwner();
+
+    // Pull matching mesh-side observations for this channel + hop count and
+    // build the Message's paths from them. parsed.pathLen carries the firmware
+    // path_len byte (hashSize in bits 6..7, hashCount in bits 0..5); 0xFF means
+    // "direct, no flood" — no per-hop bytes to fetch.
+    const paths: MessagePath[] = [];
+    let finalSnr = parsed.snrDb;
+    if (parsed.pathLen !== 0xff) {
+      const hashCount = parsed.pathLen & 0x3f;
+      const channelHashByte = channelHashOf(channel);
+      if (channelHashByte != null) {
+        const observations = consumeMeshObs(channelHashByte, hashCount);
+        for (const obs of observations) {
+          paths.push(
+            buildPath(obs.pathHex, obs.hashSize, obs.finalSnr, parsed.senderName, owner?.name),
+          );
+        }
+        // Prefer the SNR our radio measured on the LoRa frame (mesh side) over
+        // the one the firmware quoted in 0x11 — they're the same value when the
+        // observation arrived from the same hop, and the mesh one is fresher.
+        if (observations.length > 0) finalSnr = observations[0].finalSnr;
+      }
+    }
+
+    // Deterministic id: re-receipts of the same flood message via different
+    // paths collide here so upsertMessage merges them into one row.
+    const bodyHash = createHash('sha1').update(parsed.cleanBody).digest('hex').slice(0, 12);
+    const id = `chmsg-${channel.key}-${parsed.timestampUnix}-${bodyHash}`;
+
     const message: Message = {
-      id: `radio-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      id,
       key: channel.key,
       ts: parsed.timestampUnix * 1000,
       // No pubkey at the channel-message layer; the sender is identified by the
@@ -1456,14 +1857,16 @@ export class ProtocolSession {
       body: parsed.cleanBody,
       state: 'received',
       meta: {
-        snr: parsed.snrDb,
+        snr: finalSnr,
+        ...(paths.length > 0 ? { paths } : {}),
       },
     };
-    holder.insertMessage(message);
+    holder.upsertMessage(message);
     emit.messages(channel.key, holder.getMessagesForKey(channel.key));
     log.debug(
       `channel msg idx=${parsed.channelIdx} → "${channel.name}" (${channel.key}) ` +
-        `from=${parsed.senderName ?? 'unknown'} body=${JSON.stringify(parsed.cleanBody.slice(0, 60))}`,
+        `from=${parsed.senderName ?? 'unknown'} paths=${paths.length} ` +
+        `body=${JSON.stringify(parsed.cleanBody.slice(0, 60))}`,
     );
     if (this.drainBusy) this.pumpNextDrain();
   }
@@ -1548,4 +1951,47 @@ function findIdxByKey(key: string, byIdx: Map<number, Channel>): number | null {
     if (channel.key === key) return idx;
   }
   return null;
+}
+
+// PATH_HASH_SIZE = 1 in firmware MeshCore.h — every channel publishes only the
+// first byte of sha256(secret) on the wire so receivers can route GRP_TXT
+// without learning the secret.
+function channelHashOf(channel: Channel): number | null {
+  if (!channel.secretHex) return null;
+  const secret = Buffer.from(channel.secretHex, 'hex');
+  if (secret.length === 0) return null;
+  return createHash('sha256').update(secret).digest()[0];
+}
+
+function buildPath(
+  pathHex: string,
+  hashSize: number,
+  finalSnr: number,
+  senderName: string | null,
+  ownerName: string | undefined,
+): MessagePath {
+  const hops: MessageHop[] = [];
+  hops.push({
+    kind: 'origin',
+    shortId: senderName ? senderName.slice(0, 2).toLowerCase() : '??',
+    name: senderName ?? null,
+    pk: null,
+    unnamed: senderName == null,
+  });
+  for (let i = 0; i < pathHex.length; i += hashSize * 2) {
+    const shortId = pathHex.slice(i, i + hashSize * 2);
+    hops.push({ kind: 'hop', shortId, name: null, pk: null, unnamed: true });
+  }
+  hops.push({
+    kind: 'sink',
+    shortId: ownerName ? ownerName.slice(0, 2).toLowerCase() : 'me',
+    name: ownerName ?? 'My radio',
+    pk: null,
+  });
+  return {
+    id: createHash('sha1').update(`${pathHex}|${hashSize}`).digest('hex').slice(0, 16),
+    hops,
+    hashMode: hashSize,
+    finalSnr,
+  };
 }

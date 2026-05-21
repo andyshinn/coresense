@@ -1,9 +1,14 @@
 import { EventEmitter } from 'node:events';
 import type {
   AppSettings,
+  AutoAddConfig,
   BleDevice,
   Channel,
   Contact,
+  DeviceCapabilities,
+  DeviceIdentity,
+  DeviceInfo,
+  GpsConfig,
   MapSettings,
   MenuAction,
   Message,
@@ -15,6 +20,7 @@ import type {
   RepeaterStatusSnapshot,
   RepeaterTelemetrySnapshot,
   SyncProgress,
+  TelemetryPolicy,
   ThemePush,
   TileManifest,
   TransportState,
@@ -47,6 +53,12 @@ export const emit = {
   repeaterTelemetry: (snap: RepeaterTelemetrySnapshot) => bus.emit('repeaterTelemetry', snap),
   pathLearned: (event: PathLearnedEvent) => bus.emit('pathLearned', event),
   uiState: (state: UiState) => bus.emit('uiState', state),
+  deviceIdentity: (identity: DeviceIdentity) => bus.emit('deviceIdentity', identity),
+  autoAddConfig: (cfg: AutoAddConfig) => bus.emit('autoAddConfig', cfg),
+  telemetryPolicy: (policy: TelemetryPolicy) => bus.emit('telemetryPolicy', policy),
+  gpsConfig: (cfg: GpsConfig) => bus.emit('gpsConfig', cfg),
+  deviceInfo: (info: DeviceInfo) => bus.emit('deviceInfo', info),
+  deviceCapabilities: (caps: DeviceCapabilities) => bus.emit('deviceCapabilities', caps),
 };
 
 export type BusEvents = {
@@ -71,4 +83,10 @@ export type BusEvents = {
   repeaterTelemetry: (snap: RepeaterTelemetrySnapshot) => void;
   pathLearned: (event: PathLearnedEvent) => void;
   uiState: (state: UiState) => void;
+  deviceIdentity: (identity: DeviceIdentity) => void;
+  autoAddConfig: (cfg: AutoAddConfig) => void;
+  telemetryPolicy: (policy: TelemetryPolicy) => void;
+  gpsConfig: (cfg: GpsConfig) => void;
+  deviceInfo: (info: DeviceInfo) => void;
+  deviceCapabilities: (caps: DeviceCapabilities) => void;
 };

@@ -1,8 +1,10 @@
+import { Map as MapIcon } from 'lucide-react';
 import { useState } from 'react';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
-import { Row, Section, TextInput } from './Field';
+import { Row, TextInput } from './Field';
+import { SettingsSection } from './SettingsSection';
 
 interface Props {
   client: ApiClient | null;
@@ -11,7 +13,9 @@ interface Props {
 // Self-contained because the Protomaps API key is not part of AppSettings —
 // it's an OS-encrypted secret managed by main. The renderer only ever sees
 // `hasProtomapsApiKey: boolean` (broadcast via MapSettings); the plaintext
-// flows one way (renderer → main on POST) and never back.
+// flows one way (renderer → main on POST) and never back. Because the key is
+// write-only it keeps its own inline Save/Remove buttons rather than the
+// section-level dirty/Save model.
 export function MapKeySection({ client }: Props) {
   const hasKey = useStore((s) => s.mapSettings.hasProtomapsApiKey);
   const [draft, setDraft] = useState('');
@@ -45,9 +49,12 @@ export function MapKeySection({ client }: Props) {
   }
 
   return (
-    <Section
-      title="Map"
+    <SettingsSection
+      id="app-map"
+      icon={MapIcon}
+      title="Map Tiles"
       description="Optional Protomaps hosted-API key. When set, the Map panel can pull higher-zoom tiles beyond the bundled extract. Stored encrypted in your OS keychain; never written to disk in plaintext."
+      dirty={false}
     >
       <Row
         label={hasKey ? 'Replace API key' : 'Protomaps API key'}
@@ -80,6 +87,6 @@ export function MapKeySection({ client }: Props) {
           </div>
         }
       />
-    </Section>
+    </SettingsSection>
   );
 }

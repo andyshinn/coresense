@@ -21,6 +21,10 @@ const MAX_NOTIFIED_IDS = 500;
 export function startNotifications(): void {
   bus.on('messages', onMessages);
   bus.on('appSettings', recomputeBadge);
+  // Muting a channel/contact updates these lists; recompute so the dock badge
+  // drops the now-muted conversation's unread count.
+  bus.on('channels', recomputeBadge);
+  bus.on('contacts', recomputeBadge);
   // The renderer pushes lastReadByKey + activeKey via PUT /api/ui-state,
   // which routes.ts emits as 'uiState'. Recompute the badge so reading a
   // conversation clears its share of the unread total.
@@ -59,6 +63,9 @@ function maybeNotify(m: Message): void {
   const settings = holder.getAppSettings();
   const owner = holder.getOwner();
   const ui = holder.getUiState();
+
+  // A muted conversation suppresses its notifications outright.
+  if (isMutedKey(holder, m.key)) return;
 
   const policy = settings.notifications;
   const kind = classify(m, owner?.name);
@@ -156,6 +163,7 @@ function recomputeBadge(): void {
 
   let total = 0;
   for (const key of allConversationKeys(holder)) {
+    if (isMutedKey(holder, key)) continue;
     const lastRead = ui.lastReadByKey[key] ?? 0;
     const msgs = holder.getMessagesForKey(key);
     for (const m of msgs) {
@@ -166,6 +174,15 @@ function recomputeBadge(): void {
     }
   }
   app.setBadgeCount(total);
+}
+
+// True when the channel or contact behind `key` is muted. Muted conversations
+// contribute no dock-badge count and fire no native notifications.
+function isMutedKey(holder: ReturnType<typeof stateHolder>, key: string): boolean {
+  if (key.startsWith('ch:')) {
+    return holder.getChannels().some((c) => c.key === key && c.muted);
+  }
+  return holder.getContacts().some((c) => c.key === key && c.muted);
 }
 
 function allConversationKeys(holder: ReturnType<typeof stateHolder>): string[] {

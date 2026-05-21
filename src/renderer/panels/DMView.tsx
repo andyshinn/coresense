@@ -117,6 +117,7 @@ export function DMView({ contact, client }: Props) {
         onSend={onSend}
         radioSettings={radioSettings}
         returnToSend={appSettings.composer.returnToSend}
+        autoFocus={appSettings.composer.autoFocus}
         disabled={!client}
         draftKey={contact.key}
       />

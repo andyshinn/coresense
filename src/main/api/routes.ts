@@ -2,15 +2,19 @@ import { app } from 'electron';
 import { Hono } from 'hono';
 import type {
   AppSettings,
+  AutoAddConfig,
   BridgeStatus,
   Capabilities,
   Channel,
   Contact,
+  DeviceIdentity,
+  GpsConfig,
   MapSettings,
   RadioSettings,
   SearchOptions,
   ServerStatus,
   StateSnapshot,
+  TelemetryPolicy,
   UiState,
 } from '../../shared/types';
 import { adminSessions } from '../bridge/adminSession';
@@ -21,6 +25,7 @@ import { protocolSession } from '../protocol';
 import { stateHolder } from '../state/holder';
 import { searchMessages } from '../storage/search';
 import { transportManager } from '../transport/manager';
+import { markQuitConfirmed } from '../window/quit';
 import { buildTileManifest, registerTileRoutes } from './tiles';
 
 const log = child('api');
@@ -84,6 +89,12 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       mapSettings: holder.getMapSettings(),
       mapManifest: await buildTileManifest(),
       uiState: holder.getUiState(),
+      deviceIdentity: holder.getDeviceIdentity(),
+      autoAddConfig: holder.getAutoAddConfig(),
+      telemetryPolicy: holder.getTelemetryPolicy(),
+      gpsConfig: holder.getGpsConfig(),
+      deviceInfo: holder.getDeviceInfo(),
+      deviceCapabilities: holder.getDeviceCapabilities(),
     };
     return c.json(payload);
   });
@@ -96,6 +107,16 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     return c.json({ ok: true });
   });
 
+  // POST /api/app/quit — the renderer's reply to a `requestQuit` broadcast:
+  // unsaved Settings changes were saved/discarded (or there were none), so
+  // re-issue the quit, this time passing the before-quit guard.
+  api.post('/api/app/quit', (c) => {
+    markQuitConfirmed();
+    // Defer so this HTTP response flushes before the app tears down.
+    setTimeout(() => app.quit(), 0);
+    return c.json({ ok: true });
+  });
+
   api.put('/api/settings/app', async (c) => {
     const body = (await c.req.json().catch(() => null)) as AppSettings | null;
     if (!body) return c.json({ error: 'invalid body' }, 400);
@@ -104,11 +125,167 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     return c.json({ ok: true });
   });
 
+  // PUT /api/settings/radio. When a radio is attached and `pushToDevice` is
+  // true (default), this issues CMD_SET_RADIO_PARAMS + CMD_SET_RADIO_TX_POWER
+  // and only commits the new values to local state on RESP_OK. When no radio
+  // is connected, the values are stored app-side only — the next handshake
+  // will reapply them.
   api.put('/api/settings/radio', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as RadioSettings | null;
+    const body = (await c.req.json().catch(() => null)) as
+      | (RadioSettings & { pushToDevice?: boolean })
+      | null;
     if (!body) return c.json({ error: 'invalid body' }, 400);
-    stateHolder().setRadioSettings(body);
-    emit.radioSettings(body);
+    const pushToDevice = body.pushToDevice !== false;
+    const session = protocolSession();
+    const t = transportManager.getState();
+    if (pushToDevice && t.state === 'connected') {
+      const ok = await session.setRadioParams({
+        frequencyHz: body.frequencyHz,
+        bandwidthHz: body.bandwidthHz,
+        spreadingFactor: body.spreadingFactor,
+        codingRate: body.codingRate,
+        txPowerDbm: body.txPowerDbm,
+        repeatMode: body.repeatMode,
+      });
+      if (!ok) return c.json({ error: 'radio rejected SET_RADIO_PARAMS or timed out' }, 503);
+      // The session method writes holder + broadcasts on success — also push
+      // the path-hash-mode separately since it has its own opcode and isn't
+      // part of SET_RADIO_PARAMS.
+      const currentHash = stateHolder().getRadioSettings().pathHashMode;
+      if (body.pathHashMode !== currentHash) {
+        try {
+          await session.setPathHashMode(body.pathHashMode);
+        } catch (err) {
+          return c.json({ error: (err as Error).message }, 503);
+        }
+      }
+      return c.json({ ok: true });
+    }
+    // App-side only.
+    const { pushToDevice: _push, ...rest } = body;
+    stateHolder().setRadioSettings(rest);
+    emit.radioSettings(rest);
+    return c.json({ ok: true });
+  });
+
+  // ---- Device-side settings (parity with the official mobile app) ----
+
+  api.put('/api/device/identity', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as Partial<DeviceIdentity> | null;
+    if (!body) return c.json({ error: 'invalid body' }, 400);
+    const session = protocolSession();
+    const t = transportManager.getState();
+    const holder = stateHolder();
+    const current = holder.getDeviceIdentity();
+    if (t.state !== 'connected') {
+      // App-only update — useful for staging before a connect.
+      const next = { ...current, ...body } as DeviceIdentity;
+      holder.setDeviceIdentity(next);
+      emit.deviceIdentity(next);
+      return c.json({ ok: true });
+    }
+    try {
+      if (typeof body.name === 'string' && body.name !== current.name) {
+        const ok = await session.setAdvertName(body.name);
+        if (!ok) return c.json({ error: 'SET_ADVERT_NAME rejected by radio' }, 503);
+      }
+      if (
+        (typeof body.lat === 'number' && body.lat !== current.lat) ||
+        (typeof body.lon === 'number' && body.lon !== current.lon)
+      ) {
+        const lat = typeof body.lat === 'number' ? body.lat : (current.lat ?? 0);
+        const lon = typeof body.lon === 'number' ? body.lon : (current.lon ?? 0);
+        const ok = await session.setAdvertLatLon(lat, lon);
+        if (!ok) return c.json({ error: 'SET_ADVERT_LATLON rejected by radio' }, 503);
+      }
+      if (
+        typeof body.sharePositionInAdvert === 'boolean' &&
+        body.sharePositionInAdvert !== current.sharePositionInAdvert
+      ) {
+        // sharePositionInAdvert lives in SET_OTHER_PARAMS along with telemetry
+        // policy — re-emit the full frame with current telemetry values.
+        const policy = holder.getTelemetryPolicy();
+        const ok = await session.setOtherParams(policy, body.sharePositionInAdvert);
+        if (!ok) return c.json({ error: 'SET_OTHER_PARAMS rejected by radio' }, 503);
+      }
+      return c.json({ ok: true });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  api.put('/api/device/auto-add', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as AutoAddConfig | null;
+    if (!body) return c.json({ error: 'invalid body' }, 400);
+    const holder = stateHolder();
+    // App-side fields (mode, maxHops, pull-to-refresh, show-pubkeys) are
+    // persisted regardless of connection state. Wire flags only push when
+    // connected.
+    holder.setAutoAddConfig(body);
+    emit.autoAddConfig(body);
+    if (transportManager.getState().state === 'connected') {
+      const flags = {
+        chat: body.mode === 'all' ? true : body.chat,
+        repeater: body.mode === 'all' ? true : body.repeater,
+        room: body.mode === 'all' ? true : body.room,
+        sensor: body.mode === 'all' ? true : body.sensor,
+        overwriteOldest: body.overwriteOldest,
+      };
+      const ok = await protocolSession().setAutoAddConfig(flags);
+      if (!ok) return c.json({ error: 'SET_AUTO_ADD_CONFIG rejected by radio' }, 503);
+    }
+    return c.json({ ok: true });
+  });
+
+  api.get('/api/device/auto-add', (c) => c.json(stateHolder().getAutoAddConfig()));
+
+  api.put('/api/device/telemetry-policy', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as TelemetryPolicy | null;
+    if (!body) return c.json({ error: 'invalid body' }, 400);
+    const holder = stateHolder();
+    holder.setTelemetryPolicy(body);
+    emit.telemetryPolicy(body);
+    if (transportManager.getState().state === 'connected') {
+      const share = holder.getDeviceIdentity().sharePositionInAdvert;
+      const ok = await protocolSession().setOtherParams(body, share);
+      if (!ok) return c.json({ error: 'SET_OTHER_PARAMS rejected by radio' }, 503);
+    }
+    return c.json({ ok: true });
+  });
+
+  api.put('/api/device/gps', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as GpsConfig | null;
+    if (!body) return c.json({ error: 'invalid body' }, 400);
+    const holder = stateHolder();
+    holder.setGpsConfig(body);
+    emit.gpsConfig(body);
+    if (transportManager.getState().state === 'connected') {
+      const ok = await protocolSession().setGpsConfig(body);
+      if (!ok) return c.json({ error: 'GPS custom-var rejected by radio' }, 503);
+    }
+    return c.json({ ok: true });
+  });
+
+  // POST /api/device/refresh — issues DEVICE_QUERY + GET_BATT_AND_STORAGE +
+  // GET_AUTO_ADD_CONFIG + GET_CUSTOM_VAR(gps,gps_interval). Each reply lands
+  // asynchronously and is broadcast via WS — the caller just gets "ok" once
+  // the writes succeeded.
+  api.post('/api/device/refresh', async (c) => {
+    if (transportManager.getState().state !== 'connected') {
+      return c.json({ error: 'no radio attached' }, 503);
+    }
+    const session = protocolSession();
+    await session.requestDeviceInfo();
+    await session.requestBattAndStorage();
+    await session.requestAutoAddConfig();
+    await session.requestCustomVars('gps');
+    await session.requestCustomVars('gps_interval');
+    return c.json({ ok: true });
+  });
+
+  api.post('/api/device/reboot', async (c) => {
+    const r = await protocolSession().reboot();
+    if (!r.ok) return c.json({ error: r.error }, 503);
     return c.json({ ok: true });
   });
 

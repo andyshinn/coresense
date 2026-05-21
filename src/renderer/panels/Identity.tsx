@@ -1,7 +1,8 @@
-import { Check, Copy } from 'lucide-react';
-import { useState } from 'react';
+import { Copy } from 'lucide-react';
+import { CopyButton } from '../components/CopyButton';
 import { PanelShell, Row, Section } from '../components/settings/Field';
 import { useStore } from '../lib/store';
+import { cn } from '../lib/utils';
 
 // Read-only identity view for v1. Regenerate / import / export of the owner's
 // private key are destructive operations and stay off until we have a confirm
@@ -65,35 +66,17 @@ interface CopyableValueProps {
 }
 
 function CopyableValue({ value, display, mono }: CopyableValueProps) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = () => {
-    void navigator.clipboard.writeText(value).then(
-      () => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1200);
-      },
-      () => {
-        /* clipboard denied — fall through silently */
-      },
-    );
-  };
-
   return (
-    <button
-      type="button"
-      onClick={copy}
+    <CopyButton
+      value={value}
       title={value}
-      className={`flex items-center gap-2 rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text transition-colors hover:bg-cs-bg-3 ${
-        mono ? 'font-mono' : ''
-      }`}
+      className={cn(
+        'flex items-center gap-2 rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text transition-colors hover:bg-cs-bg-3',
+        mono && 'font-mono',
+      )}
     >
       <span>{display}</span>
-      {copied ? (
-        <Check size={11} className="text-cs-accent" aria-label="copied" />
-      ) : (
-        <Copy size={11} className="text-cs-text-muted" aria-label="copy" />
-      )}
-    </button>
+      <Copy size={11} className="text-cs-text-muted" aria-label="copy" />
+    </CopyButton>
   );
 }

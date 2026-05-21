@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Contact } from '../../../shared/types';
+import { RelativeTime } from '../../components/RelativeTime';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
@@ -53,7 +54,7 @@ export function StatusTab({ contact, client }: Props) {
         <section className="rounded border border-cs-border bg-cs-bg-2 p-3 text-[12px]">
           <header className="mb-2 flex items-baseline justify-between">
             <span className="font-mono text-[10px] text-cs-text-dim">
-              received {new Date(status.receivedAt).toLocaleString()}
+              received <RelativeTime ts={status.receivedAt} />
             </span>
           </header>
           {status.fields.length === 0 ? (

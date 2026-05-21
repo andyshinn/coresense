@@ -447,3 +447,110 @@ function splitSenderPrefix(body: string): { senderName: string | null; cleanBody
   }
   return { senderName: candidate, cleanBody: body.slice(colon + 2) };
 }
+
+// ---- Settings-parity decoders ------------------------------------------
+
+// RESP_BATT_AND_STORAGE [0x0c][batt_mv u16 LE][used_kb u32 LE][total_kb u32 LE]
+export interface BattAndStorage {
+  batteryMv: number;
+  storageUsedKb: number;
+  storageTotalKb: number;
+}
+export function parseBattAndStorage(frame: Buffer): BattAndStorage | null {
+  if (frame.length < 11) return null;
+  return {
+    batteryMv: frame.readUInt16LE(1),
+    storageUsedKb: frame.readUInt32LE(3),
+    storageTotalKb: frame.readUInt32LE(7),
+  };
+}
+
+// RESP_DEVICE_INFO. The official client treats most of the payload as
+// firmware-version-specific metadata; we only need the few fields we surface
+// in the UI. Bytes past `firmware_ver_code` evolve across firmware revisions,
+// so optional readers fall back to 0 when the frame is too short.
+export interface DeviceInfo {
+  /** Firmware capability level: 1=v1.x, ..., 9 adds client_repeat,
+   *  10 adds path_hash_mode in the device info reply. */
+  firmwareVerCode: number;
+  /** Firmware reports max_contacts as count/2 (legacy encoding). */
+  maxContacts: number;
+  maxChannels: number;
+  /** Repeat mode echo when firmware ≥ 9; undefined otherwise. */
+  clientRepeat?: boolean;
+  /** Path hash mode echo (0|1|2 → 1|2|4 bytes per hop) when firmware ≥ 10. */
+  pathHashMode?: number;
+  /** Best-effort device model string scanned from the trailing printable bytes,
+   *  mirroring parseNodeNameFromSelfInfo. May be empty when the firmware doesn't
+   *  emit one. */
+  deviceModel: string;
+}
+export function parseDeviceInfo(frame: Buffer): DeviceInfo | null {
+  if (frame.length < 4) return null;
+  const firmwareVerCode = frame[1];
+  const maxContacts = frame[2] * 2;
+  const maxChannels = frame[3];
+  const clientRepeat = frame.length > 80 ? frame[80] !== 0 : undefined;
+  const pathHashMode = frame.length > 81 ? frame[81] : undefined;
+  let start = frame.length;
+  while (start > 4) {
+    const b = frame[start - 1];
+    if (b >= 0x20 && b < 0x7f) start -= 1;
+    else break;
+  }
+  const deviceModel = frame.subarray(start).toString('utf8').trim();
+  return {
+    firmwareVerCode,
+    maxContacts,
+    maxChannels,
+    clientRepeat,
+    pathHashMode,
+    deviceModel,
+  };
+}
+
+// RESP_SELF_INFO [0x05][adv_type u8][tx_power u8][max_tx_power u8]
+//   [public_key 32B][...adv lat/lon + radio params, firmware-version-specific...]
+//   [name, trailing printable ASCII]. We only surface the two fields the
+//   identity card needs — the 32B pubkey at a fixed offset and the name via the
+//   same trailing-printable scan parseNodeNameFromSelfInfo / parseDeviceInfo use,
+//   which is firmware-version tolerant.
+export interface SelfInfo {
+  name: string;
+  publicKeyHex: string;
+}
+export function parseSelfInfo(frame: Buffer): SelfInfo | null {
+  if (frame.length < 36 || frame[0] !== 0x05) return null;
+  const publicKeyHex = frame.subarray(4, 36).toString('hex');
+  let start = frame.length;
+  while (start > 36) {
+    const b = frame[start - 1];
+    if (b >= 0x20 && b < 0x7f) start -= 1;
+    else break;
+  }
+  const name = frame.subarray(start).toString('utf8').trim();
+  return { name, publicKeyHex };
+}
+
+// RESP_CUSTOM_VARS: newline-separated "key:value" pairs. The firmware may also
+// use a NUL between entries on some older builds — we split on both to stay
+// compatible.
+export function parseCustomVars(frame: Buffer): Record<string, string> {
+  if (frame.length < 2) return {};
+  const text = frame.subarray(1).toString('utf8');
+  const out: Record<string, string> = {};
+  for (const line of text.split(/[\n\0]/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const colon = trimmed.indexOf(':');
+    if (colon === -1) continue;
+    out[trimmed.slice(0, colon).trim()] = trimmed.slice(colon + 1).trim();
+  }
+  return out;
+}
+
+// RESP_AUTOADD_CONFIG [0x19][flags u8]
+export function parseAutoAddConfig(frame: Buffer): number | null {
+  if (frame.length < 2) return null;
+  return frame[1] & 0xff;
+}

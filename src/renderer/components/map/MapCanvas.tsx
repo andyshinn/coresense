@@ -1,7 +1,7 @@
 import maplibregl, { type Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useRef, useState } from 'react';
-import type { MapSettings, TileManifest } from '../../../shared/types';
+import { hasValidFix, type MapSettings, type TileManifest } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { subscribe as subscribeMapBus } from '../../lib/map/bus';
 import { ensurePmtilesProtocol } from '../../lib/map/pmtiles-protocol';
@@ -262,8 +262,7 @@ function freshestContactFix(): { lng: number; lat: number } | null {
   const contacts = useStore.getState().contacts;
   let best: { lng: number; lat: number; t: number } | null = null;
   for (const c of contacts) {
-    if (typeof c.gpsLat !== 'number' || typeof c.gpsLon !== 'number') continue;
-    if (c.gpsLat === 0 && c.gpsLon === 0) continue;
+    if (!hasValidFix(c)) continue;
     const t = c.lastSeenMs ?? 0;
     if (!best || t > best.t) best = { lng: c.gpsLon, lat: c.gpsLat, t };
   }

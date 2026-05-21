@@ -1,7 +1,10 @@
 import type {
   AppSettings,
+  AutoAddConfig,
   Capabilities,
   Contact,
+  DeviceIdentity,
+  GpsConfig,
   MapSettings,
   Message,
   RadioSettings,
@@ -16,6 +19,7 @@ import type {
   SearchResults,
   ServerStatus,
   StateSnapshot,
+  TelemetryPolicy,
   UiState,
 } from '../../shared/types';
 
@@ -67,11 +71,37 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(settings),
     }),
-  putRadioSettings: (c: ApiClient, settings: RadioSettings) =>
+  putRadioSettings: (c: ApiClient, settings: RadioSettings & { pushToDevice?: boolean }) =>
     request<{ ok: true }>(c, '/api/settings/radio', {
       method: 'PUT',
       body: JSON.stringify(settings),
     }),
+  putDeviceIdentity: (c: ApiClient, identity: Partial<DeviceIdentity>) =>
+    request<{ ok: true }>(c, '/api/device/identity', {
+      method: 'PUT',
+      body: JSON.stringify(identity),
+    }),
+  putAutoAddConfig: (c: ApiClient, cfg: AutoAddConfig) =>
+    request<{ ok: true }>(c, '/api/device/auto-add', {
+      method: 'PUT',
+      body: JSON.stringify(cfg),
+    }),
+  putTelemetryPolicy: (c: ApiClient, policy: TelemetryPolicy) =>
+    request<{ ok: true }>(c, '/api/device/telemetry-policy', {
+      method: 'PUT',
+      body: JSON.stringify(policy),
+    }),
+  putGpsConfig: (c: ApiClient, cfg: GpsConfig) =>
+    request<{ ok: true }>(c, '/api/device/gps', {
+      method: 'PUT',
+      body: JSON.stringify(cfg),
+    }),
+  refreshDevice: (c: ApiClient) =>
+    request<{ ok: true }>(c, '/api/device/refresh', { method: 'POST' }),
+  rebootDevice: (c: ApiClient) =>
+    request<{ ok: true }>(c, '/api/device/reboot', { method: 'POST' }),
+  // Reply to a `requestQuit` broadcast — tells main it's safe to quit now.
+  confirmQuit: (c: ApiClient) => request<{ ok: true }>(c, '/api/app/quit', { method: 'POST' }),
   putMapSettings: (c: ApiClient, settings: MapSettings) =>
     request<{ ok: true }>(c, '/api/settings/map', {
       method: 'PUT',

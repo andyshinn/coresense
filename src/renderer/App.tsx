@@ -111,6 +111,18 @@ export function App() {
         case 'openSettings':
           setActiveKey('tool:settings:app');
           break;
+        case 'requestQuit': {
+          // Main deferred a quit/close. If a Settings section is dirty, raise
+          // the unsaved-changes dialog; otherwise tell main it's safe to quit.
+          const st = useStore.getState();
+          const dirty = Object.values(st.settingsUi.dirtyById).some(Boolean);
+          if (dirty) {
+            st.setPendingTarget({ kind: 'quit' });
+          } else if (baseUrl && apiKey) {
+            void api.confirmQuit({ baseUrl, apiKey });
+          }
+          break;
+        }
         case 'pinToggle': {
           const key = useStore.getState().ui.activeKey;
           if (key.startsWith('ch:') || key.startsWith('c:')) togglePin(key);
@@ -295,6 +307,24 @@ export function App() {
           break;
         case 'repeaterTelemetry':
           s.applyRepeaterTelemetry(msg.payload);
+          break;
+        case 'deviceIdentity':
+          s.applyDeviceIdentity(msg.payload);
+          break;
+        case 'autoAddConfig':
+          s.applyAutoAddConfig(msg.payload);
+          break;
+        case 'telemetryPolicy':
+          s.applyTelemetryPolicy(msg.payload);
+          break;
+        case 'gpsConfig':
+          s.applyGpsConfig(msg.payload);
+          break;
+        case 'deviceInfo':
+          s.applyDeviceInfo(msg.payload);
+          break;
+        case 'deviceCapabilities':
+          s.applyDeviceCapabilities(msg.payload);
           break;
         case 'pathLearned': {
           s.applyPathLearned(msg.payload);

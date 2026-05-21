@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { cn } from '../../lib/utils';
 
 interface SectionProps {
   title: string;
@@ -25,13 +26,23 @@ interface RowProps {
   description?: string;
   control: ReactNode;
   warning?: string;
+  /** When true, marks the row as having an unsaved edit (accent dot + border). */
+  changed?: boolean;
 }
 
-export function Row({ label, description, control, warning }: RowProps) {
+export function Row({ label, description, control, warning, changed }: RowProps) {
   return (
-    <div className="flex items-start gap-3 rounded px-2 py-1 hover:bg-cs-bg-2">
+    <div
+      className={cn(
+        'flex items-start gap-3 rounded border-l-2 px-2 py-1 hover:bg-cs-bg-2',
+        changed ? 'border-cs-accent' : 'border-transparent',
+      )}
+    >
       <div className="flex-1">
-        <div className="text-[12px] text-cs-text">{label}</div>
+        <div className="flex items-center gap-1.5 text-[12px] text-cs-text">
+          {changed && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-cs-accent" />}
+          <span>{label}</span>
+        </div>
         {description && <div className="text-[11px] text-cs-text-dim">{description}</div>}
         {warning && <div className="mt-0.5 text-[11px] text-cs-warn">{warning}</div>}
       </div>

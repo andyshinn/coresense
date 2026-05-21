@@ -97,6 +97,14 @@ export const messagesStore = {
     return rows.map(rowToMessage).reverse();
   },
 
+  findById(id: string): Message | null {
+    const db = openDb();
+    const row = db
+      .prepare(`SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages WHERE mid = ?`)
+      .get(id) as Row | undefined;
+    return row ? rowToMessage(row) : null;
+  },
+
   markState(id: string, state: MessageState): void {
     const db = openDb();
     db.prepare(`UPDATE messages SET state = ? WHERE mid = ?`).run(state, id);

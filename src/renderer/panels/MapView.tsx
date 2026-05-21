@@ -1,4 +1,6 @@
 import { MapIcon } from 'lucide-react';
+import { ErrorBoundary } from 'react-error-boundary';
+import { logError, MapErrorFallback } from '../components/errors/ErrorFallback';
 import { MapCanvas } from '../components/map/MapCanvas';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
@@ -55,5 +57,9 @@ export function MapView({ client }: MapViewProps) {
     );
   }
 
-  return <MapCanvas client={client} manifest={manifest} settings={settings} />;
+  return (
+    <ErrorBoundary FallbackComponent={MapErrorFallback} onError={logError}>
+      <MapCanvas client={client} manifest={manifest} settings={settings} />
+    </ErrorBoundary>
+  );
 }

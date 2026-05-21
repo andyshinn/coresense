@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Contact, RepeaterAdminSession } from '../../../shared/types';
+import { RelativeTime } from '../../components/RelativeTime';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
 
@@ -79,7 +80,7 @@ export function LoginTab({ contact, client, session, onSession }: Props) {
             )}
             <dt className="text-cs-text-muted">Since</dt>
             <dd className="font-mono text-cs-text">
-              {new Date(session.loggedInAt).toLocaleString()}
+              <RelativeTime ts={session.loggedInAt} />
             </dd>
           </dl>
         </section>

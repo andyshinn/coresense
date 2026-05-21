@@ -65,6 +65,11 @@ const PUSH_LOG_RX_DATA = 0x88;
 export type ParsedFrame =
   | {
       kind: 'mesh';
+      /** Which push delivered this mesh packet. Only `'log_rx'` (0x88) is safe
+       *  to feed into the mesh-packet parser — 0x84 (`'raw'`) writes a 0xFF
+       *  reserved byte where path_len would be, so its bytes don't follow the
+       *  Packet wire format. */
+      source: 'raw' | 'log_rx';
       meshHex: string;
       meshBytes: Buffer;
       snr: number;
@@ -87,7 +92,14 @@ export function parseCompanionFrame(frame: Buffer): ParsedFrame | null {
     const snr = frame.readInt8(1) / 4;
     const rssi = frame.readInt8(2);
     const mesh = frame.subarray(4);
-    return { kind: 'mesh', meshHex: mesh.toString('hex'), meshBytes: mesh, snr, rssi };
+    return {
+      kind: 'mesh',
+      source: 'raw',
+      meshHex: mesh.toString('hex'),
+      meshBytes: mesh,
+      snr,
+      rssi,
+    };
   }
 
   if (code === PUSH_LOG_RX_DATA && frame.length >= 3) {
@@ -95,7 +107,14 @@ export function parseCompanionFrame(frame: Buffer): ParsedFrame | null {
     const snr = frame.readInt8(1) / 4;
     const rssi = frame.readInt8(2);
     const mesh = frame.subarray(3);
-    return { kind: 'mesh', meshHex: mesh.toString('hex'), meshBytes: mesh, snr, rssi };
+    return {
+      kind: 'mesh',
+      source: 'log_rx',
+      meshHex: mesh.toString('hex'),
+      meshBytes: mesh,
+      snr,
+      rssi,
+    };
   }
 
   const codeName =

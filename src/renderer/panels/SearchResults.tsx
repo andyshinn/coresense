@@ -7,6 +7,7 @@ import type {
   SearchResults as SearchResultsPayload,
   SearchSort,
 } from '../../shared/types';
+import { RelativeTime } from '../components/RelativeTime';
 import { type ApiClient, api } from '../lib/api';
 import { useStore } from '../lib/store';
 import { cn } from '../lib/utils';
@@ -29,11 +30,6 @@ const CONTACT_KIND_ICON: Record<string, LucideIcon> = {
   sensor: Radio,
   room: DoorOpen,
 };
-
-function fmtTs(ts: number): string {
-  const d = new Date(ts);
-  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-}
 
 function shortPk(pk: string): string {
   if (pk.length <= 12) return pk;
@@ -596,7 +592,7 @@ function MessageRow({
           )}
           <span>{isChannel ? (channelName ?? hit.key) : (senderName ?? hit.key)}</span>
           <span>·</span>
-          <span>{fmtTs(hit.ts)}</span>
+          <RelativeTime ts={hit.ts} />
           {isChannel && (
             <>
               <span>·</span>

@@ -2,7 +2,9 @@ import { AlertCircle, Check, CheckCheck, Clock, Reply } from 'lucide-react';
 import type { Contact, Message, MessageStyle } from '../../shared/types';
 import { getNameColor } from '../lib/contactColor';
 import { parseMentions } from '../lib/mentionParser';
-import { cn } from '../lib/utils';
+import { useStore } from '../lib/store';
+import { fmtDateTime, fmtTime } from '../lib/time';
+import { cn, deriveSenderName } from '../lib/utils';
 import { ContactAvatar } from './ContactAvatar';
 import { MentionPill } from './MentionPill';
 import { RssiChip } from './RssiChip';
@@ -39,6 +41,7 @@ export function MessageRow({
   sender,
   onReply,
 }: Props) {
+  const timeFormat = useStore((s) => s.appSettings.timeFormat);
   const senderName = sender?.name ?? deriveSenderName(message.fromPublicKeyHex);
   const showSenderHeader = style === 'rich' && !isSelf && senderName !== '';
   // Reply-by-mention only makes sense when there's an addressable name and
@@ -98,7 +101,9 @@ export function MessageRow({
             <MessageBody body={message.body} />
           </div>
           <div className="flex flex-row items-center gap-2 font-mono text-[10px] text-cs-text-dim">
-            <span>{fmtTime(message.ts)}</span>
+            <span title={fmtDateTime(message.ts, timeFormat)}>
+              {fmtTime(message.ts, timeFormat)}
+            </span>
             <StateChip state={message.state} />
             {message.meta?.rssi != null && (
               <RssiChip rssi={message.meta.rssi} hops={message.meta.hops} />
@@ -159,19 +164,4 @@ function StateChip({ state }: { state: Message['state'] }) {
       <span>{STATE_LABEL[state]}</span>
     </span>
   );
-}
-
-// Channel messages carry no public key; the protocol layer encodes the
-// originating node's display name as `fromPublicKeyHex = "name:<name>"`.
-// Strip that prefix here so the rich-style header shows the bare name.
-function deriveSenderName(fromPublicKeyHex: string | undefined): string {
-  if (!fromPublicKeyHex) return '';
-  if (fromPublicKeyHex === 'unknown') return '';
-  if (fromPublicKeyHex.startsWith('name:')) return fromPublicKeyHex.slice(5);
-  return `${fromPublicKeyHex.slice(0, 8)}…`;
-}
-
-function fmtTime(ts: number): string {
-  const d = new Date(ts);
-  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
 }
