@@ -26,6 +26,7 @@ import { stateHolder } from '../state/holder';
 import { searchMessages } from '../storage/search';
 import { transportManager } from '../transport/manager';
 import { markQuitConfirmed } from '../window/quit';
+import { getConfigPath } from './middleware/auth';
 import { buildTileManifest, registerTileRoutes } from './tiles';
 
 const log = child('api');
@@ -41,15 +42,15 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
 
   registerTileRoutes(api);
 
-  api.get('/api/capabilities', (c) => {
-    const payload: Capabilities = {
-      isElectron: true,
-      version: app.getVersion(),
-      platform: process.platform,
-      httpPort: port(),
-    };
-    return c.json(payload);
+  const buildCapabilities = (): Capabilities => ({
+    isElectron: true,
+    version: app.getVersion(),
+    platform: process.platform,
+    httpPort: port(),
+    configPath: getConfigPath(),
   });
+
+  api.get('/api/capabilities', (c) => c.json(buildCapabilities()));
 
   api.get('/api/status', (c) => {
     const t = transportManager.getState();
@@ -70,12 +71,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const t = transportManager.getState();
     const holder = stateHolder();
     const payload: StateSnapshot = {
-      capabilities: {
-        isElectron: true,
-        version: app.getVersion(),
-        platform: process.platform,
-        httpPort: port(),
-      },
+      capabilities: buildCapabilities(),
       bridge: bridgeStatus(),
       transport: { state: t.state, deviceId: t.deviceId },
       owner: holder.getOwner(),

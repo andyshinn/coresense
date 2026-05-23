@@ -45,6 +45,7 @@ import type {
   SyncProgress,
   TransportState,
 } from '../../shared/types';
+import { AddChannelPopover } from '../components/AddChannelPopover';
 import {
   ContextMenu,
   type ContextMenuEntry,
@@ -54,6 +55,7 @@ import {
 } from '../components/ContextMenu';
 import { CopyButton } from '../components/CopyButton';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../components/ui/hover-card';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Progress } from '../components/ui/progress';
 import {
   Sidebar,
@@ -63,6 +65,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
@@ -166,6 +169,10 @@ export function LeftNav({ client }: LeftNavProps) {
     [unreadByKey],
   );
 
+  const addChannelOpen = useStore((s) => s.addChannelOpen);
+  const setAddChannelOpen = useStore((s) => s.setAddChannelOpen);
+  const connected = transport === 'connected';
+
   const contactGrouping = useStore((s) => s.appSettings.contactGrouping);
   const togglePin = useStore((s) => s.togglePin);
 
@@ -254,6 +261,7 @@ export function LeftNav({ client }: LeftNavProps) {
 
   const [menu, setMenu] = useState<ChannelMenuState | null>(null);
   const [contactMenu, setContactMenu] = useState<ContactMenuState | null>(null);
+  const [channelsRowMenu, setChannelsRowMenu] = useState<{ x: number; y: number } | null>(null);
 
   // Per-branch "user clicked Show more" flags. Session-only by design — each
   // launch starts collapsed back to the limit so a bloated branch can't
@@ -416,39 +424,79 @@ export function LeftNav({ client }: LeftNavProps) {
         <SidebarGroup>
           <SidebarGroupLabel>Conversations</SidebarGroupLabel>
           <SidebarMenu>
-            <ParentBranch
-              label="Channels"
-              icon={Hash}
-              open={openChannels}
-              onToggle={() => setLeftNavGroup('channels', !openChannels)}
-              unreadTotal={channelUnreadTotal}
-            >
-              {sortedChannels.length === 0 ? (
-                <EmptySubHint>No channels yet.</EmptySubHint>
-              ) : (
-                <ChannelSubList
-                  channels={sortedChannels}
-                  activeKey={activeKey}
-                  pinSet={pinSet}
-                  presence={channelPresence}
-                  unreadByKey={unreadByKey}
-                  limit={collapseListsEnabled ? collapseListsLimit : null}
-                  revealed={!!revealed.channels}
-                  onShowMore={() => revealList('channels')}
-                  onSelect={setActiveKey}
-                  onReorder={onReorder}
-                  onContext={(channel, e) => {
-                    e.preventDefault();
-                    setMenu({
-                      channel,
-                      onDevice: channelPresence.has(channel.key),
-                      x: e.clientX,
-                      y: e.clientY,
-                    });
-                  }}
-                />
-              )}
-            </ParentBranch>
+            <Popover open={addChannelOpen} onOpenChange={setAddChannelOpen}>
+              <ParentBranch
+                label="Channels"
+                icon={Hash}
+                open={openChannels}
+                onToggle={() => setLeftNavGroup('channels', !openChannels)}
+                unreadTotal={channelUnreadTotal}
+                onContextMenu={(e) => {
+                  if (!connected) return;
+                  e.preventDefault();
+                  setChannelsRowMenu({ x: e.clientX, y: e.clientY });
+                }}
+                trailingAction={
+                  <SidebarMenuAction
+                    asChild
+                    aria-label="Add channel"
+                    title={connected ? 'Add channel' : 'Connect a radio to add channels'}
+                    disabled={!connected}
+                    onClick={(e) => {
+                      // Don't let the click bubble up to SidebarMenuButton, which would toggle the collapsible.
+                      e.stopPropagation();
+                    }}
+                    className="text-cs-text-dim hover:text-cs-text disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <PopoverTrigger asChild>
+                      <button type="button">
+                        <Plus className="size-3" />
+                      </button>
+                    </PopoverTrigger>
+                  </SidebarMenuAction>
+                }
+              >
+                {sortedChannels.length === 0 ? (
+                  <EmptySubHint>
+                    {connected ? 'No channels on this radio.' : 'Connect a radio to sync channels.'}
+                  </EmptySubHint>
+                ) : (
+                  <ChannelSubList
+                    channels={sortedChannels}
+                    activeKey={activeKey}
+                    pinSet={pinSet}
+                    presence={channelPresence}
+                    unreadByKey={unreadByKey}
+                    limit={collapseListsEnabled ? collapseListsLimit : null}
+                    revealed={!!revealed.channels}
+                    onShowMore={() => revealList('channels')}
+                    onSelect={setActiveKey}
+                    onReorder={onReorder}
+                    onContext={(channel, e) => {
+                      e.preventDefault();
+                      setMenu({
+                        channel,
+                        onDevice: channelPresence.has(channel.key),
+                        x: e.clientX,
+                        y: e.clientY,
+                      });
+                    }}
+                  />
+                )}
+              </ParentBranch>
+              <PopoverContent
+                align="start"
+                sideOffset={6}
+                className="w-72 p-0"
+                onOpenAutoFocus={(e) => {
+                  // Let the form's autoFocus input win instead of Radix's default
+                  // focus-to-content behavior.
+                  e.preventDefault();
+                }}
+              >
+                <AddChannelPopover client={client} onClose={() => setAddChannelOpen(false)} />
+              </PopoverContent>
+            </Popover>
 
             {contactGrouping === 'top-level' ? (
               CONTACT_GROUP_ORDER.filter((k) => contactsByKind[k].length > 0).map((kind) => (
@@ -547,6 +595,19 @@ export function LeftNav({ client }: LeftNavProps) {
           onClose={() => setContactMenu(null)}
         />
       )}
+      {channelsRowMenu && (
+        <ContextMenu
+          x={channelsRowMenu.x}
+          y={channelsRowMenu.y}
+          items={[
+            menuItem('Add channel…', () => setAddChannelOpen(true), {
+              icon: Plus,
+              disabled: !connected,
+            }),
+          ]}
+          onClose={() => setChannelsRowMenu(null)}
+        />
+      )}
     </Sidebar>
   );
 }
@@ -560,6 +621,8 @@ function ParentBranch({
   open,
   onToggle,
   unreadTotal,
+  trailingAction,
+  onContextMenu,
   children,
 }: {
   label: string;
@@ -567,6 +630,9 @@ function ParentBranch({
   open: boolean;
   onToggle: () => void;
   unreadTotal: number;
+  /** Optional action rendered absolute-positioned right of the button — typically wraps a PopoverTrigger via SidebarMenuAction asChild. */
+  trailingAction?: ReactNode;
+  onContextMenu?: (e: MouseEvent<HTMLButtonElement>) => void;
   children: ReactNode;
 }) {
   // In icon-collapsed mode the submenu is hidden via CSS, so a normal
@@ -585,7 +651,7 @@ function ParentBranch({
   return (
     <Collapsible.Root open={open} className="group/collapsible" asChild>
       <SidebarMenuItem>
-        <SidebarMenuButton tooltip={label} onClick={handleClick}>
+        <SidebarMenuButton tooltip={label} onClick={handleClick} onContextMenu={onContextMenu}>
           <Icon />
           <span>{label}</span>
           {unreadTotal > 0 && (
@@ -604,6 +670,7 @@ function ParentBranch({
             )}
           />
         </SidebarMenuButton>
+        {trailingAction}
         <Collapsible.Content>{children}</Collapsible.Content>
       </SidebarMenuItem>
     </Collapsible.Root>

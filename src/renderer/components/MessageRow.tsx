@@ -1,13 +1,12 @@
 import { AlertCircle, Check, CheckCheck, Clock, Reply } from 'lucide-react';
 import type { Contact, Message, MessageStyle } from '../../shared/types';
-import { getNameColor } from '../lib/contactColor';
-import { parseMentions } from '../lib/mentionParser';
 import { useStore } from '../lib/store';
 import { fmtDateTime, fmtTime } from '../lib/time';
 import { cn, deriveSenderName } from '../lib/utils';
 import { ContactAvatar } from './ContactAvatar';
-import { MentionPill } from './MentionPill';
+import { MessageBody } from './MessageBody';
 import { RssiChip } from './RssiChip';
+import { SenderLabel } from './SenderLabel';
 
 interface Props {
   message: Message;
@@ -112,33 +111,6 @@ export function MessageRow({
         </div>
       </div>
     </div>
-  );
-}
-
-function SenderLabel({ name }: { name: string }) {
-  const { fg } = getNameColor(name);
-  return (
-    <span className="text-xs font-medium leading-tight" style={{ color: fg }}>
-      {name}
-    </span>
-  );
-}
-
-function MessageBody({ body }: { body: string }) {
-  const parts = parseMentions(body);
-  if (parts.length === 1 && parts[0].type === 'text') return <>{body}</>;
-  return (
-    <>
-      {parts.map((part, i) =>
-        part.type === 'text' ? (
-          // biome-ignore lint/suspicious/noArrayIndexKey: parts are positional within an immutable body
-          <span key={i}>{part.value}</span>
-        ) : (
-          // biome-ignore lint/suspicious/noArrayIndexKey: parts are positional within an immutable body
-          <MentionPill key={i} name={part.name} />
-        ),
-      )}
-    </>
   );
 }
 

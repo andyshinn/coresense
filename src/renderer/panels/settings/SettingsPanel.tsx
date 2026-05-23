@@ -1,5 +1,6 @@
 import { Cog, Radio, Settings, Wrench } from 'lucide-react';
 import { useEffect, useRef } from 'react';
+import { ApiKeySection } from '../../components/settings/ApiKeySection';
 import { MapKeySection } from '../../components/settings/MapKeySection';
 import type { ApiClient } from '../../lib/api';
 import { type SettingsSectionMeta, type SettingsTab, useStore } from '../../lib/store';
@@ -36,6 +37,7 @@ const TAB_SECTIONS: Record<SettingsTab, SettingsSectionMeta[]> = {
     { id: 'app-notifications', title: 'Notifications', tab: 'app' },
     { id: 'app-toasts', title: 'Toasts', tab: 'app' },
     { id: 'app-proxy', title: 'TCP / WS Proxy', tab: 'app' },
+    { id: 'app-api-key', title: 'API Access', tab: 'app' },
     { id: 'app-behavior', title: 'Behavior', tab: 'app' },
     { id: 'app-map', title: 'Map Tiles', tab: 'app' },
   ],
@@ -164,6 +166,7 @@ function AppTab({ client }: { client: ApiClient | null }) {
       <NotificationsSection client={client} />
       <ToastsSection client={client} />
       <ProxySection client={client} />
+      <ApiKeySection client={client} />
       <BehaviorSection client={client} />
       <MapKeySection client={client} />
     </>

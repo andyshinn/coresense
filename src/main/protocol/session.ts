@@ -1575,16 +1575,6 @@ export class ProtocolSession {
 
     const holder = stateHolder();
     holder.upsertChannel(channel);
-    // If the seed "ch:public" exists and the radio's slots don't include
-    // anything named "Public", drop the seed — the user's radio defines what
-    // counts as real.
-    if (
-      info.idx === 0 &&
-      info.name !== 'Public' &&
-      holder.getChannels().some((c) => c.key === 'ch:public' && c.kind === 'public')
-    ) {
-      holder.removeChannel('ch:public');
-    }
     emit.channels(holder.getChannels());
     log.debug(`channel idx=${info.idx} "${info.name}"`);
   }

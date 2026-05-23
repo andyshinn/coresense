@@ -42,7 +42,13 @@ class StateHolder {
   private deviceCapabilities: DeviceCapabilities = { ...DEFAULT_DEVICE_CAPABILITIES };
 
   constructor() {
-    this.channels = settingsStore.loadChannels();
+    // Drop the deprecated first-run "ch:public" seed if an earlier version
+    // persisted it. The radio enumerates its own Public channel under the key
+    // `ch:Public` (derived from the channel name); keeping the lowercase seed
+    // alongside it produced a duplicate "Public" row. Channels now come
+    // exclusively from the radio — see handleChannelInfo.
+    const loadedChannels = settingsStore.loadChannels();
+    this.channels = loadedChannels.filter((c) => c.key !== 'ch:public');
     this.contacts = settingsStore.loadContacts();
     this.appSettings = settingsStore.loadAppSettings();
     this.radioSettings = settingsStore.loadRadioSettings();
@@ -59,23 +65,12 @@ class StateHolder {
     this.gpsConfig = settingsStore.loadGpsConfig();
     this.deviceInfo = settingsStore.loadDeviceInfo();
 
-    // Seed the well-known Public channel on first run so the UI has something
-    // to address out of the box. Phase 6b will replace the seed once the
-    // protocol layer learns to import shared keys from QR / share links.
-    if (this.channels.length === 0) {
-      this.setChannels([
-        {
-          key: 'ch:public',
-          name: 'Public',
-          kind: 'public',
-          order: 0,
-        },
-      ]);
-    } else {
-      // setChannels handles the seed path; for the already-populated case we
-      // still need to seed the FTS index since the DB was just (re)opened.
-      this.refreshConversationsIndex();
+    // Persist the seed removal once so it doesn't re-run every launch, then
+    // (re)seed the FTS index since the DB was just (re)opened.
+    if (this.channels.length !== loadedChannels.length) {
+      settingsStore.saveChannels(this.channels);
     }
+    this.refreshConversationsIndex();
   }
 
   private refreshConversationsIndex(): void {

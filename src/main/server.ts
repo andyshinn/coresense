@@ -30,6 +30,7 @@ import type {
   ThemePush,
   TileManifest,
   TransportState,
+  UiState,
   WsMessage,
 } from '../shared/types';
 import { apiKeyAuth, checkWsKey } from './api/middleware/auth';
@@ -38,7 +39,8 @@ import type { BridgeHandle } from './bridge';
 import { bus } from './events/bus';
 import { transportManager } from './transport/manager';
 
-const DEFAULT_PORT = 7654;
+const DEFAULT_PORT_PROD = 7654;
+const DEFAULT_PORT_DEV = 7754;
 const MAX_PORT_PROBES = 50;
 
 interface StartServerResult {
@@ -46,10 +48,16 @@ interface StartServerResult {
   close: () => Promise<void>;
 }
 
+interface StartServerOptions {
+  dev?: boolean;
+}
+
 export async function startServer(
   rendererDir: string | null,
   bridge: BridgeHandle,
+  opts: StartServerOptions = {},
 ): Promise<StartServerResult> {
+  const defaultPort = opts.dev ? DEFAULT_PORT_DEV : DEFAULT_PORT_PROD;
   const app = new Hono();
   const clients = new Set<WebSocket>();
 
@@ -99,8 +107,8 @@ export async function startServer(
     });
   }
 
-  let boundPort = DEFAULT_PORT;
-  const httpServer = await listenWithFallback(app.fetch, DEFAULT_PORT, (p) => {
+  let boundPort = defaultPort;
+  const httpServer = await listenWithFallback(app.fetch, defaultPort, (p) => {
     boundPort = p;
   });
 
@@ -199,6 +207,7 @@ export async function startServer(
   const onDeviceInfo = (info: DeviceInfo) => broadcast({ type: 'deviceInfo', payload: info });
   const onDeviceCapabilities = (caps: DeviceCapabilities) =>
     broadcast({ type: 'deviceCapabilities', payload: caps });
+  const onUiState = (state: UiState) => broadcast({ type: 'uiState', payload: state });
 
   bus.on('packet', onPacket);
   bus.on('transportState', onTransportState);
@@ -226,6 +235,7 @@ export async function startServer(
   bus.on('gpsConfig', onGpsConfig);
   bus.on('deviceInfo', onDeviceInfo);
   bus.on('deviceCapabilities', onDeviceCapabilities);
+  bus.on('uiState', onUiState);
   bridge.on('statusChanged', onBridgeStatus);
 
   const close = async () => {
@@ -255,6 +265,7 @@ export async function startServer(
     bus.off('gpsConfig', onGpsConfig);
     bus.off('deviceInfo', onDeviceInfo);
     bus.off('deviceCapabilities', onDeviceCapabilities);
+    bus.off('uiState', onUiState);
     bridge.off('statusChanged', onBridgeStatus);
     // Force-terminate WS clients and HTTP keep-alives. The renderer is still
     // alive during shutdown (before-quit preventDefault), so graceful close

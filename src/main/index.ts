@@ -1,5 +1,6 @@
+import './storage/paths'; // must precede any module that touches app.getPath()
 import path from 'node:path';
-import { app, BrowserWindow, Menu, nativeTheme, session, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, nativeTheme, session, shell } from 'electron';
 import started from 'electron-squirrel-startup';
 import { getApiKey } from './api/middleware/auth';
 import { type BridgeHandle, startBridge } from './bridge';
@@ -38,17 +39,24 @@ async function bootstrap() {
   // Initialise API key (logs banner on first run).
   getApiKey();
 
+  // The preload script (src/preload.ts) requests the key synchronously at
+  // window load so the first-party renderer can skip the paste gate. Register
+  // before createWindow() so the handler exists when the preload runs.
+  ipcMain.on('coresense:get-api-key', (event) => {
+    event.returnValue = getApiKey();
+  });
+
   // Register the default BLE transport.
   transportManager.setTransport(new BleTransport());
 
-  bridgeHandle = await startBridge();
+  bridgeHandle = await startBridge({ dev: isDev });
   log.info(
     `bridge: TCP=${bridgeHandle.tcpPort ?? 'off'} WS=${bridgeHandle.wsPort ?? 'off'} mDNS=${bridgeHandle.serviceName ?? 'off'}`,
   );
 
   const rendererDir = isDev ? null : path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`);
 
-  serverHandle = await startServer(rendererDir, bridgeHandle);
+  serverHandle = await startServer(rendererDir, bridgeHandle, { dev: isDev });
   log.info(`server listening on http://127.0.0.1:${serverHandle.port}`);
 
   hardenSession();
@@ -164,6 +172,10 @@ function createWindow() {
           }
         : { frame: false }),
     webPreferences: {
+      // Hands the renderer the shared API key via `window.coresense` so the
+      // bundled window skips the manual paste gate. Built by the Vite plugin's
+      // preload target to `preload.js` alongside this main bundle.
+      preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -225,14 +237,34 @@ function createWindow() {
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
     rendererLog.error(`gone: ${details.reason} (exit=${details.exitCode})`);
   });
-  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+  const appUrl = MAIN_WINDOW_VITE_DEV_SERVER_URL
+    ? MAIN_WINDOW_VITE_DEV_SERVER_URL
+    : serverHandle
+      ? `http://127.0.0.1:${serverHandle.port}`
+      : null;
+
+  // The Vite dev server (and, marginally, our own Hono server) can still be
+  // settling when we first call loadURL — the initial connection is refused
+  // and the window is left stranded on an internal chrome-error: page, since
+  // Electron does not retry on its own. Re-issue the load a few times before
+  // giving up. ERR_CONNECTION_REFUSED is -102; -3 (ERR_ABORTED) fires when a
+  // newer load supersedes this one and must not be retried.
+  const MAX_LOAD_RETRIES = 20;
+  const LOAD_RETRY_DELAY_MS = 250;
+  let loadRetries = 0;
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
+    if (isMainFrame && appUrl && code === -102 && loadRetries < MAX_LOAD_RETRIES) {
+      loadRetries += 1;
+      setTimeout(() => {
+        if (!mainWindow.isDestroyed()) void mainWindow.loadURL(appUrl);
+      }, LOAD_RETRY_DELAY_MS);
+      return;
+    }
     rendererLog.error(`did-fail-load: ${code} ${desc} ${url}`);
   });
 
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-  } else if (serverHandle) {
-    mainWindow.loadURL(`http://127.0.0.1:${serverHandle.port}`);
+  if (appUrl) {
+    void mainWindow.loadURL(appUrl);
   }
 
   if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });

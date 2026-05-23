@@ -52,8 +52,19 @@ function applyShieldTextOverrides(
 
 export const LAYER_HILLSHADE = 'hillshade';
 export const ONLINE_LAYER_SUFFIX = '_online';
-// Maximum zoom the Protomaps v4 hosted API serves vector tiles for.
+
+// Protomaps layers we never render. `address_label` is the house-number / unit
+// label layer that lights up around z=15 — useful for general-purpose maps,
+// pure visual noise on a mesh-radio operations map.
+const HIDDEN_LAYER_IDS = new Set(['address_label']);
+// Maximum zoom the Protomaps v4 hosted API serves vector tiles for. Stays as
+// the source's tile maxzoom so MapLibre stops fetching past it.
 const ONLINE_MAX_ZOOM = 15;
+// Camera ceiling we expose when online tiles are available. Past
+// ONLINE_MAX_ZOOM, MapLibre overzooms the z=15 vector tiles — geometry stays
+// crisp because vectors scale, but text/symbols get pixelated past ~17. 18 is
+// a comfortable detail bump without the labels turning to mush.
+const ONLINE_CAMERA_MAX_ZOOM = 18;
 
 export interface BuildStyleOptions {
   baseUrl: string;
@@ -76,7 +87,7 @@ export function buildStyle({
 
   const flavor = coresenseFlavor(theme);
   const basemapLayers = applyShieldTextOverrides(
-    layers(SOURCE_BASEMAP, flavor, { lang: 'en' }),
+    layers(SOURCE_BASEMAP, flavor, { lang: 'en' }).filter((l) => !HIDDEN_LAYER_IDS.has(l.id)),
     theme,
   );
 
@@ -135,10 +146,12 @@ export function buildStyle({
   return style;
 }
 
-/** Cap the map's maxZoom based on whether online fallback can extend coverage. */
+/** Cap the map's maxZoom based on whether online fallback can extend coverage.
+ *  When the online source is in use we lift the camera ceiling above the tile
+ *  maxzoom so MapLibre overzooms — vector geometry stays sharp under scaling. */
 export function maxZoomForSettings(manifest: TileManifest, settings: MapSettings): number {
   const bundled = manifest.basemap?.maxZoom ?? 0;
-  return settings.hasProtomapsApiKey ? ONLINE_MAX_ZOOM : bundled;
+  return settings.hasProtomapsApiKey ? ONLINE_CAMERA_MAX_ZOOM : bundled;
 }
 
 // Insert the hillshade paint layer over land/water but under roads + labels so

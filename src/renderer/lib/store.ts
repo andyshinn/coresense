@@ -4,6 +4,7 @@ import {
   type AutoAddConfig,
   type BleDevice,
   type BridgeStatus,
+  type Capabilities,
   type Channel,
   type Contact,
   DEFAULT_APP_SETTINGS,
@@ -143,6 +144,10 @@ interface CoreState {
   // authoritative history lives in main once Phase 3 lands.
   messagesByKey: Record<string, Message[]>;
 
+  // Server capabilities (version, platform, httpPort, config.json path).
+  // Null until the first snapshot hydrates it.
+  capabilities: Capabilities | null;
+
   // Settings
   appSettings: AppSettings;
   radioSettings: RadioSettings;
@@ -177,6 +182,8 @@ interface CoreState {
   selectedMessageId: string | null;
   // Cmd+K palette open state. Not persisted across reloads.
   paletteOpen: boolean;
+  // Add Channel popover open state. Not persisted across reloads.
+  addChannelOpen: boolean;
 
   // Sidebar quick-filter / search panel state. Single source of truth — both
   // the LeftNav input and the SearchResults panel input bind to this so they
@@ -213,6 +220,10 @@ interface CoreState {
   applyDeviceCapabilities: (caps: DeviceCapabilities) => void;
   applyMapSettings: (settings: MapSettings) => void;
   applyMapManifest: (manifest: TileManifest) => void;
+  /** Merge the account-global subset of a remote UiState broadcast (unread
+   *  markers, pinned, theme pref, recents). Window-local fields are ignored so
+   *  another client's pane layout / active conversation can't clobber ours. */
+  applyUiState: (state: UiState) => void;
   applyRepeaterStatus: (snap: RepeaterStatusSnapshot) => void;
   applyRepeaterTelemetry: (snap: RepeaterTelemetrySnapshot) => void;
   applyPathLearned: (event: PathLearnedEvent) => void;
@@ -227,7 +238,12 @@ interface CoreState {
 
   // UI mutators (also persisted to main via api.putUiState; see App.tsx)
   setActiveKey: (key: string) => void;
-  setSelectedContact: (key: string | null) => void;
+  /** Pick a contact. `keepSite: true` preserves any currently-selected
+   *  co-located site (used by the Map view's spiderfy when a member is
+   *  highlighted but the site should stay expanded). Default behaviour clears
+   *  the site so the two selections are mutually exclusive. */
+  setSelectedContact: (key: string | null, options?: { keepSite?: boolean }) => void;
+  setSelectedSite: (key: string | null) => void;
   toggleLeftNav: () => void;
   toggleRightRail: () => void;
   setRightWidth: (w: number) => void;
@@ -244,6 +260,7 @@ interface CoreState {
   clearPackets: () => void;
   openPalette: () => void;
   closePalette: () => void;
+  setAddChannelOpen: (open: boolean) => void;
 
   setSearchQuery: (query: string) => void;
   setSearchFilters: (patch: Partial<SearchFilters>) => void;
@@ -279,7 +296,7 @@ interface CoreState {
 function navStateUpdate(s: CoreState, key: string): Partial<CoreState> {
   const recentKeys = [key, ...s.ui.recentKeys.filter((k) => k !== key)].slice(0, RECENT_KEYS_MAX);
   return {
-    ui: { ...s.ui, activeKey: key, selectedContactKey: null, recentKeys },
+    ui: { ...s.ui, activeKey: key, selectedContactKey: null, selectedSiteKey: null, recentKeys },
     selectedMessageId: null,
   };
 }
@@ -310,6 +327,8 @@ export const useStore = create<CoreState>((set) => ({
   contacts: [],
   messagesByKey: {},
 
+  capabilities: null,
+
   appSettings: DEFAULT_APP_SETTINGS,
   radioSettings: DEFAULT_RADIO_SETTINGS,
   deviceIdentity: DEFAULT_DEVICE_IDENTITY,
@@ -330,6 +349,7 @@ export const useStore = create<CoreState>((set) => ({
   busy: false,
   selectedMessageId: null,
   paletteOpen: false,
+  addChannelOpen: false,
 
   searchQuery: '',
   searchFilters: DEFAULT_SEARCH_FILTERS,
@@ -347,6 +367,7 @@ export const useStore = create<CoreState>((set) => ({
       channelPresence: new Set(snapshot.channelPresence ?? []),
       contacts: snapshot.contacts,
       messagesByKey: groupMessagesByKey(snapshot.messages),
+      capabilities: snapshot.capabilities,
       appSettings: snapshot.appSettings,
       radioSettings: snapshot.radioSettings,
       deviceIdentity: snapshot.deviceIdentity ?? DEFAULT_DEVICE_IDENTITY,
@@ -355,7 +376,9 @@ export const useStore = create<CoreState>((set) => ({
       gpsConfig: snapshot.gpsConfig ?? DEFAULT_GPS_CONFIG,
       deviceInfo: snapshot.deviceInfo ?? DEFAULT_DEVICE_INFO,
       deviceCapabilities: snapshot.deviceCapabilities ?? DEFAULT_DEVICE_CAPABILITIES,
-      mapSettings: snapshot.mapSettings,
+      // Merge snapshot over defaults so any fields added to MapSettings in
+      // newer builds get sensible values when reading older persisted state.
+      mapSettings: { ...DEFAULT_MAP_SETTINGS, ...snapshot.mapSettings },
       mapManifest: snapshot.mapManifest,
       ui: snapshot.uiState,
       // Seed in-session sort from the persisted default so an existing user
@@ -406,6 +429,27 @@ export const useStore = create<CoreState>((set) => ({
   applyDeviceCapabilities: (caps) => set(() => ({ deviceCapabilities: caps })),
   applyMapSettings: (settings) => set(() => ({ mapSettings: settings })),
   applyMapManifest: (manifest) => set(() => ({ mapManifest: manifest })),
+  applyUiState: (incoming) =>
+    set((s) => {
+      // Idempotent: when the synced subset already matches, return {} so `ui`
+      // keeps its object identity and App.tsx's debounced PUT effect doesn't
+      // re-fire — otherwise a client would loop forever on its own echo.
+      const same =
+        shallowEqualRecord(s.ui.lastReadByKey, incoming.lastReadByKey) &&
+        arraysEqual(s.ui.pinned, incoming.pinned) &&
+        arraysEqual(s.ui.recentKeys, incoming.recentKeys) &&
+        s.ui.themePref === incoming.themePref;
+      if (same) return {};
+      return {
+        ui: {
+          ...s.ui,
+          lastReadByKey: incoming.lastReadByKey,
+          pinned: incoming.pinned,
+          recentKeys: incoming.recentKeys,
+          themePref: incoming.themePref,
+        },
+      };
+    }),
   applyRepeaterStatus: (snap) =>
     set((s) => ({
       repeaterStatusByKey: { ...s.repeaterStatusByKey, [snap.contactKey]: snap },
@@ -441,7 +485,30 @@ export const useStore = create<CoreState>((set) => ({
       }
       return navStateUpdate(s, key);
     }),
-  setSelectedContact: (key) => set((s) => ({ ui: { ...s.ui, selectedContactKey: key } })),
+  setSelectedContact: (key, options) =>
+    // Picking a contact clears any selected site so the Map rail routes
+    // unambiguously to the node card. Auto-open the rail so the resulting
+    // node card is immediately visible (a no-op when already open or when the
+    // selection is being cleared). When `keepSite` is set, leave the site
+    // selection alone — used by the spiderfied member click so the spread
+    // stays open with the chosen member highlighted.
+    set((s) => ({
+      ui: {
+        ...s.ui,
+        selectedContactKey: key,
+        selectedSiteKey: options?.keepSite ? s.ui.selectedSiteKey : null,
+        rightOpen: key ? true : s.ui.rightOpen,
+      },
+    })),
+  setSelectedSite: (key) =>
+    set((s) => ({
+      ui: {
+        ...s.ui,
+        selectedSiteKey: key,
+        selectedContactKey: null,
+        rightOpen: key ? true : s.ui.rightOpen,
+      },
+    })),
   setSelectedMessage: (id) => set(() => ({ selectedMessageId: id })),
   toggleLeftNav: () => set((s) => ({ ui: { ...s.ui, leftOpen: !s.ui.leftOpen } })),
   toggleRightRail: () => set((s) => ({ ui: { ...s.ui, rightOpen: !s.ui.rightOpen } })),
@@ -472,6 +539,7 @@ export const useStore = create<CoreState>((set) => ({
     }),
   openPalette: () => set(() => ({ paletteOpen: true })),
   closePalette: () => set(() => ({ paletteOpen: false })),
+  setAddChannelOpen: (open) => set({ addChannelOpen: open }),
 
   setSearchQuery: (query) => set(() => ({ searchQuery: query })),
   setSearchFilters: (patch) => set((s) => ({ searchFilters: { ...s.searchFilters, ...patch } })),
@@ -562,6 +630,19 @@ function groupMessagesByKey(messages: Message[]): Record<string, Message[]> {
     out[m.key] = list;
   }
   return out;
+}
+
+function arraysEqual(a: string[], b: string[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((v, i) => v === b[i]);
+}
+
+function shallowEqualRecord(a: Record<string, number>, b: Record<string, number>): boolean {
+  if (a === b) return true;
+  const ak = Object.keys(a);
+  if (ak.length !== Object.keys(b).length) return false;
+  return ak.every((k) => a[k] === b[k]);
 }
 
 // Useful narrow selectors for components.

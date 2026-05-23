@@ -318,6 +318,14 @@ export interface AppSettings {
      *  names are searched. */
     hintWeightPct: number;
   };
+  /** Unreads panel preview cap. Each conversation card renders only its most
+   *  recent unread messages; the rest collapse behind a "+ N earlier" line.
+   *  Disable the cap to render every unread message in full. */
+  unreadsPreview: {
+    enabled: boolean;
+    /** Messages shown per conversation card before collapsing. Minimum 1. */
+    limit: number;
+  };
 }
 
 export type ContactGrouping = 'nested' | 'top-level';
@@ -352,6 +360,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   showLeftNavSearch: true,
   search: { defaultSort: 'recency' },
   commandPalette: { hintWeightPct: 50 },
+  unreadsPreview: { enabled: true, limit: 25 },
 };
 
 /** Bundled vector basemap + raster terrain sources for the Map panel.
@@ -392,9 +401,27 @@ export interface MapSettings {
   hasProtomapsApiKey: boolean;
   /** Which @protomaps/basemaps flavor to compose. Follows the app theme by default. */
   styleTheme: 'light' | 'dark';
-  /** Markers older than this many days render at reduced opacity. 0 disables
-   *  fading. UI exposes a 0–30 slider. */
+  /** Deprecated — superseded by `lastHeardHours` + `staleFadeEnabled`. Kept on
+   *  the type so older persisted settings deserialise without losing keys. */
   staleFadeDays: number;
+  /** Markers from contacts not heard in the last N hours are either faded
+   *  (`staleFadeEnabled = true`) or hidden (`= false`). UI slider runs 1..720
+   *  (= 1h..30d). */
+  lastHeardHours: number;
+  /** When true, contacts older than `lastHeardHours` render faded; when false,
+   *  they're hidden entirely. */
+  staleFadeEnabled: boolean;
+  /** Per-kind filter — when `false`, that kind's markers are hidden from the map. */
+  kindFilters: { chat: boolean; repeater: boolean; room: boolean; sensor: boolean };
+  /** Only show contacts with `pinned = true`. */
+  favouritesOnly: boolean;
+  /** Combine nearby markers into a type-breakdown donut when zoomed out. */
+  clusteringEnabled: boolean;
+  /** Force the light basemap flavor even when the app theme is dark. */
+  lightBasemap: boolean;
+  /** Contacts within this many meters collapse into a single horizontal chip-row
+   *  marker ("co-located site"). */
+  coLocationMeters: number;
   /** Show the contact's name as a small label next to each marker. */
   showMarkerLabels: boolean;
   /** Persisted viewport so the Map panel re-opens where the user left off. */
@@ -410,7 +437,14 @@ export const DEFAULT_MAP_SETTINGS: MapSettings = {
   hasProtomapsApiKey: false,
   styleTheme: 'light',
   staleFadeDays: 7,
-  showMarkerLabels: true,
+  lastHeardHours: 24,
+  staleFadeEnabled: true,
+  kindFilters: { chat: true, repeater: true, room: true, sensor: true },
+  favouritesOnly: false,
+  clusteringEnabled: true,
+  lightBasemap: false,
+  coLocationMeters: 50,
+  showMarkerLabels: false,
 };
 
 export interface RadioSettings {
@@ -586,6 +620,10 @@ export interface UiState {
   // activeKey change. Takes precedence over the active conversation's
   // contact card when populated.
   selectedContactKey: string | null;
+  // Stable key for a co-located site (group of contacts within
+  // `MapSettings.coLocationMeters`) — set when the user clicks the chip-row
+  // marker on the Map view. Mutually exclusive with `selectedContactKey`.
+  selectedSiteKey: string | null;
   // Per-conversation last-read marker (ms). A message with ts > marker is
   // unread. Drives the "scroll to first unread" behavior in MessageList and
   // the unread divider.
@@ -615,6 +653,7 @@ export const DEFAULT_UI_STATE: UiState = {
   packetLogFilter: { showCompanion: false },
   themePref: 'auto',
   selectedContactKey: null,
+  selectedSiteKey: null,
   lastReadByKey: {},
   recentKeys: [],
 };
@@ -816,6 +855,7 @@ export type WsMessage =
   | { type: 'gpsConfig'; payload: GpsConfig }
   | { type: 'deviceInfo'; payload: DeviceInfo }
   | { type: 'deviceCapabilities'; payload: DeviceCapabilities }
+  | { type: 'uiState'; payload: UiState }
   | { type: 'wsClients'; payload: { count: number } };
 
 export interface PathLearnedEvent {
@@ -839,6 +879,19 @@ export interface Capabilities {
   version: string;
   platform: string;
   httpPort: number;
+  /** Absolute path of the config.json that holds the shared API key. Surfaced
+   *  so browser clients can be told exactly where to read the key, and the
+   *  in-app API Access settings section can show it. */
+  configPath: string;
+}
+
+/** Shape of `window.coresense`, injected by the Electron preload script.
+ *  Present only in the bundled desktop window — a plain browser never has it,
+ *  which is how the renderer tells "official app window" from "any browser". */
+export interface CoreSenseBridge {
+  /** The shared API key, handed to the first-party window so it skips the
+   *  manual paste gate. */
+  apiKey: string;
 }
 
 export interface ServerStatus {

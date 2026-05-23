@@ -13,9 +13,9 @@ import {
 } from '../../lib/map/style-builder';
 import { useStore } from '../../lib/store';
 import { resolveTheme } from '../../lib/theme';
-import { MapControls } from './MapControls';
+import { MapClusters } from './MapClusters';
 import { MapInfo } from './MapInfo';
-import { MapMarkers } from './MapMarkers';
+import { MapLocalNode } from './MapLocalNode';
 
 const VIEWPORT_PERSIST_DEBOUNCE_MS = 500;
 
@@ -35,7 +35,12 @@ export function MapCanvas({ client, manifest, settings }: MapCanvasProps) {
   // mapSettings.styleTheme — that field stays in the type as a future override.
   const themePref = useStore((s) => s.ui.themePref);
   const systemDark = useStore((s) => s.systemDark);
-  const theme = resolveTheme(themePref, systemDark);
+  // `settings.lightBasemap` is an explicit user override that wins over the
+  // theme-derived flavor — useful when reading the map outdoors with a dark
+  // app theme.
+  const theme: 'light' | 'dark' = settings.lightBasemap
+    ? 'light'
+    : resolveTheme(themePref, systemDark);
 
   // Mount-once on purpose. Style/source/layer updates in later phases will
   // happen via map.setStyle / map.addSource on the existing instance rather
@@ -241,8 +246,8 @@ export function MapCanvas({ client, manifest, settings }: MapCanvasProps) {
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
-      <MapControls client={client} hasTerrain={!!manifest.terrain} />
-      <MapMarkers map={mapInstance} />
+      <MapClusters map={mapInstance} />
+      <MapLocalNode map={mapInstance} />
       <MapInfo map={mapInstance} />
     </div>
   );

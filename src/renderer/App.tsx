@@ -32,9 +32,17 @@ const UI_STATE_DEBOUNCE_MS = 500;
 const FALLBACK_BASE_URL = 'http://127.0.0.1:7654';
 
 export function App() {
-  const [apiKey, setApiKey] = useState<string | null>(() => loadApiKey());
+  // The Electron preload injects `window.coresense.apiKey` — the first-party
+  // window gets the key for free. A plain browser has no preload, so it falls
+  // back to localStorage and, failing that, the ApiKeyGate.
+  const [apiKey, setApiKey] = useState<string | null>(
+    () => window.coresense?.apiKey ?? loadApiKey(),
+  );
   const [baseUrl, setBaseUrl] = useState<string | null>(null);
   const [port, setPort] = useState<number | null>(null);
+  // config.json path, surfaced to the ApiKeyGate so a browser user knows
+  // exactly where to read the key. Populated by the capabilities probe.
+  const [configPath, setConfigPath] = useState<string | null>(null);
   const themePref = useStore((s) => s.ui.themePref);
   const setThemePrefStore = useStore((s) => s.setThemePref);
   // systemDark lives in the store so any component (MapCanvas et al.) can
@@ -164,11 +172,13 @@ export function App() {
         const caps = await fetchCapabilities(candidate);
         setBaseUrl(candidate);
         setPort(caps.httpPort);
+        setConfigPath(caps.configPath);
       } catch {
         try {
           const caps = await fetchCapabilities(FALLBACK_BASE_URL);
           setBaseUrl(FALLBACK_BASE_URL);
           setPort(caps.httpPort);
+          setConfigPath(caps.configPath);
         } catch (err) {
           notify.error(`Could not reach CoreSense server: ${(err as Error).message}`, err);
         }
@@ -302,6 +312,9 @@ export function App() {
         case 'mapManifest':
           s.applyMapManifest(msg.payload);
           break;
+        case 'uiState':
+          s.applyUiState(msg.payload);
+          break;
         case 'repeaterStatus':
           s.applyRepeaterStatus(msg.payload);
           break;
@@ -394,6 +407,7 @@ export function App() {
         <Toaster richColors closeButton position="bottom-right" />
         <div className="flex flex-1 items-center justify-center">
           <ApiKeyGate
+            configPath={configPath}
             onSubmit={(key) => {
               saveApiKey(key);
               setApiKey(key);

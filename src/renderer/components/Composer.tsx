@@ -5,6 +5,11 @@ import { loraAirtimeMs } from '../lib/airtime';
 import { useStore } from '../lib/store';
 import { cn } from '../lib/utils';
 
+// MeshCore caps an outgoing text message body at 132 characters.
+export const MAX_MESSAGE_LENGTH = 132;
+// Counter turns yellow once this few characters remain before the cap.
+const WARN_REMAINING = 20;
+
 export interface ComposerHandle {
   insertMention: (name: string) => void;
 }
@@ -90,6 +95,10 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
     radioSettings,
   );
 
+  const count = trimmed.length;
+  const atLimit = count >= MAX_MESSAGE_LENGTH;
+  const nearLimit = !atLimit && count >= MAX_MESSAGE_LENGTH - WARN_REMAINING;
+
   const submit = async () => {
     if (!trimmed || sending || disabled) return;
     setSending(true);
@@ -121,6 +130,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           rows={1}
+          maxLength={MAX_MESSAGE_LENGTH}
           disabled={disabled}
           className={cn(
             'min-h-[36px] max-h-32 flex-1 resize-none rounded border border-cs-border bg-cs-bg px-2 py-1.5 text-sm text-cs-text outline-none transition-colors',
@@ -145,8 +155,11 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
       </div>
       <div className="flex items-center justify-between font-mono text-[10px] text-cs-text-dim">
         <span>
-          {trimmed.length}/184 chars
-          {airtime > 0 && trimmed.length > 0 && ` · ~${airtime.toFixed(0)} ms airtime`}
+          <span className={cn(atLimit && 'text-cs-danger', nearLimit && 'text-cs-warn')}>
+            {count}/{MAX_MESSAGE_LENGTH}
+          </span>{' '}
+          chars
+          {airtime > 0 && count > 0 && ` · ~${airtime.toFixed(0)} ms airtime`}
         </span>
         <span>{returnToSend ? '↩ send · ⇧↩ newline' : '⌘↩ send · ↩ newline'}</span>
       </div>

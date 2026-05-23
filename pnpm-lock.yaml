@@ -77,6 +77,9 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      supercluster:
+        specifier: ^8.0.1
+        version: 8.0.1
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -150,6 +153,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.14)
+      '@types/supercluster':
+        specifier: ^7.1.3
+        version: 7.1.3
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1

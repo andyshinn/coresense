@@ -14,6 +14,7 @@ export interface BridgeOptions {
   enableTcp?: boolean;
   enableWs?: boolean;
   enableMdns?: boolean;
+  dev?: boolean;
 }
 
 export interface BridgeHandle {
@@ -26,18 +27,21 @@ export interface BridgeHandle {
   close(): Promise<void>;
 }
 
-const DEFAULT_TCP_PORT = 7655;
-const DEFAULT_WS_PORT = 7656;
-const DEFAULT_BIND = '0.0.0.0';
+const DEFAULT_TCP_PORT_PROD = 7655;
+const DEFAULT_WS_PORT_PROD = 7656;
+const DEFAULT_TCP_PORT_DEV = 7755;
+const DEFAULT_WS_PORT_DEV = 7756;
+const DEFAULT_BIND = '127.0.0.1';
 
 export async function startBridge(opts: BridgeOptions = {}): Promise<BridgeHandle> {
-  const tcpPort = opts.tcpPort ?? readNumberEnv('BRIDGE_TCP_PORT', DEFAULT_TCP_PORT);
-  const wsPort = opts.wsPort ?? readNumberEnv('BRIDGE_WS_PORT', DEFAULT_WS_PORT);
+  const defaultTcp = opts.dev ? DEFAULT_TCP_PORT_DEV : DEFAULT_TCP_PORT_PROD;
+  const defaultWs = opts.dev ? DEFAULT_WS_PORT_DEV : DEFAULT_WS_PORT_PROD;
+  const tcpPort = opts.tcpPort ?? readNumberEnv('BRIDGE_TCP_PORT', defaultTcp);
+  const wsPort = opts.wsPort ?? readNumberEnv('BRIDGE_WS_PORT', defaultWs);
   const bindAddress = opts.bindAddress ?? process.env.BRIDGE_BIND ?? DEFAULT_BIND;
+  const baseHost = hostname().replace(/\..*$/, '');
   const serviceName =
-    opts.serviceName ??
-    process.env.BRIDGE_MDNS_NAME ??
-    `coresense-${hostname().replace(/\..*$/, '')}`;
+    opts.serviceName ?? process.env.BRIDGE_MDNS_NAME ?? (opts.dev ? `${baseHost}-dev` : baseHost);
   const enableTcp = opts.enableTcp ?? readBoolEnv('BRIDGE_TCP_ENABLED', true);
   const enableWs = opts.enableWs ?? readBoolEnv('BRIDGE_WS_ENABLED', true);
   const enableMdns = opts.enableMdns ?? readBoolEnv('BRIDGE_MDNS_ENABLED', true);

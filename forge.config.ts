@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readdir, rm } from 'node:fs/promises';
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import { MakerDeb } from '@electron-forge/maker-deb';
@@ -45,71 +45,14 @@ const windowsSign = process.env.WINDOWS_SIGN
   ? { hookModulePath: join(process.cwd(), 'scripts', 'windows-sign.cjs') }
   : undefined;
 
-// Universal macOS builds compile x64 and arm64 separately, then
-// @electron/universal stitches them. Any file that differs between the two
-// builds and isn't a Mach-O binary aborts the asar merge ("Can't reconcile two
-// non-macho files"). Native modules carry per-arch build output that triggers
-// this — node-gyp scaffolding (Makefile, *.target.mk, config.gypi, gyp-mac-tool,
-// .deps/, obj.target/, *.o, *.a) plus @electron-forge's own `.forge-meta`
-// rebuild marker. Only the compiled `*.node` binaries are needed at runtime.
-//
-// pruneBuildArtifacts walks the whole packaged node_modules. A native module is
-// identified by a `binding.gyp` at its root; that module's `build/` tree is
-// wiped down to just its `.node` files. Everywhere else only files with
-// unambiguous build-artifact names are removed — so real package code shipped
-// in a non-native `build/` directory (e.g. maplibre-gl) is left untouched.
-const GYP_ARTIFACT_DIRS = new Set(['obj.target', '.deps']);
-
-const isBuildArtifactFile = (name: string): boolean =>
-  name === 'Makefile' ||
-  name === 'config.gypi' ||
-  name === 'gyp-mac-tool' ||
-  name === '.forge-meta' ||
-  name.endsWith('.Makefile') ||
-  name.endsWith('.target.mk') ||
-  name.endsWith('.o') ||
-  name.endsWith('.a');
-
-// Within a native module's node-gyp `build/` tree, keep only `*.node` binaries.
-const keepOnlyNodeBinaries = async (dir: string): Promise<void> => {
-  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
-  for (const entry of entries) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      await keepOnlyNodeBinaries(full);
-    } else if (!entry.name.endsWith('.node')) {
-      await rm(full, { force: true });
-    }
-  }
-};
-
-const pruneBuildArtifacts = async (dir: string): Promise<void> => {
-  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
-  const isNativeModule = entries.some((e) => e.isFile() && e.name === 'binding.gyp');
-  for (const entry of entries) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (isNativeModule && entry.name === 'build') {
-        await keepOnlyNodeBinaries(full);
-      } else if (GYP_ARTIFACT_DIRS.has(entry.name)) {
-        await rm(full, { recursive: true, force: true });
-      } else {
-        await pruneBuildArtifacts(full);
-      }
-    } else if (isBuildArtifactFile(entry.name)) {
-      await rm(full, { force: true });
-    }
-  }
-};
-
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     icon: 'build/icon',
     extraResource: [...bundledTiles, ...macIconCatalog],
     // The Vite plugin's default ignore excludes everything outside /.vite, but
-    // we need /node_modules for native modules (@abandonware/noble, better-sqlite3)
-    // that cannot be bundled by Rollup. AutoUnpackNativesPlugin moves the .node
+    // we need /node_modules for the native module (@stoprocent/noble) that
+    // cannot be bundled by Rollup. AutoUnpackNativesPlugin moves the .node
     // binaries out of app.asar at package time.
     ignore: (file: string) => {
       if (!file) return false;
@@ -130,7 +73,6 @@ const config: ForgeConfig = {
     },
     osxUniversal: {
       mergeASARs: true,
-      // singleArchFiles: '**/node_modules/@stoprocent/**/*.node',
     },
     // Auto-detects Developer ID Application cert from keychain. Required so
     // FusesPlugin skips its arm64-only ad-hoc resign and both per-arch builds
@@ -139,28 +81,47 @@ const config: ForgeConfig = {
     osxSign: {},
     windowsSign,
   },
-  rebuildConfig: {},
+  rebuildConfig: {
+    // Skip @electron/rebuild entirely. The only native dependency,
+    // @stoprocent/noble (and its @stoprocent/bluetooth-hci-socket dep), ships
+    // N-API prebuilds via prebuildify; N-API is ABI-stable, so those prebuilt
+    // binaries load in Electron as-is with no per-arch recompile. Skipping the
+    // rebuild means no per-arch node-gyp build/ tree is generated — that
+    // per-arch output is what made universal (x64+arm64) stitching fail.
+    onlyModules: [],
+  },
   hooks: {
     // Universal macOS builds package x64 and arm64 separately, then
-    // @electron/universal stitches them. Several leftovers in node_modules
-    // break that stitch; this hook strips them. Runs in packageAfterPrune so it
-    // fires after @electron/rebuild (forge runs that in afterCopy) and after
-    // forge's devDependency prune.
-    packageAfterPrune: async (_forgeConfig, buildPath) => {
+    // @electron/universal stitches them; any non-Mach-O file that differs
+    // between the two aborts the merge. With the rebuild skipped above, the
+    // native modules resolve from their shipped N-API prebuilds/, so this hook
+    // only strips leftovers that would otherwise trip the stitch. Runs in
+    // packageAfterPrune, after forge's devDependency prune.
+    packageAfterPrune: async (_forgeConfig, buildPath, _electronVersion, platform) => {
       const nodeModules = join(buildPath, 'node_modules');
-      // @stoprocent native modules: @electron/rebuild leaves a per-arch `bin/`
-      // build cache (differently named per arch -> file-count mismatch), and
-      // they ship `prebuilds/` (bluetooth-hci-socket's is a mislabeled thin
-      // x86_64 binary -> trips the x64ArchFiles guard). Neither is used at
-      // runtime — node-gyp-build resolves from build/Release first.
+      // A prior local `electron-forge`/`@electron/rebuild` run can leave a
+      // single-arch build/ or bin/ cache in the dev node_modules, which forge
+      // copies verbatim into both per-arch builds. node-gyp-build resolves from
+      // prebuilds/ here, so drop them — a stray thin .node trips the merge.
       for (const pkg of ['noble', 'bluetooth-hci-socket']) {
         const pkgDir = join(nodeModules, '@stoprocent', pkg);
+        await rm(join(pkgDir, 'build'), { recursive: true, force: true });
         await rm(join(pkgDir, 'bin'), { recursive: true, force: true });
-        await rm(join(pkgDir, 'prebuilds'), { recursive: true, force: true });
       }
-      // Strip per-arch native build output from every package — see the
-      // helper comment above.
-      await pruneBuildArtifacts(nodeModules);
+      // @stoprocent/bluetooth-hci-socket is never loaded on macOS: noble uses
+      // the CoreBluetooth ("mac") binding there, and the HCI binding — this
+      // module's only consumer — is reached only via a USB HCI adapter. Its
+      // prebuilds are dead weight, and its darwin prebuild is a broken thin
+      // x86_64 binary that aborts the universal merge, so drop them on macOS.
+      // TO SUPPORT USB HCI ADAPTERS ON macOS LATER: provide a genuine universal
+      // (x64+arm64) bhs binary — fork the package or `pnpm patch` a correct
+      // prebuild in — then delete this block.
+      if (platform === 'darwin') {
+        await rm(join(nodeModules, '@stoprocent', 'bluetooth-hci-socket', 'prebuilds'), {
+          recursive: true,
+          force: true,
+        });
+      }
       // Forge's prune removes devDependency packages but leaves their
       // node_modules/.bin/* CLI shims behind as dangling symlinks. @electron/asar
       // packs those, and @electron/universal's asar merge dereferences every
@@ -193,6 +154,11 @@ const config: ForgeConfig = {
           entry: 'src/main/index.ts',
           config: 'vite.main.config.mts',
           target: 'main',
+        },
+        {
+          entry: 'src/preload.ts',
+          config: 'vite.preload.config.mts',
+          target: 'preload',
         },
       ],
       renderer: [

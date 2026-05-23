@@ -16,6 +16,7 @@ import { publish as publishMapBus } from '../lib/map/bus';
 import { useStore } from '../lib/store';
 import { fmtDateTime, fmtRelative } from '../lib/time';
 import { cn } from '../lib/utils';
+import { MapDetailsRail } from '../panels/map/MapDetailsRail';
 import { SettingsJumpRail } from './SettingsJumpRail';
 
 // View "kind" derived from activeKey. Each kind has its own rail section set.
@@ -110,21 +111,31 @@ export function RightRail({ client }: RightRailProps) {
         </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto py-1">
-        {sections.map((section) => {
-          const open = openSections[section.id] ?? section.defaultOpen ?? true;
-          return (
-            <Collapsible
-              key={section.id}
-              label={section.label}
-              open={open}
-              onToggle={() => setRailSection(section.id, !open)}
-              className="border-b border-cs-border last:border-b-0"
-            >
-              <div className="px-3 py-2 text-xs text-cs-text-muted">{section.body()}</div>
-            </Collapsible>
-          );
-        })}
+      <div className="flex-1 overflow-hidden">
+        {activeKey === 'tool:map' ? (
+          // The Map view's right pane is a fully custom layout (search,
+          // filters, last-heard slider, layer toggles, legend, or a node /
+          // site card on selection) — bypass the standard Collapsible
+          // sections so it matches the design's spec sheet.
+          <MapDetailsRail client={client} />
+        ) : (
+          <div className="h-full overflow-y-auto py-1">
+            {sections.map((section) => {
+              const open = openSections[section.id] ?? section.defaultOpen ?? true;
+              return (
+                <Collapsible
+                  key={section.id}
+                  label={section.label}
+                  open={open}
+                  onToggle={() => setRailSection(section.id, !open)}
+                  className="border-b border-cs-border last:border-b-0"
+                >
+                  <div className="px-3 py-2 text-xs text-cs-text-muted">{section.body()}</div>
+                </Collapsible>
+              );
+            })}
+          </div>
+        )}
       </div>
     </aside>
   );
@@ -191,6 +202,7 @@ function viewKindFor(activeKey: string): ViewKind {
 
 function railTitle(activeKey: string): string {
   if (activeKey.startsWith('tool:settings')) return 'Settings';
+  if (activeKey === 'tool:map') return 'Map';
   const kind = viewKindFor(activeKey);
   switch (kind) {
     case 'channel':

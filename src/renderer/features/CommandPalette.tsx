@@ -93,6 +93,7 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
   const markAllRead = useStore((s) => s.markAllRead);
   const markAllReadGlobal = useStore((s) => s.markAllReadGlobal);
   const clearPackets = useStore((s) => s.clearPackets);
+  const setAddChannelOpen = useStore((s) => s.setAddChannelOpen);
   const hintWeightPct = useStore((s) => s.appSettings.commandPalette.hintWeightPct);
 
   const lastDevice = useMemo(() => (open ? loadLastDevice() : null), [open]);
@@ -183,6 +184,20 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
           () => notify.success('Zero-hop advert sent'),
           (err) => notify.error(`Advert failed: ${(err as Error).message}`, err),
         );
+        close();
+      },
+    });
+    list.push({
+      id: 'action:addChannel',
+      label: 'Add channel…',
+      hint: transportState === 'connected' ? 'Create or join' : 'Connect a radio first',
+      group: 'action',
+      groupLabel: 'Actions',
+      icon: Hash,
+      keywords: 'add new create join channel hashtag private public',
+      run: () => {
+        if (transportState !== 'connected') return;
+        setAddChannelOpen(true);
         close();
       },
     });
@@ -534,6 +549,7 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
     markAllRead,
     markAllReadGlobal,
     clearPackets,
+    setAddChannelOpen,
   ]);
 
   const groupedItems = useMemo(() => {

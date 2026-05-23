@@ -419,6 +419,8 @@ const eqBehavior = (a: AppSettingsType, b: AppSettingsType) =>
   a.showLeftNavSearch === b.showLeftNavSearch &&
   a.leftNavCollapseLists.enabled === b.leftNavCollapseLists.enabled &&
   a.leftNavCollapseLists.limit === b.leftNavCollapseLists.limit &&
+  a.unreadsPreview.enabled === b.unreadsPreview.enabled &&
+  a.unreadsPreview.limit === b.unreadsPreview.limit &&
   a.commandPalette.hintWeightPct === b.commandPalette.hintWeightPct;
 
 export function BehaviorSection({ client }: SectionProps) {
@@ -438,6 +440,7 @@ export function BehaviorSection({ client }: SectionProps) {
           search: d.search,
           showLeftNavSearch: d.showLeftNavSearch,
           leftNavCollapseLists: d.leftNavCollapseLists,
+          unreadsPreview: d.unreadsPreview,
           commandPalette: d.commandPalette,
         },
         'Behavior settings saved',
@@ -559,6 +562,41 @@ export function BehaviorSection({ client }: SectionProps) {
               setDraft((s) => ({
                 ...s,
                 leftNavCollapseLists: { ...s.leftNavCollapseLists, limit: v },
+              }))
+            }
+          />
+        }
+      />
+      <Row
+        label="Limit Unreads previews"
+        description="Cap how many unread messages each conversation card shows in the Unreads panel; the rest collapse behind a + N earlier line."
+        changed={draft.unreadsPreview.enabled !== saved.unreadsPreview.enabled}
+        control={
+          <Toggle
+            checked={draft.unreadsPreview.enabled}
+            onChange={(v) =>
+              setDraft((s) => ({
+                ...s,
+                unreadsPreview: { ...s.unreadsPreview, enabled: v },
+              }))
+            }
+          />
+        }
+      />
+      <Row
+        label="Messages per conversation"
+        description="Maximum unread messages shown per card before the rest collapse. Turn the cap off above to show every unread message."
+        changed={draft.unreadsPreview.limit !== saved.unreadsPreview.limit}
+        control={
+          <NumberInput
+            value={draft.unreadsPreview.limit}
+            min={1}
+            max={1000}
+            disabled={!draft.unreadsPreview.enabled}
+            onChange={(v) =>
+              setDraft((s) => ({
+                ...s,
+                unreadsPreview: { ...s.unreadsPreview, limit: v },
               }))
             }
           />

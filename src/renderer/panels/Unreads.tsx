@@ -1,7 +1,9 @@
-import { ArrowRight, Check, Inbox } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, ChevronUp, Inbox } from 'lucide-react';
 import { useState } from 'react';
 import type { ChannelKind, ContactKind } from '../../shared/types';
+import { MessageBody } from '../components/MessageBody';
 import { RelativeTime } from '../components/RelativeTime';
+import { SenderLabel } from '../components/SenderLabel';
 import { type UnreadConversation, useUnreadConversations } from '../hooks/useUnreads';
 import type { ApiClient } from '../lib/api';
 import { CHANNEL_ICON, CONTACT_ICON } from '../lib/conversationIcons';
@@ -10,10 +12,6 @@ import { fmtDateTime, fmtTime } from '../lib/time';
 import { cn, deriveSenderName } from '../lib/utils';
 
 type Filter = 'all' | 'channels' | 'direct';
-
-// How many message previews to render per card before collapsing the rest
-// behind an "+ N earlier" line — keeps very chatty conversations bounded.
-const PREVIEW_LIMIT = 5;
 
 const CHANNEL_KIND_LABEL: Record<ChannelKind, string> = {
   public: 'public channel',
@@ -206,8 +204,16 @@ function UnreadCard({
       : CONTACT_KIND_LABEL[conversation.contactKind ?? 'chat'];
 
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
-  const preview = conversation.messages.slice(-PREVIEW_LIMIT);
+  // Cap the previews per card so chatty conversations stay bounded; when the
+  // cap is disabled every unread message renders in full. The cap can also be
+  // lifted per-card in-session via the expand control — that state is
+  // intentionally ephemeral, collapsing back on next mount.
+  const previewCap = useStore((s) => s.appSettings.unreadsPreview);
+  const [expanded, setExpanded] = useState(false);
+  const capped = previewCap.enabled && !expanded;
+  const preview = capped ? conversation.messages.slice(-previewCap.limit) : conversation.messages;
   const hiddenCount = conversation.messages.length - preview.length;
+  const canExpand = previewCap.enabled && conversation.messages.length > previewCap.limit;
 
   return (
     <div className="rounded-md border border-cs-border bg-cs-bg-2">
@@ -240,27 +246,50 @@ function UnreadCard({
         </div>
       </div>
       <div className="py-1">
-        {hiddenCount > 0 && (
-          <div className="px-3 py-1 font-mono text-[10px] text-cs-text-dim">
-            + {hiddenCount} earlier unread message{hiddenCount === 1 ? '' : 's'}
-          </div>
+        {canExpand && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            className="flex w-full items-center gap-1.5 px-3 py-1 font-mono text-[10px] text-cs-text-dim transition-colors hover:text-cs-text"
+          >
+            {expanded ? (
+              <ChevronUp className="size-3" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="size-3" aria-hidden="true" />
+            )}
+            {expanded
+              ? 'Show fewer'
+              : `${hiddenCount} earlier unread message${hiddenCount === 1 ? '' : 's'}`}
+          </button>
         )}
-        {preview.map((m) => (
-          <div key={m.id} className="grid grid-cols-[auto_1fr] gap-3 px-3 py-1">
-            <span
-              title={fmtDateTime(m.ts, timeFormat)}
-              className="pt-0.5 font-mono text-[10px] text-cs-text-dim tabular-nums"
-            >
-              {fmtTime(m.ts, timeFormat)}
-            </span>
-            <div className="min-w-0">
-              <span className="text-xs font-semibold text-cs-text">
-                {previewSender(conversation, m.fromPublicKeyHex)}
+        {/* When messages are still hidden above, a gradient veil over the
+            topmost preview row makes it read as truncated — a passive cue that
+            pairs with the explicit expand control. */}
+        <div className="relative">
+          {hiddenCount > 0 && (
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 h-7 bg-linear-to-b from-cs-bg-2 to-transparent"
+              aria-hidden="true"
+            />
+          )}
+          {preview.map((m) => (
+            <div key={m.id} className="grid grid-cols-[auto_1fr] gap-3 px-3 py-1">
+              <span
+                title={fmtDateTime(m.ts, timeFormat)}
+                className="pt-0.5 font-mono text-[10px] text-cs-text-dim tabular-nums"
+              >
+                {fmtTime(m.ts, timeFormat)}
               </span>
-              <p className="text-sm leading-snug text-cs-text wrap-break-word">{m.body}</p>
+              <div className="min-w-0">
+                <SenderLabel name={previewSender(conversation, m.fromPublicKeyHex)} />
+                <p className="text-sm leading-snug text-cs-text whitespace-pre-wrap wrap-break-word">
+                  <MessageBody body={m.body} />
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

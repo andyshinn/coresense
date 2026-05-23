@@ -6,9 +6,14 @@ import type { MiddlewareHandler } from 'hono';
 
 let cachedKey: string | null = null;
 
+/** Absolute path of the JSON file that stores the shared API key. */
+export function getConfigPath(): string {
+  return join(app.getPath('userData'), 'config.json');
+}
+
 export function getApiKey(): string {
   if (cachedKey) return cachedKey;
-  const configPath = join(app.getPath('userData'), 'config.json');
+  const configPath = getConfigPath();
   if (existsSync(configPath)) {
     try {
       const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as { apiKey?: string };

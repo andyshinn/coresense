@@ -1,10 +1,14 @@
 import { type FormEvent, useState } from 'react';
 
 interface Props {
+  /** Absolute path of the config.json holding the key, from the capabilities
+   *  probe. Shown so the user knows exactly where to read the key. Null until
+   *  the probe resolves. */
+  configPath?: string | null;
   onSubmit: (key: string) => void;
 }
 
-export function ApiKeyGate({ onSubmit }: Props) {
+export function ApiKeyGate({ configPath, onSubmit }: Props) {
   const [value, setValue] = useState('');
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -17,15 +21,19 @@ export function ApiKeyGate({ onSubmit }: Props) {
     <div className="flex h-full items-center justify-center bg-cs-bg p-6">
       <form
         onSubmit={handleSubmit}
-        className="flex w-full max-w-md flex-col gap-4 rounded border border-cs-border bg-cs-bg-2 p-6"
+        className="flex w-full max-w-xl flex-col gap-4 rounded border border-cs-border bg-cs-bg-2 p-6"
       >
         <div>
           <h1 className="text-lg font-semibold text-cs-text">CoreSense</h1>
           <p className="mt-1 text-xs text-cs-text-muted">
-            Paste the API key printed in the main process console on first launch. The key is stored
-            at <code className="font-mono text-cs-text">userData/config.json</code> and is shared
-            across all clients.
+            CoreSense is protected by an API key. On the computer running CoreSense, open the
+            CoreSense desktop app and go to{' '}
+            <span className="font-medium text-cs-text">Settings → API Access</span> to view and copy
+            the key — or read the <code className="font-mono text-cs-text">apiKey</code> value from:
           </p>
+          <code className="mt-2 block break-all rounded border border-cs-border bg-cs-bg px-2 py-1.5 font-mono text-[11px] text-cs-text">
+            {configPath ?? 'userData/config.json'}
+          </code>
         </div>
         <input
           type="password"
