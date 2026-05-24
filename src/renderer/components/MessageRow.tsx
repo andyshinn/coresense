@@ -23,8 +23,8 @@ interface Props {
 
 const STATE_LABEL: Record<Message['state'], string> = {
   sending: 'sending…',
-  sent: 'sent',
-  heard: 'sent',
+  sent: '',
+  heard: '',
   ack: 'ack',
   failed: 'failed',
   received: '',
@@ -118,17 +118,19 @@ export function MessageRow({
 function StateChip({ message }: { message: Message }) {
   const state = message.state;
   if (state === 'received') return null;
-  const Icon =
-    state === 'sending'
+  // Once we've heard ≥1 relay, the green ✓×N counter replaces the envelope.
+  const heardCount = state === 'heard' ? (message.meta?.paths?.length ?? 0) : 0;
+  const showHeardCounter = heardCount > 0;
+  const Icon = showHeardCounter
+    ? null
+    : state === 'sending'
       ? Clock
       : state === 'sent' || state === 'heard'
         ? Send
         : state === 'ack'
           ? Check
           : AlertCircle;
-  // For 'heard', show the paper-plane plus a green ✓×N counter where N is the
-  // number of distinct relay paths we've observed for this outgoing message.
-  const heardCount = state === 'heard' ? (message.meta?.paths?.length ?? 0) : 0;
+  const label = STATE_LABEL[state];
   return (
     <span
       className={cn(
@@ -137,9 +139,9 @@ function StateChip({ message }: { message: Message }) {
         state === 'ack' && 'text-cs-online',
       )}
     >
-      <Icon size={10} aria-hidden="true" />
-      <span>{STATE_LABEL[state]}</span>
-      {heardCount > 0 && (
+      {Icon && <Icon size={10} aria-hidden="true" />}
+      {label && <span>{label}</span>}
+      {showHeardCounter && (
         <span
           className="inline-flex items-center gap-0.5 text-cs-online"
           title={`Heard by ${heardCount} repeater${heardCount === 1 ? '' : 's'}`}

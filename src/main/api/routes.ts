@@ -122,6 +122,18 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     return c.json({ ok: true });
   });
 
+  // POST /api/app/relaunch — used by Proxy settings after the user changes
+  // port/bind/enabled/mdns. The bridge listeners are bound at startup, so the
+  // simplest correct way to apply them is to restart the whole app.
+  api.post('/api/app/relaunch', (c) => {
+    markQuitConfirmed();
+    setTimeout(() => {
+      app.relaunch();
+      app.exit(0);
+    }, 0);
+    return c.json({ ok: true });
+  });
+
   api.put('/api/settings/app', async (c) => {
     const body = (await c.req.json().catch(() => null)) as AppSettings | null;
     if (!body) return c.json({ error: 'invalid body' }, 400);

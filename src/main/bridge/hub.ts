@@ -8,7 +8,7 @@ import { InboxRouter } from './drain';
 const logger = child('bridge:hub');
 const inboxLogger = child('bridge:inbox');
 
-export type ClientKind = 'tcp' | 'ws';
+export type ClientKind = 'tcp';
 
 export interface BridgeClient {
   id: string;
@@ -40,7 +40,6 @@ export class BridgeHub extends EventEmitter {
   private bindAddress = '';
   private lanAddress: string | null = null;
   private tcpPort: number | null = null;
-  private wsPort: number | null = null;
   private mdnsServiceName: string | null = null;
   private readonly inboxRouter: InboxRouter;
 
@@ -61,13 +60,11 @@ export class BridgeHub extends EventEmitter {
     bindAddress: string;
     lanAddress: string | null;
     tcpPort: number | null;
-    wsPort: number | null;
     mdnsServiceName: string | null;
   }): void {
     this.bindAddress = opts.bindAddress;
     this.lanAddress = opts.lanAddress;
     this.tcpPort = opts.tcpPort;
-    this.wsPort = opts.wsPort;
     this.mdnsServiceName = opts.mdnsServiceName;
     this.emit('statusChanged');
   }
@@ -116,19 +113,11 @@ export class BridgeHub extends EventEmitter {
   }
 
   getStatus(): BridgeStatus {
-    let tcp = 0;
-    let ws = 0;
-    for (const c of this.clients) {
-      if (c.kind === 'tcp') tcp++;
-      else ws++;
-    }
     return {
       tcpPort: this.tcpPort,
-      wsPort: this.wsPort,
       bindAddress: this.bindAddress,
       lanAddress: this.lanAddress,
-      tcpClients: tcp,
-      wsClients: ws,
+      tcpClients: this.clients.size,
       mdnsServiceName: this.mdnsServiceName,
       radioConnected: this.radioConnected,
     };

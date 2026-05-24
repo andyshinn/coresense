@@ -27,13 +27,6 @@ export function StatusBar({ port, wsClients, transportState, bridge }: Props) {
         </span>
       </span>
       <span>
-        Bridge WS{' '}
-        <span className="text-cs-text-muted">
-          {bridge?.wsPort ?? 'off'}
-          {bridge?.wsPort != null ? ` (${bridge.wsClients})` : ''}
-        </span>
-      </span>
-      <span>
         mDNS <span className="text-cs-text-muted">{bridge?.mdnsServiceName ?? 'off'}</span>
       </span>
       <span>

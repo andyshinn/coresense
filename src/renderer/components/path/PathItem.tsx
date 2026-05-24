@@ -66,7 +66,7 @@ export function PathItem({
                 <span aria-hidden>·</span>
                 <span className="inline-flex items-center gap-0.5 text-cs-warn">
                   <AlertTriangle size={10} aria-hidden />
-                  {conflictCount} conflict{conflictCount === 1 ? '' : 's'}
+                  {conflictCount}
                 </span>
               </>
             )}

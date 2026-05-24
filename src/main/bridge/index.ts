@@ -1,25 +1,25 @@
 import { hostname, networkInterfaces } from 'node:os';
-import type { BridgeStatus } from '../../shared/types';
+import {
+  BRIDGE_DEFAULT_TCP_PORT,
+  BRIDGE_DEFAULT_TCP_PORT_DEV,
+  type BridgeStatus,
+} from '../../shared/types';
 import { emit } from '../events/bus';
 import { BridgeHub } from './hub';
 import { type MdnsHandle, startMdns } from './mdns';
 import { startTcpListener, type TcpListenerHandle } from './tcp';
-import { startWsListener, type WsListenerHandle } from './ws';
 
 export interface BridgeOptions {
   tcpPort?: number;
-  wsPort?: number;
   bindAddress?: string;
   serviceName?: string;
   enableTcp?: boolean;
-  enableWs?: boolean;
   enableMdns?: boolean;
   dev?: boolean;
 }
 
 export interface BridgeHandle {
   tcpPort: number | null;
-  wsPort: number | null;
   serviceName: string | null;
   getStatus(): BridgeStatus;
   on(ev: 'statusChanged', fn: () => void): void;
@@ -27,53 +27,36 @@ export interface BridgeHandle {
   close(): Promise<void>;
 }
 
-const DEFAULT_TCP_PORT_PROD = 7655;
-const DEFAULT_WS_PORT_PROD = 7656;
-const DEFAULT_TCP_PORT_DEV = 7755;
-const DEFAULT_WS_PORT_DEV = 7756;
 const DEFAULT_BIND = '127.0.0.1';
 
 export async function startBridge(opts: BridgeOptions = {}): Promise<BridgeHandle> {
-  const defaultTcp = opts.dev ? DEFAULT_TCP_PORT_DEV : DEFAULT_TCP_PORT_PROD;
-  const defaultWs = opts.dev ? DEFAULT_WS_PORT_DEV : DEFAULT_WS_PORT_PROD;
+  const defaultTcp = opts.dev ? BRIDGE_DEFAULT_TCP_PORT_DEV : BRIDGE_DEFAULT_TCP_PORT;
   const tcpPort = opts.tcpPort ?? readNumberEnv('BRIDGE_TCP_PORT', defaultTcp);
-  const wsPort = opts.wsPort ?? readNumberEnv('BRIDGE_WS_PORT', defaultWs);
   const bindAddress = opts.bindAddress ?? process.env.BRIDGE_BIND ?? DEFAULT_BIND;
   const baseHost = hostname().replace(/\..*$/, '');
   const serviceName =
     opts.serviceName ?? process.env.BRIDGE_MDNS_NAME ?? (opts.dev ? `${baseHost}-dev` : baseHost);
   const enableTcp = opts.enableTcp ?? readBoolEnv('BRIDGE_TCP_ENABLED', true);
-  const enableWs = opts.enableWs ?? readBoolEnv('BRIDGE_WS_ENABLED', true);
   const enableMdns = opts.enableMdns ?? readBoolEnv('BRIDGE_MDNS_ENABLED', true);
 
   const hub = new BridgeHub();
 
   let tcp: TcpListenerHandle | null = null;
-  let ws: WsListenerHandle | null = null;
   let mdns: MdnsHandle | null = null;
 
-  const [tcpResult, wsResult] = await Promise.allSettled([
-    enableTcp ? startTcpListener(hub, bindAddress, tcpPort) : Promise.resolve(null),
-    enableWs ? startWsListener(hub, bindAddress, wsPort) : Promise.resolve(null),
-  ]);
-
-  if (tcpResult.status === 'fulfilled') {
-    tcp = tcpResult.value;
-  } else {
-    emit.error(`Bridge: TCP listener failed: ${(tcpResult.reason as Error).message}`);
-  }
-  if (wsResult.status === 'fulfilled') {
-    ws = wsResult.value;
-  } else {
-    emit.error(`Bridge: WS listener failed: ${(wsResult.reason as Error).message}`);
+  if (enableTcp) {
+    try {
+      tcp = await startTcpListener(hub, bindAddress, tcpPort);
+    } catch (err) {
+      emit.error(`Bridge: TCP listener failed: ${(err as Error).message}`);
+    }
   }
 
-  if (enableMdns && (tcp || ws)) {
+  if (enableMdns && tcp) {
     try {
       mdns = startMdns({
         serviceName,
-        tcpPort: tcp?.port ?? null,
-        wsPort: ws?.port ?? null,
+        tcpPort: tcp.port,
       });
     } catch (err) {
       emit.error(`Bridge: mDNS publish failed: ${(err as Error).message}`);
@@ -84,13 +67,11 @@ export async function startBridge(opts: BridgeOptions = {}): Promise<BridgeHandl
     bindAddress,
     lanAddress: resolveLanAddress(bindAddress),
     tcpPort: tcp?.port ?? null,
-    wsPort: ws?.port ?? null,
     mdnsServiceName: mdns?.serviceName ?? null,
   });
 
   return {
     tcpPort: tcp?.port ?? null,
-    wsPort: ws?.port ?? null,
     serviceName: mdns?.serviceName ?? null,
     getStatus: () => hub.getStatus(),
     on: (ev, fn) => hub.on(ev, fn),
@@ -99,7 +80,6 @@ export async function startBridge(opts: BridgeOptions = {}): Promise<BridgeHandl
       await Promise.allSettled([
         mdns?.close() ?? Promise.resolve(),
         tcp?.close() ?? Promise.resolve(),
-        ws?.close() ?? Promise.resolve(),
       ]);
       hub.close();
     },

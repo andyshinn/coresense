@@ -102,6 +102,9 @@ export const api = {
     request<{ ok: true }>(c, '/api/device/reboot', { method: 'POST' }),
   // Reply to a `requestQuit` broadcast — tells main it's safe to quit now.
   confirmQuit: (c: ApiClient) => request<{ ok: true }>(c, '/api/app/quit', { method: 'POST' }),
+  // Restart the entire app — used after proxy settings (port/bind/enabled/mdns)
+  // change, since the bridge listeners are bound at startup.
+  relaunchApp: (c: ApiClient) => request<{ ok: true }>(c, '/api/app/relaunch', { method: 'POST' }),
   putMapSettings: (c: ApiClient, settings: MapSettings) =>
     request<{ ok: true }>(c, '/api/settings/map', {
       method: 'PUT',

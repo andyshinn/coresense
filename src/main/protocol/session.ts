@@ -683,6 +683,12 @@ export class ProtocolSession {
     const holder = stateHolder();
     holder.setDeviceIdentity({ ...holder.getDeviceIdentity(), name });
     emit.deviceIdentity(holder.getDeviceIdentity());
+    const owner = holder.getOwner();
+    if (owner) {
+      const nextOwner = { ...owner, name };
+      holder.setOwner(nextOwner);
+      emit.owner(nextOwner);
+    }
     return true;
   }
 

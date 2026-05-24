@@ -26,13 +26,18 @@ export interface RawPacket {
   codeName?: string;
 }
 
+// Default TCP ports for the bridge listener. Dev and prod use different ports
+// so a developer can run an installed build alongside `pnpm start` without
+// fighting over the same port. The values are also the seed for
+// DEFAULT_APP_SETTINGS.proxy.port — first-run only; user edits take over.
+export const BRIDGE_DEFAULT_TCP_PORT = 7655;
+export const BRIDGE_DEFAULT_TCP_PORT_DEV = 7755;
+
 export interface BridgeStatus {
   tcpPort: number | null;
-  wsPort: number | null;
   bindAddress: string;
   lanAddress: string | null;
   tcpClients: number;
-  wsClients: number;
   mdnsServiceName: string | null;
   radioConnected: boolean;
 }
@@ -365,7 +370,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   proxy: {
     enabled: true,
     bindAll: false,
-    port: 5800,
+    port: BRIDGE_DEFAULT_TCP_PORT,
     mdns: true,
   },
   toasts: { enabled: true, durationSec: 4 },

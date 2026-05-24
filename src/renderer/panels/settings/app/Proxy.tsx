@@ -1,7 +1,8 @@
-import { Wifi } from 'lucide-react';
+import { RefreshCw, Wifi } from 'lucide-react';
 import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { NumberInput, Row, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
+import { api } from '../../../lib/api';
 import { useStore } from '../../../lib/store';
 import type { SectionProps } from '../radio/shared';
 import { useSettingsSection } from '../useSectionDraft';
@@ -17,6 +18,7 @@ const eqProxy = (a: AppSettingsType, b: AppSettingsType) => {
 
 export function ProxySection({ client }: SectionProps) {
   const saved = useStore((s) => s.appSettings);
+  const bridge = useStore((s) => s.bridge);
   const { draft, setDraft, dirty, saving, save } = useSettingsSection({
     id: 'app-proxy',
     saved,
@@ -28,18 +30,51 @@ export function ProxySection({ client }: SectionProps) {
   const setP = (patch: Partial<AppSettingsType['proxy']>) =>
     setDraft((s) => ({ ...s, proxy: { ...s.proxy, ...patch } }));
 
+  // Listeners are bound at startup, so a saved change that doesn't match the
+  // currently-running bridge means the user needs to restart. Compare against
+  // BridgeStatus rather than tracking a local "saved at mount" snapshot so the
+  // banner is correct after revisiting the panel.
+  const runningEnabled = bridge?.tcpPort != null;
+  const runningBindAll = bridge?.bindAddress === '0.0.0.0';
+  const runningMdns = bridge?.mdnsServiceName != null;
+  const restartNeeded =
+    !!bridge &&
+    !dirty &&
+    (p0.enabled !== runningEnabled ||
+      (p0.enabled && p0.bindAll !== runningBindAll) ||
+      (p0.enabled && p0.port !== bridge.tcpPort) ||
+      (p0.enabled && p0.mdns !== runningMdns));
+
+  const relaunch = () => {
+    if (!client) return;
+    void api.relaunchApp(client);
+  };
+
   return (
     <SettingsSection
       id="app-proxy"
       icon={Wifi}
-      title="TCP / WS Proxy"
+      title="TCP Proxy"
       description="Lets the official MeshCore mobile app (or another desktop client) share this radio over LAN."
-      footnote="Bind / port / mDNS changes take effect on next launch. Hot-restart coming in a later phase."
       dirty={dirty}
       saving={saving}
       canSave={!!client}
       onSave={save}
     >
+      {restartNeeded && (
+        <div className="mb-2 flex items-center justify-between gap-3 rounded border border-cs-warn/40 bg-cs-warn/10 px-2.5 py-1.5 text-[11px] text-cs-warn">
+          <span>Bridge settings changed. Restart the app to apply.</span>
+          <button
+            type="button"
+            onClick={relaunch}
+            disabled={!client}
+            className="inline-flex items-center gap-1 rounded border border-cs-warn/60 bg-cs-warn/20 px-2 py-0.5 text-[11px] font-medium hover:bg-cs-warn/30 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw className="size-3" aria-hidden />
+            Relaunch
+          </button>
+        </div>
+      )}
       <Row
         label="Enabled"
         changed={p.enabled !== p0.enabled}
@@ -62,7 +97,7 @@ export function ProxySection({ client }: SectionProps) {
       />
       <Row
         label="TCP port"
-        description="Bridge serves both raw TCP and WS on this port."
+        description="Port the bridge listens on for raw TCP proxy clients."
         changed={p.port !== p0.port}
         control={
           <NumberInput

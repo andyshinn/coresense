@@ -48,10 +48,6 @@ export function PathViewer({
         </span>
         <span>{paths.length === 1 ? '1 path' : `${paths.length} paths`}</span>
       </div>
-      <div className="flex items-start gap-1.5 rounded border border-cs-border bg-cs-bg-3 px-2 py-1.5 text-[11px] text-cs-text-muted">
-        <Info size={12} className="mt-0.5 shrink-0 text-cs-text-dim" aria-hidden />
-        <span>Routes your radio heard this message via.</span>
-      </div>
       <div className="mt-1 flex flex-col">
         {paths.map((p) => (
           <PathItem

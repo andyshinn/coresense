@@ -91,9 +91,16 @@ async function bootstrap() {
   // Register the default BLE transport.
   transportManager.setTransport(new BleTransport());
 
-  bridgeHandle = await startBridge({ dev: isDev });
+  const proxy = stateHolder().getAppSettings().proxy;
+  bridgeHandle = await startBridge({
+    dev: isDev,
+    enableTcp: proxy.enabled,
+    enableMdns: proxy.enabled && proxy.mdns,
+    bindAddress: proxy.bindAll ? '0.0.0.0' : '127.0.0.1',
+    tcpPort: proxy.port,
+  });
   log.info(
-    `bridge: TCP=${bridgeHandle.tcpPort ?? 'off'} WS=${bridgeHandle.wsPort ?? 'off'} mDNS=${bridgeHandle.serviceName ?? 'off'}`,
+    `bridge: TCP=${bridgeHandle.tcpPort ?? 'off'} mDNS=${bridgeHandle.serviceName ?? 'off'}`,
   );
 
   const rendererDir = isDev ? null : path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`);

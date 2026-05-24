@@ -5,6 +5,7 @@ import { app } from 'electron';
 import {
   type AppSettings,
   type AutoAddConfig,
+  BRIDGE_DEFAULT_TCP_PORT_DEV,
   type Channel,
   type Contact,
   DEFAULT_APP_SETTINGS,
@@ -90,9 +91,23 @@ export async function flushSettings(): Promise<void> {
   await Promise.all(writeChains.values());
 }
 
+// First-run seed for AppSettings. In dev (`pnpm start`), substitute the dev
+// proxy port so an installed build can run on its own port alongside the dev
+// instance. Once `app-settings.json` has been written once, this seed no
+// longer applies — `mergeDefaults` takes the stored value over the default.
+function appSettingsSeed(): AppSettings {
+  if (app.isPackaged) return DEFAULT_APP_SETTINGS;
+  return {
+    ...DEFAULT_APP_SETTINGS,
+    proxy: { ...DEFAULT_APP_SETTINGS.proxy, port: BRIDGE_DEFAULT_TCP_PORT_DEV },
+  };
+}
+
 export const settingsStore = {
-  loadAppSettings: (): AppSettings =>
-    mergeDefaults(readJson(FILES.app, DEFAULT_APP_SETTINGS), DEFAULT_APP_SETTINGS),
+  loadAppSettings: (): AppSettings => {
+    const seed = appSettingsSeed();
+    return mergeDefaults(readJson(FILES.app, seed), seed);
+  },
   saveAppSettings: (v: AppSettings): void => writeJson(FILES.app, v),
 
   loadRadioSettings: (): RadioSettings =>

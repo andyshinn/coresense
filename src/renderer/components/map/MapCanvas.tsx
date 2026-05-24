@@ -3,6 +3,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useRef, useState } from 'react';
 import { hasValidFix, type MapSettings, type TileManifest } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
+import { log } from '../../lib/logger';
 import { subscribe as subscribeMapBus } from '../../lib/map/bus';
 import { ensurePmtilesProtocol } from '../../lib/map/pmtiles-protocol';
 import {
@@ -16,6 +17,8 @@ import { resolveTheme } from '../../lib/theme';
 import { MapClusters } from './MapClusters';
 import { MapInfo } from './MapInfo';
 import { MapLocalNode } from './MapLocalNode';
+
+const mapLog = log.getSubLogger({ name: 'map' });
 
 const VIEWPORT_PERSIST_DEBOUNCE_MS = 500;
 
@@ -75,6 +78,28 @@ export function MapCanvas({ client, manifest, settings }: MapCanvasProps) {
     });
     mapRef.current = map;
     setMapInstance(map);
+
+    // Forward MapLibre's internal errors (tile fetch failures, style parse
+    // errors, source errors) into tslog. MapLibre only logs to console.error
+    // when no `error` handler is attached, so without this they never reach
+    // our log pipeline. The ErrorEvent type only exposes `.error`, but the
+    // runtime event carries extra context (sourceId, tile, status) attached
+    // via the second arg to its constructor — read those off loosely.
+    map.on('error', (e) => {
+      const extra = e as unknown as {
+        sourceId?: string;
+        tile?: { tileID?: { canonical?: { z: number; x: number; y: number } } };
+        status?: number;
+        url?: string;
+      };
+      const ctx: Record<string, unknown> = {};
+      if (extra.sourceId) ctx.sourceId = extra.sourceId;
+      if (extra.status != null) ctx.status = extra.status;
+      if (extra.url) ctx.url = extra.url;
+      const c = extra.tile?.tileID?.canonical;
+      if (c) ctx.tile = { z: c.z, x: c.x, y: c.y };
+      mapLog.error(e.error?.message ?? 'map error', ctx, e.error);
+    });
 
     // MapLibre's built-in pan/zoom/pitch/compass cluster. `visualizePitch`
     // rotates the compass to show the current pitch — useful once 3D is on.

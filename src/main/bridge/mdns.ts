@@ -8,7 +8,6 @@ export interface MdnsHandle {
 export interface MdnsOptions {
   serviceName: string;
   tcpPort: number | null;
-  wsPort: number | null;
 }
 
 const TXT_COMMON = {
@@ -31,17 +30,6 @@ export function startMdns(opts: MdnsOptions): MdnsHandle {
         protocol: 'tcp',
         port: opts.tcpPort,
         txt: { ...TXT_COMMON, framing: 'swi3' },
-      }),
-    );
-  }
-  if (opts.wsPort !== null) {
-    services.push(
-      bonjour.publish({
-        name: opts.serviceName,
-        type: 'meshcore-ws',
-        protocol: 'tcp',
-        port: opts.wsPort,
-        txt: { ...TXT_COMMON },
       }),
     );
   }

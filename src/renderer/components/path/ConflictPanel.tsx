@@ -18,8 +18,7 @@ export function ConflictPanel({
       <div className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-cs-warn">
         <AlertTriangle size={11} aria-hidden />
         <span>
-          Prefix <code className="rounded bg-cs-bg-3 px-1 text-cs-text">{hop.shortId}</code> matches{' '}
-          {candidates.length} known repeaters
+          {candidates.length} Prefix <code className="rounded bg-cs-bg-3 px-1 text-cs-text">{hop.shortId}</code> conflicts
         </span>
       </div>
       <div className="flex flex-col gap-0.5">

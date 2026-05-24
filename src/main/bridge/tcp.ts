@@ -12,15 +12,13 @@ export interface TcpListenerHandle {
   close(): Promise<void>;
 }
 
-const FALLBACK_PROBES = 4;
-
 export async function startTcpListener(
   hub: BridgeHub,
   bindAddress: string,
-  startPort: number,
+  port: number,
 ): Promise<TcpListenerHandle> {
-  const server = await listenWithFallback(bindAddress, startPort);
-  const boundPort = (server.address() as { port: number } | null)?.port ?? startPort;
+  const server = await listen(bindAddress, port);
+  const boundPort = (server.address() as { port: number } | null)?.port ?? port;
   logger.info(`listening on ${bindAddress}:${boundPort}`);
 
   server.on('connection', (socket) => {
@@ -88,28 +86,19 @@ export async function startTcpListener(
   };
 }
 
-function listenWithFallback(bindAddress: string, startPort: number): Promise<Server> {
+function listen(bindAddress: string, port: number): Promise<Server> {
   return new Promise((resolve, reject) => {
-    let attempt = 0;
-    const tryPort = (port: number) => {
-      const server = createServer();
-      const onError = (err: NodeJS.ErrnoException) => {
-        server.removeListener('listening', onListening);
-        if (err.code === 'EADDRINUSE' && attempt < FALLBACK_PROBES) {
-          attempt += 1;
-          tryPort(port + 1);
-        } else {
-          reject(err);
-        }
-      };
-      const onListening = () => {
-        server.removeListener('error', onError);
-        resolve(server);
-      };
-      server.once('error', onError);
-      server.once('listening', onListening);
-      server.listen(port, bindAddress);
+    const server = createServer();
+    const onError = (err: NodeJS.ErrnoException) => {
+      server.removeListener('listening', onListening);
+      reject(err);
     };
-    tryPort(startPort);
+    const onListening = () => {
+      server.removeListener('error', onError);
+      resolve(server);
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(port, bindAddress);
   });
 }
