@@ -1,20 +1,35 @@
 import './storage/paths'; // must precede any module that touches app.getPath()
 import path from 'node:path';
-import { app, BrowserWindow, ipcMain, Menu, nativeTheme, session, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  ipcMain,
+  Menu,
+  type MenuItemConstructorOptions,
+  nativeTheme,
+  session,
+  shell,
+} from 'electron';
 import started from 'electron-squirrel-startup';
+import { applyAboutPanel } from './about';
 import { getApiKey } from './api/middleware/auth';
 import { type BridgeHandle, startBridge } from './bridge';
 import { emit } from './events/bus';
-import { child, log } from './log';
+import { child, ingestLogEntry, log } from './log';
+import { applyLoggingSettings } from './logging/apply';
+import { folderPath } from './logging/fileSink';
 import { buildMenu } from './menu';
 import { startNotifications } from './notifications';
 import { protocolSession } from './protocol';
 import { startServer } from './server';
+import { stateHolder } from './state/holder';
 import { closeDb } from './storage/db';
 import { optimizeFts } from './storage/search';
 import { flushSettings } from './storage/settings';
 import { BleTransport } from './transport/ble';
 import { transportManager } from './transport/manager';
+import { startUpdater } from './updater';
 import { isQuitConfirmed } from './window/quit';
 import { getMainWindow, setMainWindow } from './window/registry';
 import { flushWindowState, loadWindowState, trackWindow } from './window/state';
@@ -39,12 +54,39 @@ async function bootstrap() {
   // Initialise API key (logs banner on first run).
   getApiKey();
 
-  // The preload script (src/preload.ts) requests the key synchronously at
-  // window load so the first-party renderer can skip the paste gate. Register
-  // before createWindow() so the handler exists when the preload runs.
+  // The preload script (src/preload.ts) requests the key + bound server port
+  // synchronously at window load so the first-party renderer can skip the
+  // paste gate AND avoid guessing the dev/prod port. Register before
+  // createWindow() so the handlers exist when the preload runs.
   ipcMain.on('coresense:get-api-key', (event) => {
     event.returnValue = getApiKey();
   });
+  ipcMain.on('coresense:get-http-port', (event) => {
+    event.returnValue = serverHandle?.port ?? null;
+  });
+
+  ipcMain.on('coresense:ship-log-entry', (_event, entry: unknown) => {
+    // Sanity-check renderer-untrusted input before feeding the pipeline.
+    if (
+      entry !== null &&
+      typeof entry === 'object' &&
+      typeof (entry as Record<string, unknown>).id === 'string' &&
+      typeof (entry as Record<string, unknown>).ts === 'number' &&
+      typeof (entry as Record<string, unknown>).level === 'string' &&
+      typeof (entry as Record<string, unknown>).source === 'string' &&
+      typeof (entry as Record<string, unknown>).logger === 'string' &&
+      typeof (entry as Record<string, unknown>).message === 'string' &&
+      typeof (entry as Record<string, unknown>).levelId === 'number'
+    ) {
+      ingestLogEntry(entry as Parameters<typeof ingestLogEntry>[0]);
+    }
+  });
+  ipcMain.on('coresense:logs:reveal', () => {
+    shell.openPath(folderPath()).catch((err) => console.error('openPath failed', err));
+  });
+
+  // Apply logging settings from persisted app settings on boot.
+  applyLoggingSettings(stateHolder().getAppSettings().logging);
 
   // Register the default BLE transport.
   transportManager.setTransport(new BleTransport());
@@ -60,10 +102,12 @@ async function bootstrap() {
   log.info(`server listening on http://127.0.0.1:${serverHandle.port}`);
 
   hardenSession();
+  applyAboutPanel();
   Menu.setApplicationMenu(buildMenu());
   wireTheme();
   protocolSession().start();
   startNotifications();
+  startUpdater();
 
   createWindow();
 }
@@ -141,6 +185,57 @@ app.on('web-contents-created', (_event, contents) => {
     return { action: 'deny' };
   });
   contents.on('will-attach-webview', (e) => e.preventDefault());
+
+  // Native OS context menu. Selection-aware: only shows entries that make
+  // sense for what was clicked (link, editable field, plain text with
+  // selection). In dev, also exposes Inspect Element.
+  contents.on('context-menu', (_e, params) => {
+    const template: MenuItemConstructorOptions[] = [];
+
+    if (params.linkURL) {
+      template.push(
+        {
+          label: 'Open Link in Browser',
+          click: () => {
+            void shell.openExternal(params.linkURL);
+          },
+        },
+        {
+          label: 'Copy Link',
+          click: () => clipboard.writeText(params.linkURL),
+        },
+        { type: 'separator' },
+      );
+    }
+
+    if (params.isEditable) {
+      template.push(
+        { role: 'cut', enabled: params.editFlags.canCut },
+        { role: 'copy', enabled: params.editFlags.canCopy },
+        { role: 'paste', enabled: params.editFlags.canPaste },
+        { type: 'separator' },
+        { role: 'selectAll', enabled: params.editFlags.canSelectAll },
+      );
+    } else if (params.selectionText.trim().length > 0) {
+      template.push({ role: 'copy' }, { type: 'separator' }, { role: 'selectAll' });
+    }
+
+    if (!app.isPackaged) {
+      if (template.length > 0) template.push({ type: 'separator' });
+      template.push({
+        label: 'Inspect Element',
+        click: () => contents.inspectElement(params.x, params.y),
+      });
+    }
+
+    if (template.length > 0) {
+      const win = BrowserWindow.fromWebContents(contents) ?? undefined;
+      // Passing `frame: params.frame` is what unlocks macOS system items
+      // (Writing Tools, AutoFill, Services). Without it those don't appear
+      // even on macOS. See electron docs: tutorial/context-menu.
+      Menu.buildFromTemplate(template).popup({ window: win, frame: params.frame ?? undefined });
+    }
+  });
 });
 
 function createWindow() {
@@ -194,6 +289,26 @@ function createWindow() {
     event.preventDefault();
     emit.menuAction({ kind: 'requestQuit' });
   });
+
+  // Mouse back/forward buttons on Windows/Linux. macOS doesn't fire app-command
+  // for these — the renderer handles macOS mouse XButton1/XButton2 via mousedown
+  // button 3/4 instead.
+  mainWindow.on('app-command', (_event, command) => {
+    if (command === 'browser-backward') emit.menuAction({ kind: 'navigate', direction: 'back' });
+    else if (command === 'browser-forward')
+      emit.menuAction({ kind: 'navigate', direction: 'forward' });
+  });
+
+  // macOS 3-finger trackpad swipe. Requires the user to have enabled
+  // "Swipe with two or three fingers" in System Preferences > Trackpad >
+  // More Gestures. The modern default 2-finger swipe is consumed by Chromium
+  // for overscroll and is not exposed by Electron without scroll-touch-* hacks.
+  if (process.platform === 'darwin') {
+    mainWindow.on('swipe', (_event, direction) => {
+      if (direction === 'left') emit.menuAction({ kind: 'navigate', direction: 'back' });
+      else if (direction === 'right') emit.menuAction({ kind: 'navigate', direction: 'forward' });
+    });
+  }
 
   // Defense in depth on top of the deny-by-default permission handler:
   // refuse to attach <webview> tags and disable popup window creation.

@@ -4,8 +4,8 @@ import { SidebarInset, SidebarProvider } from '../components/ui/sidebar';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
 import { cn } from '../lib/utils';
-import { LeftNav } from './LeftNav';
-import { RightRail } from './RightRail';
+import { LeftNav } from './leftnav';
+import { RightRail } from './rightrail';
 import { TitleBar } from './TitleBar';
 
 interface AppShellProps {

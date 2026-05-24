@@ -2,6 +2,17 @@ import maplibregl, { type Map as MapLibreMap } from 'maplibre-gl';
 import { useEffect, useMemo, useRef } from 'react';
 import { type Contact, hasValidFix } from '../../../shared/types';
 import { useStore } from '../../lib/store';
+import type { CachedMarker } from './cluster/markerCache';
+import {
+  buildSpiderCenterElement,
+  SPIDERFY_CIRCLE_PADDING_PX,
+  SPIDERFY_LEADER_LAYER,
+  SPIDERFY_LEADER_SOURCE,
+  setLeaderLines,
+  spiderfyOffsets,
+} from './cluster/spiderfy';
+import { upsertDomMarker } from './cluster/upsertDomMarker';
+import { upsertContactLikeMarker } from './cluster/upsertMarker';
 import { buildCoLocatedSiteMarker } from './markers/CoLocatedSite';
 import {
   buildClusterIndex,
@@ -11,7 +22,6 @@ import {
   type PointFeatureProps,
 } from './markers/cluster';
 import { buildClusterMarker } from './markers/clusterDonut';
-import { buildContactMarker, syncMarkerVisual } from './markers/markerHtml';
 
 interface Props {
   map: MapLibreMap | null;
@@ -19,86 +29,6 @@ interface Props {
 
 const HOUR_MS = 3_600_000;
 const RECOMPUTE_DEBOUNCE_MS = 80;
-
-// When a co-located site is selected, its members spread out around the
-// centroid so each can be clicked individually ("spiderfy"). These knobs tune
-// the spread.
-//   * SPIDERFY_PAIR_LAYOUT — for sites of exactly 2 members, lay them out
-//     side-by-side or stacked. Flip to compare; the rest of the math doesn't
-//     care which axis they sit on.
-//   * SPIDERFY_RADIUS_PX — distance from the anchor to each member in pixels.
-//     Stays in pixel space so the spread feels the same at every zoom.
-const SPIDERFY_PAIR_LAYOUT: 'horizontal' | 'vertical' = 'vertical';
-const SPIDERFY_RADIUS_PX = 50;
-// Rotate the whole ring by this many degrees (clockwise positive). 0 puts the
-// first member at 12 o'clock — which lines up 2 members of a 4-ring at the same
-// vertical height and their labels overlap. ~25° tilts the ring off-axis so
-// labels stagger naturally. Per-count overrides below tune the worst cases.
-const SPIDERFY_RING_ROTATION_DEG = 40;
-// Optional per-count overrides — keys are member count, value is extra degrees
-// added on top of the global rotation. Use to nudge specific arrangements
-// where the global rotation still leaves two labels too close.
-const SPIDERFY_RING_ROTATION_BY_COUNT: Record<number, number> = {
-  3: 0,
-  4: 20, // 25° + 20° = 45° → ring rotated to "X" instead of "+"
-};
-
-// MapLibre source/layer ids for the thin amber lines connecting each
-// spiderfied member back to the site's true anchor point. The bounding
-// disc is rendered as a DOM marker (not a canvas layer) so it can sit
-// above other HTML markers in z-order and visually scrim them.
-const SPIDERFY_LEADER_SOURCE = 'cs-spiderfy-leaders';
-const SPIDERFY_LEADER_LAYER = 'cs-spiderfy-leaders-line';
-
-// Small amber dot at the centroid — same treatment as the chip-row's anchor
-// dot so the visual language carries through when the row expands.
-const SPIDERFY_CENTER_COLOR = '#f59e0b';
-const SPIDERFY_CENTER_SIZE = 6;
-// Extra pixels added to the spread's outermost offset to size the bounding
-// disc — covers a marker's own radius (~10 px) plus generous breathing room.
-// Disc color + fill opacity live in `.cs-map-spider-disc` in index.css.
-const SPIDERFY_CIRCLE_PADDING_PX = 60;
-
-// Pixel offsets from the centroid for N spiderfied members. 1 member is
-// pointless (no spread); 2 uses the chosen pair layout; 3+ fan around a circle.
-function spiderfyOffsets(n: number): Array<{ x: number; y: number }> {
-  if (n <= 0) return [];
-  if (n === 1) return [{ x: 0, y: 0 }];
-  if (n === 2) {
-    if (SPIDERFY_PAIR_LAYOUT === 'horizontal') {
-      return [
-        { x: -SPIDERFY_RADIUS_PX, y: 0 },
-        { x: SPIDERFY_RADIUS_PX, y: 0 },
-      ];
-    }
-    return [
-      { x: 0, y: -SPIDERFY_RADIUS_PX },
-      { x: 0, y: SPIDERFY_RADIUS_PX },
-    ];
-  }
-  // Wider ring once the circle gets crowded so chip edges don't touch.
-  const radius = n <= 6 ? SPIDERFY_RADIUS_PX : SPIDERFY_RADIUS_PX * 1.4;
-  // Global tilt + per-count nudge so labels don't share a y-row.
-  const rotationDeg = SPIDERFY_RING_ROTATION_DEG + (SPIDERFY_RING_ROTATION_BY_COUNT[n] ?? 0);
-  const rotationRad = (rotationDeg * Math.PI) / 180;
-  const out: Array<{ x: number; y: number }> = [];
-  for (let i = 0; i < n; i++) {
-    // Start at 12 o'clock + rotation. Without rotation a 4-ring lands at
-    // N/E/S/W (E and W share label height); rotating shifts the whole ring
-    // so each member ends up at a distinct vertical position.
-    const angle = (i / n) * Math.PI * 2 - Math.PI / 2 + rotationRad;
-    out.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
-  }
-  return out;
-}
-
-interface CachedMarker {
-  marker: maplibregl.Marker;
-  // Stored so we know whether we need to rebuild the inner SVG (kind/state
-  // change) or just sync the existing element in place.
-  signature: string;
-  kind: Contact['kind'] | null;
-}
 
 // Replaces the old MapMarkers component. Responsible for:
 //   1. Filtering contacts by per-kind toggles, favourites, last-heard cutoff.
@@ -166,38 +96,35 @@ export function MapClusters({ map }: Props) {
     const cutoffMs =
       settings.lastHeardHours > 0 ? settings.lastHeardHours * HOUR_MS : Number.POSITIVE_INFINITY;
 
+    const contactState = (c: Contact, selected: boolean) => {
+      const stale = typeof c.lastSeenMs === 'number' && now - c.lastSeenMs > cutoffMs;
+      return {
+        selected,
+        faded: stale && settings.staleFadeEnabled,
+        stale,
+        showLabel: settings.showMarkerLabels,
+      };
+    };
+
     const upsertContactMarker = (
       item: Extract<GroupedItem, { kind: 'single' }>,
       siteSelected = false,
     ) => {
       const c = item.contact;
-      const stale = typeof c.lastSeenMs === 'number' && now - c.lastSeenMs > cutoffMs;
-      const faded = stale && settings.staleFadeEnabled;
-      const showLabel = settings.showMarkerLabels;
-      const isSelected = !siteSelected && c.key === selectedContactKey;
-      const state = { selected: isSelected, faded, stale, showLabel };
-      const signature = markerSignature('contact', c, state);
-      wanted.add(c.key);
-
-      const existing = cache.get(c.key);
-      if (existing) {
-        existing.marker.setLngLat([item.lng, item.lat]);
-        if (existing.signature !== signature || existing.kind !== c.kind) {
-          syncMarkerVisual(existing.marker.getElement(), c, state, existing.kind);
-          existing.signature = signature;
-          existing.kind = c.kind;
-        }
-        return;
-      }
-      const el = buildContactMarker(c, state);
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        setSelectedContact(c.key);
+      upsertContactLikeMarker({
+        map,
+        cache,
+        wanted,
+        cacheKey: c.key,
+        signaturePrefix: 'contact',
+        contact: c,
+        position: [item.lng, item.lat],
+        state: contactState(c, !siteSelected && c.key === selectedContactKey),
+        onClick: (e) => {
+          e.stopPropagation();
+          setSelectedContact(c.key);
+        },
       });
-      const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([item.lng, item.lat])
-        .addTo(map);
-      cache.set(c.key, { marker, signature, kind: c.kind });
     };
 
     const upsertSiteMarker = (site: GroupedItem & { kind: 'site' }) => {
@@ -229,46 +156,29 @@ export function MapClusters({ map }: Props) {
     // the same site don't fight over a single contact-key cache slot, and so
     // collapsing the spiderfy reliably removes them on the next render.
     const upsertSpiderMember = (siteKey: string, c: Contact, lngLat: [number, number]) => {
-      const stale = typeof c.lastSeenMs === 'number' && now - c.lastSeenMs > cutoffMs;
-      const faded = stale && settings.staleFadeEnabled;
-      const showLabel = settings.showMarkerLabels;
-      const isSelected = c.key === selectedContactKey;
-      const state = { selected: isSelected, faded, stale, showLabel };
-      const key = `spider:${siteKey}:${c.key}`;
-      const signature = markerSignature('spider', c, state);
-      wanted.add(key);
-
-      const existing = cache.get(key);
-      if (existing) {
-        existing.marker.setLngLat(lngLat);
-        if (existing.signature !== signature || existing.kind !== c.kind) {
-          syncMarkerVisual(existing.marker.getElement(), c, state, existing.kind);
-          existing.signature = signature;
-          existing.kind = c.kind;
-        }
-        return;
-      }
-      const el = buildContactMarker(c, state);
-      // Marker class for the scrim: spider members must sit ABOVE the bounding
-      // disc (which covers surrounding non-member nodes) so they remain visible.
-      el.classList.add('cs-map-marker--spider');
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        // Highlight this member without collapsing the spiderfy — the user
-        // is still inspecting this site, just zooming in on one node. The
-        // first empty-map click below will then clear the contact (returning
-        // to the site card); a second clears the site (collapsing spiderfy).
-        setSelectedContact(c.key, { keepSite: true });
+      upsertContactLikeMarker({
+        map,
+        cache,
+        wanted,
+        cacheKey: `spider:${siteKey}:${c.key}`,
+        signaturePrefix: 'spider',
+        contact: c,
+        position: lngLat,
+        state: contactState(c, c.key === selectedContactKey),
+        // Marker class for the scrim: spider members must sit ABOVE the bounding
+        // disc (which covers surrounding non-member nodes) so they remain visible.
+        elementClass: 'cs-map-marker--spider',
+        onClick: (e) => {
+          e.stopPropagation();
+          // Highlight this member without collapsing the spiderfy — the user
+          // is still inspecting this site, just zooming in on one node. The
+          // first empty-map click below will then clear the contact (returning
+          // to the site card); a second clears the site (collapsing spiderfy).
+          setSelectedContact(c.key, { keepSite: true });
+        },
       });
-      const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-        .setLngLat(lngLat)
-        .addTo(map);
-      cache.set(key, { marker, signature, kind: c.kind });
     };
 
-    // Small octagon at the centroid so the eye has an explicit anchor to read
-    // "this is the site that's expanded". Distinct teal so it doesn't read as
-    // a node of any of the four types.
     // Big bounding disc, DOM-positioned at the centroid. Sized in CSS px so
     // the spread feels the same at every zoom; sits above other HTML markers
     // (z-index in CSS) so it visually scrims surrounding nodes — pointer-events
@@ -278,44 +188,39 @@ export function MapClusters({ map }: Props) {
       centroid: { lng: number; lat: number },
       diameterPx: number,
     ) => {
-      const key = `spider-disc:${siteKey}`;
-      const signature = `disc:${Math.round(diameterPx)}`;
-      wanted.add(key);
-      const existing = cache.get(key);
-      if (existing) {
-        existing.marker.setLngLat([centroid.lng, centroid.lat]);
-        if (existing.signature !== signature) {
-          const el = existing.marker.getElement();
+      upsertDomMarker({
+        map,
+        cache,
+        wanted,
+        cacheKey: `spider-disc:${siteKey}`,
+        signature: `disc:${Math.round(diameterPx)}`,
+        position: [centroid.lng, centroid.lat],
+        build: () => {
+          const el = document.createElement('div');
+          el.className = 'cs-map-spider-disc';
           el.style.width = `${diameterPx}px`;
           el.style.height = `${diameterPx}px`;
-          existing.signature = signature;
-        }
-        return;
-      }
-      const el = document.createElement('div');
-      el.className = 'cs-map-spider-disc';
-      el.style.width = `${diameterPx}px`;
-      el.style.height = `${diameterPx}px`;
-      const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([centroid.lng, centroid.lat])
-        .addTo(map);
-      cache.set(key, { marker, signature, kind: null });
+          return el;
+        },
+        onSignatureChange: (el) => {
+          el.style.width = `${diameterPx}px`;
+          el.style.height = `${diameterPx}px`;
+        },
+      });
     };
 
+    // Small amber centroid dot, mirroring the chip-row's anchor dot so the
+    // visual language is continuous when the row expands into the spread.
     const upsertSpiderCenter = (siteKey: string, centroid: { lng: number; lat: number }) => {
-      const key = `spider-center:${siteKey}`;
-      const signature = 'center:v1';
-      wanted.add(key);
-      const existing = cache.get(key);
-      if (existing) {
-        existing.marker.setLngLat([centroid.lng, centroid.lat]);
-        return;
-      }
-      const el = buildSpiderCenterElement();
-      const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([centroid.lng, centroid.lat])
-        .addTo(map);
-      cache.set(key, { marker, signature, kind: null });
+      upsertDomMarker({
+        map,
+        cache,
+        wanted,
+        cacheKey: `spider-center:${siteKey}`,
+        signature: 'center:v1',
+        position: [centroid.lng, centroid.lat],
+        build: buildSpiderCenterElement,
+      });
     };
 
     if (!index) {
@@ -560,40 +465,4 @@ export function MapClusters({ map }: Props) {
   }, []);
 
   return null;
-}
-
-// Small amber dot at the centroid — mirrors the chip-row's anchor dot so the
-// visual language is continuous when the row expands into the spread.
-function buildSpiderCenterElement(): HTMLDivElement {
-  const el = document.createElement('div');
-  el.className = 'cs-map-spider-center';
-  const s = SPIDERFY_CENTER_SIZE;
-  el.innerHTML = `
-    <svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" aria-hidden="true">
-      <circle cx="${s / 2}" cy="${s / 2}" r="${s / 2 - 0.5}" fill="${SPIDERFY_CENTER_COLOR}" stroke="#0c0a06" stroke-width="0.6" />
-    </svg>
-  `;
-  return el;
-}
-
-function setLeaderLines(map: MapLibreMap, features: GeoJSON.Feature<GeoJSON.LineString>[]): void {
-  const src = map.getSource(SPIDERFY_LEADER_SOURCE) as maplibregl.GeoJSONSource | undefined;
-  if (!src) return; // style still loading; install effect will create it
-  src.setData({ type: 'FeatureCollection', features });
-}
-
-function markerSignature(
-  prefix: string,
-  c: Contact,
-  state: { selected: boolean; faded: boolean; stale: boolean; showLabel: boolean },
-): string {
-  return [
-    prefix,
-    c.kind,
-    c.name,
-    state.selected ? 'S' : '_',
-    state.faded ? 'F' : '_',
-    state.stale ? 'T' : '_',
-    state.showLabel ? 'L' : '_',
-  ].join(':');
 }

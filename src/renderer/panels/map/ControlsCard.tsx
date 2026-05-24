@@ -7,18 +7,15 @@ import {
   MarkerShape,
 } from '../../components/map/markers/MarkerShape';
 import { Input } from '../../components/ui/input';
-import { Slider } from '../../components/ui/slider';
 import { type ApiClient, api } from '../../lib/api';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
+import { NumberRow, SectionHeader, SwitchVisual, ToggleRow } from './controls/atoms';
+import { LastHeardSlider } from './controls/LastHeardSlider';
 
 interface Props {
   client: ApiClient | null;
 }
-
-// Slider goes 1..720 hours (1h..30d). Log-scale presentation so the slider
-// gives finer control at the recent end, where it matters most for triage.
-const HOUR_STOPS = [1, 3, 6, 12, 24, 48, 168, 720];
 
 export function ControlsCard({ client }: Props) {
   const contacts = useStore((s) => s.contacts);
@@ -192,164 +189,4 @@ export function ControlsCard({ client }: Props) {
       </div>
     </div>
   );
-}
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="px-3 pb-1.5 pt-3 font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">
-      {children}
-    </div>
-  );
-}
-
-function ToggleRow({
-  label,
-  on,
-  sub,
-  onChange,
-}: {
-  label: string;
-  on: boolean;
-  sub?: string;
-  onChange: (v: boolean) => void;
-}) {
-  // Whole row is clickable so the user doesn't have to hit the small toggle.
-  // The switch is rendered as a non-interactive visual indicator — Radix
-  // Switch is itself a <button> and nesting buttons is invalid DOM.
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!on)}
-      aria-pressed={on}
-      className="flex w-full cursor-pointer items-center gap-2.5 px-1 py-1.5 text-left"
-    >
-      <span className="flex-1 min-w-0">
-        <span className="block text-xs text-cs-text">{label}</span>
-        {sub && <span className="block font-mono text-[10px] text-cs-text-dim">{sub}</span>}
-      </span>
-      <SwitchVisual on={on} />
-    </button>
-  );
-}
-
-// Pure CSS pill that mirrors the radix Switch's checked/unchecked look. Used
-// inside row-buttons where a real Switch (a <button>) would cause invalid DOM
-// nesting.
-function SwitchVisual({ on }: { on: boolean }) {
-  return (
-    <span
-      aria-hidden="true"
-      data-state={on ? 'checked' : 'unchecked'}
-      className={cn(
-        'relative inline-flex h-3.5 w-6 shrink-0 items-center rounded-full transition-colors',
-        on ? 'bg-primary' : 'bg-input dark:bg-input/80',
-      )}
-    >
-      <span
-        className={cn(
-          'block size-3 rounded-full bg-background transition-transform dark:bg-foreground',
-          on ? 'translate-x-[calc(100%-2px)]' : 'translate-x-0',
-        )}
-      />
-    </span>
-  );
-}
-
-function NumberRow({
-  label,
-  sub,
-  value,
-  min,
-  max,
-  step,
-  unit,
-  onChange,
-}: {
-  label: string;
-  sub?: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  unit?: string;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div className="flex items-center gap-2.5 px-1 py-1.5">
-      <span className="flex-1 min-w-0">
-        <span className="block text-xs text-cs-text">{label}</span>
-        {sub && <span className="block font-mono text-[10px] text-cs-text-dim">{sub}</span>}
-      </span>
-      <div className="flex items-center gap-1">
-        <input
-          type="number"
-          value={value}
-          min={min}
-          max={max}
-          step={step}
-          onChange={(e) => {
-            const next = Number(e.target.value);
-            if (Number.isFinite(next)) onChange(Math.max(min, Math.min(max, next)));
-          }}
-          className="h-6 w-14 rounded border border-cs-border bg-cs-bg-3 px-1.5 text-right font-mono text-[11px] text-cs-text outline-none focus:border-cs-accent"
-        />
-        {unit && <span className="font-mono text-[10px] text-cs-text-dim">{unit}</span>}
-      </div>
-    </div>
-  );
-}
-
-function LastHeardSlider({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (hours: number) => void;
-}) {
-  // Slider drives an index into the discrete hour stops above. Snapping to the
-  // canonical stops keeps the labels honest and matches the design's three
-  // tick marks (1h · ≤24h · 30d).
-  const index = useMemo(() => {
-    let best = 0;
-    let diff = Number.POSITIVE_INFINITY;
-    for (let i = 0; i < HOUR_STOPS.length; i++) {
-      const stop = HOUR_STOPS[i] ?? 0;
-      const d = Math.abs(stop - value);
-      if (d < diff) {
-        diff = d;
-        best = i;
-      }
-    }
-    return best;
-  }, [value]);
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between text-[11px]">
-        <span className="text-cs-text-muted">cutoff</span>
-        <span className="font-mono text-cs-text">{formatHours(value)}</span>
-      </div>
-      <Slider
-        min={0}
-        max={HOUR_STOPS.length - 1}
-        step={1}
-        value={[index]}
-        onValueChange={([v]) => {
-          const next = HOUR_STOPS[v ?? 0];
-          if (typeof next === 'number') onChange(next);
-        }}
-      />
-      <div className="flex justify-between font-mono text-[10px] text-cs-text-dim">
-        <span>1h</span>
-        <span>24h</span>
-        <span>30d</span>
-      </div>
-    </div>
-  );
-}
-
-function formatHours(h: number): string {
-  if (h < 24) return `${h}h`;
-  if (h < 168) return `${Math.round(h / 24)}d`;
-  return `${Math.round(h / 168)}w`;
 }

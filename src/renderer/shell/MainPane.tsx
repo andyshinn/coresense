@@ -25,9 +25,10 @@ const RepeaterAdmin = lazy(() =>
   import('../panels/repeater-admin').then((m) => ({ default: m.RepeaterAdmin })),
 );
 const SearchResults = lazy(() =>
-  import('../panels/SearchResults').then((m) => ({ default: m.SearchResults })),
+  import('../panels/search').then((m) => ({ default: m.SearchResults })),
 );
 const Unreads = lazy(() => import('../panels/Unreads').then((m) => ({ default: m.Unreads })));
+const LogsPanel = lazy(() => import('../panels/logs').then((m) => ({ default: m.LogsPanel })));
 
 interface MainPaneProps {
   client: ApiClient | null;
@@ -86,7 +87,9 @@ function MainPaneInner({
   }
 
   if (activeKey === 'tool:packetlog') {
-    return <div className="h-full w-full overflow-hidden p-4">{renderPacketLog()}</div>;
+    return (
+      <div className="flex h-full w-full flex-col overflow-hidden p-4">{renderPacketLog()}</div>
+    );
   }
 
   if (activeKey === 'tool:settings' || activeKey.startsWith('tool:settings:')) {
@@ -96,6 +99,9 @@ function MainPaneInner({
   }
   if (activeKey === 'tool:map') {
     return <MapView client={client} />;
+  }
+  if (activeKey === 'tool:logs') {
+    return <LogsPanel />;
   }
   if (activeKey === 'tool:search') {
     return <SearchResults client={client} />;

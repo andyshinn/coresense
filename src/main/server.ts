@@ -15,9 +15,11 @@ import type {
   DeviceIdentity,
   DeviceInfo,
   GpsConfig,
+  LogEntry,
   MapSettings,
   MenuAction,
   Message,
+  MessagePath,
   MessageState,
   Owner,
   PathLearnedEvent,
@@ -37,6 +39,7 @@ import { apiKeyAuth, checkWsKey } from './api/middleware/auth';
 import { createRoutes } from './api/routes';
 import type { BridgeHandle } from './bridge';
 import { bus } from './events/bus';
+import { getLogBuffer } from './log';
 import { transportManager } from './transport/manager';
 
 const DEFAULT_PORT_PROD = 7654;
@@ -152,6 +155,11 @@ export async function startServer(
     };
     ws.send(JSON.stringify(initialBridge));
     ws.send(JSON.stringify({ type: 'wsClients', payload: { count: clients.size } } as WsMessage));
+    const logSnapshotMsg: WsMessage = {
+      type: 'log:snapshot',
+      payload: [...getLogBuffer()],
+    };
+    ws.send(JSON.stringify(logSnapshotMsg));
     // Other clients should learn that the population just grew/shrank too.
     broadcastClientCount();
     const drop = () => {
@@ -182,6 +190,8 @@ export async function startServer(
     broadcast({ type: 'messages', payload: { key, messages } });
   const onMessageState = (id: string, state: MessageState) =>
     broadcast({ type: 'messageState', payload: { id, state } });
+  const onMessagePathHeard = (payload: { id: string; path: MessagePath; state: MessageState }) =>
+    broadcast({ type: 'messagePathHeard', payload });
   const onOwner = (owner: Owner | null) => broadcast({ type: 'owner', payload: owner });
   const onAppSettings = (settings: AppSettings) =>
     broadcast({ type: 'appSettings', payload: settings });
@@ -208,6 +218,7 @@ export async function startServer(
   const onDeviceCapabilities = (caps: DeviceCapabilities) =>
     broadcast({ type: 'deviceCapabilities', payload: caps });
   const onUiState = (state: UiState) => broadcast({ type: 'uiState', payload: state });
+  const onLogEntry = (entry: LogEntry) => broadcast({ type: 'log', payload: entry });
 
   bus.on('packet', onPacket);
   bus.on('transportState', onTransportState);
@@ -221,6 +232,7 @@ export async function startServer(
   bus.on('contacts', onContacts);
   bus.on('messages', onMessages);
   bus.on('messageState', onMessageState);
+  bus.on('messagePathHeard', onMessagePathHeard);
   bus.on('owner', onOwner);
   bus.on('appSettings', onAppSettings);
   bus.on('radioSettings', onRadioSettings);
@@ -236,6 +248,7 @@ export async function startServer(
   bus.on('deviceInfo', onDeviceInfo);
   bus.on('deviceCapabilities', onDeviceCapabilities);
   bus.on('uiState', onUiState);
+  bus.on('log:entry', onLogEntry);
   bridge.on('statusChanged', onBridgeStatus);
 
   const close = async () => {
@@ -251,6 +264,7 @@ export async function startServer(
     bus.off('contacts', onContacts);
     bus.off('messages', onMessages);
     bus.off('messageState', onMessageState);
+    bus.off('messagePathHeard', onMessagePathHeard);
     bus.off('owner', onOwner);
     bus.off('appSettings', onAppSettings);
     bus.off('radioSettings', onRadioSettings);
@@ -266,6 +280,7 @@ export async function startServer(
     bus.off('deviceInfo', onDeviceInfo);
     bus.off('deviceCapabilities', onDeviceCapabilities);
     bus.off('uiState', onUiState);
+    bus.off('log:entry', onLogEntry);
     bridge.off('statusChanged', onBridgeStatus);
     // Force-terminate WS clients and HTTP keep-alives. The renderer is still
     // alive during shutdown (before-quit preventDefault), so graceful close

@@ -5,6 +5,7 @@ import { emit } from '../events/bus';
 import { child } from '../log';
 import { record as recordMeshObservation } from '../protocol/meshObservations';
 import { PAYLOAD_TYPE, parseMeshPacket } from '../protocol/meshPacket';
+import { attributeObservation as attributeOutgoingChannelRelay } from '../protocol/pendingChannelSends';
 import { parseCompanionFrame } from './companionFrame';
 import type { ITransport } from './types';
 
@@ -357,7 +358,7 @@ export class BleTransport implements ITransport {
             .update(encrypted)
             .digest('hex')
             .slice(0, 16);
-          recordMeshObservation({
+          const observation = {
             recordedAt: Date.now(),
             channelHash,
             hashSize: mesh.hashSize,
@@ -365,7 +366,12 @@ export class BleTransport implements ITransport {
             pathHex: mesh.pathHex,
             finalSnr: parsed.snr,
             payloadFingerprint,
-          });
+          };
+          recordMeshObservation(observation);
+          // If this observation is a repeater relaying one of our recent
+          // outgoing channel sends, attribute it back to that message — the
+          // helper appends a MessagePath and broadcasts messagePathHeard.
+          attributeOutgoingChannelRelay(observation);
         }
       }
       emit.packet({

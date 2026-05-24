@@ -23,8 +23,10 @@ import {
   type DeviceInfo,
   type GpsConfig,
   type LeftNavGroupId,
+  type LogEntry,
   type MapSettings,
   type Message,
+  type MessagePath,
   type MessageState,
   type Owner,
   type PathLearnedEvent,
@@ -41,12 +43,14 @@ import {
   type TransportState,
   type UiState,
 } from '../../shared/types';
+import { setRendererLogLevel } from './logger';
 
 const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null, terrain: null };
 
 const MAX_PACKETS = 500;
+const MAX_LOGS = 5000;
 
-interface SearchFilters {
+export interface SearchFilters {
   kinds: ('channel' | 'dm')[];
   key?: string;
   /** Sender hex public key or the literal 'self' for owner-sent. */
@@ -133,6 +137,9 @@ interface CoreState {
   // Live packet log (capped ring buffer)
   packets: RawPacket[];
 
+  // Live log entries (capped ring buffer)
+  logs: LogEntry[];
+
   // Domain data (mirrored from main)
   owner: Owner | null;
   channels: Channel[];
@@ -206,6 +213,11 @@ interface CoreState {
   applyBridge: (bridge: BridgeStatus) => void;
   applyMessages: (key: string, messages: Message[]) => void;
   applyMessageState: (id: string, state: MessageState) => void;
+  /** Append a newly-heard relay path to an outgoing channel message (dedupe by
+   *  MessagePath.id, bump timesHeard, advance state). Broadcast by the main
+   *  process when a PUSH_CODE_LOG_RX_DATA observation is attributed to one of
+   *  our recent channel sends. */
+  appendMessagePath: (id: string, path: MessagePath, state: MessageState) => void;
   applyChannels: (channels: Channel[]) => void;
   applyChannelPresence: (keys: string[]) => void;
   applyContacts: (contacts: Contact[]) => void;
@@ -236,8 +248,21 @@ interface CoreState {
   dismissPathLearned: () => void;
   setWsClients: (n: number) => void;
 
+  // Browser-style back/forward stacks. Session-only (deliberately NOT in
+  // UiState/persisted) — a restart starts fresh, and entries pointing at
+  // channels/contacts that no longer exist would be misleading. navCurrent
+  // is implicit: it equals ui.activeKey.
+  navPast: string[];
+  navFuture: string[];
+
   // UI mutators (also persisted to main via api.putUiState; see App.tsx)
-  setActiveKey: (key: string) => void;
+  // `skipHistory` opts out of pushing the prior activeKey onto navPast — used
+  // by goBack/goForward themselves and by the few "restore previous view"
+  // sites (Esc in the search input) that are conceptually an undo, not a
+  // navigation. Default behaviour pushes history.
+  setActiveKey: (key: string, opts?: { skipHistory?: boolean }) => void;
+  goBack: () => void;
+  goForward: () => void;
   /** Pick a contact. `keepSite: true` preserves any currently-selected
    *  co-located site (used by the Map view's spiderfy when a member is
    *  highlighted but the site should stay expanded). Default behaviour clears
@@ -251,6 +276,10 @@ interface CoreState {
   setLeftNavGroup: (id: LeftNavGroupId, open: boolean) => void;
   setDraft: (key: string, text: string) => void;
   setPacketLogFilter: (patch: Partial<UiState['packetLogFilter']>) => void;
+  appendLog: (entry: LogEntry) => void;
+  replaceLogs: (entries: LogEntry[]) => void;
+  setLogsFilter: (patch: Partial<UiState['logsFilter']>) => void;
+  clearLogs: () => void;
   setThemePref: (mode: ThemePref) => void;
   togglePin: (key: string) => void;
   setSelectedMessage: (id: string | null) => void;
@@ -291,14 +320,35 @@ interface CoreState {
   clearSettingsUi: () => void;
 }
 
-// Shared navigation update — used by setActiveKey and commitPendingTarget so a
-// deferred navigation commits with exactly the same recents/selection logic.
-function navStateUpdate(s: CoreState, key: string): Partial<CoreState> {
+// Shared navigation update — used by setActiveKey, commitPendingTarget, and
+// goBack/goForward so a deferred or backward navigation commits with exactly
+// the same recents/selection logic. `historyDelta` lets the caller adjust the
+// nav stacks (push prior key for forward nav; swap stacks for back/forward).
+function navStateUpdate(
+  s: CoreState,
+  key: string,
+  historyDelta?: { navPast?: string[]; navFuture?: string[] },
+): Partial<CoreState> {
   const recentKeys = [key, ...s.ui.recentKeys.filter((k) => k !== key)].slice(0, RECENT_KEYS_MAX);
-  return {
+  const out: Partial<CoreState> = {
     ui: { ...s.ui, activeKey: key, selectedContactKey: null, selectedSiteKey: null, recentKeys },
     selectedMessageId: null,
   };
+  if (historyDelta?.navPast !== undefined) out.navPast = historyDelta.navPast;
+  if (historyDelta?.navFuture !== undefined) out.navFuture = historyDelta.navFuture;
+  return out;
+}
+
+// Cap the back/forward stacks. Browsers use ~50; same here. Older entries are
+// dropped from the front of navPast when exceeded.
+const NAV_HISTORY_MAX = 50;
+
+function pushPast(past: string[], key: string): string[] {
+  // Dedupe consecutive duplicates so repeated clicks on the same item don't
+  // bloat the stack.
+  if (past.length > 0 && past[past.length - 1] === key) return past;
+  const next = [...past, key];
+  return next.length > NAV_HISTORY_MAX ? next.slice(-NAV_HISTORY_MAX) : next;
 }
 
 function anyDirty(dirtyById: Record<string, boolean>): boolean {
@@ -320,6 +370,7 @@ export const useStore = create<CoreState>((set) => ({
   wsClients: 0,
 
   packets: [],
+  logs: [],
 
   owner: null,
   channels: [],
@@ -345,6 +396,8 @@ export const useStore = create<CoreState>((set) => ({
 
   ui: DEFAULT_UI_STATE,
   settingsUi: DEFAULT_SETTINGS_UI,
+  navPast: [],
+  navFuture: [],
 
   busy: false,
   selectedMessageId: null,
@@ -356,7 +409,8 @@ export const useStore = create<CoreState>((set) => ({
   searchSort: 'recency',
   pendingJumpMid: null,
 
-  hydrate: (snapshot) =>
+  hydrate: (snapshot) => {
+    setRendererLogLevel(snapshot.appSettings.logging.level);
     set(() => ({
       transportState: snapshot.transport.state,
       connectedDeviceId: snapshot.transport.deviceId,
@@ -384,7 +438,8 @@ export const useStore = create<CoreState>((set) => ({
       // Seed in-session sort from the persisted default so an existing user
       // preference takes effect immediately on launch.
       searchSort: snapshot.appSettings.search?.defaultSort ?? 'recency',
-    })),
+    }));
+  },
 
   applyPacket: (p) =>
     set((s) => {
@@ -415,11 +470,36 @@ export const useStore = create<CoreState>((set) => ({
       return { messagesByKey: next };
     }),
 
+  appendMessagePath: (id, path, state) =>
+    set((s) => {
+      const next: Record<string, Message[]> = {};
+      for (const [k, list] of Object.entries(s.messagesByKey)) {
+        next[k] = list.map((m) => {
+          if (m.id !== id) return m;
+          const existingPaths = m.meta?.paths ?? [];
+          if (existingPaths.some((p) => p.id === path.id)) return { ...m, state };
+          return {
+            ...m,
+            state,
+            meta: {
+              ...m.meta,
+              paths: [...existingPaths, path],
+              timesHeard: (m.meta?.timesHeard ?? 0) + 1,
+            },
+          };
+        });
+      }
+      return { messagesByKey: next };
+    }),
+
   applyChannels: (channels) => set(() => ({ channels })),
   applyChannelPresence: (keys) => set(() => ({ channelPresence: new Set(keys) })),
   applyContacts: (contacts) => set(() => ({ contacts })),
   applyOwner: (owner) => set(() => ({ owner })),
-  applyAppSettings: (settings) => set(() => ({ appSettings: settings })),
+  applyAppSettings: (settings) => {
+    setRendererLogLevel(settings.logging.level);
+    set(() => ({ appSettings: settings }));
+  },
   applyRadioSettings: (settings) => set(() => ({ radioSettings: settings })),
   applyDeviceIdentity: (identity) => set(() => ({ deviceIdentity: identity })),
   applyAutoAddConfig: (cfg) => set(() => ({ autoAddConfig: cfg })),
@@ -473,17 +553,59 @@ export const useStore = create<CoreState>((set) => ({
   setSystemDark: (dark) => set(() => ({ systemDark: dark })),
   setWsClients: (n) => set(() => ({ wsClients: n })),
 
-  setActiveKey: (key) =>
+  setActiveKey: (key, opts) =>
     set((s) => {
+      // No-op when the user clicks the already-active entry. Avoids polluting
+      // history with a dedupe-able entry, and short-circuits the unsaved-guard
+      // check that would otherwise trigger on Settings → Settings.
+      if (key === s.ui.activeKey) return {};
       // Guard: if the user is leaving the Settings panel with unsaved section
       // changes, stash the target and let the panel raise the prompt instead
-      // of navigating. recentKeys stay untouched until the move commits.
+      // of navigating. recentKeys + nav stacks stay untouched until the move
+      // commits via commitPendingTarget.
       const leavingSettings =
         s.ui.activeKey.startsWith('tool:settings') && !key.startsWith('tool:settings');
       if (leavingSettings && anyDirty(s.settingsUi.dirtyById)) {
         return { settingsUi: { ...s.settingsUi, pendingTarget: { kind: 'nav', key } } };
       }
-      return navStateUpdate(s, key);
+      // Forward navigation: push current onto past, clear future. Restore-from-
+      // search-Esc and goBack/goForward itself opt out via skipHistory.
+      if (opts?.skipHistory) return navStateUpdate(s, key);
+      return navStateUpdate(s, key, {
+        navPast: pushPast(s.navPast, s.ui.activeKey),
+        navFuture: [],
+      });
+    }),
+  goBack: () =>
+    set((s) => {
+      if (s.navPast.length === 0) return {};
+      const target = s.navPast[s.navPast.length - 1];
+      // Same Settings unsaved-guard as forward nav — back through a dirty
+      // Settings panel still needs the prompt. The deferred commit replays
+      // the goBack by routing through navStateUpdate with swapped stacks.
+      const leavingSettings =
+        s.ui.activeKey.startsWith('tool:settings') && !target.startsWith('tool:settings');
+      if (leavingSettings && anyDirty(s.settingsUi.dirtyById)) {
+        return { settingsUi: { ...s.settingsUi, pendingTarget: { kind: 'nav', key: target } } };
+      }
+      return navStateUpdate(s, target, {
+        navPast: s.navPast.slice(0, -1),
+        navFuture: [...s.navFuture, s.ui.activeKey],
+      });
+    }),
+  goForward: () =>
+    set((s) => {
+      if (s.navFuture.length === 0) return {};
+      const target = s.navFuture[s.navFuture.length - 1];
+      const leavingSettings =
+        s.ui.activeKey.startsWith('tool:settings') && !target.startsWith('tool:settings');
+      if (leavingSettings && anyDirty(s.settingsUi.dirtyById)) {
+        return { settingsUi: { ...s.settingsUi, pendingTarget: { kind: 'nav', key: target } } };
+      }
+      return navStateUpdate(s, target, {
+        navPast: pushPast(s.navPast, s.ui.activeKey),
+        navFuture: s.navFuture.slice(0, -1),
+      });
     }),
   setSelectedContact: (key, options) =>
     // Picking a contact clears any selected site so the Map rail routes
@@ -526,6 +648,19 @@ export const useStore = create<CoreState>((set) => ({
     }),
   setPacketLogFilter: (patch) =>
     set((s) => ({ ui: { ...s.ui, packetLogFilter: { ...s.ui.packetLogFilter, ...patch } } })),
+  appendLog: (entry) =>
+    set((s) => {
+      // snapshot+live can overlap during ws connect, so dedupe by id
+      for (let i = s.logs.length - 1; i >= Math.max(0, s.logs.length - 10); i--) {
+        if (s.logs[i].id === entry.id) return s;
+      }
+      const next = s.logs.length >= MAX_LOGS ? s.logs.slice(-(MAX_LOGS - 1)) : s.logs;
+      return { logs: [...next, entry] };
+    }),
+  replaceLogs: (entries) => set(() => ({ logs: entries.slice(-MAX_LOGS) })),
+  setLogsFilter: (patch) =>
+    set((s) => ({ ui: { ...s.ui, logsFilter: { ...s.ui.logsFilter, ...patch } } })),
+  clearLogs: () => set(() => ({ logs: [] })),
   setThemePref: (mode) => set((s) => ({ ui: { ...s.ui, themePref: mode } })),
   togglePin: (key) =>
     set((s) => {
@@ -608,8 +743,16 @@ export const useStore = create<CoreState>((set) => ({
       const t = s.settingsUi.pendingTarget;
       if (!t) return {};
       if (t.kind === 'nav') {
+        // Treat the deferred nav as a fresh forward navigation — push current
+        // onto past, clear future. If the original gesture was Cmd+Left, the
+        // user resolving the unsaved-changes dialog effectively committed to
+        // a new nav rather than a strict pop; this matches what a browser does
+        // when "Leave this page?" is confirmed.
         return {
-          ...navStateUpdate(s, t.key),
+          ...navStateUpdate(s, t.key, {
+            navPast: pushPast(s.navPast, s.ui.activeKey),
+            navFuture: [],
+          }),
           settingsUi: { ...s.settingsUi, pendingTarget: null },
         };
       }

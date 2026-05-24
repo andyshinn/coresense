@@ -1,5 +1,6 @@
-import { app, Menu, type MenuItemConstructorOptions, shell } from 'electron';
+import { app, BrowserWindow, Menu, type MenuItemConstructorOptions, shell } from 'electron';
 import type { MenuAction } from '../shared/types';
+import { showAboutDialog } from './about';
 import { emit } from './events/bus';
 
 const isMac = process.platform === 'darwin';
@@ -146,6 +147,17 @@ export function buildMenu(): Menu {
     label: 'Navigate',
     submenu: [
       {
+        label: 'Back',
+        accelerator: isMac ? 'Cmd+Left' : 'Alt+Left',
+        click: send({ kind: 'navigate', direction: 'back' }),
+      },
+      {
+        label: 'Forward',
+        accelerator: isMac ? 'Cmd+Right' : 'Alt+Right',
+        click: send({ kind: 'navigate', direction: 'forward' }),
+      },
+      { type: 'separator' },
+      {
         label: 'Previous Pinned',
         accelerator: `${mod}+[`,
         click: send({ kind: 'cyclePinned', direction: 'prev' }),
@@ -188,6 +200,15 @@ export function buildMenu(): Menu {
         click: () => {
           void shell.openExternal('https://meshcore.co.uk');
         },
+      },
+      // macOS users can still reach a native panel through the app menu's
+      // standard "About" item (see applyAboutPanel); this Help entry is the
+      // sole About surface on Windows where setAboutPanelOptions is a no-op,
+      // and the Linux fallback when GTK doesn't render the native panel.
+      { type: 'separator' },
+      {
+        label: `About ${app.name}`,
+        click: () => showAboutDialog(BrowserWindow.getFocusedWindow()),
       },
     ],
   });

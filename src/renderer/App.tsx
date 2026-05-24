@@ -1,10 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { MenuAction, UiState, WsMessage } from '../shared/types';
+import type { UiState } from '../shared/types';
+import { createMenuActionHandler } from './app/menuActions';
+import { createWsMessageHandler } from './app/wsHandlers';
 import { ApiKeyGate } from './components/ApiKeyGate';
-import { PathLearnedDialog } from './components/path/PathLearnedDialog';
-import { StatusBar } from './components/StatusBar';
+import { PacketLogHost, PathLearnedDialogHost, StatusBarHost } from './components/AppHosts';
 import { Toaster } from './components/ui/sonner';
-import { CommandPalette } from './features/CommandPalette';
+import { CommandPalette } from './features/command-palette';
 import { useWebSocket } from './hooks/useWebSocket';
 import { type ApiClient, api, fetchCapabilities } from './lib/api';
 import { loadApiKey, saveApiKey } from './lib/apiKey';
@@ -22,11 +23,6 @@ import { AppShell } from './shell/AppShell';
 // Lazy: MainPane drags in every panel module (~1.5k LOC of forms/tables that
 // aren't used until the user navigates to them).
 const MainPane = lazy(() => import('./shell/MainPane').then((m) => ({ default: m.MainPane })));
-// Lazy: PacketLog pulls in react-virtual + the protocol decoder; we only need
-// it when the user opens the packet log panel.
-const PacketLog = lazy(() =>
-  import('./components/PacketLog').then((m) => ({ default: m.PacketLog })),
-);
 
 const UI_STATE_DEBOUNCE_MS = 500;
 const FALLBACK_BASE_URL = 'http://127.0.0.1:7654';
@@ -92,81 +88,54 @@ export function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  // Mouse XButton1/XButton2 (back/forward side buttons) come through as
+  // mousedown with button 3/4 in the renderer. On Windows/Linux these ALSO
+  // fire app-command in main, but the renderer side is essential on macOS
+  // where app-command isn't emitted for mouse buttons. mousedown fires before
+  // any click handler can preventDefault, so this is reliably the first event.
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 3) {
+        e.preventDefault();
+        useStore.getState().goBack();
+      } else if (e.button === 4) {
+        e.preventDefault();
+        useStore.getState().goForward();
+      }
+    };
+    window.addEventListener('mousedown', onMouseDown);
+    return () => window.removeEventListener('mousedown', onMouseDown);
+  }, []);
+
   const cycleThemePref = useCallback(() => {
     const prev = useStore.getState().ui.themePref;
     const next: ThemePref = prev === 'auto' ? 'dark' : prev === 'dark' ? 'light' : 'auto';
     setThemePrefStore(next);
   }, [setThemePrefStore]);
 
-  const handleMenuAction = useCallback(
-    (action: MenuAction) => {
-      switch (action.kind) {
-        case 'cycleTheme':
-          cycleThemePref();
-          break;
-        case 'openPalette':
-          useStore.getState().openPalette();
-          break;
-        case 'focusKey':
-          setActiveKey(action.key);
-          break;
-        case 'toggleLeftNav':
-          toggleLeftNav();
-          break;
-        case 'toggleRightRail':
-          toggleRightRail();
-          break;
-        case 'openSettings':
-          setActiveKey('tool:settings:app');
-          break;
-        case 'requestQuit': {
-          // Main deferred a quit/close. If a Settings section is dirty, raise
-          // the unsaved-changes dialog; otherwise tell main it's safe to quit.
-          const st = useStore.getState();
-          const dirty = Object.values(st.settingsUi.dirtyById).some(Boolean);
-          if (dirty) {
-            st.setPendingTarget({ kind: 'quit' });
-          } else if (baseUrl && apiKey) {
-            void api.confirmQuit({ baseUrl, apiKey });
-          }
-          break;
-        }
-        case 'pinToggle': {
-          const key = useStore.getState().ui.activeKey;
-          if (key.startsWith('ch:') || key.startsWith('c:')) togglePin(key);
-          break;
-        }
-        case 'sendAdvert': {
-          if (!baseUrl || !apiKey) break;
-          void api.sendAdvert({ baseUrl, apiKey }).then(
-            () => notify.success('Self-advert sent'),
-            (err) => notify.error(`Advert failed: ${(err as Error).message}`, err),
-          );
-          break;
-        }
-        case 'cyclePinned': {
-          const state = useStore.getState();
-          const pinned = state.ui.pinned;
-          if (pinned.length === 0) break;
-          const i = pinned.indexOf(state.ui.activeKey);
-          const next =
-            action.direction === 'next'
-              ? pinned[(i + 1 + pinned.length) % pinned.length]
-              : pinned[(i - 1 + pinned.length) % pinned.length];
-          if (next) state.setActiveKey(next);
-          break;
-        }
-        default:
-          break;
-      }
-    },
+  const handleMenuAction = useMemo(
+    () =>
+      createMenuActionHandler({
+        baseUrl,
+        apiKey,
+        cycleThemePref,
+        toggleLeftNav,
+        toggleRightRail,
+        togglePin,
+        setActiveKey,
+      }),
     [cycleThemePref, toggleLeftNav, toggleRightRail, togglePin, setActiveKey, baseUrl, apiKey],
   );
 
   useEffect(() => {
-    const candidate = window.location.protocol.startsWith('http')
-      ? `${window.location.protocol}//${window.location.host}`
-      : FALLBACK_BASE_URL;
+    // First-party window: preload tells us the exact server port. Skip the
+    // probe entirely so dev (7754+) and prod (7654+) instances never collide.
+    const injectedPort = window.coresense?.httpPort;
+    const candidate = injectedPort
+      ? `http://127.0.0.1:${injectedPort}`
+      : window.location.protocol.startsWith('http')
+        ? `${window.location.protocol}//${window.location.host}`
+        : FALLBACK_BASE_URL;
     void (async () => {
       try {
         const caps = await fetchCapabilities(candidate);
@@ -248,115 +217,8 @@ export function App() {
     return url.toString();
   }, [baseUrl, apiKey]);
 
-  const onMessage = useCallback(
-    (msg: WsMessage) => {
-      // Pull action references off the store at dispatch time. They're stable
-      // function identities, so this avoids subscribing App to every store
-      // mutation just to keep the callback's dep array honest.
-      const s = useStore.getState();
-      switch (msg.type) {
-        case 'packet':
-          s.applyPacket(msg.payload);
-          break;
-        case 'transportState':
-          s.applyTransportState(msg.payload.state, msg.payload.deviceId);
-          break;
-        case 'scanResults':
-          s.applyDevices(msg.payload);
-          break;
-        case 'error':
-          notify.error(msg.payload.message);
-          break;
-        case 'bridgeStatus':
-          s.applyBridge(msg.payload);
-          break;
-        case 'wsClients':
-          s.setWsClients(msg.payload.count);
-          break;
-        case 'theme':
-          setSystemDark(msg.payload.systemDark);
-          break;
-        case 'menuAction':
-          handleMenuAction(msg.payload);
-          break;
-        case 'channels':
-          s.applyChannels(msg.payload);
-          break;
-        case 'channelPresence':
-          s.applyChannelPresence(msg.payload.keys);
-          break;
-        case 'syncProgress':
-          s.applySyncProgress(msg.payload);
-          break;
-        case 'contacts':
-          s.applyContacts(msg.payload);
-          break;
-        case 'messages':
-          s.applyMessages(msg.payload.key, msg.payload.messages);
-          break;
-        case 'messageState':
-          s.applyMessageState(msg.payload.id, msg.payload.state);
-          break;
-        case 'owner':
-          s.applyOwner(msg.payload);
-          break;
-        case 'appSettings':
-          s.applyAppSettings(msg.payload);
-          break;
-        case 'radioSettings':
-          s.applyRadioSettings(msg.payload);
-          break;
-        case 'mapSettings':
-          s.applyMapSettings(msg.payload);
-          break;
-        case 'mapManifest':
-          s.applyMapManifest(msg.payload);
-          break;
-        case 'uiState':
-          s.applyUiState(msg.payload);
-          break;
-        case 'repeaterStatus':
-          s.applyRepeaterStatus(msg.payload);
-          break;
-        case 'repeaterTelemetry':
-          s.applyRepeaterTelemetry(msg.payload);
-          break;
-        case 'deviceIdentity':
-          s.applyDeviceIdentity(msg.payload);
-          break;
-        case 'autoAddConfig':
-          s.applyAutoAddConfig(msg.payload);
-          break;
-        case 'telemetryPolicy':
-          s.applyTelemetryPolicy(msg.payload);
-          break;
-        case 'gpsConfig':
-          s.applyGpsConfig(msg.payload);
-          break;
-        case 'deviceInfo':
-          s.applyDeviceInfo(msg.payload);
-          break;
-        case 'deviceCapabilities':
-          s.applyDeviceCapabilities(msg.payload);
-          break;
-        case 'pathLearned': {
-          s.applyPathLearned(msg.payload);
-          if (!msg.payload.previousManual) {
-            const contact = s.contacts.find((c) => c.key === msg.payload.contactKey);
-            const hops = Math.max(
-              1,
-              Math.floor(msg.payload.newOutPathHex.length / 2 / msg.payload.newOutPathHashSize),
-            );
-            notify.success(
-              msg.payload.newOutPathHex
-                ? `Path learned: ${contact?.name ?? msg.payload.contactKey} · ${hops} hop${hops === 1 ? '' : 's'}`
-                : `Path cleared: ${contact?.name ?? msg.payload.contactKey}`,
-            );
-          }
-          break;
-        }
-      }
-    },
+  const onMessage = useMemo(
+    () => createWsMessageHandler({ setSystemDark, handleMenuAction }),
     [handleMenuAction, setSystemDark],
   );
 
@@ -444,27 +306,4 @@ export function App() {
       </div>
     </AppShell>
   );
-}
-
-function PacketLogHost() {
-  const packets = useStore((s) => s.packets);
-  return <PacketLog packets={packets} />;
-}
-
-function StatusBarHost({ port }: { port: number | null }) {
-  const transportState = useStore((s) => s.transportState);
-  const bridge = useStore((s) => s.bridge);
-  const wsClients = useStore((s) => s.wsClients);
-  return (
-    <StatusBar port={port} wsClients={wsClients} transportState={transportState} bridge={bridge} />
-  );
-}
-
-function PathLearnedDialogHost({ client }: { client: ApiClient | null }) {
-  const event = useStore((s) => s.pendingPathLearn);
-  const contact = useStore((s) =>
-    event ? (s.contacts.find((c) => c.key === event.contactKey) ?? null) : null,
-  );
-  const dismiss = useStore((s) => s.dismissPathLearned);
-  return <PathLearnedDialog event={event} contact={contact} client={client} onClose={dismiss} />;
 }

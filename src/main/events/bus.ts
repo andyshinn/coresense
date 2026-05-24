@@ -9,9 +9,11 @@ import type {
   DeviceIdentity,
   DeviceInfo,
   GpsConfig,
+  LogEntry,
   MapSettings,
   MenuAction,
   Message,
+  MessagePath,
   MessageState,
   Owner,
   PathLearnedEvent,
@@ -44,6 +46,8 @@ export const emit = {
   contacts: (contacts: Contact[]) => bus.emit('contacts', contacts),
   messages: (key: string, messages: Message[]) => bus.emit('messages', key, messages),
   messageState: (id: string, state: MessageState) => bus.emit('messageState', id, state),
+  messagePathHeard: (payload: { id: string; path: MessagePath; state: MessageState }) =>
+    bus.emit('messagePathHeard', payload),
   owner: (owner: Owner | null) => bus.emit('owner', owner),
   appSettings: (settings: AppSettings) => bus.emit('appSettings', settings),
   radioSettings: (settings: RadioSettings) => bus.emit('radioSettings', settings),
@@ -59,6 +63,7 @@ export const emit = {
   gpsConfig: (cfg: GpsConfig) => bus.emit('gpsConfig', cfg),
   deviceInfo: (info: DeviceInfo) => bus.emit('deviceInfo', info),
   deviceCapabilities: (caps: DeviceCapabilities) => bus.emit('deviceCapabilities', caps),
+  logEntry: (entry: LogEntry) => bus.emit('log:entry', entry),
 };
 
 export type BusEvents = {
@@ -74,6 +79,7 @@ export type BusEvents = {
   contacts: (contacts: Contact[]) => void;
   messages: (key: string, messages: Message[]) => void;
   messageState: (id: string, state: MessageState) => void;
+  messagePathHeard: (payload: { id: string; path: MessagePath; state: MessageState }) => void;
   owner: (owner: Owner | null) => void;
   appSettings: (settings: AppSettings) => void;
   radioSettings: (settings: RadioSettings) => void;
@@ -89,4 +95,5 @@ export type BusEvents = {
   gpsConfig: (cfg: GpsConfig) => void;
   deviceInfo: (info: DeviceInfo) => void;
   deviceCapabilities: (caps: DeviceCapabilities) => void;
+  'log:entry': (entry: LogEntry) => void;
 };

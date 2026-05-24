@@ -18,10 +18,14 @@ import type {
   UiState,
 } from '../../shared/types';
 import { adminSessions } from '../bridge/adminSession';
+import { APP_VERSION, GIT_SHA } from '../build-info';
 import { emit } from '../events/bus';
 import { child } from '../log';
+import { applyLoggingSettings } from '../logging/apply';
+import { currentPath, folderPath } from '../logging/fileSink';
 import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
 import { protocolSession } from '../protocol';
+import { register as registerPendingChannelSend } from '../protocol/pendingChannelSends';
 import { stateHolder } from '../state/holder';
 import { searchMessages } from '../storage/search';
 import { transportManager } from '../transport/manager';
@@ -44,10 +48,15 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
 
   const buildCapabilities = (): Capabilities => ({
     isElectron: true,
-    version: app.getVersion(),
+    version: APP_VERSION,
+    gitSha: GIT_SHA,
+    electronVersion: process.versions.electron ?? 'unknown',
+    chromeVersion: process.versions.chrome ?? 'unknown',
     platform: process.platform,
     httpPort: port(),
     configPath: getConfigPath(),
+    logsFolder: folderPath(),
+    logsCurrentFile: currentPath(),
   });
 
   api.get('/api/capabilities', (c) => c.json(buildCapabilities()));
@@ -118,6 +127,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     if (!body) return c.json({ error: 'invalid body' }, 400);
     stateHolder().setAppSettings(body);
     emit.appSettings(body);
+    applyLoggingSettings(body.logging);
     return c.json({ ok: true });
   });
 
@@ -477,6 +487,13 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       const nextState = result.ok ? 'sent' : 'failed';
       holder.setMessageState(id, nextState);
       emit.messageState(id, nextState);
+      if (result.ok && result.channelHash != null) {
+        registerPendingChannelSend({
+          messageId: id,
+          channelHash: result.channelHash,
+          sentAt: Date.now(),
+        });
+      }
       return result.ok ? c.json({ ok: true, id }) : c.json({ error: result.error }, 503);
     }
 

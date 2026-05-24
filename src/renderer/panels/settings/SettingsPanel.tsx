@@ -8,10 +8,11 @@ import {
   AppearanceSection,
   BehaviorSection,
   ComposerSection,
+  LoggingSection,
   NotificationsSection,
   ProxySection,
   ToastsSection,
-} from './AppSections';
+} from './app';
 import { DangerZoneSection, ImportExportSection, MaintenanceSection } from './ExtraSections';
 import { type PillTab, PillTabs } from './PillTabs';
 import {
@@ -24,7 +25,7 @@ import {
   PublicInfoSection,
   RadioSection,
   TelemetrySection,
-} from './RadioSections';
+} from './radio';
 import { StatusPill } from './StatusPill';
 import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 
@@ -39,6 +40,7 @@ const TAB_SECTIONS: Record<SettingsTab, SettingsSectionMeta[]> = {
     { id: 'app-proxy', title: 'TCP / WS Proxy', tab: 'app' },
     { id: 'app-api-key', title: 'API Access', tab: 'app' },
     { id: 'app-behavior', title: 'Behavior', tab: 'app' },
+    { id: 'app-logs', title: 'Logs', tab: 'app' },
     { id: 'app-map', title: 'Map Tiles', tab: 'app' },
   ],
   radio: [
@@ -168,6 +170,7 @@ function AppTab({ client }: { client: ApiClient | null }) {
       <ProxySection client={client} />
       <ApiKeySection client={client} />
       <BehaviorSection client={client} />
+      <LoggingSection client={client} />
       <MapKeySection client={client} />
     </>
   );

@@ -37,6 +37,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Separator } from '../ui/separator';
+import { makeId, splitHopsHex } from './resolveRepeater';
 
 interface Hop {
   id: string;
@@ -46,21 +47,6 @@ interface Hop {
 interface Props {
   contact: Contact;
   client: ApiClient | null;
-}
-
-/** Split a contiguous hex string into per-hop chunks of `hashSize` bytes
- *  (i.e. hashSize*2 hex chars), discarding any trailing fragment. */
-function splitHopsHex(hex: string, hashSize: PathHashSize): string[] {
-  const chunkLen = hashSize * 2;
-  const out: string[] = [];
-  for (let i = 0; i + chunkLen <= hex.length; i += chunkLen) {
-    out.push(hex.slice(i, i + chunkLen));
-  }
-  return out;
-}
-
-function makeId(): string {
-  return `hop-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function SetPathEditor({ contact, client }: Props) {

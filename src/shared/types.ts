@@ -129,7 +129,7 @@ export function hasValidFix(c: Contact): c is Contact & { gpsLat: number; gpsLon
   );
 }
 
-export type MessageState = 'sending' | 'sent' | 'ack' | 'failed' | 'received';
+export type MessageState = 'sending' | 'sent' | 'heard' | 'ack' | 'failed' | 'received';
 
 /** One node in a routing path. `kind` distinguishes the message originator
  *  (sender, derived from the "name: " prefix in channel messages), intermediate
@@ -240,6 +240,19 @@ export interface SearchResults {
   total: { conversations: number; messages: number };
 }
 
+export type LogLevel = 'silly' | 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+
+export interface LogEntry {
+  id: string; // monotonically increasing, used as virtuoso key
+  ts: number; // epoch ms
+  level: LogLevel;
+  levelId: number; // tslog numeric level (0..6)
+  source: 'main' | 'renderer';
+  logger: string; // tslog name / sub-logger name (e.g. 'coresense.ble')
+  message: string; // pre-rendered single string
+  args?: unknown[]; // structured extras (JSON-serializable), optional
+}
+
 export type ThemePrefValue = 'auto' | 'dark' | 'light';
 
 export type MessageStyle = 'compact' | 'rich';
@@ -326,6 +339,10 @@ export interface AppSettings {
     /** Messages shown per conversation card before collapsing. Minimum 1. */
     limit: number;
   };
+  logging: {
+    fileEnabled: boolean;
+    level: LogLevel;
+  };
 }
 
 export type ContactGrouping = 'nested' | 'top-level';
@@ -361,6 +378,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   search: { defaultSort: 'recency' },
   commandPalette: { hintWeightPct: 50 },
   unreadsPreview: { enabled: true, limit: 25 },
+  logging: { fileEnabled: false, level: 'info' },
 };
 
 /** Bundled vector basemap + raster terrain sources for the Map panel.
@@ -612,6 +630,15 @@ export interface UiState {
   drafts: Record<string, string>;
   // Packet log view options.
   packetLogFilter: { showCompanion: boolean };
+  // Logs panel filter options.
+  logsFilter: {
+    minLevel: LogLevel;
+    showMain: boolean;
+    showRenderer: boolean;
+    loggerSubstring: string;
+    textSubstring: string;
+    paused: boolean;
+  };
   // Theme preference. Migrated from localStorage on first launch after this
   // field was added; see App.tsx hydration path.
   themePref: ThemePref;
@@ -651,6 +678,14 @@ export const DEFAULT_UI_STATE: UiState = {
   },
   drafts: {},
   packetLogFilter: { showCompanion: false },
+  logsFilter: {
+    minLevel: 'silly',
+    showMain: true,
+    showRenderer: true,
+    loggerSubstring: '',
+    textSubstring: '',
+    paused: false,
+  },
   themePref: 'auto',
   selectedContactKey: null,
   selectedSiteKey: null,
@@ -702,7 +737,13 @@ export type MenuAction =
   | { kind: 'cycleTheme' }
   // Broadcast by the main process when a window-close / app-quit is attempted.
   // The renderer decides whether unsaved Settings changes need a prompt.
-  | { kind: 'requestQuit' };
+  | { kind: 'requestQuit' }
+  // Browser-style back/forward navigation. Sourced from menu accelerators
+  // (Cmd+Left/Right on macOS, Alt+Left/Right elsewhere), the macOS BrowserWindow
+  // 'swipe' event (3-finger trackpad), and the 'app-command' event (mouse
+  // back/forward buttons on Win/Linux). macOS mouse XButton1/XButton2 are
+  // handled renderer-side via mousedown button 3/4.
+  | { kind: 'navigate'; direction: 'back' | 'forward' };
 
 export interface ThemePush {
   systemDark: boolean;
@@ -841,6 +882,7 @@ export type WsMessage =
   | { type: 'contacts'; payload: Contact[] }
   | { type: 'messages'; payload: { key: string; messages: Message[] } }
   | { type: 'messageState'; payload: { id: string; state: MessageState } }
+  | { type: 'messagePathHeard'; payload: { id: string; path: MessagePath; state: MessageState } }
   | { type: 'owner'; payload: Owner | null }
   | { type: 'appSettings'; payload: AppSettings }
   | { type: 'radioSettings'; payload: RadioSettings }
@@ -856,7 +898,9 @@ export type WsMessage =
   | { type: 'deviceInfo'; payload: DeviceInfo }
   | { type: 'deviceCapabilities'; payload: DeviceCapabilities }
   | { type: 'uiState'; payload: UiState }
-  | { type: 'wsClients'; payload: { count: number } };
+  | { type: 'wsClients'; payload: { count: number } }
+  | { type: 'log'; payload: LogEntry }
+  | { type: 'log:snapshot'; payload: LogEntry[] };
 
 export interface PathLearnedEvent {
   contactKey: string;
@@ -877,12 +921,24 @@ export interface PathLearnedEvent {
 export interface Capabilities {
   isElectron: boolean;
   version: string;
+  /** Abbreviated git SHA (7 chars) of the build, or `"unknown"` when the
+   *  build wasn't from a git checkout (e.g. tarball). Injected by
+   *  unplugin-info at main-process build time. */
+  gitSha: string;
+  /** `process.versions.electron` of the running main process. */
+  electronVersion: string;
+  /** `process.versions.chrome` (Chromium version) of the running window. */
+  chromeVersion: string;
   platform: string;
   httpPort: number;
   /** Absolute path of the config.json that holds the shared API key. Surfaced
    *  so browser clients can be told exactly where to read the key, and the
    *  in-app API Access settings section can show it. */
   configPath: string;
+  /** Absolute path to the userData/logs folder. */
+  logsFolder: string;
+  /** Absolute path to today's log file. */
+  logsCurrentFile: string;
 }
 
 /** Shape of `window.coresense`, injected by the Electron preload script.
@@ -892,6 +948,13 @@ export interface CoreSenseBridge {
   /** The shared API key, handed to the first-party window so it skips the
    *  manual paste gate. */
   apiKey: string;
+  /** The port the local Hono server bound to. Lets the renderer skip the
+   *  capabilities probe and avoid the dev/prod port-default mismatch. */
+  httpPort: number;
+  /** Ship a renderer-side LogEntry into the main-process log pipeline. */
+  shipLogEntry: (entry: LogEntry) => void;
+  /** Open the logs folder in the OS file manager. */
+  revealLogs: () => void;
 }
 
 export interface ServerStatus {

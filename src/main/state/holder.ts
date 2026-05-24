@@ -10,6 +10,7 @@ import {
   type GpsConfig,
   type MapSettings,
   type Message,
+  type MessagePath,
   type Owner,
   type RadioSettings,
   type TelemetryPolicy,
@@ -240,7 +241,8 @@ class StateHolder {
       sending: 0,
       sent: 1,
       received: 1,
-      ack: 2,
+      heard: 2,
+      ack: 3,
       failed: 0,
     };
     const nextState =
@@ -261,6 +263,30 @@ class StateHolder {
   }
   setMessageState(id: string, state: Message['state']): void {
     messagesStore.markState(id, state);
+  }
+  /** Append a newly-heard relay path to an outgoing channel message. Dedupes
+   *  by MessagePath.id, bumps timesHeard, and (when the message is still in
+   *  the 'sent' state) advances it to 'heard'. Returns the message's
+   *  post-update state, or null if the id is unknown. */
+  appendMessagePath(id: string, path: MessagePath): Message['state'] | null {
+    const existing = messagesStore.findById(id);
+    if (!existing) return null;
+    const existingPaths = existing.meta?.paths ?? [];
+    if (existingPaths.some((p) => p.id === path.id)) {
+      return existing.state;
+    }
+    const nextState: Message['state'] = existing.state === 'sent' ? 'heard' : existing.state;
+    const merged: Message = {
+      ...existing,
+      state: nextState,
+      meta: {
+        ...existing.meta,
+        paths: [...existingPaths, path],
+        timesHeard: (existing.meta?.timesHeard ?? 0) + 1,
+      },
+    };
+    messagesStore.insert(merged);
+    return nextState;
   }
 }
 

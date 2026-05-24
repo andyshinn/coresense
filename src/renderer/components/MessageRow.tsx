@@ -1,4 +1,4 @@
-import { AlertCircle, Check, CheckCheck, Clock, Reply } from 'lucide-react';
+import { AlertCircle, Check, Clock, Reply, Send } from 'lucide-react';
 import type { Contact, Message, MessageStyle } from '../../shared/types';
 import { useStore } from '../lib/store';
 import { fmtDateTime, fmtTime } from '../lib/time';
@@ -24,6 +24,7 @@ interface Props {
 const STATE_LABEL: Record<Message['state'], string> = {
   sending: 'sending…',
   sent: 'sent',
+  heard: 'sent',
   ack: 'ack',
   failed: 'failed',
   received: '',
@@ -103,7 +104,7 @@ export function MessageRow({
             <span title={fmtDateTime(message.ts, timeFormat)}>
               {fmtTime(message.ts, timeFormat)}
             </span>
-            <StateChip state={message.state} />
+            <StateChip message={message} />
             {message.meta?.rssi != null && (
               <RssiChip rssi={message.meta.rssi} hops={message.meta.hops} />
             )}
@@ -114,16 +115,20 @@ export function MessageRow({
   );
 }
 
-function StateChip({ state }: { state: Message['state'] }) {
+function StateChip({ message }: { message: Message }) {
+  const state = message.state;
   if (state === 'received') return null;
   const Icon =
     state === 'sending'
       ? Clock
-      : state === 'sent'
-        ? Check
+      : state === 'sent' || state === 'heard'
+        ? Send
         : state === 'ack'
-          ? CheckCheck
+          ? Check
           : AlertCircle;
+  // For 'heard', show the paper-plane plus a green ✓×N counter where N is the
+  // number of distinct relay paths we've observed for this outgoing message.
+  const heardCount = state === 'heard' ? (message.meta?.paths?.length ?? 0) : 0;
   return (
     <span
       className={cn(
@@ -134,6 +139,14 @@ function StateChip({ state }: { state: Message['state'] }) {
     >
       <Icon size={10} aria-hidden="true" />
       <span>{STATE_LABEL[state]}</span>
+      {heardCount > 0 && (
+        <span
+          className="inline-flex items-center gap-0.5 text-cs-online"
+          title={`Heard by ${heardCount} repeater${heardCount === 1 ? '' : 's'}`}
+        >
+          <Check size={10} aria-hidden="true" />×{heardCount}
+        </span>
+      )}
     </span>
   );
 }

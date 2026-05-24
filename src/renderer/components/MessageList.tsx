@@ -177,9 +177,12 @@ export function MessageList({
       lastMarkedReadRef.current = lastReadMs;
       const firstUnreadIdx = computeFirstUnreadIdx(messages, lastReadMs);
       const newItems = buildItems(messages, firstUnreadIdx);
+      // Don't pass purgeItemSizes: true — it forces a re-measure pass where
+      // Virtuoso's render window can transiently include slots whose data is
+      // still undefined, crashing computeItemKey. Replace re-measures
+      // naturally as items mount.
       ref.data.replace(newItems, {
         initialLocation: initialLocationFor(newItems),
-        purgeItemSizes: true,
       });
       prevKeyRef.current = conversationKey;
       prevMessagesRef.current = messages;
@@ -298,7 +301,12 @@ export function MessageList({
           context={context}
           initialData={initialItemsRef.current ?? undefined}
           initialLocation={initialLocationRef.current ?? undefined}
-          computeItemKey={({ data }) => (data.kind === 'msg' ? data.m.id : '__unread__')}
+          computeItemKey={({ data, index }) =>
+            // Defensive: Virtuoso has been observed to call this with `data`
+            // undefined for a transient render window slot during replace.
+            // Falling back to index keeps React from crashing the whole pane.
+            data ? (data.kind === 'msg' ? data.m.id : '__unread__') : `__pending-${index}__`
+          }
           ItemContent={ItemRow}
           EmptyPlaceholder={EmptyState}
           onRenderedDataChange={handleRenderedDataChange}

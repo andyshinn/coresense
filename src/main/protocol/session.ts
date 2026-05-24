@@ -5,7 +5,6 @@ import type {
   Contact,
   ContactKind,
   Message,
-  MessageHop,
   MessagePath,
   Owner,
   RawPacket,
@@ -77,6 +76,7 @@ import {
   pathHashSizeToMode,
 } from './encode';
 import { consumeMatching as consumeMeshObs } from './meshObservations';
+import { buildPath, channelHashOf } from './paths';
 import {
   type AclEntry,
   type LocalStats,
@@ -263,11 +263,15 @@ export class ProtocolSession {
     this.stopLivenessPoll();
   }
 
-  /** Returns true if the message was queued for transmission. */
+  /** Returns ok on transport-level write success. When ok, `channelHash` is
+   *  the byte the firmware tags GRP_TXT packets with on this channel — the
+   *  caller uses it to register a pending-send entry so subsequent
+   *  PUSH_CODE_LOG_RX_DATA observations matching that byte can be attributed
+   *  back to the outgoing message (repeater relays we hear over the air). */
   async sendChannelText(
     channelKey: string,
     text: string,
-  ): Promise<{ ok: boolean; error?: string }> {
+  ): Promise<{ ok: boolean; error?: string; channelHash?: number }> {
     const channel = stateHolder()
       .getChannels()
       .find((c) => c.key === channelKey);
@@ -280,7 +284,8 @@ export class ProtocolSession {
     const frame = buildSendChannelText({ channelIdx: idx, text });
     try {
       await this.writeFrame(frame);
-      return { ok: true };
+      const channelHash = channelHashOf(channel) ?? undefined;
+      return { ok: true, channelHash };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }
@@ -1941,47 +1946,4 @@ function findIdxByKey(key: string, byIdx: Map<number, Channel>): number | null {
     if (channel.key === key) return idx;
   }
   return null;
-}
-
-// PATH_HASH_SIZE = 1 in firmware MeshCore.h — every channel publishes only the
-// first byte of sha256(secret) on the wire so receivers can route GRP_TXT
-// without learning the secret.
-function channelHashOf(channel: Channel): number | null {
-  if (!channel.secretHex) return null;
-  const secret = Buffer.from(channel.secretHex, 'hex');
-  if (secret.length === 0) return null;
-  return createHash('sha256').update(secret).digest()[0];
-}
-
-function buildPath(
-  pathHex: string,
-  hashSize: number,
-  finalSnr: number,
-  senderName: string | null,
-  ownerName: string | undefined,
-): MessagePath {
-  const hops: MessageHop[] = [];
-  hops.push({
-    kind: 'origin',
-    shortId: senderName ? senderName.slice(0, 2).toLowerCase() : '??',
-    name: senderName ?? null,
-    pk: null,
-    unnamed: senderName == null,
-  });
-  for (let i = 0; i < pathHex.length; i += hashSize * 2) {
-    const shortId = pathHex.slice(i, i + hashSize * 2);
-    hops.push({ kind: 'hop', shortId, name: null, pk: null, unnamed: true });
-  }
-  hops.push({
-    kind: 'sink',
-    shortId: ownerName ? ownerName.slice(0, 2).toLowerCase() : 'me',
-    name: ownerName ?? 'My radio',
-    pk: null,
-  });
-  return {
-    id: createHash('sha1').update(`${pathHex}|${hashSize}`).digest('hex').slice(0, 16),
-    hops,
-    hashMode: hashSize,
-    finalSnr,
-  };
 }
