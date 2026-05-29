@@ -7,6 +7,7 @@ import {
   parseChannelMsgV1,
   parseChannelMsgV3,
   parseContact,
+  parseContactMsgV1,
   parseContactMsgV3,
   parseContactsStart,
   parseCustomVars,
@@ -50,6 +51,10 @@ describe('parseSelfInfo (real fixture)', () => {
     const bad = Buffer.alloc(40);
     bad[0] = 0x06;
     expect(parseSelfInfo(bad)).toBeNull();
+  });
+
+  it('returns null below 36 bytes', () => {
+    expect(parseSelfInfo(Buffer.alloc(35))).toBeNull();
   });
 });
 
@@ -120,6 +125,10 @@ describe('parseChannelMsgV1 (legacy, no snr prefix)', () => {
     expect(msg?.timestampUnix).toBe(42);
     expect(msg?.body).toBe('hi');
   });
+
+  it('returns null below 8 bytes', () => {
+    expect(parseChannelMsgV1(Buffer.alloc(7))).toBeNull();
+  });
 });
 
 describe('parseContactMsgV3', () => {
@@ -138,6 +147,29 @@ describe('parseContactMsgV3', () => {
     expect(msg?.senderPubKeyPrefixHex).toBe('aabbccddeeff');
     expect(msg?.timestampUnix).toBe(99);
     expect(msg?.body).toBe('ping');
+  });
+});
+
+describe('parseContactMsgV1 (legacy, no snr prefix)', () => {
+  it('reads the 6-byte sender prefix and body, snrDb 0', () => {
+    const body = Buffer.from('hey', 'utf8');
+    const frame = Buffer.alloc(13 + body.length);
+    frame[0] = 0x07;
+    Buffer.from('aabbccddeeff', 'hex').copy(frame, 1); // sender prefix
+    frame[7] = 3; // path_len
+    frame[8] = 0; // txt_type
+    frame.writeUInt32LE(123, 9);
+    body.copy(frame, 13);
+    const msg = parseContactMsgV1(frame);
+    expect(msg?.snrDb).toBe(0);
+    expect(msg?.senderPubKeyPrefixHex).toBe('aabbccddeeff');
+    expect(msg?.pathLen).toBe(3);
+    expect(msg?.timestampUnix).toBe(123);
+    expect(msg?.body).toBe('hey');
+  });
+
+  it('returns null below 13 bytes', () => {
+    expect(parseContactMsgV1(Buffer.alloc(12))).toBeNull();
   });
 });
 
