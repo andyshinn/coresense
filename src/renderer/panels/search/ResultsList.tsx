@@ -47,6 +47,11 @@ export function ResultsList({
   onConversationClick,
   onMessageClick,
 }: Props) {
+  // Drop hits annotated by main as matching an active block rule. The
+  // totalMessages count still reflects the server's full match total — the
+  // header reads "(visible of total)" and "Load more" continues to fetch
+  // against the unfiltered server total.
+  const visibleMessages = messages.filter((m) => m.blocked !== true);
   return (
     <div className="flex-1 overflow-y-auto">
       {!hasQuery && (
@@ -72,10 +77,10 @@ export function ResultsList({
               </ul>
             </Section>
           )}
-          {messages.length > 0 && (
-            <Section title={`Messages (${messages.length} of ${totalMessages})`}>
+          {visibleMessages.length > 0 && (
+            <Section title={`Messages (${visibleMessages.length} of ${totalMessages})`}>
               <ul className="space-y-1">
-                {messages.map((hit) => (
+                {visibleMessages.map((hit) => (
                   <MessageRow
                     key={`${hit.key}:${hit.id}`}
                     hit={hit}

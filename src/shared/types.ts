@@ -251,6 +251,11 @@ export interface MessageHit {
    *  HTML-escaped server-side except for the mark tags themselves. */
   snippet: string;
   score: number;
+  /** Set by main when the hit matches an active block rule. The renderer
+   *  filters annotated hits out of the rendered list. pubkey / pubkeyPrefix
+   *  rules can't match channel-message hits in search because path data
+   *  isn't persisted — only name / nameRegex apply for those. */
+  blocked?: boolean;
 }
 
 export interface ConversationHit {
