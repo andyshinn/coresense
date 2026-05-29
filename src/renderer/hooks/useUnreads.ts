@@ -18,10 +18,13 @@ export interface UnreadConversation {
   lastTs: number;
 }
 
-// A message is unread when it was received (so our own sends never count) and
-// its timestamp is past the per-conversation last-read marker.
+// A message is unread when it was received (so our own sends never count), its
+// timestamp is past the per-conversation last-read marker, and main hasn't
+// annotated it as blocked. Blocked messages must not surface in the LeftNav
+// badges or the Unreads panel — counts and preview rows both fall to whatever
+// remains.
 function isUnread(m: Message, lastRead: number): boolean {
-  return m.state === 'received' && m.ts > lastRead;
+  return m.state === 'received' && m.ts > lastRead && m.meta?.blocked !== true;
 }
 
 // Pure per-conversation unread count. Shared by the LeftNav badges and the
