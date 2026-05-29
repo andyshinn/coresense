@@ -1,4 +1,4 @@
-import { Cog, Radio, Settings, Wrench } from 'lucide-react';
+import { Cog, Radio, Settings, ShieldOff, Wrench } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { ApiKeySection } from '../../components/settings/ApiKeySection';
 import { MapKeySection } from '../../components/settings/MapKeySection';
@@ -13,6 +13,7 @@ import {
   ProxySection,
   ToastsSection,
 } from './app';
+import { BlockedSection } from './blocked';
 import { DangerZoneSection, ImportExportSection, MaintenanceSection } from './ExtraSections';
 import { type PillTab, PillTabs } from './PillTabs';
 import {
@@ -56,7 +57,7 @@ const TAB_SECTIONS: Record<SettingsTab, SettingsSectionMeta[]> = {
     { id: 'radio-telemetry', title: 'Telemetry', tab: 'radio' },
     { id: 'radio-device-info', title: 'Device Info', tab: 'radio' },
   ],
-  blocked: [],
+  blocked: [{ id: 'blocked-rules', title: 'Blocked Senders', tab: 'blocked' }],
   extra: [
     { id: 'extra-maintenance', title: 'Maintenance', tab: 'extra' },
     { id: 'extra-import-export', title: 'Import / Export', tab: 'extra' },
@@ -135,6 +136,7 @@ export function SettingsPanel({ client, initialTab, initialSection }: Props) {
   const pillTabs: PillTab<SettingsTab>[] = [
     { id: 'app', label: 'Application Settings', icon: Cog, dirty: tabDirty('app') },
     { id: 'radio', label: 'Radio Settings', icon: Radio, dirty: tabDirty('radio') },
+    { id: 'blocked', label: 'Blocked', icon: ShieldOff, dirty: tabDirty('blocked') },
     { id: 'extra', label: 'Extra Tools', icon: Wrench },
   ];
 
@@ -155,6 +157,7 @@ export function SettingsPanel({ client, initialTab, initialSection }: Props) {
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-7 pb-10">
         {activeTab === 'app' && <AppTab client={client} />}
         {activeTab === 'radio' && <RadioTab client={client} />}
+        {activeTab === 'blocked' && <BlockedTab client={client} />}
         {activeTab === 'extra' && <ExtraTab client={client} />}
       </div>
 
@@ -200,6 +203,10 @@ function RadioTab({ client }: { client: ApiClient | null }) {
       <DeviceInfoSection client={client} />
     </>
   );
+}
+
+function BlockedTab({ client }: { client: ApiClient | null }) {
+  return <BlockedSection client={client} />;
 }
 
 function ExtraTab({ client }: { client: ApiClient | null }) {
