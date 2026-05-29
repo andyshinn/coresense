@@ -3,6 +3,7 @@ import {
   type AppSettings,
   type AutoAddConfig,
   type BleDevice,
+  type BlockRule,
   type BridgeStatus,
   type Capabilities,
   type Channel,
@@ -65,7 +66,7 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = { kinds: ['channel', 'dm'] };
 // The redesigned Settings panel and the RightRail jump-list are sibling
 // components under AppShell, so their shared state (which sections exist,
 // which are dirty, the active section, the unsaved-changes prompt) lives here.
-export type SettingsTab = 'app' | 'radio' | 'extra';
+export type SettingsTab = 'app' | 'radio' | 'blocked' | 'extra';
 
 export interface SettingsSectionMeta {
   id: string;
@@ -157,6 +158,7 @@ interface CoreState {
 
   // Settings
   appSettings: AppSettings;
+  blockRules: BlockRule[];
   radioSettings: RadioSettings;
   deviceIdentity: DeviceIdentity;
   autoAddConfig: AutoAddConfig;
@@ -226,6 +228,7 @@ interface CoreState {
   applyContacts: (contacts: Contact[]) => void;
   applyOwner: (owner: Owner | null) => void;
   applyAppSettings: (settings: AppSettings) => void;
+  applyBlockRules: (rules: BlockRule[]) => void;
   applyRadioSettings: (settings: RadioSettings) => void;
   applyDeviceIdentity: (identity: DeviceIdentity) => void;
   applyAutoAddConfig: (cfg: AutoAddConfig) => void;
@@ -386,6 +389,7 @@ export const useStore = create<CoreState>((set) => ({
   capabilities: null,
 
   appSettings: DEFAULT_APP_SETTINGS,
+  blockRules: [],
   radioSettings: DEFAULT_RADIO_SETTINGS,
   deviceIdentity: DEFAULT_DEVICE_IDENTITY,
   autoAddConfig: DEFAULT_AUTO_ADD_CONFIG,
@@ -429,6 +433,7 @@ export const useStore = create<CoreState>((set) => ({
       messagesByKey: groupMessagesByKey(snapshot.messages),
       capabilities: snapshot.capabilities,
       appSettings: snapshot.appSettings,
+      blockRules: snapshot.blockRules,
       radioSettings: snapshot.radioSettings,
       deviceIdentity: snapshot.deviceIdentity ?? DEFAULT_DEVICE_IDENTITY,
       autoAddConfig: snapshot.autoAddConfig ?? DEFAULT_AUTO_ADD_CONFIG,
@@ -506,6 +511,7 @@ export const useStore = create<CoreState>((set) => ({
     setRendererLogLevel(settings.logging.level);
     set(() => ({ appSettings: settings }));
   },
+  applyBlockRules: (rules) => set(() => ({ blockRules: rules })),
   applyRadioSettings: (settings) => set(() => ({ radioSettings: settings })),
   applyDeviceIdentity: (identity) => set(() => ({ deviceIdentity: identity })),
   applyAutoAddConfig: (cfg) => set(() => ({ autoAddConfig: cfg })),

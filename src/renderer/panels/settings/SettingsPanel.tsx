@@ -56,6 +56,7 @@ const TAB_SECTIONS: Record<SettingsTab, SettingsSectionMeta[]> = {
     { id: 'radio-telemetry', title: 'Telemetry', tab: 'radio' },
     { id: 'radio-device-info', title: 'Device Info', tab: 'radio' },
   ],
+  blocked: [],
   extra: [
     { id: 'extra-maintenance', title: 'Maintenance', tab: 'extra' },
     { id: 'extra-import-export', title: 'Import / Export', tab: 'extra' },
