@@ -198,6 +198,9 @@ interface CoreState {
   searchQuery: string;
   searchFilters: SearchFilters;
   searchSort: SearchSort;
+  // Incremented when Cmd/Ctrl+F fires globally. The SearchResults panel
+  // watches it to refocus its input even when the panel is already mounted.
+  searchFocusNonce: number;
   // When set, the currently-active ChannelView/DMView should scroll the
   // matching message into view and briefly flash it, then clear this. Set by
   // a search-result click. Distinct from `selectedMessageId` (right-rail
@@ -295,6 +298,8 @@ interface CoreState {
   setSearchFilters: (patch: Partial<SearchFilters>) => void;
   setSearchSort: (sort: SearchSort) => void;
   clearSearch: () => void;
+  /** Bump the focus nonce so the SearchResults panel input grabs focus. */
+  requestSearchFocus: () => void;
   /** Set by a search-result click. ChannelView/DMView consume it (scroll +
    *  flash) and then call this with null to clear. */
   setPendingJump: (mid: string | null) => void;
@@ -407,6 +412,7 @@ export const useStore = create<CoreState>((set) => ({
   searchQuery: '',
   searchFilters: DEFAULT_SEARCH_FILTERS,
   searchSort: 'recency',
+  searchFocusNonce: 0,
   pendingJumpMid: null,
 
   hydrate: (snapshot) => {
@@ -684,6 +690,7 @@ export const useStore = create<CoreState>((set) => ({
       searchQuery: '',
       searchFilters: DEFAULT_SEARCH_FILTERS,
     })),
+  requestSearchFocus: () => set((s) => ({ searchFocusNonce: s.searchFocusNonce + 1 })),
   setPendingJump: (mid) => set(() => ({ pendingJumpMid: mid })),
   markRead: (key, ts) =>
     set((s) => {

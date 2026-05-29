@@ -478,7 +478,7 @@ export interface DeviceInfo {
   maxChannels: number;
   /** Repeat mode echo when firmware ≥ 9; undefined otherwise. */
   clientRepeat?: boolean;
-  /** Path hash mode echo (0|1|2 → 1|2|4 bytes per hop) when firmware ≥ 10. */
+  /** Path hash mode echo (0|1|2 → 1|2|3 bytes per hop) when firmware ≥ 10. */
   pathHashMode?: number;
   /** Best-effort device model string scanned from the trailing printable bytes,
    *  mirroring parseNodeNameFromSelfInfo. May be empty when the firmware doesn't

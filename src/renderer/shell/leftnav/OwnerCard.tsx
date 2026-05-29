@@ -48,6 +48,7 @@ const TRANSPORT_DOT: Record<TransportState, string> = {
 export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiClient | null }) {
   const deviceInfo = useStore((s) => s.deviceInfo);
   const transport = useStore((s) => s.transportState);
+  const pathHashMode = useStore((s) => s.radioSettings.pathHashMode);
   const connected = transport === 'connected';
   const [advertising, setAdvertising] = useState(false);
 
@@ -93,14 +94,22 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
                     {owner?.name ?? 'No identity'}
                   </span>
                   {owner ? (
-                    <CopyButton
-                      value={owner.publicKeyHex}
-                      title="Copy full public key"
-                      className="flex w-fit items-center gap-1 rounded font-mono text-[10px] tracking-wide text-cs-text-dim hover:text-cs-text"
-                    >
-                      <span className="truncate">{owner.publicKeyHex.slice(0, 6)}</span>
-                      <Copy aria-hidden="true" className="size-2.5 shrink-0" />
-                    </CopyButton>
+                    <div className="flex w-fit items-center gap-1.5">
+                      <CopyButton
+                        value={owner.publicKeyHex}
+                        title="Copy full public key"
+                        className="flex items-center gap-1 rounded font-mono text-[10px] tracking-wide text-cs-text-dim hover:text-cs-text"
+                      >
+                        <span className="truncate">{owner.publicKeyHex.slice(0, 6)}</span>
+                        <Copy aria-hidden="true" className="size-2.5 shrink-0" />
+                      </CopyButton>
+                      <span
+                        title={`Path hash size: ${pathHashMode} byte${pathHashMode > 1 ? 's' : ''} per hop`}
+                        className="rounded-sm bg-cs-bg-3 px-1 font-mono text-[9px] uppercase tracking-wide text-cs-text-dim"
+                      >
+                        {pathHashMode}b
+                      </span>
+                    </div>
                   ) : (
                     <span className="truncate font-mono text-[10px] tracking-wide text-cs-text-dim">
                       configure to send adverts
@@ -189,6 +198,7 @@ function RadioDetailsContent({ owner }: { owner: Owner | null }) {
         <KeyValueRow label="Spreading" value={`SF${radio.spreadingFactor}`} mono />
         <KeyValueRow label="Coding rate" value={`4/${radio.codingRate}`} mono />
         <KeyValueRow label="TX power" value={`${radio.txPowerDbm} dBm`} mono />
+        <KeyValueRow label="Path hash" value={`${radio.pathHashMode}-byte`} mono />
       </KeyValueGroup>
 
       <KeyValueGroup title="Device">

@@ -110,8 +110,22 @@ export const settingsStore = {
   },
   saveAppSettings: (v: AppSettings): void => writeJson(FILES.app, v),
 
-  loadRadioSettings: (): RadioSettings =>
-    mergeDefaults(readJson(FILES.radio, DEFAULT_RADIO_SETTINGS), DEFAULT_RADIO_SETTINGS),
+  loadRadioSettings: (): RadioSettings => {
+    const merged = mergeDefaults(
+      readJson(FILES.radio, DEFAULT_RADIO_SETTINGS),
+      DEFAULT_RADIO_SETTINGS,
+    );
+    // Legacy migration: PathHashSize used to allow 4, but firmware only
+    // accepts 1/2/3 bytes per hop. Coerce anything else to the default.
+    if (merged.pathHashMode !== 1 && merged.pathHashMode !== 2 && merged.pathHashMode !== 3) {
+      log.warn(
+        `radio-settings.json had invalid pathHashMode=${merged.pathHashMode}; coercing to ${DEFAULT_RADIO_SETTINGS.pathHashMode}`,
+      );
+      merged.pathHashMode = DEFAULT_RADIO_SETTINGS.pathHashMode;
+      writeJson(FILES.radio, merged);
+    }
+    return merged;
+  },
   saveRadioSettings: (v: RadioSettings): void => writeJson(FILES.radio, v),
 
   loadChannels: (): Channel[] => readJson(FILES.channels, []),

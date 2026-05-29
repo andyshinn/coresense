@@ -19,6 +19,7 @@ import {
   BluetoothSection,
   ContactSettingsSection,
   DeviceInfoSection,
+  ExperimentalSection,
   IdentityKeySection,
   MessageSection,
   PositionSection,
@@ -46,6 +47,7 @@ const TAB_SECTIONS: Record<SettingsTab, SettingsSectionMeta[]> = {
   radio: [
     { id: 'radio-public-info', title: 'Public Info', tab: 'radio' },
     { id: 'radio-radio', title: 'Radio', tab: 'radio' },
+    { id: 'radio-experimental', title: 'Experimental', tab: 'radio' },
     { id: 'radio-identity-key', title: 'Identity Key', tab: 'radio' },
     { id: 'radio-bluetooth', title: 'Bluetooth', tab: 'radio' },
     { id: 'radio-contacts', title: 'Contacts · Auto-add', tab: 'radio' },
@@ -187,6 +189,7 @@ function RadioTab({ client }: { client: ApiClient | null }) {
       )}
       <PublicInfoSection client={client} />
       <RadioSection client={client} />
+      <ExperimentalSection client={client} />
       <IdentityKeySection />
       <BluetoothSection />
       <ContactSettingsSection client={client} />

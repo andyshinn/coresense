@@ -157,20 +157,31 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const session = protocolSession();
     const t = transportManager.getState();
     if (pushToDevice && t.state === 'connected') {
-      const ok = await session.setRadioParams({
-        frequencyHz: body.frequencyHz,
-        bandwidthHz: body.bandwidthHz,
-        spreadingFactor: body.spreadingFactor,
-        codingRate: body.codingRate,
-        txPowerDbm: body.txPowerDbm,
-        repeatMode: body.repeatMode,
-      });
-      if (!ok) return c.json({ error: 'radio rejected SET_RADIO_PARAMS or timed out' }, 503);
-      // The session method writes holder + broadcasts on success — also push
-      // the path-hash-mode separately since it has its own opcode and isn't
-      // part of SET_RADIO_PARAMS.
-      const currentHash = stateHolder().getRadioSettings().pathHashMode;
-      if (body.pathHashMode !== currentHash) {
+      // Only push fields that actually changed. SET_RADIO_PARAMS is split out
+      // from SET_PATH_HASH_MODE because they use different opcodes and either
+      // panel (Radio or Experimental) may save independently — re-pushing a
+      // full unchanged radio-params frame is wasted bandwidth at best and can
+      // be rejected by the radio at worst.
+      const current = stateHolder().getRadioSettings();
+      const radioParamsChanged =
+        body.frequencyHz !== current.frequencyHz ||
+        body.bandwidthHz !== current.bandwidthHz ||
+        body.spreadingFactor !== current.spreadingFactor ||
+        body.codingRate !== current.codingRate ||
+        body.txPowerDbm !== current.txPowerDbm ||
+        body.repeatMode !== current.repeatMode;
+      if (radioParamsChanged) {
+        const ok = await session.setRadioParams({
+          frequencyHz: body.frequencyHz,
+          bandwidthHz: body.bandwidthHz,
+          spreadingFactor: body.spreadingFactor,
+          codingRate: body.codingRate,
+          txPowerDbm: body.txPowerDbm,
+          repeatMode: body.repeatMode,
+        });
+        if (!ok) return c.json({ error: 'radio rejected SET_RADIO_PARAMS or timed out' }, 503);
+      }
+      if (body.pathHashMode !== current.pathHashMode) {
         try {
           await session.setPathHashMode(body.pathHashMode);
         } catch (err) {
@@ -560,15 +571,15 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     }
   });
 
-  // Radio-wide path-hash mode (1, 2, or 4 bytes per hop).
+  // Radio-wide path-hash mode (1, 2, or 3 bytes per hop).
   api.put('/api/radio/path-hash-mode', async (c) => {
     const body = (await c.req.json().catch(() => null)) as { size?: number } | null;
     const size = body?.size;
-    if (size !== 1 && size !== 2 && size !== 4) {
-      return c.json({ error: 'size must be 1, 2, or 4' }, 400);
+    if (size !== 1 && size !== 2 && size !== 3) {
+      return c.json({ error: 'size must be 1, 2, or 3' }, 400);
     }
     try {
-      await protocolSession().setPathHashMode(size);
+      await protocolSession().setPathHashMode(size as 1 | 2 | 3);
       return c.json({ ok: true });
     } catch (err) {
       return c.json({ error: (err as Error).message }, 503);

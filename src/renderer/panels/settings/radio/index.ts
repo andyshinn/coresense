@@ -1,6 +1,7 @@
 export { BluetoothSection } from './Bluetooth';
 export { ContactSettingsSection } from './ContactSettings';
 export { DeviceInfoSection } from './DeviceInfo';
+export { ExperimentalSection } from './Experimental';
 export { IdentityKeySection } from './IdentityKey';
 export { MessageSection } from './Message';
 export { PositionSection } from './Position';

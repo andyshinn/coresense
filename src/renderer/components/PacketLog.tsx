@@ -35,15 +35,17 @@ function MeshRow({ packet, timeFormat }: { packet: RawPacket; timeFormat: TimeFo
       : null;
   return (
     <div className="flex gap-3 py-1">
-      <span className="shrink-0 text-cs-text-dim">
+      <span className="inline-block shrink-0 text-cs-text-dim">
         {fmtTimePrecise(packet.timestamp, timeFormat)}
       </span>
-      <span className="shrink-0 text-cs-text-dim">{packet.payloadBytes.length}B</span>
-      <span className={`shrink-0 font-medium ${color}`}>{summary.typeName}</span>
-      <span className="shrink-0 text-cs-text-dim">{summary.routeName}</span>
-      {link && <span className="shrink-0 text-cs-text-dim">{link}</span>}
-      {summary.detail && <span className="shrink-0 text-cs-text-muted">{summary.detail}</span>}
-      <span className="break-all text-cs-text-dim/70">{packet.payloadHex}</span>
+      <span className="inline-block shrink-0 text-cs-text-dim">{packet.payloadBytes.length}B</span>
+      <span className={`inline-block shrink-0 font-medium ${color}`}>{summary.typeName}</span>
+      <span className="inline-block shrink-0 text-cs-text-dim">{summary.routeName}</span>
+      {link && <span className="inline-block shrink-0 text-cs-text-dim">{link}</span>}
+      {summary.detail && (
+        <span className="inline-block shrink-0 text-cs-text-muted">{summary.detail}</span>
+      )}
+      <span className="inline-block break-all text-cs-text-dim/70">{packet.payloadHex}</span>
     </div>
   );
 }
@@ -51,13 +53,13 @@ function MeshRow({ packet, timeFormat }: { packet: RawPacket; timeFormat: TimeFo
 function CompanionRow({ packet, timeFormat }: { packet: RawPacket; timeFormat: TimeFormatPref }) {
   return (
     <div className="flex gap-3 py-1">
-      <span className="shrink-0 text-cs-text-dim">
+      <span className="inline-block shrink-0 text-cs-text-dim">
         {fmtTimePrecise(packet.timestamp, timeFormat)}
       </span>
-      <span className="shrink-0 text-cs-text-dim">{packet.payloadBytes.length}B</span>
-      <span className="shrink-0 font-medium text-cs-accent-soft">BLE</span>
-      <span className="shrink-0 text-cs-text-muted">{packet.codeName ?? '?'}</span>
-      <span className="break-all text-cs-text-dim/70">{packet.payloadHex}</span>
+      <span className="inline-block shrink-0 text-cs-text-dim">{packet.payloadBytes.length}B</span>
+      <span className="inline-block shrink-0 font-medium text-cs-accent-soft">BLE</span>
+      <span className="inline-block shrink-0 text-cs-text-muted">{packet.codeName ?? '?'}</span>
+      <span className="inline-block break-all text-cs-text-dim/70">{packet.payloadHex}</span>
     </div>
   );
 }

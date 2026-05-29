@@ -73,6 +73,7 @@ import {
   buildSetRadioParams,
   buildSetRadioTxPower,
   deriveChannelSecret,
+  pathHashModeToSize,
   pathHashSizeToMode,
 } from './encode';
 import { consumeMatching as consumeMeshObs } from './meshObservations';
@@ -596,7 +597,7 @@ export class ProtocolSession {
 
   /** Set the radio's global path-hash mode (bytes per hop). Persists on the
    *  radio and updates local RadioSettings on RESP_OK. */
-  async setPathHashMode(size: 1 | 2 | 4): Promise<void> {
+  async setPathHashMode(size: 1 | 2 | 3): Promise<void> {
     await this.writeFrame(buildSetPathHashMode(pathHashSizeToMode(size)));
     const holder = stateHolder();
     const current = holder.getRadioSettings();
@@ -1485,6 +1486,18 @@ export class ProtocolSession {
         };
         holder.setDeviceCapabilities(caps);
         emit.deviceCapabilities(caps);
+        // Sync the radio's actual path-hash mode into RadioSettings. Firmware
+        // ≥ 10 echoes it in DEVICE_INFO; for older firmware leave whatever the
+        // app has stored. The radio is the source of truth when it answers.
+        if (parsed.pathHashMode !== undefined) {
+          const radioSize = pathHashModeToSize(parsed.pathHashMode);
+          const currentRadio = holder.getRadioSettings();
+          if (currentRadio.pathHashMode !== radioSize) {
+            const nextRadio = { ...currentRadio, pathHashMode: radioSize };
+            holder.setRadioSettings(nextRadio);
+            emit.radioSettings(nextRadio);
+          }
+        }
       }
       return;
     }

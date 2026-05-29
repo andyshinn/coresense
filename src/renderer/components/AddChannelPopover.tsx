@@ -191,7 +191,10 @@ export function AddChannelPopover({ client, onClose }: Props) {
           ? 'Join hashtag channel'
           : 'Join public channel';
 
-  const nameError = view.name === '' ? null : validateName(view.name, channels);
+  // Skip duplicate-name validation while submitting: the WS channels broadcast
+  // races pushChannelToDevice, so the channel we just PUT can appear in the
+  // store before onClose fires, flashing a bogus "already exists" error.
+  const nameError = view.name === '' || view.submitting ? null : validateName(view.name, channels);
   const trimmedName = view.name.trim();
   const normalizedSecret = normalizeHex(view.secretHex);
   const secretError =

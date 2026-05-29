@@ -1,5 +1,5 @@
 import { Hash, Inbox, Plus, Search, Users, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { Contact, ContactKind } from '../../../shared/types';
 import { AddChannelPopover } from '../../components/AddChannelPopover';
 import { ContextMenu, menuItem } from '../../components/ContextMenu';
@@ -97,22 +97,6 @@ export function LeftNav({ client }: LeftNavProps) {
   // it — so typing then escaping doesn't leave the user staring at an empty
   // search result page.
   const preSearchKeyRef = useRef<string | null>(null);
-
-  // Cmd/Ctrl+F focuses the sidebar search — distinct from the command palette
-  // (Cmd+K). Typing into it routes to the tool:search panel; the sidebar tree
-  // itself is no longer mutated by search.
-  useEffect(() => {
-    if (!showLeftNavSearch) return;
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
-        e.preventDefault();
-        searchRef.current?.focus();
-        searchRef.current?.select();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [showLeftNavSearch]);
 
   const onSearchChange = useCallback(
     (next: string) => {

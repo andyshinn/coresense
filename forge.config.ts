@@ -45,6 +45,18 @@ const windowsSign = process.env.WINDOWS_SIGN
   ? { hookModulePath: join(process.cwd(), 'scripts', 'windows-sign.cjs') }
   : undefined;
 
+// Notarization is opt-in: only configured when API key credentials are present,
+// so local/unsigned builds still package. Uses App Store Connect API key auth
+// (issuer + key ID + .p8 file path) rather than Apple ID + app-specific password.
+const osxNotarize =
+  process.env.APPLE_API_KEY && process.env.APPLE_API_KEY_ID && process.env.APPLE_API_ISSUER
+    ? {
+        appleApiKey: process.env.APPLE_API_KEY,
+        appleApiKeyId: process.env.APPLE_API_KEY_ID,
+        appleApiIssuer: process.env.APPLE_API_ISSUER,
+      }
+    : undefined;
+
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
@@ -74,11 +86,16 @@ const config: ForgeConfig = {
     osxUniversal: {
       mergeASARs: true,
     },
-    // Auto-detects Developer ID Application cert from keychain. Required so
-    // FusesPlugin skips its arm64-only ad-hoc resign and both per-arch builds
-    // go into universal stitching with matching signature state; the merged
-    // universal app is then signed once by @electron/osx-sign post-stitch.
-    osxSign: {},
+    // Required so FusesPlugin skips its arm64-only ad-hoc resign and both
+    // per-arch builds go into universal stitching with matching signature
+    // state; the merged universal app is then signed once by @electron/osx-sign
+    // post-stitch. APPLE_SIGNING_IDENTITY pins the cert (e.g. "Developer ID
+    // Application: Name (TEAMID)"); when unset, osx-sign auto-detects via
+    // `security find-identity` and picks the first match.
+    osxSign: {
+      identity: process.env.APPLE_SIGNING_IDENTITY,
+    },
+    osxNotarize,
     windowsSign,
   },
   rebuildConfig: {

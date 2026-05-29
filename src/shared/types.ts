@@ -81,7 +81,7 @@ export interface Channel {
 
 export type ContactKind = 'chat' | 'repeater' | 'sensor' | 'room';
 
-export type PathHashSize = 1 | 2 | 4;
+export type PathHashSize = 1 | 2 | 3;
 
 export interface Contact {
   key: string; // 'c:<publicKeyHex>'

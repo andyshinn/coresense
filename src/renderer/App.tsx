@@ -74,14 +74,22 @@ export function App() {
     // the linter is the cheapest path forward.
   }, [setSystemDark]);
 
-  // Global Cmd/Ctrl+K listener. The menu accelerator handles it when nothing
-  // else has focus, but a focused input swallows the keydown — this captures
-  // the bubbled event so the palette opens regardless of focus.
+  // Global Cmd/Ctrl+K (command palette) and Cmd/Ctrl+F (search panel)
+  // listeners. The menu accelerators handle these when nothing else has focus,
+  // but a focused input swallows the keydown — this captures the bubbled event
+  // so the shortcut works regardless of focus. Cmd+F routes to the Search
+  // panel rather than the optional sidebar quick-filter input, so it works
+  // identically whether or not `showLeftNavSearch` is enabled.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         useStore.getState().openPalette();
+      } else if ((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        const s = useStore.getState();
+        s.setActiveKey('tool:search');
+        s.requestSearchFocus();
       }
     };
     window.addEventListener('keydown', onKeyDown);

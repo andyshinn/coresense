@@ -100,13 +100,19 @@ export function SearchResults({ client }: Props) {
   // cursor in the field. Skip when the user is already typing into another
   // input (the LeftNav sidebar search) — otherwise we'd steal focus
   // mid-keystroke and select() would replace their first character with the
-  // next one they type.
+  // next one they type. Re-runs when `searchFocusNonce` bumps so a global
+  // Cmd/Ctrl+F refocuses the input even if the panel is already mounted.
+  const searchFocusNonce = useStore((s) => s.searchFocusNonce);
   useEffect(() => {
     const active = document.activeElement;
-    if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+    if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+      // The nonce bump means the user explicitly hit Cmd/Ctrl+F — they want
+      // focus *here*, even if another input currently holds it.
+      if (active !== inputRef.current && searchFocusNonce === 0) return;
+    }
     inputRef.current?.focus();
     inputRef.current?.select();
-  }, []);
+  }, [searchFocusNonce]);
 
   // Page 0 fetch — fires whenever the effective query changes. Debounced so
   // typing doesn't fire a request per keystroke.

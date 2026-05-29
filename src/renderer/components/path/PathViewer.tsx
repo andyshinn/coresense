@@ -11,7 +11,6 @@
 // `onSelectCandidate` is currently a UI-only callback — pinning resolution to
 // persistent state is a follow-up.
 
-import { Info } from 'lucide-react';
 import { useState } from 'react';
 import type { Contact, MessageHop, MessagePath } from '../../../shared/types';
 import { PathItem } from './PathItem';

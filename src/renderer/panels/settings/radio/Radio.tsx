@@ -9,14 +9,15 @@ import { findMatchingPreset, RADIO_PRESETS } from '../presets';
 import { useSettingsSection } from '../useSectionDraft';
 import type { SectionProps } from './shared';
 
+// pathHashMode is owned by the Experimental section — exclude it here so a
+// concurrent edit there isn't reverted when this panel saves.
 const eqRadio = (a: RadioSettings, b: RadioSettings) =>
   a.frequencyHz === b.frequencyHz &&
   a.bandwidthHz === b.bandwidthHz &&
   a.spreadingFactor === b.spreadingFactor &&
   a.codingRate === b.codingRate &&
   a.txPowerDbm === b.txPowerDbm &&
-  a.repeatMode === b.repeatMode &&
-  a.pathHashMode === b.pathHashMode;
+  a.repeatMode === b.repeatMode;
 
 export function RadioSection({ client }: SectionProps) {
   const saved = useStore((s) => s.radioSettings);
@@ -29,7 +30,14 @@ export function RadioSection({ client }: SectionProps) {
     eq: eqRadio,
     onSave: async (d) => {
       if (!client) throw new Error('No server connection');
-      await api.putRadioSettings(client, { ...d, pushToDevice: connected });
+      // Take pathHashMode from latest store (Experimental panel owns it) so a
+      // stale draft here can't revert a recent Experimental save.
+      const latestHash = useStore.getState().radioSettings.pathHashMode;
+      await api.putRadioSettings(client, {
+        ...d,
+        pathHashMode: latestHash,
+        pushToDevice: connected,
+      });
       notify.success(connected ? 'Radio params pushed to device' : 'Radio params saved app-side');
     },
   });
