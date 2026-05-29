@@ -38,6 +38,14 @@ describe('sortByPinned', () => {
     expect(sort(items, { order: (i) => i.ord })).toEqual(['a', 'b']);
   });
 
+  it('sorts by label when nothing else differs', () => {
+    expect(sort([{ id: 'banana' }, { id: 'apple' }, { id: 'cherry' }])).toEqual([
+      'apple',
+      'banana',
+      'cherry',
+    ]);
+  });
+
   it('does not mutate the input array', () => {
     const items: Item[] = [{ id: 'b' }, { id: 'a' }];
     sort(items);
