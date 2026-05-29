@@ -240,7 +240,6 @@ class StateHolder {
         ? extractSenderNameFromBody(msg.body)
         : undefined,
       contactNameByPk: (pk) => this.contacts.find((c) => c.publicKeyHex === pk)?.name,
-      originHopShortId: originHop?.shortId?.toLowerCase(),
       originHopPk: originHop?.pk?.toLowerCase(),
     };
   }

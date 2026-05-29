@@ -55,7 +55,6 @@ function buildHintsForNotify(m: Message): BlockMatchHints {
   return {
     senderNameFromBody: m.key.startsWith('ch:') ? extractSenderNameFromBody(m.body) : undefined,
     contactNameByPk: (pk) => holder.getContacts().find((c) => c.publicKeyHex === pk)?.name,
-    originHopShortId: originHop?.shortId?.toLowerCase(),
     originHopPk: originHop?.pk?.toLowerCase(),
   };
 }

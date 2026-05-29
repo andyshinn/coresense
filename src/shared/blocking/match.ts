@@ -10,8 +10,6 @@ export interface BlockMatchHints {
   senderNameFromBody?: string;
   /** Resolver for DM-style messages: pubkey -> display name. */
   contactNameByPk?: (pk: string) => string | undefined;
-  /** Channel-message origin hop short id (lowercase hex). */
-  originHopShortId?: string;
   /** Channel-message origin hop resolved full pubkey (lowercase hex), when
    *  an advert was matched. Undefined otherwise. */
   originHopPk?: string;
@@ -57,7 +55,11 @@ function ruleMatches(
     }
     case 'pubkeyPrefix': {
       if (isChannelMessage(msg)) {
-        return hints.originHopShortId?.startsWith(rule.pattern) ?? false;
+        // originHopPk is the only meaningful source of a real pubkey prefix
+        // for channel messages. The path's shortId is a name-derived display
+        // label, not a hex prefix, so it would silently match by name
+        // lookalike if used here — wrong semantic for this rule type.
+        return hints.originHopPk?.startsWith(rule.pattern) ?? false;
       }
       return msg.fromPublicKeyHex?.startsWith(rule.pattern) ?? false;
     }
