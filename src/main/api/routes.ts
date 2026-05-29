@@ -100,7 +100,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       gpsConfig: holder.getGpsConfig(),
       deviceInfo: holder.getDeviceInfo(),
       deviceCapabilities: holder.getDeviceCapabilities(),
-      blockRules: [],
+      blockRules: [], // TODO(block-users): wire to holder.getBlockRules() when the block store lands (Task 8)
     };
     return c.json(payload);
   });

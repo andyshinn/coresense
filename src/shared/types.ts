@@ -175,7 +175,9 @@ export interface MessageMeta {
   timesHeard?: number;
   signatureHex?: string;
   /** Set by main when the message matches an active block rule. The
-   *  renderer hides annotated rows from MessageList, Unreads, and Search. */
+   *  renderer hides annotated rows from MessageList, Unreads, and Search.
+   *  Re-evaluated per query — disabling or deleting the rule clears the
+   *  annotation on the next read (not sticky). */
   blocked?: boolean;
   /** The id of the first rule (by createdAt asc) that matched this message
    *  at first-match time. Used to attribute matchCount; not used for hiding. */
