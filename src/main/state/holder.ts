@@ -241,7 +241,7 @@ class StateHolder {
         : undefined,
       contactNameByPk: (pk) => this.contacts.find((c) => c.publicKeyHex === pk)?.name,
       originHopShortId: originHop?.shortId?.toLowerCase(),
-      originHopPk: originHop?.pk?.toLowerCase() ?? undefined,
+      originHopPk: originHop?.pk?.toLowerCase(),
     };
   }
   insertMessage(message: Message): void {
@@ -364,8 +364,8 @@ class StateHolder {
           blockingStore().bumpMatchCount(ruleId);
         }
       }
+      emit.blockRules(this.getBlockRules());
     }
-    emit.blockRules(this.getBlockRules());
     return inserted;
   }
   updateBlockRule(
