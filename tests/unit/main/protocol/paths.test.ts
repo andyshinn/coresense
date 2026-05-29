@@ -18,6 +18,7 @@ describe('channelHashOf', () => {
     expect(h1).toBe(h2);
     expect(h1).toBeGreaterThanOrEqual(0);
     expect(h1).toBeLessThanOrEqual(255);
+    expect(h1).toBe(168); // golden: sha256(secret bytes)[0]
   });
 });
 
@@ -27,6 +28,8 @@ describe('buildPath', () => {
     expect(path.hops.map((h) => h.kind)).toEqual(['origin', 'hop', 'hop', 'sink']);
     expect(path.hops[0].name).toBe('Alice');
     expect(path.hops[0].shortId).toBe('al'); // first 2 chars, lowercased
+    expect(path.hops[0].unnamed).toBe(false);
+    expect(path.hops[1].unnamed).toBe(true);
     expect(path.hops[1].shortId).toBe('aa');
     expect(path.hops[2].shortId).toBe('bb');
     expect(path.hops[3].kind).toBe('sink');
