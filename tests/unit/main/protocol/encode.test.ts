@@ -177,6 +177,7 @@ describe('encode: deriveChannelSecret', () => {
     const b = deriveChannelSecret('public');
     expect(a).toBe(b);
     expect(a).toMatch(/^[0-9a-f]{32}$/);
+    expect(a).toBe('efa1f375d76194fa51a3556a97e641e6'); // golden: SHA-256('public')[:16]
   });
 
   it('differs for different channel names', () => {
