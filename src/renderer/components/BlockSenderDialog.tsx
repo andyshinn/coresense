@@ -4,7 +4,14 @@ import { type ApiClient, api } from '../lib/api';
 import { notify } from '../lib/notify';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -125,11 +132,10 @@ export function BlockSenderDialog({ client, open, prefill, onClose }: Props) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Block sender</DialogTitle>
+          <DialogDescription>Create block rule(s) for this sender.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 text-sm">
-          <p className="text-cs-text-muted">Create block rule(s) for this sender.</p>
-
           <div className="space-y-2">
             <Label className="text-xs uppercase text-cs-text-dim">
               Identifiers from this message
