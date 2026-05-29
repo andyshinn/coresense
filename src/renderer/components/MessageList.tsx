@@ -138,9 +138,11 @@ export function MessageList({
   // messages arrive — bumping the marker live would yank it from under the
   // user. Reset on key change.
   const initialLastReadRef = useRef(lastReadMs);
-  // Track prior props for diffing in the data-sync effect.
+  // Track prior props for diffing in the data-sync effect. Tracks the
+  // *visible* (post-block-filter) messages so that append/prepend/replace
+  // diffs stay aligned with what's actually rendered.
   const prevKeyRef = useRef(conversationKey);
-  const prevMessagesRef = useRef(messages);
+  const prevMessagesRef = useRef<Message[]>([]);
   // Highest message ts we've already reported as read — guards against
   // re-firing onMarkRead for the same cursor as Virtuoso fires
   // onRenderedDataChange on every visible-range tick.
@@ -161,14 +163,25 @@ export function MessageList({
     return m;
   }, [contacts]);
 
+  // Drop messages annotated as blocked by main before they hit the rendered
+  // list. Unread bookkeeping (lastMarkedReadRef / onMarkRead) still reads the
+  // original `messages` so the last-read cursor stays aligned with what main
+  // considers read — silently advancing past blocked rows is fine because they
+  // are no longer visible anywhere.
+  const visibleMessages = useMemo(
+    () => messages.filter((m) => m.meta?.blocked !== true),
+    [messages],
+  );
+
   // Seed the list on first mount. Subsequent renders ignore initialData /
   // initialLocation — updates go through the imperative ref.
   const initialItemsRef = useRef<Item[] | null>(null);
   const initialLocationRef = useRef<ReturnType<typeof initialLocationFor> | null>(null);
   if (!initialItemsRef.current) {
-    const firstUnreadIdx = computeFirstUnreadIdx(messages, initialLastReadRef.current);
-    initialItemsRef.current = buildItems(messages, firstUnreadIdx);
+    const firstUnreadIdx = computeFirstUnreadIdx(visibleMessages, initialLastReadRef.current);
+    initialItemsRef.current = buildItems(visibleMessages, firstUnreadIdx);
     initialLocationRef.current = initialLocationFor(initialItemsRef.current);
+    prevMessagesRef.current = visibleMessages;
   }
 
   // Sync messages → list via imperative API. Picks the cheapest op that
@@ -182,8 +195,8 @@ export function MessageList({
     if (prevKeyRef.current !== conversationKey) {
       initialLastReadRef.current = lastReadMs;
       lastMarkedReadRef.current = lastReadMs;
-      const firstUnreadIdx = computeFirstUnreadIdx(messages, lastReadMs);
-      const newItems = buildItems(messages, firstUnreadIdx);
+      const firstUnreadIdx = computeFirstUnreadIdx(visibleMessages, lastReadMs);
+      const newItems = buildItems(visibleMessages, firstUnreadIdx);
       // Don't pass purgeItemSizes: true — it forces a re-measure pass where
       // Virtuoso's render window can transiently include slots whose data is
       // still undefined, crashing computeItemKey. Replace re-measures
@@ -192,49 +205,52 @@ export function MessageList({
         initialLocation: initialLocationFor(newItems),
       });
       prevKeyRef.current = conversationKey;
-      prevMessagesRef.current = messages;
+      prevMessagesRef.current = visibleMessages;
       return;
     }
 
     const prev = prevMessagesRef.current;
-    if (prev === messages) return;
-    prevMessagesRef.current = messages;
+    if (prev === visibleMessages) return;
+    prevMessagesRef.current = visibleMessages;
 
     // Tail growth (most common: new arrivals or sent messages).
     if (
-      messages.length > prev.length &&
+      visibleMessages.length > prev.length &&
       prev.length > 0 &&
-      messages[prev.length - 1]?.id === prev[prev.length - 1]?.id
+      visibleMessages[prev.length - 1]?.id === prev[prev.length - 1]?.id
     ) {
-      const appended = messages.slice(prev.length).map<Item>((m) => ({ kind: 'msg', m }));
+      const appended = visibleMessages.slice(prev.length).map<Item>((m) => ({ kind: 'msg', m }));
       ref.data.append(appended, ({ atBottom }) => (atBottom ? 'smooth' : false));
       return;
     }
 
     // First batch into an empty conversation (no prior messages).
-    if (prev.length === 0 && messages.length > 0) {
-      const firstUnreadIdx = computeFirstUnreadIdx(messages, initialLastReadRef.current);
-      const newItems = buildItems(messages, firstUnreadIdx);
+    if (prev.length === 0 && visibleMessages.length > 0) {
+      const firstUnreadIdx = computeFirstUnreadIdx(visibleMessages, initialLastReadRef.current);
+      const newItems = buildItems(visibleMessages, firstUnreadIdx);
       ref.data.replace(newItems, { initialLocation: initialLocationFor(newItems) });
       return;
     }
 
     // Head growth (load-older pagination).
     if (
-      messages.length > prev.length &&
+      visibleMessages.length > prev.length &&
       prev.length > 0 &&
-      messages[messages.length - prev.length]?.id === prev[0]?.id
+      visibleMessages[visibleMessages.length - prev.length]?.id === prev[0]?.id
     ) {
-      const prepended = messages
-        .slice(0, messages.length - prev.length)
+      const prepended = visibleMessages
+        .slice(0, visibleMessages.length - prev.length)
         .map<Item>((m) => ({ kind: 'msg', m }));
       ref.data.prepend(prepended);
       return;
     }
 
     // Same length + same id ordering — likely a state-only update.
-    if (messages.length === prev.length && messages.every((m, i) => m.id === prev[i].id)) {
-      const byId = new Map(messages.map((m) => [m.id, m]));
+    if (
+      visibleMessages.length === prev.length &&
+      visibleMessages.every((m, i) => m.id === prev[i].id)
+    ) {
+      const byId = new Map(visibleMessages.map((m) => [m.id, m]));
       ref.data.map((item) => {
         if (item.kind !== 'msg') return item;
         const updated = byId.get(item.m.id);
@@ -244,9 +260,9 @@ export function MessageList({
     }
 
     // Fallback: shape diverged, replace wholesale without changing scroll.
-    const firstUnreadIdx = computeFirstUnreadIdx(messages, initialLastReadRef.current);
-    ref.data.replace(buildItems(messages, firstUnreadIdx));
-  }, [conversationKey, messages, lastReadMs]);
+    const firstUnreadIdx = computeFirstUnreadIdx(visibleMessages, initialLastReadRef.current);
+    ref.data.replace(buildItems(visibleMessages, firstUnreadIdx));
+  }, [conversationKey, visibleMessages, lastReadMs]);
 
   // Jump-to-message (search results). The items array shifts by 1 when the
   // unread divider is present, so resolve via the list's own findIndex.
@@ -295,7 +311,7 @@ export function MessageList({
     onContextMenu: handleContextMenu,
   };
 
-  if (messages.length === 0 && !initialItemsRef.current?.length) {
+  if (visibleMessages.length === 0 && !initialItemsRef.current?.length) {
     return <EmptyState />;
   }
 
