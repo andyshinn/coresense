@@ -3,6 +3,7 @@ import type {
   AppSettings,
   AutoAddConfig,
   BleDevice,
+  BlockRule,
   Channel,
   Contact,
   DeviceCapabilities,
@@ -63,6 +64,7 @@ export const emit = {
   gpsConfig: (cfg: GpsConfig) => bus.emit('gpsConfig', cfg),
   deviceInfo: (info: DeviceInfo) => bus.emit('deviceInfo', info),
   deviceCapabilities: (caps: DeviceCapabilities) => bus.emit('deviceCapabilities', caps),
+  blockRules: (rules: BlockRule[]) => bus.emit('blockRules', rules),
   logEntry: (entry: LogEntry) => bus.emit('log:entry', entry),
 };
 
@@ -95,5 +97,6 @@ export type BusEvents = {
   gpsConfig: (cfg: GpsConfig) => void;
   deviceInfo: (info: DeviceInfo) => void;
   deviceCapabilities: (caps: DeviceCapabilities) => void;
+  blockRules: (rules: BlockRule[]) => void;
   'log:entry': (entry: LogEntry) => void;
 };

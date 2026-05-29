@@ -9,6 +9,7 @@ import type {
   AppSettings,
   AutoAddConfig,
   BleDevice,
+  BlockRule,
   Channel,
   Contact,
   DeviceCapabilities,
@@ -217,6 +218,7 @@ export async function startServer(
   const onDeviceInfo = (info: DeviceInfo) => broadcast({ type: 'deviceInfo', payload: info });
   const onDeviceCapabilities = (caps: DeviceCapabilities) =>
     broadcast({ type: 'deviceCapabilities', payload: caps });
+  const onBlockRules = (rules: BlockRule[]) => broadcast({ type: 'blockRules', payload: rules });
   const onUiState = (state: UiState) => broadcast({ type: 'uiState', payload: state });
   const onLogEntry = (entry: LogEntry) => broadcast({ type: 'log', payload: entry });
 
@@ -247,6 +249,7 @@ export async function startServer(
   bus.on('gpsConfig', onGpsConfig);
   bus.on('deviceInfo', onDeviceInfo);
   bus.on('deviceCapabilities', onDeviceCapabilities);
+  bus.on('blockRules', onBlockRules);
   bus.on('uiState', onUiState);
   bus.on('log:entry', onLogEntry);
   bridge.on('statusChanged', onBridgeStatus);
@@ -279,6 +282,7 @@ export async function startServer(
     bus.off('gpsConfig', onGpsConfig);
     bus.off('deviceInfo', onDeviceInfo);
     bus.off('deviceCapabilities', onDeviceCapabilities);
+    bus.off('blockRules', onBlockRules);
     bus.off('uiState', onUiState);
     bus.off('log:entry', onLogEntry);
     bridge.off('statusChanged', onBridgeStatus);
