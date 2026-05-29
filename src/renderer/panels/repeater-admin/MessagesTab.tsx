@@ -138,6 +138,7 @@ export function MessagesTab({ contact, client }: Props) {
           lastReadMs={lastReadMs}
           onMarkRead={(ts) => markRead(contact.key, ts)}
           onResend={(m) => onSend(m.body)}
+          client={client}
         />
       </div>
 

@@ -4,10 +4,13 @@ import {
   VirtuosoMessageListLicense,
   type VirtuosoMessageListMethods,
 } from '@virtuoso.dev/message-list';
-import { Copy, RotateCw, User } from 'lucide-react';
+import { Copy, RotateCw, ShieldOff, User } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Contact, Message, MessageStyle, Owner } from '../../shared/types';
+import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
+import { deriveSenderName } from '../lib/utils';
+import { BlockSenderDialog, type BlockSenderDialogPrefill } from './BlockSenderDialog';
 import {
   ContextMenu,
   type ContextMenuEntry,
@@ -29,6 +32,7 @@ interface Props {
   onMarkRead: (ts: number) => void;
   onResend?: (message: Message) => void;
   onReply?: (senderName: string) => void;
+  client: ApiClient | null;
   /** When set, scroll the row whose message.id matches into view and apply a
    *  brief highlight, then call onJumpConsumed so the parent clears state. */
   jumpToId?: string | null;
@@ -120,6 +124,7 @@ export function MessageList({
   onMarkRead,
   onResend,
   onReply,
+  client,
   jumpToId,
   onJumpConsumed,
 }: Props) {
@@ -127,6 +132,7 @@ export function MessageList({
   const listRef = useRef<VirtuosoMessageListMethods<Item, RowContext>>(null);
   const [menu, setMenu] = useState<MessageMenuState | null>(null);
   const [flashId, setFlashId] = useState<string | null>(null);
+  const [blockPrefill, setBlockPrefill] = useState<BlockSenderDialogPrefill | null>(null);
 
   // Frozen at conversation-open so the divider stays anchored while new
   // messages arrive — bumping the marker live would yank it from under the
@@ -145,6 +151,7 @@ export function MessageList({
     if (prevKeyRef.current !== conversationKey) {
       setMenu(null);
       setFlashId(null);
+      setBlockPrefill(null);
     }
   }, [conversationKey]);
 
@@ -313,16 +320,33 @@ export function MessageList({
           shortSizeAlign="bottom"
         />
       </VirtuosoMessageListLicense>
-      {menu && (
-        <ContextMenu
-          x={menu.x}
-          y={menu.y}
-          items={buildMessageMenuItems({
-            message: menu.message,
-            onResend,
-            onViewContact: (key) => setActiveKey(key),
-          })}
-          onClose={() => setMenu(null)}
+      {menu &&
+        (() => {
+          const sender = menu.message.fromPublicKeyHex
+            ? contactByPk.get(menu.message.fromPublicKeyHex)
+            : undefined;
+          const senderName = sender?.name ?? deriveSenderName(menu.message.fromPublicKeyHex);
+          return (
+            <ContextMenu
+              x={menu.x}
+              y={menu.y}
+              items={buildMessageMenuItems({
+                message: menu.message,
+                onResend,
+                onViewContact: (key) => setActiveKey(key),
+                onBlock: setBlockPrefill,
+                senderName,
+              })}
+              onClose={() => setMenu(null)}
+            />
+          );
+        })()}
+      {blockPrefill && (
+        <BlockSenderDialog
+          client={client}
+          open
+          prefill={blockPrefill}
+          onClose={() => setBlockPrefill(null)}
         />
       )}
     </div>
@@ -333,12 +357,16 @@ interface BuildMenuOpts {
   message: Message;
   onResend?: (m: Message) => void;
   onViewContact: (key: string) => void;
+  onBlock: (prefill: BlockSenderDialogPrefill) => void;
+  senderName: string | undefined;
 }
 
 function buildMessageMenuItems({
   message,
   onResend,
   onViewContact,
+  onBlock,
+  senderName,
 }: BuildMenuOpts): ContextMenuEntry[] {
   const items: ContextMenuEntry[] = [
     menuItem('Copy text', () => copyToClipboard(message.body), { icon: Copy }),
@@ -353,6 +381,25 @@ function buildMessageMenuItems({
     items.push(menuSeparator);
     items.push(menuItem('Re-send', () => onResend(message), { icon: RotateCw }));
   }
+
+  items.push(menuSeparator);
+  const originHop = message.meta?.paths?.[0]?.hops.find((h) => h.kind === 'origin');
+  const prefix =
+    originHop?.shortId?.toLowerCase() ?? message.fromPublicKeyHex?.slice(0, 4) ?? undefined;
+  const pubkey = message.fromPublicKeyHex ?? originHop?.pk ?? undefined;
+  items.push(
+    menuItem(
+      'Block sender…',
+      () => {
+        onBlock({
+          pubkey,
+          pubkeyPrefix: prefix,
+          name: senderName || undefined,
+        });
+      },
+      { icon: ShieldOff },
+    ),
+  );
 
   return items;
 }
