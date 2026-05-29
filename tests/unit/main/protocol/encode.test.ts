@@ -1,22 +1,39 @@
-import type { Buffer } from 'node:buffer';
+import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
 import {
   autoAddByteToFlags,
   autoAddFlagsToByte,
+  buildAddUpdateContact,
+  buildAnonLogin,
   buildAppStart,
   buildDeviceQuery,
   buildGetAutoAddConfig,
   buildGetBattAndStorage,
   buildGetChannel,
   buildGetContacts,
+  buildGetCustomVar,
   buildGetNextMsg,
+  buildGetStats,
+  buildLogout,
   buildReboot,
+  buildResetPath,
+  buildSendAnonReq,
+  buildSendBinaryReq,
+  buildSendChannelText,
   buildSendDmText,
+  buildSendLogin,
   buildSendSelfAdvert,
+  buildSendStatusReq,
+  buildSendTelemetryReq,
+  buildSendTracePath,
+  buildSetAdvertLatLon,
   buildSetAdvertName,
+  buildSetAutoAddConfig,
+  buildSetChannel,
   buildSetCustomVar,
   buildSetOtherParams,
   buildSetPathHashMode,
+  buildSetRadioParams,
   buildSetRadioTxPower,
   deriveChannelSecret,
   pathHashModeToSize,
@@ -182,5 +199,178 @@ describe('encode: deriveChannelSecret', () => {
 
   it('differs for different channel names', () => {
     expect(deriveChannelSecret('public')).not.toBe(deriveChannelSecret('private'));
+  });
+});
+
+describe('encode: bare/simple builders (missing coverage)', () => {
+  it('buildGetCustomVar appends the key, or bare opcode for empty key', () => {
+    expect(hex(buildGetCustomVar())).toBe('28');
+    expect(hex(buildGetCustomVar('gps'))).toBe('28677073');
+  });
+
+  it('buildGetStats appends the subtype', () => {
+    expect(hex(buildGetStats(0x00))).toBe('3800');
+  });
+
+  it('buildSetAutoAddConfig appends the packed flags byte', () => {
+    expect(
+      hex(
+        buildSetAutoAddConfig({
+          chat: true,
+          repeater: true,
+          room: true,
+          sensor: true,
+          overwriteOldest: true,
+        }),
+      ),
+    ).toBe('3a1f');
+  });
+
+  it('buildSendChannelText lays out [cmd][flags][idx][ts u32 LE][text]', () => {
+    const out = buildSendChannelText({ channelIdx: 2, text: 'hi', timestampUnix: 1, flags: 0 });
+    expect(hex(out)).toBe('030002010000006869');
+  });
+});
+
+describe('encode: 32-byte-pubkey commands (missing coverage)', () => {
+  const pk = 'aa'.repeat(32);
+
+  it('buildLogout is [0x1d][32B pubkey]', () => {
+    expect(hex(buildLogout(pk))).toBe(`1d${pk}`);
+  });
+
+  it('buildResetPath is [0x0d][32B pubkey]', () => {
+    expect(hex(buildResetPath(pk))).toBe(`0d${pk}`);
+  });
+
+  it('buildSendStatusReq is [0x1b][32B pubkey]', () => {
+    expect(hex(buildSendStatusReq(pk))).toBe(`1b${pk}`);
+  });
+
+  it('buildSendTelemetryReq is [0x27][3 reserved zero bytes][32B pubkey]', () => {
+    expect(hex(buildSendTelemetryReq(pk))).toBe(`27000000${pk}`);
+  });
+
+  it('buildSendLogin is [0x1a][32B pubkey][ascii password]', () => {
+    expect(hex(buildSendLogin(pk, 'pw'))).toBe(`1a${pk}7077`);
+  });
+
+  it('buildSendAnonReq is [0x39][32B pubkey][data]; rejects empty data', () => {
+    expect(hex(buildSendAnonReq(pk, Buffer.from([0x01])))).toBe(`39${pk}01`);
+    expect(() => buildSendAnonReq(pk, Buffer.alloc(0))).toThrow(/≥1 byte/);
+  });
+
+  it('buildAnonLogin wraps the password as anon-req data; rejects empty', () => {
+    expect(hex(buildAnonLogin(pk, 'pw'))).toBe(`39${pk}7077`);
+    expect(() => buildAnonLogin(pk, '')).toThrow(/empty/);
+  });
+
+  it('buildSendBinaryReq is [0x32][32B pubkey][reqData]; rejects empty', () => {
+    expect(hex(buildSendBinaryReq(pk, Buffer.from([0x05])))).toBe(`32${pk}05`);
+    expect(() => buildSendBinaryReq(pk, Buffer.alloc(0))).toThrow(/≥1 byte/);
+  });
+
+  it('rejects pubkeys shorter than 32 bytes', () => {
+    expect(() => buildLogout('aabb')).toThrow(/32B/);
+    expect(() => buildSendStatusReq('aabb')).toThrow(/32B/);
+  });
+});
+
+describe('encode: structured builders (missing coverage)', () => {
+  const pk = 'aa'.repeat(32);
+
+  it('buildSetChannel lays out [0x20][idx][name 32B null-padded][secret 16B]', () => {
+    const out = buildSetChannel(1, 'General', 'ab'.repeat(16));
+    expect(out.length).toBe(50);
+    expect(out[0]).toBe(0x20);
+    expect(out[1]).toBe(1);
+    const nameRegion = out.subarray(2, 34);
+    expect(nameRegion.subarray(0, nameRegion.indexOf(0)).toString('utf8')).toBe('General');
+    expect(out.subarray(34, 50).toString('hex')).toBe('ab'.repeat(16));
+  });
+
+  it('buildSetChannel rejects a secret that is not 16 bytes', () => {
+    expect(() => buildSetChannel(0, 'x', 'abcd')).toThrow(/16 bytes/);
+  });
+
+  it('buildSendTracePath lays out [0x24][tag u32 LE][auth u32 LE][flags u8][path]', () => {
+    const out = buildSendTracePath({ tag: 1, authCode: 2, flags: 0, path: Buffer.from([0xaa]) });
+    expect(hex(out)).toBe('24010000000200000000aa');
+  });
+
+  it('buildSendTracePath rejects an empty path', () => {
+    expect(() => buildSendTracePath({ tag: 1, authCode: 2, path: Buffer.alloc(0) })).toThrow(
+      /≥1 byte/,
+    );
+  });
+
+  it('buildSetAdvertLatLon writes signed micro-degrees', () => {
+    const out = buildSetAdvertLatLon(37.5, -122.25);
+    expect(out[0]).toBe(0x0e);
+    expect(out.readInt32LE(1)).toBe(37_500_000);
+    expect(out.readInt32LE(5)).toBe(-122_250_000);
+  });
+
+  it('buildSetRadioParams lays out freq/bw/sf/cr, repeat byte only when set', () => {
+    const base = buildSetRadioParams({
+      frequencyHz: 915_000_000,
+      bandwidthHz: 250_000,
+      spreadingFactor: 11,
+      codingRate: 5,
+    });
+    expect(base.length).toBe(11);
+    expect(base[0]).toBe(0x0b);
+    expect(base.readUInt32LE(1)).toBe(915_000_000);
+    expect(base.readUInt32LE(5)).toBe(250_000);
+    expect(base[9]).toBe(11);
+    expect(base[10]).toBe(5);
+
+    const withRepeat = buildSetRadioParams({
+      frequencyHz: 915_000_000,
+      bandwidthHz: 250_000,
+      spreadingFactor: 11,
+      codingRate: 5,
+      clientRepeat: true,
+    });
+    expect(withRepeat.length).toBe(12);
+    expect(withRepeat[11]).toBe(1);
+  });
+
+  it('buildAddUpdateContact omits the GPS tail when not provided (136 bytes)', () => {
+    const out = buildAddUpdateContact({
+      publicKeyHex: pk,
+      advType: 1,
+      flags: 0,
+      outPathHex: '',
+      name: 'Bob',
+      timestampUnix: 5,
+    });
+    expect(out.length).toBe(136);
+    expect(out[0]).toBe(0x09);
+    expect(out.subarray(1, 33).toString('hex')).toBe(pk);
+    expect(out[33]).toBe(1); // advType
+    expect(out[34]).toBe(0); // flags
+    expect(out[35]).toBe(0); // out_path_len
+    const nameRegion = out.subarray(100, 132);
+    expect(nameRegion.subarray(0, nameRegion.indexOf(0)).toString('utf8')).toBe('Bob');
+    expect(out.readUInt32LE(132)).toBe(5);
+  });
+
+  it('buildAddUpdateContact includes the GPS tail when provided (148 bytes)', () => {
+    const out = buildAddUpdateContact({
+      publicKeyHex: pk,
+      advType: 1,
+      flags: 0,
+      outPathHex: '',
+      name: 'Bob',
+      timestampUnix: 5,
+      gpsLat: 1,
+      gpsLon: 2,
+      lastAdvertUnix: 10,
+    });
+    expect(out.length).toBe(148);
+    expect(out.readInt32LE(136)).toBe(1_000_000);
+    expect(out.readInt32LE(140)).toBe(2_000_000);
+    expect(out.readUInt32LE(144)).toBe(10);
   });
 });
