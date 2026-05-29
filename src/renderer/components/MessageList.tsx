@@ -400,9 +400,17 @@ function buildMessageMenuItems({
 
   items.push(menuSeparator);
   const originHop = message.meta?.paths?.[0]?.hops.find((h) => h.kind === 'origin');
-  const prefix =
-    originHop?.shortId?.toLowerCase() ?? message.fromPublicKeyHex?.slice(0, 4) ?? undefined;
-  const pubkey = message.fromPublicKeyHex ?? originHop?.pk ?? undefined;
+  const rawPk = message.fromPublicKeyHex;
+  const hasRealPubkey = rawPk != null && rawPk !== 'unknown' && !rawPk.startsWith('name:');
+  // Origin hop pk would carry an advert-resolved pubkey, but the current
+  // path-build pipeline never populates it for channel messages — it's always
+  // null. Treat it as the authoritative source if a future change wires it.
+  const pubkey = hasRealPubkey ? rawPk : (originHop?.pk ?? undefined);
+  // Prefix is the first 4 hex chars of the real pubkey. originHop.shortId
+  // is a 2-char name-derived display label (NOT hex), so we don't use it as
+  // a pubkey prefix — that would silently create rules like pattern='sr'
+  // that match by name lookalike, which is misleading.
+  const prefix = hasRealPubkey ? rawPk.slice(0, 4) : (originHop?.pk?.slice(0, 4) ?? undefined);
   items.push(
     menuItem(
       'Block sender…',
