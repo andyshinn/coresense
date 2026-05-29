@@ -1,6 +1,7 @@
 import type {
   AppSettings,
   AutoAddConfig,
+  BlockRule,
   Capabilities,
   Contact,
   DeviceIdentity,
@@ -75,6 +76,24 @@ export const api = {
     request<{ ok: true }>(c, '/api/settings/radio', {
       method: 'PUT',
       body: JSON.stringify(settings),
+    }),
+  addBlockRules: (c: ApiClient, rules: Array<Omit<BlockRule, 'id' | 'createdAt' | 'matchCount'>>) =>
+    request<{ rules: BlockRule[] }>(c, '/api/blocks', {
+      method: 'POST',
+      body: JSON.stringify({ rules }),
+    }).then((r) => r.rules),
+  updateBlockRule: (
+    c: ApiClient,
+    id: string,
+    patch: Partial<Omit<BlockRule, 'id' | 'createdAt'>>,
+  ) =>
+    request<{ rule: BlockRule }>(c, `/api/blocks/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    }).then((r) => r.rule),
+  removeBlockRule: (c: ApiClient, id: string) =>
+    request<{ ok: true }>(c, `/api/blocks/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
     }),
   putDeviceIdentity: (c: ApiClient, identity: Partial<DeviceIdentity>) =>
     request<{ ok: true }>(c, '/api/device/identity', {
