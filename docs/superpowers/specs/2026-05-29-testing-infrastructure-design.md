@@ -58,7 +58,7 @@ No physical radio is ever required by automation. All transport input comes from
 
 ### Fixtures
 
-Protocol fixtures are **real captured frames**, not hand-built: mined from the existing `coresense.log` and from a live device session captured before Phase 1 test-writing. Each fixture in `tests/fixtures/frames/` is named and accompanied by a README noting its source, device firmware, and what the frame represents. Hand-constructed bytes are used only for malformed/truncated edge cases.
+Protocol fixtures are **real captured frames**, not hand-built. The primary source is the existing `coresense.log`, which already contains an initial device-connect session (device info, self info, contacts, channels) — Phase 1 mines this first. Additional live-device captures are optional and added later if coverage gaps appear. Each fixture in `tests/fixtures/frames/` is named and accompanied by a README noting its source, device firmware, and what the frame represents. Hand-constructed bytes are used only for malformed/truncated edge cases.
 
 ## Phase Map
 
@@ -67,7 +67,7 @@ Each phase gets its own implementation-plan cycle after this shared design doc.
 ### Phase 1 — Harness + pure unit tests *(build first)*
 
 1. **Harness:** add `vitest` + `@vitest/coverage-v8`; write `vitest.config.ts` with the `unit` project (Node env, `tests/unit/**`, `@/` alias matching `tsconfig.json`); add scripts `test`, `test:unit`, `test:watch`, `test:coverage`.
-2. **Fixture capture:** mine `coresense.log` for raw frame hex and run one live device session; save to `tests/fixtures/frames/` with a provenance README.
+2. **Fixture capture:** mine `coresense.log` (initial device-connect session) for raw frame hex; save to `tests/fixtures/frames/` with a provenance README. Live-device captures deferred unless gaps appear.
 3. **Unit targets** (characterize existing behavior against fixtures):
    - `protocol/decode` — all 17 `parseXxx` functions (channel info, channel msg v1+v3, status response, telemetry response, contact, contacts start/end, contact msg v1+v3, sent-ack, send-confirmed, batt+storage, device info, self info, custom vars, auto-add config), including malformed/truncated → `null` cases.
    - `protocol/encode` — all ~30 `buildXxx` byte-layout assertions; round-trip the symmetric pairs (`autoAddFlagsToByte`↔`autoAddByteToFlags`, `pathHashSizeToMode`↔`pathHashModeToSize`); `deriveChannelSecret` determinism.
