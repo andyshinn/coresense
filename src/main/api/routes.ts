@@ -147,16 +147,16 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // ----- Block rules -----
   // POST /api/blocks — bulk add (the dialog ticks N identifiers → N rules).
   api.post('/api/blocks', async (c) => {
-    const body = (await c.req.json()) as {
-      rules: Array<{
+    const body = (await c.req.json().catch(() => null)) as {
+      rules?: Array<{
         type: 'pubkey' | 'pubkeyPrefix' | 'name' | 'nameRegex';
         pattern: string;
         tsFrom: number;
         enabled: boolean;
         note?: string;
       }>;
-    };
-    if (!Array.isArray(body.rules) || body.rules.length === 0) {
+    } | null;
+    if (!body || !Array.isArray(body.rules) || body.rules.length === 0) {
       return c.json({ error: 'rules required' }, 400);
     }
     const holder = stateHolder();
@@ -167,12 +167,13 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // PUT /api/blocks/:id — edit pattern / note / tsFrom / enabled.
   api.put('/api/blocks/:id', async (c) => {
     const id = c.req.param('id');
-    const patch = (await c.req.json()) as Partial<{
+    const patch = (await c.req.json().catch(() => null)) as Partial<{
       pattern: string;
       tsFrom: number;
       enabled: boolean;
       note: string;
-    }>;
+    }> | null;
+    if (!patch) return c.json({ error: 'invalid body' }, 400);
     const updated = stateHolder().updateBlockRule(id, patch);
     if (!updated) return c.json({ error: 'not found' }, 404);
     return c.json({ rule: updated });
