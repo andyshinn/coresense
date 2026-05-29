@@ -100,6 +100,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       gpsConfig: holder.getGpsConfig(),
       deviceInfo: holder.getDeviceInfo(),
       deviceCapabilities: holder.getDeviceCapabilities(),
+      blockRules: [],
     };
     return c.json(payload);
   });
