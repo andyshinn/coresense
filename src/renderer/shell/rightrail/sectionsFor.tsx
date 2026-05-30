@@ -5,7 +5,7 @@ import { SettingsJumpRail } from '../SettingsJumpRail';
 import { Placeholder } from './atoms';
 import { viewKindFor } from './helpers';
 import { ChannelInfoSection } from './sections/ChannelInfo';
-import { ContactCardSection } from './sections/ContactCard';
+import { ContactDetail } from './sections/ContactDetail';
 import { ContactManagerRailBody } from './sections/ContactManagerRail';
 import { HeardViaSection } from './sections/HeardVia';
 import {
@@ -173,7 +173,13 @@ export function sectionsFor(
           id: 'rail.contact.card',
           label: 'Contact card',
           defaultOpen: baseDefaultOpen,
-          body: () => <ContactCardSection contact={data.contact} />,
+          body: () => (
+            <ContactDetail
+              publicKeyHex={activeKey.startsWith('c:') ? activeKey.slice(2) : null}
+              client={actions.client}
+              showPath={false}
+            />
+          ),
         },
         {
           id: 'rail.contact.path',

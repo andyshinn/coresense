@@ -1,5 +1,6 @@
 import {
   Ban,
+  ChevronLeft,
   Download,
   type LucideIcon,
   Minus,
@@ -23,6 +24,7 @@ import { type ApiClient, api } from '../../../lib/api';
 import { deriveContactView } from '../../../lib/contactManagerView';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
+import { ContactDetail } from './ContactDetail';
 
 type Tone = 'danger' | 'accent' | undefined;
 
@@ -372,8 +374,28 @@ function ListActions({ client }: { client: ApiClient | null }) {
 }
 
 /** Contextual right-rail body for the Contact Manager: bulk actions when rows
- *  are selected, list-wide actions otherwise. */
+ *  are selected, the focused contact's detail when a single row is focused,
+ *  otherwise list-wide actions. */
 export function ContactManagerRailBody({ client }: { client: ApiClient | null }) {
   const selected = useStore((s) => s.contactManager.selected);
-  return selected.length > 0 ? <BulkActions client={client} /> : <ListActions client={client} />;
+  const focusKey = useStore((s) => s.contactManager.focusKey);
+  const setCmFocus = useStore((s) => s.setCmFocus);
+
+  if (selected.length > 0) return <BulkActions client={client} />;
+  if (focusKey) {
+    return (
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setCmFocus(null)}
+          className="flex items-center gap-1 text-[11px] text-cs-text-dim hover:text-cs-text"
+        >
+          <ChevronLeft className="size-3.5" aria-hidden="true" />
+          Back to list actions
+        </button>
+        <ContactDetail publicKeyHex={focusKey} client={client} />
+      </div>
+    );
+  }
+  return <ListActions client={client} />;
 }
