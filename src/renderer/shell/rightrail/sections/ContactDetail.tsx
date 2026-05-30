@@ -13,6 +13,7 @@ import {
 import { useState } from 'react';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import { copyToClipboard } from '../../../components/ContextMenu';
+import { SetPathEditor } from '../../../components/path/SetPathEditor';
 import {
   Dialog,
   DialogContent,
@@ -315,7 +316,27 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
         {rc.rssi != null && <KeyValueRow label="RSSI" value={`${rc.rssi} dBm`} mono />}
       </div>
 
-      {showPath && <div>{/* path subsection — Task 5 */}</div>}
+      {showPath && (
+        <div className="border-t border-cs-border pt-2">
+          <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">
+            Path
+          </div>
+          {rc.contact && rc.publicKeyHex.length >= 64 ? (
+            <SetPathEditor contact={rc.contact} client={client} />
+          ) : (
+            <div className="space-y-1 px-1 pb-1">
+              <div className="font-mono text-[12px] text-cs-text">
+                {rc.outPathHex ? `${rc.outPathHex.length / 2} byte path` : 'Flood'}
+              </div>
+              <p className="text-[11px] text-cs-text-dim">
+                {rc.onRadio
+                  ? 'Waiting on a full advert before the path can be edited.'
+                  : 'Add this contact to the radio to set a fixed path.'}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
