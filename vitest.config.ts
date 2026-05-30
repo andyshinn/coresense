@@ -23,6 +23,9 @@ export default defineConfig({
         resolve: {
           alias: {
             '@': path.resolve(__dirname, 'src/renderer'),
+            // Stub out the electron host APIs so integration tests run in a
+            // plain Node environment without an Electron process.
+            electron: path.resolve(__dirname, 'tests/support/electron-stub.ts'),
           },
         },
         test: {
