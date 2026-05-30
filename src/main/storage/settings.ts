@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { app } from 'electron';
 import {
   type AppSettings,
   type AutoAddConfig,
@@ -26,6 +25,7 @@ import {
   type UiState,
 } from '../../shared/types';
 import { child } from '../log';
+import { isPackaged } from '../runtime/appInfo';
 import { userDataDir } from '../runtime/userData';
 
 const log = child('settings');
@@ -97,7 +97,7 @@ export async function flushSettings(): Promise<void> {
 // instance. Once `app-settings.json` has been written once, this seed no
 // longer applies — `mergeDefaults` takes the stored value over the default.
 function appSettingsSeed(): AppSettings {
-  if (app.isPackaged) return DEFAULT_APP_SETTINGS;
+  if (isPackaged()) return DEFAULT_APP_SETTINGS;
   return {
     ...DEFAULT_APP_SETTINGS,
     proxy: { ...DEFAULT_APP_SETTINGS.proxy, port: BRIDGE_DEFAULT_TCP_PORT_DEV },

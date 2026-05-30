@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { app } from 'electron';
 import type { TileSource } from '../../shared/types';
+import { appPath, isPackaged } from '../runtime/appInfo';
 
 export type { TileSource };
 
@@ -9,9 +9,9 @@ const TILE_SOURCES: readonly TileSource[] = ['basemap', 'terrain'];
 
 function resolvedPath(name: TileSource): string {
   const file = `${name}.pmtiles`;
-  return app.isPackaged
+  return isPackaged()
     ? join(process.resourcesPath, file)
-    : join(app.getAppPath(), 'resources', 'tiles', file);
+    : join(appPath(), 'resources', 'tiles', file);
 }
 
 export function tilePath(name: TileSource): string {

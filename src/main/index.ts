@@ -4,6 +4,7 @@ import path from 'node:path';
 // Wire production implementations of the injectable seams. This must run after
 // './storage/paths' (so the dev userData redirect has applied) and before any
 // module calls userDataDir() / appLifecycle() / secretStore().
+setAppInfo({ isPackaged: app.isPackaged, appPath: app.getAppPath() });
 setUserDataDir(app.getPath('userData'));
 setAppLifecycle({
   quit: () => app.quit(),
@@ -39,6 +40,7 @@ import { folderPath } from './logging/fileSink';
 import { buildMenu } from './menu';
 import { startNotifications } from './notifications';
 import { protocolSession } from './protocol';
+import { setAppInfo } from './runtime/appInfo';
 import { setAppLifecycle } from './runtime/appLifecycle';
 import { setSecretStore } from './runtime/secretStore';
 import { setUserDataDir } from './runtime/userData';
