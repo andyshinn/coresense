@@ -1,3 +1,5 @@
+import type { DiscoveredContact } from './contacts/discovered';
+
 export type TransportState = 'idle' | 'scanning' | 'connecting' | 'connected' | 'error';
 
 export interface BleDevice {
@@ -93,6 +95,10 @@ export interface Contact {
   snr?: number;
   hops?: number;
   pinned?: boolean;
+  /** Radio-level favourite — maps to the firmware contact flag bit 0, which
+   *  protects the contact from overwrite-oldest eviction. Distinct from
+   *  `pinned` (app-only pin-to-top in the nav). */
+  favourite?: boolean;
   muted?: boolean;
   /** Hex-encoded out-path bytes (no separators) mirroring the firmware's
    *  advert.out_path. Empty / undefined means "flood" (no source-route). The
@@ -742,6 +748,7 @@ export interface StateSnapshot {
   channelPresence: string[];
   syncProgress: SyncProgress;
   contacts: Contact[];
+  discoveredContacts: DiscoveredContact[];
   messages: Message[];
   appSettings: AppSettings;
   radioSettings: RadioSettings;
@@ -919,6 +926,7 @@ export type WsMessage =
   | { type: 'channelPresence'; payload: { keys: string[] } }
   | { type: 'syncProgress'; payload: SyncProgress }
   | { type: 'contacts'; payload: Contact[] }
+  | { type: 'discovered'; payload: DiscoveredContact[] }
   | { type: 'messages'; payload: { key: string; messages: Message[] } }
   | { type: 'messageState'; payload: { id: string; state: MessageState } }
   | { type: 'messagePathHeard'; payload: { id: string; path: MessagePath; state: MessageState } }

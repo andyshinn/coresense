@@ -27,6 +27,7 @@ import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
 import { protocolSession } from '../protocol';
 import { register as registerPendingChannelSend } from '../protocol/pendingChannelSends';
 import { stateHolder } from '../state/holder';
+import { discoveredStore } from '../storage/discoveredContacts';
 import { searchMessages } from '../storage/search';
 import { transportManager } from '../transport/manager';
 import { markQuitConfirmed } from '../window/quit';
@@ -88,6 +89,10 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       channelPresence: protocolSession().getDevicePresence(),
       syncProgress: protocolSession().getSyncProgress(),
       contacts: holder.getContacts(),
+      discoveredContacts: discoveredStore.list(
+        holder.getRadioSettings().pathHashMode,
+        holder.getBlockRules(),
+      ),
       messages: holder.getRecentMessages(),
       appSettings: holder.getAppSettings(),
       radioSettings: holder.getRadioSettings(),
