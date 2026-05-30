@@ -286,6 +286,19 @@ export function buildResetPath(destPublicKeyHex: string): Buffer {
   return out;
 }
 
+// CMD_REMOVE_CONTACT: [0x0f][32B pubkey]. Deletes the contact from the radio's
+// on-device store. Replies RESP_OK / RESP_ERR.
+export function buildRemoveContact(destPublicKeyHex: string): Buffer {
+  const pubkey = Buffer.from(destPublicKeyHex, 'hex');
+  if (pubkey.length < 32) {
+    throw new Error(`remove contact needs full 32B public key, got ${pubkey.length}`);
+  }
+  const out = Buffer.alloc(1 + 32);
+  out[0] = CMD.REMOVE_CONTACT;
+  pubkey.copy(out, 1, 0, 32);
+  return out;
+}
+
 // CMD_SET_PATH_HASH_MODE: [0x3d][0x00][mode u8]. The 0x00 is a required
 // discriminator byte — firmware MyMesh.cpp:1431 gates the handler on
 // `cmd_frame[1] == 0 && len >= 3`. mode is 0/1/2 (1/2/3 bytes per hop hash).
