@@ -19,7 +19,8 @@
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test"
   },
   "keywords": [],
   "author": {
@@ -50,6 +51,7 @@
     "@electron-forge/shared-types": "^7.11.1",
     "@electron/fuses": "^1.8.0",
     "@electron/rebuild": "^4.0.4",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/vite": "^4.2.4",
     "@types/electron-squirrel-startup": "^1.0.2",
     "@types/node": "^25.6.0",
