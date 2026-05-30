@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import type { DiscoveredContact } from '../../shared/contacts/discovered';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -45,6 +46,7 @@ export const emit = {
   channelPresence: (keys: string[]) => bus.emit('channelPresence', keys),
   syncProgress: (progress: SyncProgress) => bus.emit('syncProgress', progress),
   contacts: (contacts: Contact[]) => bus.emit('contacts', contacts),
+  discovered: (rows: DiscoveredContact[]) => bus.emit('discovered', rows),
   messages: (key: string, messages: Message[]) => bus.emit('messages', key, messages),
   messageState: (id: string, state: MessageState) => bus.emit('messageState', id, state),
   messagePathHeard: (payload: { id: string; path: MessagePath; state: MessageState }) =>
@@ -79,6 +81,7 @@ export type BusEvents = {
   channelPresence: (keys: string[]) => void;
   syncProgress: (progress: SyncProgress) => void;
   contacts: (contacts: Contact[]) => void;
+  discovered: (rows: DiscoveredContact[]) => void;
   messages: (key: string, messages: Message[]) => void;
   messageState: (id: string, state: MessageState) => void;
   messagePathHeard: (payload: { id: string; path: MessagePath; state: MessageState }) => void;
