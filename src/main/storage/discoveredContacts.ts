@@ -72,7 +72,10 @@ export const discoveredStore = {
           gps_lat, gps_lon, lastmod, first_heard_ms, on_radio, favourite)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(pubkey) DO UPDATE SET
-         name=excluded.name, type=excluded.type, flags=excluded.flags,
+         name=excluded.name, type=excluded.type,
+         -- Refresh advert flags but keep bit 0 (favourite) consistent with the
+         -- preserved favourite column, so a re-advert can't drop a favourite.
+         flags=(excluded.flags & ~1) | discovered_contacts.favourite,
          out_path_len=excluded.out_path_len, out_path_hex=excluded.out_path_hex,
          last_advert_unix=excluded.last_advert_unix, gps_lat=excluded.gps_lat,
          gps_lon=excluded.gps_lon, lastmod=excluded.lastmod,
