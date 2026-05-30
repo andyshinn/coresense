@@ -16,6 +16,7 @@ import { type AdminMode, type AdminRole, adminSessions } from '../bridge/adminSe
 import { bus, emit } from '../events/bus';
 import { child } from '../log';
 import { stateHolder } from '../state/holder';
+import { discoveredStore } from '../storage/discoveredContacts';
 import { transportManager } from '../transport/manager';
 import { ADV_TYPE, PUSH, REQ_TYPE, RESP, STATS_TYPE, TXT_TYPE } from './codes';
 import {
@@ -26,6 +27,7 @@ import {
   parseChannelMsgV1,
   parseChannelMsgV3,
   parseContact,
+  parseContactDeleted,
   parseContactMsgV1,
   parseContactMsgV3,
   parseContactsStart,
@@ -54,6 +56,7 @@ import {
   buildGetStats,
   buildLogout,
   buildReboot,
+  buildRemoveContact,
   buildResetPath,
   buildSendBinaryReq,
   buildSendChannelText,
@@ -203,6 +206,9 @@ export class ProtocolSession {
    *  fresh RESP_CONTACTS_START arrives; consumed in RESP_END_OF_CONTACTS. */
   private contactsIterTotal = 0;
   private contactsIterCount = 0;
+  /** Pubkeys seen during the in-flight GET_CONTACTS iteration. Reset on
+   *  CONTACTS_START; consumed in END_OF_CONTACTS to reconcile on-radio flags. */
+  private contactsSyncSeen: string[] = [];
   /** Resolved when RESP_CONTACTS_START arrives during the handshake, so the
    *  channel-enumeration loop can wait for the contact total and avoid the
    *  progress bar jumping backwards when total grows mid-sync. */
@@ -1322,6 +1328,7 @@ export class ProtocolSession {
       if (total !== null) {
         this.contactsIterTotal = total;
         this.contactsIterCount = 0;
+        this.contactsSyncSeen = [];
         this.updateSyncProgress({ contacts: { done: 0, total } });
         log.debug(`contacts iterator starting: total=${total}`);
       }
@@ -1331,7 +1338,8 @@ export class ProtocolSession {
     if (code === RESP.CONTACT) {
       const record = parseContact(frame);
       if (record) {
-        this.ingestContact(record);
+        this.contactsSyncSeen.push(record.publicKeyHex);
+        this.ingestContact(record, 'sync');
         this.contactsIterCount += 1;
         // Self-heal if the radio's CONTACTS_START total was optimistic (or
         // never arrived): never let `done` exceed `total`, which would render
@@ -1355,6 +1363,18 @@ export class ProtocolSession {
       this.updateSyncProgress({
         contacts: { done: this.contactsIterCount, total: this.contactsIterCount },
       });
+      const seen = this.contactsSyncSeen;
+      discoveredStore.reconcileOnRadio(seen);
+      const holder = stateHolder();
+      const seenSet = new Set(seen.map((pk) => `c:${pk}`));
+      for (const c of holder.getContacts()) {
+        if (!seenSet.has(c.key) && c.publicKeyHex.length >= 64) {
+          holder.removeContact(c.key);
+        }
+      }
+      this.contactsSyncSeen = [];
+      emit.contacts(holder.getContacts());
+      this.emitDiscovered();
       this.contactsIterTotal = 0;
       this.contactsIterCount = 0;
       this.resolveWaiter('contactsDoneWaiter');
@@ -1363,7 +1383,7 @@ export class ProtocolSession {
     if (code === PUSH.NEW_ADVERT) {
       const record = parseContact(frame);
       if (record) {
-        this.ingestContact(record);
+        this.ingestContact(record, 'advert');
         log.debug(`new advert: "${record.name}" (${record.publicKeyHex.slice(0, 12)})`);
       }
       return;
@@ -1603,11 +1623,58 @@ export class ProtocolSession {
     log.debug(`channel idx=${info.idx} "${info.name}"`);
   }
 
+  /** Push the full discovered pool to the renderer. */
+  private emitDiscovered(): void {
+    const holder = stateHolder();
+    emit.discovered(
+      discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
+    );
+  }
+
+  /** Whether the firmware would auto-store an advert of this ADV_TYPE, given
+   *  the current auto-add config. Used to decide whether to re-sync after a
+   *  not-on-radio advert. */
+  private shouldAutoAdd(advType: number): boolean {
+    const cfg = stateHolder().getAutoAddConfig();
+    if (cfg.mode === 'all') return true;
+    switch (advType) {
+      case ADV_TYPE.REPEATER:
+        return cfg.repeater;
+      case ADV_TYPE.ROOM:
+        return cfg.room;
+      case ADV_TYPE.SENSOR:
+        return cfg.sensor;
+      default:
+        return cfg.chat;
+    }
+  }
+
+  /** Upsert a contact heard from RESP_CONTACT (sync, on-radio) or
+   *  PUSH_NEW_ADVERT (live advert — on-radio only if already in the store).
+   *  Always records into the discovered pool with an app-tracked first-heard. */
+  private ingestContact(record: ContactRecord, source: 'sync' | 'advert'): void {
+    const holder = stateHolder();
+    const fullKey = `c:${record.publicKeyHex}`;
+    const alreadyOnRadio = holder.getContacts().some((c) => c.key === fullKey);
+    const onRadio = source === 'sync' ? true : alreadyOnRadio;
+
+    discoveredStore.upsert(record, { onRadio, nowMs: Date.now() });
+
+    if (onRadio) {
+      this.upsertOnRadioContact(record);
+    }
+    this.emitDiscovered();
+
+    if (source === 'advert' && !onRadio && this.shouldAutoAdd(record.type)) {
+      this.scheduleContactsResync();
+    }
+  }
+
   /** Upsert a contact from a RESP_CONTACT / PUSH_NEW_ADVERT frame. When the
    *  contact matches an existing placeholder (`c:<6-byte-prefix>`), the
    *  placeholder is removed; messages already keyed to the placeholder stay
    *  there (cheap to leave — future cleanup can migrate them). */
-  private ingestContact(record: ContactRecord): void {
+  private upsertOnRadioContact(record: ContactRecord): void {
     const holder = stateHolder();
     const fullKey = `c:${record.publicKeyHex}`;
     const prefix6 = record.publicKeyHex.slice(0, 12);
@@ -1637,6 +1704,7 @@ export class ProtocolSession {
       hops: record.outPathLen === 0xff ? undefined : Math.floor(record.outPathLen / hashSize),
       pinned: existing?.pinned,
       muted: existing?.muted,
+      favourite: (record.flags & 0x01) !== 0,
       outPathHex: newOutPathHex || undefined,
       outPathHashSize: newOutPathHex ? hashSize : existing?.outPathHashSize,
       preferDirect: existing?.preferDirect,
