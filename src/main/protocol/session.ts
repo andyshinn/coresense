@@ -592,6 +592,82 @@ export class ProtocolSession {
     emit.contacts(holder.getContacts());
   }
 
+  /** Commit a discovered contact to the radio's store (CMD_ADD_UPDATE_CONTACT).
+   *  Optimistically marks it on-radio and schedules a re-sync to confirm. */
+  async addContactToRadio(publicKeyHex: string): Promise<void> {
+    const row = discoveredStore.get(publicKeyHex);
+    if (!row) throw new Error(`unknown discovered contact ${publicKeyHex}`);
+    const hasFix = row.gps_lat !== 0 || row.gps_lon !== 0;
+    const frame = buildAddUpdateContact({
+      publicKeyHex,
+      advType: row.type,
+      flags: row.flags,
+      outPathHex: row.out_path_len === 0xff ? '' : row.out_path_hex,
+      name: row.name,
+      ...(hasFix
+        ? { gpsLat: row.gps_lat, gpsLon: row.gps_lon, lastAdvertUnix: row.last_advert_unix }
+        : {}),
+    });
+    await this.writeFrame(frame);
+    discoveredStore.setOnRadio(publicKeyHex, true);
+    this.upsertOnRadioContact({
+      publicKeyHex,
+      type: row.type,
+      flags: row.flags,
+      outPathLen: row.out_path_len,
+      outPathHex: row.out_path_hex,
+      name: row.name,
+      lastAdvertUnix: row.last_advert_unix,
+      gpsLat: row.gps_lat,
+      gpsLon: row.gps_lon,
+      lastmod: row.lastmod,
+    });
+    this.emitDiscovered();
+    this.scheduleContactsResync();
+  }
+
+  /** Delete a contact from the radio's store (CMD_REMOVE_CONTACT). Keeps it in
+   *  the discovered pool, flagged off-radio. */
+  async removeContactFromRadio(publicKeyHex: string): Promise<void> {
+    await this.writeFrame(buildRemoveContact(publicKeyHex));
+    discoveredStore.setOnRadio(publicKeyHex, false);
+    const holder = stateHolder();
+    holder.removeContact(`c:${publicKeyHex}`);
+    emit.contacts(holder.getContacts());
+    this.emitDiscovered();
+  }
+
+  /** Toggle the favourite flag (contact flags bit 0). For on-radio contacts,
+   *  round-trips CMD_ADD_UPDATE_CONTACT so the firmware persists the flag
+   *  (protects from overwrite-oldest). Discovered-only contacts update locally. */
+  async setContactFavourite(publicKeyHex: string, favourite: boolean): Promise<void> {
+    const row = discoveredStore.get(publicKeyHex);
+    if (!row) throw new Error(`unknown discovered contact ${publicKeyHex}`);
+    if (row.on_radio !== 0) {
+      const flags = favourite ? row.flags | 0x01 : row.flags & ~0x01;
+      const hasFix = row.gps_lat !== 0 || row.gps_lon !== 0;
+      const frame = buildAddUpdateContact({
+        publicKeyHex,
+        advType: row.type,
+        flags,
+        outPathHex: row.out_path_len === 0xff ? '' : row.out_path_hex,
+        name: row.name,
+        ...(hasFix
+          ? { gpsLat: row.gps_lat, gpsLon: row.gps_lon, lastAdvertUnix: row.last_advert_unix }
+          : {}),
+      });
+      await this.writeFrame(frame);
+    }
+    discoveredStore.setFavourite(publicKeyHex, favourite);
+    const holder = stateHolder();
+    const existing = holder.getContacts().find((c) => c.key === `c:${publicKeyHex}`);
+    if (existing) {
+      holder.upsertContact({ ...existing, favourite });
+      emit.contacts(holder.getContacts());
+    }
+    this.emitDiscovered();
+  }
+
   /** Toggle the per-contact "always use direct (companion-side) login" flag.
    *  Local-only; no firmware write. */
   setContactPreferDirect(contactKey: string, preferDirect: boolean): void {
