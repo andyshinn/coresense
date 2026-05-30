@@ -174,6 +174,14 @@ export interface MessageMeta {
    *  ⇒ treat as 1. Bumped by holder.upsertMessage on collision. */
   timesHeard?: number;
   signatureHex?: string;
+  /** Set by main when the message matches an active block rule. The
+   *  renderer hides annotated rows from MessageList, Unreads, and Search.
+   *  Re-evaluated per query — disabling or deleting the rule clears the
+   *  annotation on the next read (not sticky). */
+  blocked?: boolean;
+  /** The id of the first rule (by createdAt asc) that matched this message
+   *  at first-match time. Used to attribute matchCount; not used for hiding. */
+  blockedByRuleId?: string;
 }
 
 export interface Message {
@@ -184,6 +192,26 @@ export interface Message {
   ts: number;
   state: MessageState;
   meta?: MessageMeta;
+}
+
+export type BlockRuleType = 'pubkey' | 'pubkeyPrefix' | 'name' | 'nameRegex';
+
+export interface BlockRule {
+  id: string;
+  type: BlockRuleType;
+  /** Storage form depends on type:
+   *   pubkey / pubkeyPrefix — lowercase hex, no separators
+   *   name                  — case-sensitive exact match
+   *   nameRegex             — JS regex source string. Matcher applies the 'i' flag. */
+  pattern: string;
+  createdAt: number;
+  /** Matches messages where msg.ts >= tsFrom. Encodes the retro-hide window. */
+  tsFrom: number;
+  enabled: boolean;
+  note?: string;
+  /** Bumped once per message on first match (new arrival or rule-creation backfill).
+   *  Persisted on a debounce — see main/blocking/store.ts. */
+  matchCount: number;
 }
 
 export interface Owner {
@@ -223,6 +251,11 @@ export interface MessageHit {
    *  HTML-escaped server-side except for the mark tags themselves. */
   snippet: string;
   score: number;
+  /** Set by main when the hit matches an active block rule. The renderer
+   *  filters annotated hits out of the rendered list. pubkey / pubkeyPrefix
+   *  rules can't match channel-message hits in search because path data
+   *  isn't persisted — only name / nameRegex apply for those. */
+  blocked?: boolean;
 }
 
 export interface ConversationHit {
@@ -724,6 +757,7 @@ export interface StateSnapshot {
   gpsConfig: GpsConfig;
   deviceInfo: DeviceInfo;
   deviceCapabilities: DeviceCapabilities;
+  blockRules: BlockRule[];
 }
 
 export type MenuAction =
@@ -904,6 +938,7 @@ export type WsMessage =
   | { type: 'deviceCapabilities'; payload: DeviceCapabilities }
   | { type: 'uiState'; payload: UiState }
   | { type: 'wsClients'; payload: { count: number } }
+  | { type: 'blockRules'; payload: BlockRule[] }
   | { type: 'log'; payload: LogEntry }
   | { type: 'log:snapshot'; payload: LogEntry[] };
 

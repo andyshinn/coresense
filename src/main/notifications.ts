@@ -1,5 +1,8 @@
 import { app, Notification } from 'electron';
+import type { BlockMatchHints } from '../shared/blocking/match';
+import { isMessageBlocked } from '../shared/blocking/match';
 import type { Message } from '../shared/types';
+import { blockingStore } from './blocking/store';
 import { bus, emit } from './events/bus';
 import { child } from './log';
 import { stateHolder } from './state/holder';
@@ -29,6 +32,7 @@ export function startNotifications(): void {
   // which routes.ts emits as 'uiState'. Recompute the badge so reading a
   // conversation clears its share of the unread total.
   bus.on('uiState', recomputeBadge);
+  bus.on('blockRules', recomputeBadge);
   recomputeBadge();
   log.debug('notification router started');
 }
@@ -45,8 +49,27 @@ function onMessages(_key: string, list: Message[]): void {
   recomputeBadge();
 }
 
+function buildHintsForNotify(m: Message): BlockMatchHints {
+  const holder = stateHolder();
+  const originHop = m.meta?.paths?.[0]?.hops.find((h) => h.kind === 'origin');
+  return {
+    contactNameByPk: (pk) => holder.getContacts().find((c) => c.publicKeyHex === pk)?.name,
+    originHopPk: originHop?.pk?.toLowerCase(),
+  };
+}
+
 function maybeNotify(m: Message): void {
   if (m.state !== 'received') return;
+  const rules = blockingStore().list();
+  if (rules.length > 0) {
+    const { blocked } = isMessageBlocked(
+      m,
+      buildHintsForNotify(m),
+      rules,
+      blockingStore().regexCacheRef(),
+    );
+    if (blocked) return;
+  }
   if (notifiedIds.has(m.id)) return;
   notifiedIds.add(m.id);
   if (notifiedIds.size > MAX_NOTIFIED_IDS) {
@@ -161,6 +184,9 @@ function recomputeBadge(): void {
   const owner = holder.getOwner();
   const policy = settings.notifications;
 
+  const rules = blockingStore().list();
+  const cache = blockingStore().regexCacheRef();
+
   let total = 0;
   for (const key of allConversationKeys(holder)) {
     if (isMutedKey(holder, key)) continue;
@@ -169,6 +195,10 @@ function recomputeBadge(): void {
     for (const m of msgs) {
       if (m.state !== 'received') continue;
       if (m.ts <= lastRead) continue;
+      if (rules.length > 0) {
+        const { blocked } = isMessageBlocked(m, buildHintsForNotify(m), rules, cache);
+        if (blocked) continue;
+      }
       const kind = classify(m, owner?.name);
       if (policy[kind]) total += 1;
     }

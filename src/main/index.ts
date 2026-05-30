@@ -14,6 +14,7 @@ import {
 import started from 'electron-squirrel-startup';
 import { applyAboutPanel } from './about';
 import { getApiKey } from './api/middleware/auth';
+import { blockingStore } from './blocking/store';
 import { type BridgeHandle, startBridge } from './bridge';
 import { emit } from './events/bus';
 import { child, ingestLogEntry, log } from './log';
@@ -470,6 +471,9 @@ async function shutdown() {
   );
 
   await Promise.allSettled(tasks);
+  // Drain any pending block-rule counter increments into the settings
+  // write queue so flushSettings() below can await them.
+  blockingStore().flushNow();
   // Drain any in-flight settings / window-state writes before exit so the
   // user's last UI tweaks survive a quit.
   await Promise.allSettled([

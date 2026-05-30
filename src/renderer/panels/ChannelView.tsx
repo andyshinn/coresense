@@ -140,6 +140,7 @@ export function ChannelView({ channel, client }: Props) {
           onMarkRead={(ts) => markRead(channel.key, ts)}
           onResend={(m) => onSend(m.body)}
           onReply={(name) => composerRef.current?.insertMention(name)}
+          client={client}
           jumpToId={pendingJumpMid}
           onJumpConsumed={() => setPendingJump(null)}
         />

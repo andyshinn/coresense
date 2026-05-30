@@ -1,3 +1,4 @@
+import { isMessageBlocked } from '../../shared/blocking/match';
 import type {
   Channel,
   Contact,
@@ -6,6 +7,8 @@ import type {
   SearchOptions,
   SearchResults,
 } from '../../shared/types';
+import { blockingStore } from '../blocking/store';
+import { stateHolder } from '../state/holder';
 import { openDb } from './db';
 
 // Tokens shorter than this are dropped to avoid massively broad result sets
@@ -244,6 +247,32 @@ export function searchMessages(opts: SearchOptions): SearchResults {
         htmlEscape(r.body.length > 120 ? `${r.body.slice(0, 120)}…` : r.body),
     score: r.score,
   }));
+
+  // Annotate hits that match an active block rule so the renderer can drop
+  // them. Search hits don't carry path data (FTS5 row only knows from_pk +
+  // body), so for channel messages only name / nameRegex rules can ever match
+  // — pubkey / pubkeyPrefix rules silently no-op on channel hits because the
+  // origin-hop shortId/pubkey isn't recoverable from the index.
+  const rules = blockingStore().list();
+  if (rules.length > 0) {
+    const regexCache = blockingStore().regexCacheRef();
+    const contacts = stateHolder().getContacts();
+    const contactNameByPk = (pk: string): string | undefined =>
+      contacts.find((c) => c.publicKeyHex === pk)?.name;
+    for (const h of messageHits) {
+      const synthetic = {
+        id: h.id,
+        key: h.key,
+        body: h.body,
+        ts: h.ts,
+        state: 'received' as const,
+        fromPublicKeyHex: h.fromPublicKeyHex ?? undefined,
+        meta: undefined,
+      };
+      const { blocked } = isMessageBlocked(synthetic, { contactNameByPk }, rules, regexCache);
+      if (blocked) h.blocked = true;
+    }
+  }
 
   // ---- True total (drives Load more) --------------------------------------
   // Same union, COUNT(*). Cheap — FTS5's MATCH count is O(matches), and the

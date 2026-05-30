@@ -107,6 +107,7 @@ export function DMView({ contact, client }: Props) {
           onMarkRead={(ts) => markRead(contact.key, ts)}
           onResend={(m) => onSend(m.body)}
           onReply={(name) => composerRef.current?.insertMention(name)}
+          client={client}
           jumpToId={pendingJumpMid}
           onJumpConsumed={() => setPendingJump(null)}
         />

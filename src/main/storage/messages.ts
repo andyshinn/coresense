@@ -97,6 +97,20 @@ export const messagesStore = {
     return rows.map(rowToMessage).reverse();
   },
 
+  /** All messages with ts >= cutoff, ordered by ts asc. Used by the block-rule
+   *  backfill pass to credit retro-matches. Capped to avoid runaway scans on
+   *  cutoff=0. */
+  sinceTs(cutoffMs: number, limit = 50_000): Message[] {
+    const db = openDb();
+    const rows = db
+      .prepare(
+        `SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages
+         WHERE ts >= ? ORDER BY ts ASC LIMIT ?`,
+      )
+      .all(cutoffMs, limit) as unknown as Row[];
+    return rows.map(rowToMessage);
+  },
+
   findById(id: string): Message | null {
     const db = openDb();
     const row = db

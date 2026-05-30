@@ -5,6 +5,7 @@ import { app } from 'electron';
 import {
   type AppSettings,
   type AutoAddConfig,
+  type BlockRule,
   BRIDGE_DEFAULT_TCP_PORT_DEV,
   type Channel,
   type Contact,
@@ -43,6 +44,7 @@ const FILES = {
   telemetryPolicy: 'telemetry-policy.json',
   gps: 'gps-config.json',
   deviceInfo: 'device-info.json',
+  blockRules: 'block-rules.json',
 } as const;
 
 function pathFor(file: string): string {
@@ -163,6 +165,9 @@ export const settingsStore = {
   loadDeviceInfo: (): DeviceInfo =>
     mergeDefaults(readJson(FILES.deviceInfo, DEFAULT_DEVICE_INFO), DEFAULT_DEVICE_INFO),
   saveDeviceInfo: (v: DeviceInfo): void => writeJson(FILES.deviceInfo, v),
+
+  loadBlockRules: (): BlockRule[] => readJson(FILES.blockRules, [] as BlockRule[]),
+  saveBlockRules: (v: BlockRule[]): void => writeJson(FILES.blockRules, v),
 };
 
 // Recursive merge so new fields added in code get default values when reading

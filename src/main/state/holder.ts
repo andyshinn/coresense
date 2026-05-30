@@ -1,6 +1,8 @@
+import { type BlockMatchHints, isMessageBlocked } from '../../shared/blocking/match';
 import {
   type AppSettings,
   type AutoAddConfig,
+  type BlockRule,
   type Channel,
   type Contact,
   DEFAULT_DEVICE_CAPABILITIES,
@@ -10,12 +12,15 @@ import {
   type GpsConfig,
   type MapSettings,
   type Message,
+  type MessageMeta,
   type MessagePath,
   type Owner,
   type RadioSettings,
   type TelemetryPolicy,
   type UiState,
 } from '../../shared/types';
+import { blockingStore } from '../blocking/store';
+import { emit } from '../events/bus';
 import { hasApiKey } from '../map/api-key';
 import { messagesStore } from '../storage/messages';
 import { rebuildConversationsIndex } from '../storage/search';
@@ -205,10 +210,31 @@ class StateHolder {
   }
 
   getRecentMessages(limit = 500): Message[] {
-    return messagesStore.recent(limit);
+    return this.annotateBlocked(messagesStore.recent(limit));
   }
   getMessagesForKey(key: string, opts?: { limit?: number; before?: number }): Message[] {
-    return messagesStore.byKey(key, opts);
+    return this.annotateBlocked(messagesStore.byKey(key, opts));
+  }
+  private annotateBlocked(rows: Message[]): Message[] {
+    const rules = blockingStore().list();
+    if (rules.length === 0) return rows;
+    const regexCache = blockingStore().regexCacheRef();
+    return rows.map((m) => {
+      const { blocked, ruleId } = isMessageBlocked(m, this.buildBlockHints(m), rules, regexCache);
+      if (!blocked) return m;
+      const meta: MessageMeta = { ...(m.meta ?? {}), blocked: true, blockedByRuleId: ruleId };
+      return { ...m, meta };
+    });
+  }
+  /** Build the BlockMatchHints for a single message based on current
+   *  contacts + origin hop. Used by both annotateBlocked (read path) and
+   *  upsertMessage (write path). */
+  private buildBlockHints(msg: Message): BlockMatchHints {
+    const originHop = msg.meta?.paths?.[0]?.hops.find((h) => h.kind === 'origin');
+    return {
+      contactNameByPk: (pk) => this.contacts.find((c) => c.publicKeyHex === pk)?.name,
+      originHopPk: originHop?.pk?.toLowerCase(),
+    };
   }
   insertMessage(message: Message): void {
     messagesStore.insert(message);
@@ -221,6 +247,22 @@ class StateHolder {
    *    - ts keeps the earliest receipt
    *    - state only moves forward (received → ack), never backward */
   upsertMessage(message: Message): void {
+    // First-match: only count when this id is new. Backfill (re-evaluation on
+    // rule creation) is handled by a separate pass; per-render reads never
+    // bump the counter.
+    const isNew = !messagesStore.findById(message.id);
+    if (isNew) {
+      const rules = blockingStore().list();
+      if (rules.length > 0) {
+        const { blocked, ruleId } = isMessageBlocked(
+          message,
+          this.buildBlockHints(message),
+          rules,
+          blockingStore().regexCacheRef(),
+        );
+        if (blocked && ruleId) blockingStore().bumpMatchCount(ruleId);
+      }
+    }
     const existing = messagesStore.findById(message.id);
     if (!existing) {
       const meta = message.meta ? { ...message.meta } : undefined;
@@ -287,6 +329,52 @@ class StateHolder {
     };
     messagesStore.insert(merged);
     return nextState;
+  }
+
+  // ----- Block rules -----
+
+  getBlockRules(): BlockRule[] {
+    return blockingStore().list();
+  }
+  addBlockRules(partials: Array<Omit<BlockRule, 'id' | 'createdAt' | 'matchCount'>>): BlockRule[] {
+    const inserted = blockingStore().addMany(partials);
+    // Backfill: scan messages from min(tsFrom) across inserted rules; bump
+    // counters for any that match. One pass — we don't double-count if multiple
+    // new rules match the same message because isMessageBlocked short-circuits
+    // on the first hit (createdAt asc).
+    if (inserted.length > 0) {
+      const minTsFrom = Math.min(...inserted.map((r) => r.tsFrom));
+      const recent = messagesStore.sinceTs(minTsFrom);
+      const rules = blockingStore().list();
+      const cache = blockingStore().regexCacheRef();
+      const insertedIds = new Set(inserted.map((r) => r.id));
+      for (const m of recent) {
+        const { blocked, ruleId } = isMessageBlocked(m, this.buildBlockHints(m), rules, cache);
+        // Only credit the new rules — pre-existing rules already counted these
+        // messages when they arrived.
+        if (blocked && ruleId && insertedIds.has(ruleId)) {
+          blockingStore().bumpMatchCount(ruleId);
+        }
+      }
+      emit.blockRules(this.getBlockRules());
+    }
+    return inserted;
+  }
+  updateBlockRule(
+    id: string,
+    patch: Partial<Omit<BlockRule, 'id' | 'createdAt'>>,
+  ): BlockRule | null {
+    const updated = blockingStore().update(id, patch);
+    if (updated) emit.blockRules(this.getBlockRules());
+    return updated;
+  }
+  removeBlockRule(id: string): boolean {
+    const ok = blockingStore().remove(id);
+    if (ok) emit.blockRules(this.getBlockRules());
+    return ok;
+  }
+  flushBlockCounters(): void {
+    blockingStore().flushNow();
   }
 }
 
