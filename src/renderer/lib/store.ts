@@ -434,6 +434,7 @@ export const useStore = create<CoreState>((set) => ({
       channels: snapshot.channels,
       channelPresence: new Set(snapshot.channelPresence ?? []),
       contacts: snapshot.contacts,
+      discovered: snapshot.discoveredContacts ?? [],
       messagesByKey: groupMessagesByKey(snapshot.messages),
       capabilities: snapshot.capabilities,
       appSettings: snapshot.appSettings,
