@@ -13,6 +13,7 @@ import { useState } from 'react';
 import type { DiscoveredContact } from '../../../shared/contacts/discovered';
 import type { ContactKind } from '../../../shared/types';
 import { BlockSenderDialog } from '../../components/BlockSenderDialog';
+import { copyToClipboard } from '../../components/ContextMenu';
 import { Checkbox } from '../../components/ui/checkbox';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
@@ -200,18 +201,18 @@ export function TableView({
   const th = 'px-2 py-1.5 font-mono text-[9.5px] uppercase tracking-wide text-cs-text-dim';
 
   return (
-    <table className="w-full border-collapse">
+    <table className="w-full table-fixed border-collapse">
       <thead className="sticky top-0 z-1 bg-cs-bg">
         <tr className="border-b border-cs-border text-left">
-          <th className={cn(th, 'w-10')} />
-          <th className={cn(th, 'w-8.5')} />
+          <th className={cn(th, 'w-9')} />
+          <th className={cn(th, 'w-8')} />
           <th className={th}>
             <SortHeader field="name" label="Name" />
           </th>
-          <th className={cn(th, 'w-30')}>
+          <th className={cn(th, 'w-24')}>
             <SortHeader field="type" label="Type" />
           </th>
-          <th className={cn(th, 'w-21')}>
+          <th className={cn(th, 'w-16')}>
             <SortHeader field="hops" label="Hops" />
           </th>
           <th className={cn(th, 'w-27')}>
@@ -220,8 +221,8 @@ export function TableView({
           <th className={cn(th, 'w-27')}>
             <SortHeader field="lastHeard" label="Last heard" />
           </th>
-          <th className={cn(th, 'w-29')}>Status</th>
-          <th className={cn(th, 'w-19.5')} />
+          <th className={cn(th, 'w-26')}>Status</th>
+          <th className={cn(th, 'w-16')} />
         </tr>
       </thead>
       <tbody>
@@ -257,37 +258,50 @@ export function TableView({
                 <TypeGlyph kind={c.kind} />
               </td>
               <td className={cn('px-2', pad)}>
-                <div className="flex items-center gap-1.5">
+                <div className="flex min-w-0 items-center gap-1.5">
                   <span
                     className={cn(
-                      'text-[12.5px] font-medium text-cs-text',
+                      'truncate text-[12.5px] font-medium text-cs-text',
                       c.blocked && 'line-through opacity-60',
                     )}
                   >
                     {c.name}
                   </span>
                   {c.favourite && (
-                    <Star className="size-3 fill-cs-warn text-cs-warn" aria-hidden="true" />
+                    <Star
+                      className="size-3 shrink-0 fill-cs-warn text-cs-warn"
+                      aria-hidden="true"
+                    />
                   )}
                 </div>
                 {showKeys && (
-                  <div className="truncate font-mono text-[10px] text-cs-text-dim">{pk}</div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      copyToClipboard(pk, () => notify.success('Public key copied'));
+                    }}
+                    title={`${pk} — click to copy`}
+                    className="block w-full truncate text-left font-mono text-[10px] text-cs-text-dim hover:text-cs-text-muted"
+                  >
+                    {pk}
+                  </button>
                 )}
               </td>
-              <td className={cn('px-2 text-[11.5px] text-cs-text-muted', pad)}>
+              <td className={cn('whitespace-nowrap px-2 text-[11.5px] text-cs-text-muted', pad)}>
                 {KIND_LABEL[c.kind]}
               </td>
               <td className={cn('px-2', pad)}>
                 <HopChip hops={c.hops} />
               </td>
               <td
-                className={cn('px-2 font-mono text-[11px] text-cs-text-dim', pad)}
+                className={cn('whitespace-nowrap px-2 font-mono text-[11px] text-cs-text-dim', pad)}
                 title={fmtDateTime(c.firstHeardMs, timeFormat)}
               >
                 {fmtRelative(c.firstHeardMs)}
               </td>
               <td
-                className={cn('px-2 font-mono text-[11px] text-cs-text-dim', pad)}
+                className={cn('whitespace-nowrap px-2 font-mono text-[11px] text-cs-text-dim', pad)}
                 title={c.lastAdvertMs == null ? undefined : fmtDateTime(c.lastAdvertMs, timeFormat)}
               >
                 {c.lastAdvertMs == null ? '—' : fmtRelative(c.lastAdvertMs)}
