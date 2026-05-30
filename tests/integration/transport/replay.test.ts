@@ -27,6 +27,35 @@ describe('FileReplayTransport', () => {
     expect(packets[1].payloadHex).toBe('aa');
   });
 
+  it('replays a 0x88 PUSH_LOG_RX_DATA frame as a mesh packet', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'replay-test-'));
+    const fixture = join(dir, 'frames.json');
+    // [0x88][snr*4 i8=0x14 → 20/4=5][rssi i8=0xd8 → -40][mesh=aabbcc]
+    writeFileSync(fixture, JSON.stringify(['8814d8aabbcc']));
+
+    const packets: RawPacket[] = [];
+    bus.on('packet', (p: RawPacket) => packets.push(p));
+
+    await new FileReplayTransport(fixture).connect('replay');
+
+    expect(packets).toHaveLength(1);
+    expect(packets[0].kind).toBe('mesh');
+    expect(packets[0].snr).toBe(5);
+    expect(packets[0].rssi).toBe(-40);
+    expect(packets[0].payloadHex).toBe('aabbcc');
+  });
+
+  it('does not throw and emits no packets for a missing fixture', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'replay-test-'));
+    const fixture = join(dir, 'does-not-exist.json');
+
+    const packets: RawPacket[] = [];
+    bus.on('packet', (p: RawPacket) => packets.push(p));
+
+    await expect(new FileReplayTransport(fixture).connect('x')).resolves.toBeUndefined();
+    expect(packets).toHaveLength(0);
+  });
+
   it('records sendBytes without emitting packets', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'replay-test-'));
     const fixture = join(dir, 'frames.json');

@@ -16,7 +16,19 @@ function loadFrames(path: string): Buffer[] {
   if (!Array.isArray(parsed)) {
     throw new Error(`replay fixture ${path} must be a JSON array of frames`);
   }
-  return parsed.map((f) => Buffer.from(typeof f === 'string' ? f : f.hex, 'hex'));
+  const frames: Buffer[] = [];
+  for (const f of parsed) {
+    const str = typeof f === 'string' ? f : f.hex;
+    const buf = Buffer.from(str, 'hex');
+    // Buffer.from(hex) silently yields a short/empty buffer on malformed hex;
+    // surface and skip those rather than dispatching a bogus empty frame.
+    if (str.length > 0 && buf.length === 0) {
+      log.warn(`skipping malformed-hex replay frame: ${JSON.stringify(str)}`);
+      continue;
+    }
+    frames.push(buf);
+  }
+  return frames;
 }
 
 /**
@@ -37,6 +49,9 @@ export class FileReplayTransport implements ITransport {
   }
 
   async connect(deviceId: string): Promise<void> {
+    // Intentional for the test double: emit connected BEFORE loading the fixture
+    // (unlike BleTransport, which only emits connected once the link is up), so
+    // replay reports connected even when the fixture is empty or missing.
     emit.transportState('connected', deviceId);
     let frames: Buffer[];
     try {
