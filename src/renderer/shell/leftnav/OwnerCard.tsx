@@ -90,7 +90,10 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
                   />
                 </div>
                 <div className="grid min-w-0 flex-1 leading-tight group-data-[collapsible=icon]:hidden">
-                  <span className="truncate text-sm font-medium text-cs-text">
+                  <span
+                    data-testid="owner-name"
+                    className="truncate text-sm font-medium text-cs-text"
+                  >
                     {owner?.name ?? 'No identity'}
                   </span>
                   {owner ? (

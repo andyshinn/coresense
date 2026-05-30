@@ -97,7 +97,7 @@ export function ChannelView({ channel, client }: Props) {
   const composerDisabled = !client || !onDevice;
 
   return (
-    <div className="flex h-full flex-col">
+    <div data-testid="channel-view" data-channel-key={channel.key} className="flex h-full flex-col">
       <header className="flex shrink-0 items-center gap-2 border-b border-cs-border bg-cs-bg-2 px-4 py-2.5">
         <Icon size={14} aria-hidden="true" className="text-cs-text-muted" />
         <h2 className="font-medium text-cs-text">{channel.name}</h2>

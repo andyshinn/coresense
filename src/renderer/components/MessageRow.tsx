@@ -51,7 +51,11 @@ export function MessageRow({
   const canReply = !isSelf && senderName !== '' && onReply != null;
 
   return (
-    <div className="group px-3 py-0.5" data-flash={flash ? 'true' : undefined}>
+    <div
+      data-testid="message-row"
+      className="group px-3 py-0.5"
+      data-flash={flash ? 'true' : undefined}
+    >
       {/* biome-ignore lint/a11y/useSemanticElements: cannot be a <button> because MentionPill renders a nested button */}
       <div
         role="button"

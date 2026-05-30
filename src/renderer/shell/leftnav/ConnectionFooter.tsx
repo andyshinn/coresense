@@ -88,6 +88,7 @@ export function ConnectionFooter({
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton
+          data-testid="connection-status-footer"
           tooltip={label}
           isActive={active}
           onClick={onClick}

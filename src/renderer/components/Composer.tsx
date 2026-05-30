@@ -124,6 +124,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
     <div className="flex shrink-0 flex-col gap-1 border-t border-cs-border bg-cs-bg-2 px-3 py-2">
       <div className="flex items-end gap-2">
         <textarea
+          data-testid="message-composer-input"
           ref={textareaRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -139,6 +140,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           )}
         />
         <button
+          data-testid="message-send-button"
           type="button"
           onClick={submit}
           disabled={!trimmed || sending || disabled}
