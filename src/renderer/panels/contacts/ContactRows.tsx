@@ -302,9 +302,9 @@ export function TableView({
               </td>
               <td
                 className={cn('whitespace-nowrap px-2 font-mono text-[11px] text-cs-text-dim', pad)}
-                title={c.lastAdvertMs == null ? undefined : fmtDateTime(c.lastAdvertMs, timeFormat)}
+                title={c.lastHeardMs == null ? undefined : fmtDateTime(c.lastHeardMs, timeFormat)}
               >
-                {c.lastAdvertMs == null ? '—' : fmtRelative(c.lastAdvertMs)}
+                {c.lastHeardMs == null ? '—' : fmtRelative(c.lastHeardMs)}
               </td>
               <td className={cn('px-2', pad)}>
                 <StatusPill c={c} />
@@ -330,7 +330,7 @@ export function ListRow({ c, client }: { c: DiscoveredContact; client: ApiClient
   const pk = c.publicKeyHex;
   const isSelected = selected.includes(pk);
   const isFocused = focusKey === pk;
-  const lastLabel = c.lastAdvertMs == null ? 'never' : fmtRelative(c.lastAdvertMs);
+  const lastLabel = c.lastHeardMs == null ? 'never' : fmtRelative(c.lastHeardMs);
   const hopsLabel = c.hops == null ? '—' : `${c.hops} hop${c.hops === 1 ? '' : 's'}`;
 
   return (

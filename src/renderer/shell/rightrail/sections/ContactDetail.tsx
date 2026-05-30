@@ -296,9 +296,18 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
           <KeyValueRow label="Distance away" value={fmtDistance(distance)} mono />
         )}
         <KeyValueRow
-          label="Last advert"
+          label="Last heard"
+          value={rc.lastHeardMs == null ? 'not heard yet' : fmtRelative(rc.lastHeardMs)}
+          title={rc.lastHeardMs == null ? undefined : fmtDateTime(rc.lastHeardMs, timeFormat)}
+        />
+        <KeyValueRow
+          label="Advertised"
           value={rc.lastAdvertMs == null ? '—' : fmtRelative(rc.lastAdvertMs)}
-          title={rc.lastAdvertMs == null ? undefined : fmtDateTime(rc.lastAdvertMs, timeFormat)}
+          title={
+            rc.lastAdvertMs == null
+              ? undefined
+              : `Node's own clock — ${fmtDateTime(rc.lastAdvertMs, timeFormat)}`
+          }
         />
         <KeyValueRow
           label="First heard"

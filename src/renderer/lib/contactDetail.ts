@@ -18,7 +18,10 @@ export interface ResolvedContact {
   gpsLat?: number;
   gpsLon?: number;
   firstHeardMs?: number;
+  /** Node's own advert clock (unreliable). */
   lastAdvertMs?: number;
+  /** Our clock — last live advert reception. Undefined until first heard. */
+  lastHeardMs?: number;
   contact: Contact | null;
   rssi?: number;
   snr?: number;
@@ -54,6 +57,7 @@ export function resolveContact(
     gpsLon: d?.gpsLon ?? c?.gpsLon,
     firstHeardMs: d?.firstHeardMs,
     lastAdvertMs: d?.lastAdvertMs ?? c?.lastSeenMs,
+    lastHeardMs: d?.lastHeardMs,
     contact: c,
     rssi: c?.rssi,
     snr: c?.snr,

@@ -18,8 +18,10 @@ const WEEK_MS = 604_800_000;
 
 function heardWithin(c: DiscoveredContact, heard: CmHeard, nowMs: number): boolean {
   if (heard === 'any') return true;
-  if (c.lastAdvertMs == null) return false;
-  const age = nowMs - c.lastAdvertMs;
+  // Filter on OUR clock (lastHeardMs); the node's advert timestamp is unreliable
+  // and a contact we've never heard live shouldn't count as "heard recently".
+  if (c.lastHeardMs == null) return false;
+  const age = nowMs - c.lastHeardMs;
   if (heard === 'hour') return age <= HOUR_MS;
   if (heard === 'day') return age <= DAY_MS;
   return age <= WEEK_MS;
@@ -51,7 +53,8 @@ function compare(a: DiscoveredContact, b: DiscoveredContact, field: CmSortField)
     case 'key':
       return a.publicKeyHex.localeCompare(b.publicKeyHex);
     default:
-      return (b.lastAdvertMs ?? 0) - (a.lastAdvertMs ?? 0);
+      // 'lastHeard' — our-clock reception time; never-heard rows sort oldest.
+      return (b.lastHeardMs ?? 0) - (a.lastHeardMs ?? 0);
   }
 }
 
