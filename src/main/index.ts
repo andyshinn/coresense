@@ -49,8 +49,8 @@ import { stateHolder } from './state/holder';
 import { closeDb } from './storage/db';
 import { optimizeFts } from './storage/search';
 import { flushSettings } from './storage/settings';
-import { BleTransport } from './transport/ble';
 import { transportManager } from './transport/manager';
+import { installStartupTransport } from './transport/select';
 import { startUpdater } from './updater';
 import { isQuitConfirmed } from './window/quit';
 import { getMainWindow, setMainWindow } from './window/registry';
@@ -110,8 +110,10 @@ async function bootstrap() {
   // Apply logging settings from persisted app settings on boot.
   applyLoggingSettings(stateHolder().getAppSettings().logging);
 
-  // Register the default BLE transport.
-  transportManager.setTransport(new BleTransport());
+  // Select the startup transport: real BLE, or the env-gated replay transport
+  // when CORESENSE_FAKE_TRANSPORT is set (E2E). Dynamic import inside keeps
+  // native BLE deps from loading in test mode.
+  await installStartupTransport(process.env, transportManager);
 
   const proxy = stateHolder().getAppSettings().proxy;
   bridgeHandle = await startBridge({
