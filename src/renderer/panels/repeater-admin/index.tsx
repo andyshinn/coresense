@@ -14,6 +14,7 @@ import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { RssiChip } from '../../components/RssiChip';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
+import { type RepeaterAdminTab, useStore } from '../../lib/store';
 import { AclTab } from './AclTab';
 import { CliTab } from './CliTab';
 import { LoginTab } from './LoginTab';
@@ -22,7 +23,7 @@ import { OwnerTab } from './OwnerTab';
 import { PathTab } from './PathTab';
 import { StatusTab } from './StatusTab';
 
-type TabId = 'login' | 'path' | 'status' | 'acl' | 'neighbours' | 'owner' | 'cli';
+type TabId = RepeaterAdminTab;
 
 interface Props {
   contact: Contact;
@@ -41,6 +42,18 @@ const TABS: Array<{ id: TabId; label: string; icon: typeof Radio; adminOnly?: bo
 
 export function RepeaterAdmin({ contact, client }: Props) {
   const [tab, setTab] = useState<TabId>('login');
+  const pendingTab = useStore((s) => s.repeaterAdminTab);
+  const setRepeaterAdminTab = useStore((s) => s.setRepeaterAdminTab);
+
+  // Apply a deep-link target requested by the contact-detail panel, then clear
+  // it so a later manual tab change isn't reverted. Runs whether the panel was
+  // just mounted (navigated in) or was already showing this repeater.
+  useEffect(() => {
+    if (pendingTab) {
+      setTab(pendingTab);
+      setRepeaterAdminTab(null);
+    }
+  }, [pendingTab, setRepeaterAdminTab]);
   const [session, setSession] = useState<RepeaterAdminSession | null>(null);
 
   // Fetch existing session on mount + when the contact changes — admin auth

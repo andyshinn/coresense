@@ -71,6 +71,10 @@ export type CmSortField = 'lastHeard' | 'firstHeard' | 'name' | 'type' | 'hops' 
 export type CmSortDir = 'asc' | 'desc';
 export type CmLayout = 'table' | 'list';
 
+/** Tabs in the RepeaterAdmin panel. Lives here (not the panel) so the store
+ *  can carry a pending deep-link target without importing a panel module. */
+export type RepeaterAdminTab = 'login' | 'path' | 'status' | 'acl' | 'neighbours' | 'owner' | 'cli';
+
 export interface ContactManagerState {
   search: string;
   stateTab: CmStateTab;
@@ -226,6 +230,12 @@ interface CoreState {
   // need a full history for v1.
   repeaterStatusByKey: Record<string, RepeaterStatusSnapshot>;
   repeaterTelemetryByKey: Record<string, RepeaterTelemetrySnapshot>;
+
+  // Renderer-only deep-link intent: the detail panel's Telemetry/Permissions/
+  // Remote-Mgmt buttons set this, then navigate to the repeater contact;
+  // RepeaterAdmin consumes + clears it on mount. Not persisted.
+  repeaterAdminTab: RepeaterAdminTab | null;
+  setRepeaterAdminTab: (tab: RepeaterAdminTab | null) => void;
 
   // UI state (left/right pane open, active key, pinned items, rail sections)
   ui: UiState;
@@ -463,6 +473,7 @@ export const useStore = create<CoreState>((set) => ({
 
   repeaterStatusByKey: {},
   repeaterTelemetryByKey: {},
+  repeaterAdminTab: null,
 
   ui: DEFAULT_UI_STATE,
   settingsUi: DEFAULT_SETTINGS_UI,
@@ -582,6 +593,7 @@ export const useStore = create<CoreState>((set) => ({
     set((s) => ({ contactManager: { ...s.contactManager, selected: keys } })),
   clearCmSelected: () => set((s) => ({ contactManager: { ...s.contactManager, selected: [] } })),
   setCmFocus: (key) => set((s) => ({ contactManager: { ...s.contactManager, focusKey: key } })),
+  setRepeaterAdminTab: (tab) => set(() => ({ repeaterAdminTab: tab })),
   setCmSort: (field) =>
     set((s) => {
       const { sortField, sortDir } = s.contactManager;
