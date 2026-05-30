@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { app } from 'electron';
 import { child } from '../log';
+import { userDataDir } from '../runtime/userData';
 
 const log = child('db');
 
@@ -9,7 +9,7 @@ let db: DatabaseSync | null = null;
 
 export function openDb(): DatabaseSync {
   if (db) return db;
-  const path = join(app.getPath('userData'), 'messages.db');
+  const path = join(userDataDir(), 'messages.db');
   db = new DatabaseSync(path);
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA synchronous = NORMAL');

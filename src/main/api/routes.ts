@@ -1,4 +1,3 @@
-import { app } from 'electron';
 import { Hono } from 'hono';
 import type {
   AppSettings,
@@ -26,6 +25,7 @@ import { currentPath, folderPath } from '../logging/fileSink';
 import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
 import { protocolSession } from '../protocol';
 import { register as registerPendingChannelSend } from '../protocol/pendingChannelSends';
+import { appLifecycle } from '../runtime/appLifecycle';
 import { stateHolder } from '../state/holder';
 import { searchMessages } from '../storage/search';
 import { transportManager } from '../transport/manager';
@@ -118,7 +118,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   api.post('/api/app/quit', (c) => {
     markQuitConfirmed();
     // Defer so this HTTP response flushes before the app tears down.
-    setTimeout(() => app.quit(), 0);
+    setTimeout(() => appLifecycle().quit(), 0);
     return c.json({ ok: true });
   });
 
@@ -128,8 +128,8 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   api.post('/api/app/relaunch', (c) => {
     markQuitConfirmed();
     setTimeout(() => {
-      app.relaunch();
-      app.exit(0);
+      appLifecycle().relaunch();
+      appLifecycle().exit(0);
     }, 0);
     return c.json({ ok: true });
   });

@@ -26,6 +26,7 @@ import {
   type UiState,
 } from '../../shared/types';
 import { child } from '../log';
+import { userDataDir } from '../runtime/userData';
 
 const log = child('settings');
 
@@ -46,7 +47,7 @@ const FILES = {
 } as const;
 
 function pathFor(file: string): string {
-  return join(app.getPath('userData'), file);
+  return join(userDataDir(), file);
 }
 
 function readJson<T>(file: string, fallback: T): T {

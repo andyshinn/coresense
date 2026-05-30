@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { app } from 'electron';
 import type { LogEntry } from '../../shared/types';
+import { userDataDir } from '../runtime/userData';
 
 const PRUNE_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -19,7 +19,7 @@ export function setEnabled(flag: boolean): void {
 }
 
 export function folderPath(): string {
-  if (!cachedFolder) cachedFolder = path.join(app.getPath('userData'), 'logs');
+  if (!cachedFolder) cachedFolder = path.join(userDataDir(), 'logs');
   return cachedFolder;
 }
 

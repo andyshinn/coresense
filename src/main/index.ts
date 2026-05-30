@@ -1,5 +1,21 @@
 import './storage/paths'; // must precede any module that touches app.getPath()
 import path from 'node:path';
+
+// Wire production implementations of the injectable seams. This must run after
+// './storage/paths' (so the dev userData redirect has applied) and before any
+// module calls userDataDir() / appLifecycle() / secretStore().
+setUserDataDir(app.getPath('userData'));
+setAppLifecycle({
+  quit: () => app.quit(),
+  relaunch: () => app.relaunch(),
+  exit: (code) => app.exit(code),
+});
+setSecretStore({
+  available: () => safeStorage.isEncryptionAvailable(),
+  encryptString: (s) => safeStorage.encryptString(s),
+  decryptString: (b) => safeStorage.decryptString(b),
+});
+
 import {
   app,
   BrowserWindow,
@@ -8,6 +24,7 @@ import {
   Menu,
   type MenuItemConstructorOptions,
   nativeTheme,
+  safeStorage,
   session,
   shell,
 } from 'electron';
@@ -22,6 +39,9 @@ import { folderPath } from './logging/fileSink';
 import { buildMenu } from './menu';
 import { startNotifications } from './notifications';
 import { protocolSession } from './protocol';
+import { setAppLifecycle } from './runtime/appLifecycle';
+import { setSecretStore } from './runtime/secretStore';
+import { setUserDataDir } from './runtime/userData';
 import { startServer } from './server';
 import { stateHolder } from './state/holder';
 import { closeDb } from './storage/db';
