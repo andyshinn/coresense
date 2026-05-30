@@ -342,6 +342,13 @@ export function parseEndOfContacts(frame: Buffer): number | null {
   return frame.readUInt32LE(1);
 }
 
+// PUSH_CODE_CONTACT_DELETED [0x8f][32B pubkey] — firmware evicted a contact
+// (overwrite-oldest). Returns the lowercase hex public key, or null if short.
+export function parseContactDeleted(frame: Buffer): string | null {
+  if (frame.length < 1 + 32) return null;
+  return frame.subarray(1, 33).toString('hex');
+}
+
 // RESP_CONTACT_MSG_RECV_V3 frame (firmware: companion_radio/MyMesh.cpp):
 //   [0]: 0x10
 //   [1]: snr*4 (signed int8) — divide by 4 for dB
