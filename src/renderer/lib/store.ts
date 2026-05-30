@@ -389,7 +389,16 @@ function navStateUpdate(
 ): Partial<CoreState> {
   const recentKeys = [key, ...s.ui.recentKeys.filter((k) => k !== key)].slice(0, RECENT_KEYS_MAX);
   const out: Partial<CoreState> = {
-    ui: { ...s.ui, activeKey: key, selectedContactKey: null, selectedSiteKey: null, recentKeys },
+    ui: {
+      ...s.ui,
+      activeKey: key,
+      // The Contact Manager keeps its bulk/list actions in the right rail, so
+      // open it on arrival. Other destinations preserve the user's choice.
+      rightOpen: key === 'tool:contacts' ? true : s.ui.rightOpen,
+      selectedContactKey: null,
+      selectedSiteKey: null,
+      recentKeys,
+    },
     selectedMessageId: null,
   };
   if (historyDelta?.navPast !== undefined) out.navPast = historyDelta.navPast;
