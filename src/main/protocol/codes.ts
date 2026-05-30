@@ -26,6 +26,10 @@ export const CMD = {
   // CMD_RESET_PATH: [0x0d][32B pubkey]. Clears the contact's out_path on the
   //   radio (equivalent to ADD_UPDATE_CONTACT with path_len=0). Replies RESP_OK.
   RESET_PATH: 0x0d,
+  // CMD_REMOVE_CONTACT: [0x0f][32B pubkey]. Deletes the contact from the
+  //   radio's on-device store (firmware companion_radio CMD_REMOVE_CONTACT=15).
+  //   Replies RESP_OK, or RESP_ERR (ERR_CODE_NOT_FOUND) if absent.
+  REMOVE_CONTACT: 0x0f,
   // CMD_DEVICE_QUERY (firmware misspells it CMD_DEVICE_QEURY) carries the app's
   // *protocol* version, which the firmware reads as app_target_ver. Sending
   // version ≥ 3 here makes the radio emit V3 frames (with SNR prefix). Note:
@@ -170,6 +174,9 @@ export const PUSH = {
   // SEND_ANON_REQ / SEND_BINARY_REQ. Layout: [0x8c][0][tag u32 LE][bytes...].
   BINARY_RESPONSE: 0x8c,
   CONTACT_DELETED: 0x8f,
+  // PUSH_CODE_CONTACTS_FULL: emitted when the contact store is full and a new
+  //   advert could not be auto-added (overwrite-oldest off / all favourites).
+  CONTACTS_FULL: 0x90,
 } as const;
 
 // Mesh-level admin request sub-types carried inside PAYLOAD_TYPE_REQ. We send
