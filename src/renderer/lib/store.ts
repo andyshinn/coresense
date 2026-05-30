@@ -9,6 +9,7 @@ import {
   type Capabilities,
   type Channel,
   type Contact,
+  type ContactKind,
   DEFAULT_APP_SETTINGS,
   DEFAULT_AUTO_ADD_CONFIG,
   DEFAULT_DEVICE_CAPABILITIES,
@@ -62,6 +63,43 @@ export interface SearchFilters {
 }
 
 const DEFAULT_SEARCH_FILTERS: SearchFilters = { kinds: ['channel', 'dm'] };
+
+// ---- Contact Manager view state -------------------------------------------
+export type CmStateTab = 'all' | 'on-radio' | 'discovered' | 'blocked';
+export type CmHeard = 'any' | 'hour' | 'day' | 'week';
+export type CmSortField = 'lastHeard' | 'firstHeard' | 'name' | 'type' | 'hops' | 'key';
+export type CmSortDir = 'asc' | 'desc';
+export type CmLayout = 'table' | 'list';
+
+export interface ContactManagerState {
+  search: string;
+  stateTab: CmStateTab;
+  types: ContactKind[];
+  heard: CmHeard;
+  favOnly: boolean;
+  sortField: CmSortField;
+  sortDir: CmSortDir;
+  layout: CmLayout;
+  compact: boolean;
+  showKeys: boolean;
+  selected: string[];
+  focusKey: string | null;
+}
+
+const CM_DEFAULTS: ContactManagerState = {
+  search: '',
+  stateTab: 'all',
+  types: [],
+  heard: 'any',
+  favOnly: false,
+  sortField: 'lastHeard',
+  sortDir: 'asc',
+  layout: 'table',
+  compact: true,
+  showKeys: true,
+  selected: [],
+  focusKey: null,
+};
 
 // ---- Settings panel UI state ----------------------------------------------
 // The redesigned Settings panel and the RightRail jump-list are sibling
@@ -150,6 +188,15 @@ interface CoreState {
   channelPresence: Set<string>;
   contacts: Contact[];
   discovered: DiscoveredContact[];
+
+  // Contact Manager view state (filters, sort, selection, focus)
+  contactManager: ContactManagerState;
+  setCmFilter: (patch: Partial<ContactManagerState>) => void;
+  toggleCmSelected: (key: string) => void;
+  setCmSelected: (keys: string[]) => void;
+  clearCmSelected: () => void;
+  setCmFocus: (key: string | null) => void;
+  setCmSort: (field: CmSortField) => void;
   // Keyed by `key` (channel or contact key). The renderer is a cache —
   // authoritative history lives in main once Phase 3 lands.
   messagesByKey: Record<string, Message[]>;
@@ -388,6 +435,7 @@ export const useStore = create<CoreState>((set) => ({
   channelPresence: new Set<string>(),
   contacts: [],
   discovered: [],
+  contactManager: CM_DEFAULTS,
   messagesByKey: {},
 
   capabilities: null,
@@ -512,6 +560,25 @@ export const useStore = create<CoreState>((set) => ({
   applyChannelPresence: (keys) => set(() => ({ channelPresence: new Set(keys) })),
   applyContacts: (contacts) => set(() => ({ contacts })),
   applyDiscovered: (rows) => set(() => ({ discovered: rows })),
+  setCmFilter: (patch) => set((s) => ({ contactManager: { ...s.contactManager, ...patch } })),
+  toggleCmSelected: (key) =>
+    set((s) => {
+      const has = s.contactManager.selected.includes(key);
+      const selected = has
+        ? s.contactManager.selected.filter((k) => k !== key)
+        : [...s.contactManager.selected, key];
+      return { contactManager: { ...s.contactManager, selected } };
+    }),
+  setCmSelected: (keys) =>
+    set((s) => ({ contactManager: { ...s.contactManager, selected: keys } })),
+  clearCmSelected: () => set((s) => ({ contactManager: { ...s.contactManager, selected: [] } })),
+  setCmFocus: (key) => set((s) => ({ contactManager: { ...s.contactManager, focusKey: key } })),
+  setCmSort: (field) =>
+    set((s) => {
+      const { sortField, sortDir } = s.contactManager;
+      const dir: CmSortDir = sortField === field ? (sortDir === 'asc' ? 'desc' : 'asc') : 'asc';
+      return { contactManager: { ...s.contactManager, sortField: field, sortDir: dir } };
+    }),
   applyOwner: (owner) => set(() => ({ owner })),
   applyAppSettings: (settings) => {
     setRendererLogLevel(settings.logging.level);
