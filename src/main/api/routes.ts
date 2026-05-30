@@ -25,6 +25,7 @@ import { applyLoggingSettings } from '../logging/apply';
 import { currentPath, folderPath } from '../logging/fileSink';
 import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
 import { protocolSession } from '../protocol';
+import { UnknownContactError } from '../protocol/errors';
 import { register as registerPendingChannelSend } from '../protocol/pendingChannelSends';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
@@ -539,6 +540,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       await protocolSession().addContactToRadio(pubkey);
       return c.json({ ok: true });
     } catch (err) {
+      if (err instanceof UnknownContactError) return c.json({ error: err.message }, 422);
       return c.json({ error: (err as Error).message }, 503);
     }
   });
@@ -567,6 +569,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       await protocolSession().setContactFavourite(pubkey, body.favourite);
       return c.json({ ok: true });
     } catch (err) {
+      if (err instanceof UnknownContactError) return c.json({ error: err.message }, 422);
       return c.json({ error: (err as Error).message }, 503);
     }
   });

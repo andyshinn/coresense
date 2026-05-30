@@ -79,6 +79,7 @@ import {
   pathHashModeToSize,
   pathHashSizeToMode,
 } from './encode';
+import { UnknownContactError } from './errors';
 import { consumeMatching as consumeMeshObs } from './meshObservations';
 import { buildPath, channelHashOf } from './paths';
 import {
@@ -596,7 +597,10 @@ export class ProtocolSession {
    *  Optimistically marks it on-radio and schedules a re-sync to confirm. */
   async addContactToRadio(publicKeyHex: string): Promise<void> {
     const row = discoveredStore.get(publicKeyHex);
-    if (!row) throw new Error(`unknown discovered contact ${publicKeyHex}`);
+    if (!row) {
+      log.warn(`unknown discovered contact ${publicKeyHex.slice(0, 12)}`);
+      throw new UnknownContactError(publicKeyHex);
+    }
     const hasFix = row.gps_lat !== 0 || row.gps_lon !== 0;
     const frame = buildAddUpdateContact({
       publicKeyHex,
@@ -642,7 +646,10 @@ export class ProtocolSession {
    *  (protects from overwrite-oldest). Discovered-only contacts update locally. */
   async setContactFavourite(publicKeyHex: string, favourite: boolean): Promise<void> {
     const row = discoveredStore.get(publicKeyHex);
-    if (!row) throw new Error(`unknown discovered contact ${publicKeyHex}`);
+    if (!row) {
+      log.warn(`unknown discovered contact ${publicKeyHex.slice(0, 12)}`);
+      throw new UnknownContactError(publicKeyHex);
+    }
     if (row.on_radio !== 0) {
       const flags = favourite ? row.flags | 0x01 : row.flags & ~0x01;
       const hasFix = row.gps_lat !== 0 || row.gps_lon !== 0;
