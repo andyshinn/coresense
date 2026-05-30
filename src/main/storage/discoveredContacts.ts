@@ -1,6 +1,7 @@
 import {
   contactMatchesAnyBlockRule,
   type DiscoveredContact,
+  hopsFromOutPathLen,
 } from '../../shared/contacts/discovered';
 import type { BlockRule, ContactKind, PathHashSize } from '../../shared/types';
 import type { ContactRecord } from '../protocol/decode';
@@ -18,6 +19,7 @@ interface Row {
   gps_lon: number;
   lastmod: number;
   first_heard_ms: number;
+  last_heard_ms: number;
   on_radio: number;
   favourite: number;
 }
@@ -47,12 +49,13 @@ function rowToDiscovered(
     publicKeyHex: row.pubkey,
     name: row.name || row.pubkey.slice(0, 12),
     kind: advTypeToKind(row.type),
-    hops: row.out_path_len === 0xff ? undefined : Math.floor(row.out_path_len / hashSize),
+    hops: hopsFromOutPathLen(row.out_path_len),
     outPathHex: hasPath ? row.out_path_hex : undefined,
     outPathHashSize: hasPath ? hashSize : undefined,
     gpsLat: hasFix ? row.gps_lat : undefined,
     gpsLon: hasFix ? row.gps_lon : undefined,
     lastAdvertMs: row.last_advert_unix > 0 ? row.last_advert_unix * 1000 : undefined,
+    lastHeardMs: row.last_heard_ms > 0 ? row.last_heard_ms : undefined,
     firstHeardMs: row.first_heard_ms,
     onRadio: row.on_radio !== 0,
     favourite: row.favourite !== 0,
@@ -63,14 +66,23 @@ function rowToDiscovered(
 export const discoveredStore = {
   /** Upsert from a decoded advert/contact frame. Stamps first_heard_ms on the
    *  first sighting of a pubkey; preserves it (and the existing favourite flag)
-   *  on later adverts. `onRadio` is set by the caller per context. */
-  upsert(record: ContactRecord, opts: { onRadio: boolean; nowMs: number }): void {
+   *  on later adverts. `onRadio` is set by the caller per context.
+   *
+   *  `heardLive` distinguishes a real PUSH_NEW_ADVERT (we actually heard the
+   *  node) from a GET_CONTACTS resync (the device just listing what it stores).
+   *  last_heard_ms is our-clock and only advances on a live advert, so it never
+   *  moves on a resync — committing a contact to the radio can't bump it. */
+  upsert(
+    record: ContactRecord,
+    opts: { onRadio: boolean; nowMs: number; heardLive: boolean },
+  ): void {
     const db = openDb();
+    const heardMs = opts.heardLive ? opts.nowMs : 0;
     db.prepare(
       `INSERT INTO discovered_contacts
          (pubkey, name, type, flags, out_path_len, out_path_hex, last_advert_unix,
-          gps_lat, gps_lon, lastmod, first_heard_ms, on_radio, favourite)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          gps_lat, gps_lon, lastmod, first_heard_ms, last_heard_ms, on_radio, favourite)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(pubkey) DO UPDATE SET
          name=excluded.name, type=excluded.type,
          -- Refresh advert flags but keep bit 0 (favourite) consistent with the
@@ -79,6 +91,9 @@ export const discoveredStore = {
          out_path_len=excluded.out_path_len, out_path_hex=excluded.out_path_hex,
          last_advert_unix=excluded.last_advert_unix, gps_lat=excluded.gps_lat,
          gps_lon=excluded.gps_lon, lastmod=excluded.lastmod,
+         -- Only a live advert (excluded.last_heard_ms = now) advances this; a
+         -- resync passes 0, so MAX keeps the prior value untouched.
+         last_heard_ms=MAX(discovered_contacts.last_heard_ms, excluded.last_heard_ms),
          on_radio=excluded.on_radio`,
     ).run(
       record.publicKeyHex,
@@ -92,6 +107,7 @@ export const discoveredStore = {
       record.gpsLon,
       record.lastmod,
       opts.nowMs,
+      heardMs,
       opts.onRadio ? 1 : 0,
       record.flags & 0x01 ? 1 : 0,
     );

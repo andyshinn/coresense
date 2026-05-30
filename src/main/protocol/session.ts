@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
+import { hopsFromOutPathLen } from '../../shared/contacts/discovered';
 import type {
   Channel,
   Contact,
@@ -1771,7 +1772,11 @@ export class ProtocolSession {
     const alreadyOnRadio = holder.getContacts().some((c) => c.key === fullKey);
     const onRadio = source === 'sync' ? true : alreadyOnRadio;
 
-    discoveredStore.upsert(record, { onRadio, nowMs: Date.now() });
+    discoveredStore.upsert(record, {
+      onRadio,
+      nowMs: Date.now(),
+      heardLive: source === 'advert',
+    });
 
     if (onRadio) {
       this.upsertOnRadioContact(record);
@@ -1814,7 +1819,7 @@ export class ProtocolSession {
       name: record.name || record.publicKeyHex.slice(0, 12),
       kind: advTypeToKind(record.type),
       lastSeenMs: record.lastAdvertUnix > 0 ? record.lastAdvertUnix * 1000 : existing?.lastSeenMs,
-      hops: record.outPathLen === 0xff ? undefined : Math.floor(record.outPathLen / hashSize),
+      hops: hopsFromOutPathLen(record.outPathLen),
       pinned: existing?.pinned,
       muted: existing?.muted,
       favourite: (record.flags & 0x01) !== 0,

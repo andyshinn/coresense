@@ -86,12 +86,23 @@ export function openDb(): DatabaseSync {
       gps_lon         REAL NOT NULL,
       lastmod         INTEGER NOT NULL,
       first_heard_ms  INTEGER NOT NULL,
+      last_heard_ms   INTEGER NOT NULL DEFAULT 0,
       on_radio        INTEGER NOT NULL DEFAULT 0,
       favourite       INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS discovered_by_last_advert ON discovered_contacts (last_advert_unix DESC);
     CREATE INDEX IF NOT EXISTS discovered_by_on_radio    ON discovered_contacts (on_radio);
   `);
+
+  // last_heard_ms was added after first ship; back-fill the column on databases
+  // created before it existed. ADD COLUMN throws "duplicate column name" once
+  // the column is present, so the failure is the success signal on later boots.
+  try {
+    db.exec('ALTER TABLE discovered_contacts ADD COLUMN last_heard_ms INTEGER NOT NULL DEFAULT 0');
+  } catch {
+    // column already exists — nothing to do
+  }
+
   log.info(`opened ${path}`);
   return db;
 }
