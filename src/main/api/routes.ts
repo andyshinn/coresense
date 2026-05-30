@@ -523,6 +523,64 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     return c.json({ ok: true });
   });
 
+  // ---- Discovered-contacts pool ---------------------------------------
+  api.get('/api/discovered-contacts', (c) => {
+    const holder = stateHolder();
+    return c.json(
+      discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
+    );
+  });
+
+  // Commit a discovered contact to the radio's store.
+  api.post('/api/contacts/:key/add-to-radio', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const pubkey = key.startsWith('c:') ? key.slice(2) : key;
+    try {
+      await protocolSession().addContactToRadio(pubkey);
+      return c.json({ ok: true });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  // Delete a contact from the radio's store (stays in the discovered pool).
+  api.post('/api/contacts/:key/remove-from-radio', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const pubkey = key.startsWith('c:') ? key.slice(2) : key;
+    try {
+      await protocolSession().removeContactFromRadio(pubkey);
+      return c.json({ ok: true });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  // Toggle the radio-level favourite flag.
+  api.put('/api/contacts/:key/favourite', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const pubkey = key.startsWith('c:') ? key.slice(2) : key;
+    const body = (await c.req.json().catch(() => null)) as { favourite?: boolean } | null;
+    if (!body || typeof body.favourite !== 'boolean') {
+      return c.json({ error: 'favourite (boolean) required' }, 400);
+    }
+    try {
+      await protocolSession().setContactFavourite(pubkey, body.favourite);
+      return c.json({ ok: true });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  // Drop discovered-only rows (keeps on-radio contacts).
+  api.post('/api/discovered-contacts/clear', (c) => {
+    discoveredStore.clearDiscoveredOnly();
+    const holder = stateHolder();
+    emit.discovered(
+      discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
+    );
+    return c.json({ ok: true });
+  });
+
   api.get('/api/messages/:key', (c) => {
     const key = decodeURIComponent(c.req.param('key'));
     const limit = Number(c.req.query('limit') ?? '200');
