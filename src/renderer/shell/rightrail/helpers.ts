@@ -14,6 +14,7 @@ export function viewKindFor(activeKey: string): ViewKind {
 /** Header title shown at the top of the rail. */
 export function railTitle(activeKey: string): string {
   if (activeKey.startsWith('tool:settings')) return 'Settings';
+  if (activeKey === 'tool:contacts') return 'Contacts';
   if (activeKey === 'tool:map') return 'Map';
   const kind = viewKindFor(activeKey);
   switch (kind) {

@@ -6,6 +6,7 @@ import { Placeholder } from './atoms';
 import { viewKindFor } from './helpers';
 import { ChannelInfoSection } from './sections/ChannelInfo';
 import { ContactCardSection } from './sections/ContactCard';
+import { ContactManagerRailBody } from './sections/ContactManagerRail';
 import { HeardViaSection } from './sections/HeardVia';
 import {
   LogsActionsSection,
@@ -71,6 +72,18 @@ export function sectionsFor(
         label: 'Actions',
         defaultOpen: true,
         body: () => <LogsActionsSection />,
+      },
+    ];
+  }
+
+  // The Contact Manager panel uses the rail for contextual bulk + list actions.
+  if (activeKey === 'tool:contacts') {
+    return [
+      {
+        id: 'rail.cm.actions',
+        label: 'Actions',
+        defaultOpen: true,
+        body: () => <ContactManagerRailBody client={actions.client} />,
       },
     ];
   }
