@@ -69,6 +69,28 @@ export function openDb(): DatabaseSync {
       pk_suffix_rev,
       tokenize = 'unicode61 remove_diacritics 2'
     );
+
+    -- Discovered-contacts pool: every node we've heard an advert from, whether
+    -- or not it is committed to the radio's on-device store. on_radio mirrors
+    -- membership in the radio's GET_CONTACTS result; first_heard_ms is our
+    -- clock (the firmware tracks no first-heard). Keyed by full hex pubkey.
+    CREATE TABLE IF NOT EXISTS discovered_contacts (
+      pubkey          TEXT PRIMARY KEY,
+      name            TEXT NOT NULL,
+      type            INTEGER NOT NULL,
+      flags           INTEGER NOT NULL,
+      out_path_len    INTEGER NOT NULL,
+      out_path_hex    TEXT NOT NULL,
+      last_advert_unix INTEGER NOT NULL,
+      gps_lat         REAL NOT NULL,
+      gps_lon         REAL NOT NULL,
+      lastmod         INTEGER NOT NULL,
+      first_heard_ms  INTEGER NOT NULL,
+      on_radio        INTEGER NOT NULL DEFAULT 0,
+      favourite       INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS discovered_by_last_advert ON discovered_contacts (last_advert_unix DESC);
+    CREATE INDEX IF NOT EXISTS discovered_by_on_radio    ON discovered_contacts (on_radio);
   `);
   log.info(`opened ${path}`);
   return db;
