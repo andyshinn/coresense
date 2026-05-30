@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { DiscoveredContact } from '../../shared/contacts/discovered';
 import {
   type AppSettings,
   type AutoAddConfig,
@@ -148,6 +149,7 @@ interface CoreState {
    *  disconnected. Drives the "grayed missing channel" rendering in LeftNav. */
   channelPresence: Set<string>;
   contacts: Contact[];
+  discovered: DiscoveredContact[];
   // Keyed by `key` (channel or contact key). The renderer is a cache —
   // authoritative history lives in main once Phase 3 lands.
   messagesByKey: Record<string, Message[]>;
@@ -226,6 +228,7 @@ interface CoreState {
   applyChannels: (channels: Channel[]) => void;
   applyChannelPresence: (keys: string[]) => void;
   applyContacts: (contacts: Contact[]) => void;
+  applyDiscovered: (rows: DiscoveredContact[]) => void;
   applyOwner: (owner: Owner | null) => void;
   applyAppSettings: (settings: AppSettings) => void;
   applyBlockRules: (rules: BlockRule[]) => void;
@@ -384,6 +387,7 @@ export const useStore = create<CoreState>((set) => ({
   channels: [],
   channelPresence: new Set<string>(),
   contacts: [],
+  discovered: [],
   messagesByKey: {},
 
   capabilities: null,
@@ -506,6 +510,7 @@ export const useStore = create<CoreState>((set) => ({
   applyChannels: (channels) => set(() => ({ channels })),
   applyChannelPresence: (keys) => set(() => ({ channelPresence: new Set(keys) })),
   applyContacts: (contacts) => set(() => ({ contacts })),
+  applyDiscovered: (rows) => set(() => ({ discovered: rows })),
   applyOwner: (owner) => set(() => ({ owner })),
   applyAppSettings: (settings) => {
     setRendererLogLevel(settings.logging.level);
