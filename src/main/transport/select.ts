@@ -7,9 +7,11 @@ interface TransportSink {
 /**
  * Choose and install the startup transport from the environment. When
  * CORESENSE_FAKE_TRANSPORT names a replay fixture, install the env-gated
- * FileReplayTransport and kick off replay; otherwise install the real
- * BleTransport. Both modules load via dynamic import so the unused path's
- * native deps (noble for BLE) never load.
+ * FileReplayTransport; otherwise install the real BleTransport. The transport
+ * is installed but NOT connected here — the caller triggers connect() after the
+ * bus subscribers are wired, so the replayed transportState/packets have
+ * listeners. Both modules load via dynamic import so the unused path's native
+ * deps (noble for BLE) never load.
  */
 export async function installStartupTransport(
   env: NodeJS.ProcessEnv,
@@ -20,8 +22,6 @@ export async function installStartupTransport(
     const { FileReplayTransport } = await import('./replay');
     const transport = new FileReplayTransport(fixture);
     manager.setTransport(transport);
-    // Kick off replay immediately — there is no UI "connect" step in E2E.
-    void transport.connect('replay');
     return transport;
   }
   const { BleTransport } = await import('./ble');

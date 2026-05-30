@@ -137,6 +137,14 @@ async function bootstrap() {
   Menu.setApplicationMenu(buildMenu());
   wireTheme();
   protocolSession().start();
+  // E2E: the env-gated replay transport has no UI "connect" action. Trigger its
+  // fixture playback here — AFTER startServer() and protocolSession().start()
+  // have subscribed to the bus — so the replayed transportState/packets have
+  // listeners. (Firing it at install time, before these subscriptions, drops
+  // the replay entirely.)
+  if (process.env.CORESENSE_FAKE_TRANSPORT) {
+    void transportManager.getTransport()?.connect('replay');
+  }
   startNotifications();
   startUpdater();
 
