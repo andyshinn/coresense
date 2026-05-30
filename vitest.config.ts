@@ -19,6 +19,19 @@ export default defineConfig({
           include: ['tests/unit/**/*.test.ts'],
         },
       },
+      {
+        resolve: {
+          alias: {
+            '@': path.resolve(__dirname, 'src/renderer'),
+          },
+        },
+        test: {
+          name: 'integration',
+          environment: 'node',
+          include: ['tests/integration/**/*.test.ts'],
+          setupFiles: ['tests/integration/setup.ts'],
+        },
+      },
     ],
     coverage: {
       provider: 'v8',
