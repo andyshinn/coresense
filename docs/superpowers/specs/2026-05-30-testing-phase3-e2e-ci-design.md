@@ -112,7 +112,7 @@ New `.github/workflows/ci.yml`.
 
 **Triggers:** `push` and `pull_request` (all branches).
 
-**Common setup (both jobs):** checkout → `pnpm/action-setup` → `actions/setup-node` (Node pinned to the project's local version — confirm via `.nvmrc`/`engines` at plan time; currently Node 24+) with pnpm cache → `pnpm install`. System packages required to build native deps / run headless Electron are installed via `apt-get` before install where needed.
+**Common setup (both jobs):** checkout → `pnpm/action-setup` → `actions/setup-node` pinned to **Node 24.15.0** (matches the Node version bundled in the stable Electron the app ships on) with pnpm cache → `pnpm install`. System packages required to build native deps / run headless Electron are installed via `apt-get` before install where needed.
 
 **Job `checks` (ubuntu-latest):**
 1. `pnpm typecheck`
