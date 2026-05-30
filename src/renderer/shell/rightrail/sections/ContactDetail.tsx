@@ -1,6 +1,28 @@
+import {
+  Ban,
+  MapPin,
+  MessageSquare,
+  Minus,
+  Plus,
+  Radio,
+  Share2,
+  ShieldCheck,
+  Star,
+  TerminalSquare,
+} from 'lucide-react';
+import { useState } from 'react';
+import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import { copyToClipboard } from '../../../components/ContextMenu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../components/ui/dialog';
 import { KeyValueRow } from '../../../components/ui/KeyValueRow';
-import type { ApiClient } from '../../../lib/api';
+import { type ApiClient, api } from '../../../lib/api';
 import {
   distanceKm,
   fmtDistance,
@@ -13,6 +35,7 @@ import { useStore } from '../../../lib/store';
 import { fmtDateTime, fmtRelative } from '../../../lib/time';
 import { StatusPill, TypeGlyph } from '../../../panels/contacts/ContactRows';
 import { Placeholder } from '../atoms';
+import { CardActionButton } from './ContactCard';
 
 const KIND_LABEL: Record<ResolvedContact['kind'], string> = {
   chat: 'Chat',
@@ -50,15 +73,38 @@ function rcHasFix(rc: ResolvedContact): boolean {
 }
 
 export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) {
-  void client; // used in Tasks 4/5
   const discovered = useStore((s) => s.discovered);
   const contacts = useStore((s) => s.contacts);
   const identity = useStore((s) => s.deviceIdentity);
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
+  const setActiveKey = useStore((s) => s.setActiveKey);
+  const setRepeaterAdminTab = useStore((s) => s.setRepeaterAdminTab);
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [removeOpen, setRemoveOpen] = useState(false);
 
   if (!publicKeyHex) return <Placeholder label="no contact focused" />;
   const rc = resolveContact(publicKeyHex, discovered, contacts);
   if (!rc) return <Placeholder label="unknown contact" />;
+
+  const canMessage = rc.onRadio && (rc.kind === 'chat' || rc.kind === 'room');
+  const canAdminister = rc.onRadio && (rc.kind === 'repeater' || rc.kind === 'sensor');
+
+  // Run an API mutation that needs a live client; no-op when disconnected.
+  async function act(fn: (c: ApiClient) => Promise<unknown>, ok: string) {
+    if (!client) return;
+    try {
+      await fn(client);
+      notify.success(ok);
+    } catch (err) {
+      notify.error(`Action failed: ${(err as Error).message}`, err);
+    }
+  }
+
+  const rcKey = rc.key;
+  function openRepeaterTab(tab: 'status' | 'acl' | 'cli') {
+    setRepeaterAdminTab(tab);
+    setActiveKey(rcKey);
+  }
 
   const shortKey = `${rc.publicKeyHex.slice(0, 6)}…${rc.publicKeyHex.slice(-4)}`;
   const hasFix = rcHasFix(rc);
@@ -104,7 +150,112 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
         <StatusPill c={{ blocked: rc.blocked, onRadio: rc.onRadio } as never} />
       </div>
 
-      {/* action row — Task 4 */}
+      <div className="flex flex-wrap gap-1.5">
+        {!rc.onRadio && !rc.blocked && (
+          <CardActionButton
+            icon={Plus}
+            label="Add to radio"
+            onClick={() =>
+              act((c) => api.addToRadio(c, rc.publicKeyHex), `Added ${rc.name} to radio`)
+            }
+          />
+        )}
+        {canMessage && (
+          <CardActionButton
+            icon={MessageSquare}
+            label="Message"
+            onClick={() => setActiveKey(rc.key)}
+          />
+        )}
+        <CardActionButton
+          icon={Star}
+          label={rc.favourite ? 'Unfavourite' : 'Favourite'}
+          onClick={() =>
+            act(
+              (c) => api.setFavourite(c, rc.publicKeyHex, !rc.favourite),
+              rc.favourite ? 'Removed favourite' : 'Favourited',
+            )
+          }
+        />
+        {hasFix && (
+          <CardActionButton icon={MapPin} label="View on map" onClick={() => flyToContact(rc)} />
+        )}
+        {canAdminister && (
+          <>
+            <CardActionButton
+              icon={Radio}
+              label="Telemetry"
+              onClick={() => openRepeaterTab('status')}
+            />
+            {rc.kind === 'repeater' && (
+              <CardActionButton
+                icon={ShieldCheck}
+                label="Permissions"
+                onClick={() => openRepeaterTab('acl')}
+              />
+            )}
+            <CardActionButton
+              icon={TerminalSquare}
+              label="Remote mgmt"
+              onClick={() => openRepeaterTab('cli')}
+            />
+          </>
+        )}
+        {!rc.blocked && (
+          <CardActionButton icon={Ban} label="Block" onClick={() => setBlockOpen(true)} />
+        )}
+        {rc.onRadio && (
+          <CardActionButton icon={Minus} label="Remove" onClick={() => setRemoveOpen(true)} />
+        )}
+        <CardActionButton
+          icon={Share2}
+          label="Share"
+          onClick={() => notify.info('Share — coming soon')}
+        />
+      </div>
+
+      {blockOpen && (
+        <BlockSenderDialog
+          client={client}
+          open
+          prefill={{ pubkey: rc.publicKeyHex, name: rc.name }}
+          onClose={() => setBlockOpen(false)}
+        />
+      )}
+
+      <Dialog open={removeOpen} onOpenChange={(o) => !o && setRemoveOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove from radio</DialogTitle>
+            <DialogDescription>
+              Remove {rc.name} from the radio's contact store? It stays in your discovered list and
+              can be re-added later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setRemoveOpen(false)}
+              className="rounded-md border border-cs-border bg-cs-bg-2 px-3 py-1.5 text-xs hover:bg-cs-bg-3"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRemoveOpen(false);
+                void act(
+                  (c) => api.removeFromRadio(c, rc.publicKeyHex),
+                  `Removed ${rc.name} from radio`,
+                );
+              }}
+              className="rounded-md border border-cs-danger bg-cs-danger/10 px-3 py-1.5 text-xs text-cs-danger hover:bg-cs-danger/20"
+            >
+              Remove
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="space-y-1.5">
         <KeyValueRow
