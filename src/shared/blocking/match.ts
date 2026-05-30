@@ -5,23 +5,11 @@ import type { BlockRule, Message } from '../types';
  *  paths). All fields are optional — missing info just means the relevant
  *  rule type can't match. */
 export interface BlockMatchHints {
-  /** For channel messages: the sender's display name parsed from the
-   *  "name: body" prefix. Undefined when the body has no name prefix. */
-  senderNameFromBody?: string;
   /** Resolver for DM-style messages: pubkey -> display name. */
   contactNameByPk?: (pk: string) => string | undefined;
   /** Channel-message origin hop resolved full pubkey (lowercase hex), when
    *  an advert was matched. Undefined otherwise. */
   originHopPk?: string;
-}
-
-/** Channel message bodies look like `"Alice: hello"`. Returns the name half,
- *  or undefined when the body has no `name:` prefix. The split is on the
- *  first occurrence of ": " (colon + space). */
-export function extractSenderNameFromBody(body: string): string | undefined {
-  const i = body.indexOf(': ');
-  if (i <= 0) return undefined;
-  return body.slice(0, i);
 }
 
 /** True iff the message is from us (no sender pubkey). Self-sent messages
@@ -34,6 +22,20 @@ function isSelfSent(msg: Message): boolean {
  *  `ch:`; DM/contact keys begin with `c:`. */
 function isChannelMessage(msg: Message): boolean {
   return msg.key.startsWith('ch:');
+}
+
+/** Sender display name for matching purposes.
+ *  - Channel messages: parsed from the `name:` sentinel in fromPublicKeyHex
+ *    (the protocol decoder strips the "name: " prefix from the body and
+ *    encodes the sender into fromPublicKeyHex; see protocol/session.ts).
+ *  - DMs: resolved through the caller-provided contactNameByPk lookup. */
+function senderNameOf(msg: Message, hints: BlockMatchHints): string | undefined {
+  if (isChannelMessage(msg)) {
+    const pk = msg.fromPublicKeyHex;
+    if (pk?.startsWith('name:')) return pk.slice(5);
+    return undefined;
+  }
+  return msg.fromPublicKeyHex != null ? hints.contactNameByPk?.(msg.fromPublicKeyHex) : undefined;
 }
 
 /** Per-rule predicate. Pure — no holder access, no I/O, no logging. */
@@ -64,20 +66,12 @@ function ruleMatches(
       return msg.fromPublicKeyHex?.startsWith(rule.pattern) ?? false;
     }
     case 'name': {
-      const name = isChannelMessage(msg)
-        ? hints.senderNameFromBody
-        : msg.fromPublicKeyHex != null
-          ? hints.contactNameByPk?.(msg.fromPublicKeyHex)
-          : undefined;
+      const name = senderNameOf(msg, hints);
       return name != null && name === rule.pattern;
     }
     case 'nameRegex': {
       if (regex == null) return false;
-      const name = isChannelMessage(msg)
-        ? hints.senderNameFromBody
-        : msg.fromPublicKeyHex != null
-          ? hints.contactNameByPk?.(msg.fromPublicKeyHex)
-          : undefined;
+      const name = senderNameOf(msg, hints);
       return regex.test(name ?? '');
     }
   }

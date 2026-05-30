@@ -1,4 +1,4 @@
-import { extractSenderNameFromBody, isMessageBlocked } from '../../shared/blocking/match';
+import { isMessageBlocked } from '../../shared/blocking/match';
 import type {
   Channel,
   Contact,
@@ -269,17 +269,7 @@ export function searchMessages(opts: SearchOptions): SearchResults {
         fromPublicKeyHex: h.fromPublicKeyHex ?? undefined,
         meta: undefined,
       };
-      const { blocked } = isMessageBlocked(
-        synthetic,
-        {
-          senderNameFromBody: h.key.startsWith('ch:')
-            ? extractSenderNameFromBody(h.body)
-            : undefined,
-          contactNameByPk,
-        },
-        rules,
-        regexCache,
-      );
+      const { blocked } = isMessageBlocked(synthetic, { contactNameByPk }, rules, regexCache);
       if (blocked) h.blocked = true;
     }
   }

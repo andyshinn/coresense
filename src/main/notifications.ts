@@ -1,6 +1,6 @@
 import { app, Notification } from 'electron';
 import type { BlockMatchHints } from '../shared/blocking/match';
-import { extractSenderNameFromBody, isMessageBlocked } from '../shared/blocking/match';
+import { isMessageBlocked } from '../shared/blocking/match';
 import type { Message } from '../shared/types';
 import { blockingStore } from './blocking/store';
 import { bus, emit } from './events/bus';
@@ -53,7 +53,6 @@ function buildHintsForNotify(m: Message): BlockMatchHints {
   const holder = stateHolder();
   const originHop = m.meta?.paths?.[0]?.hops.find((h) => h.kind === 'origin');
   return {
-    senderNameFromBody: m.key.startsWith('ch:') ? extractSenderNameFromBody(m.body) : undefined,
     contactNameByPk: (pk) => holder.getContacts().find((c) => c.publicKeyHex === pk)?.name,
     originHopPk: originHop?.pk?.toLowerCase(),
   };

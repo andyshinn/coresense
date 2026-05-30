@@ -1,8 +1,4 @@
-import {
-  type BlockMatchHints,
-  extractSenderNameFromBody,
-  isMessageBlocked,
-} from '../../shared/blocking/match';
+import { type BlockMatchHints, isMessageBlocked } from '../../shared/blocking/match';
 import {
   type AppSettings,
   type AutoAddConfig,
@@ -236,9 +232,6 @@ class StateHolder {
   private buildBlockHints(msg: Message): BlockMatchHints {
     const originHop = msg.meta?.paths?.[0]?.hops.find((h) => h.kind === 'origin');
     return {
-      senderNameFromBody: msg.key.startsWith('ch:')
-        ? extractSenderNameFromBody(msg.body)
-        : undefined,
       contactNameByPk: (pk) => this.contacts.find((c) => c.publicKeyHex === pk)?.name,
       originHopPk: originHop?.pk?.toLowerCase(),
     };
