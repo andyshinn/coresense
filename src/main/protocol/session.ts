@@ -209,6 +209,7 @@ export class ProtocolSession {
   /** Pubkeys seen during the in-flight GET_CONTACTS iteration. Reset on
    *  CONTACTS_START; consumed in END_OF_CONTACTS to reconcile on-radio flags. */
   private contactsSyncSeen: string[] = [];
+  private resyncTimer: NodeJS.Timeout | null = null;
   /** Resolved when RESP_CONTACTS_START arrives during the handshake, so the
    *  channel-enumeration loop can wait for the contact total and avoid the
    *  progress bar jumping backwards when total grows mid-sync. */
@@ -1388,6 +1389,23 @@ export class ProtocolSession {
       }
       return;
     }
+    if (code === PUSH.CONTACT_DELETED) {
+      const pubkey = parseContactDeleted(frame);
+      if (pubkey) {
+        discoveredStore.setOnRadio(pubkey, false);
+        const holder = stateHolder();
+        holder.removeContact(`c:${pubkey}`);
+        emit.contacts(holder.getContacts());
+        this.emitDiscovered();
+        log.debug(`contact evicted by firmware: ${pubkey.slice(0, 12)}`);
+      }
+      return;
+    }
+    if (code === PUSH.CONTACTS_FULL) {
+      log.warn('radio contact store is full');
+      emit.error('Radio contact store is full — remove or favourite contacts to make room.');
+      return;
+    }
     if (code === RESP.CHANNEL_MSG_RECV_V3 || code === RESP.CHANNEL_MSG_RECV) {
       this.handleChannelMsg(code, frame);
       return;
@@ -1621,6 +1639,18 @@ export class ProtocolSession {
     holder.upsertChannel(channel);
     emit.channels(holder.getChannels());
     log.debug(`channel idx=${info.idx} "${info.name}"`);
+  }
+
+  /** Debounced full GET_CONTACTS re-sync. Coalesces bursts of adverts into one
+   *  refresh so we pick up firmware auto-adds without hammering the link. */
+  private scheduleContactsResync(): void {
+    if (this.resyncTimer) return;
+    this.resyncTimer = setTimeout(() => {
+      this.resyncTimer = null;
+      void this.writeFrame(buildGetContacts()).catch((err) => {
+        log.warn(`contacts re-sync failed: ${(err as Error).message}`);
+      });
+    }, 1500);
   }
 
   /** Push the full discovered pool to the renderer. */
