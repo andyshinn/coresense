@@ -93,13 +93,18 @@ export function ChannelSubList({
               className={cn(ACTIVE_BUTTON_CLASS, !onDevice && 'opacity-50')}
               asChild
             >
-              <button type="button">
+              <button type="button" data-testid="channel-nav-item" data-channel-key={ch.key}>
                 <Icon />
                 <span className={cn('flex-1 truncate', !onDevice && 'italic')}>{ch.name}</span>
                 {showUnread && <UnreadChip count={unread} />}
                 {ch.muted && <BellOff aria-label="muted" className="size-3 text-cs-text-dim/60" />}
                 {pinSet.has(ch.key) && (
-                  <Star aria-hidden="true" className="size-3 text-cs-accent" fill="currentColor" />
+                  <Star
+                    data-testid="channel-pin-indicator"
+                    aria-hidden="true"
+                    className="size-3 text-cs-accent"
+                    fill="currentColor"
+                  />
                 )}
               </button>
             </SidebarMenuSubButton>

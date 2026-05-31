@@ -35,6 +35,7 @@ export function ChannelContextMenu({
   const items: ContextMenuEntry[] = [
     menuItem(isPinned ? 'Unpin' : 'Pin to top', () => onTogglePin(channel.key), {
       icon: isPinned ? PinOff : PinIcon,
+      testid: 'pin-toggle-menu-item',
     }),
     menuItem(
       channel.muted ? 'Unmute' : 'Mute',

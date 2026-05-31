@@ -1,14 +1,14 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { app } from 'electron';
 import type { MiddlewareHandler } from 'hono';
+import { userDataDir } from '../../runtime/userData';
 
 let cachedKey: string | null = null;
 
 /** Absolute path of the JSON file that stores the shared API key. */
 export function getConfigPath(): string {
-  return join(app.getPath('userData'), 'config.json');
+  return join(userDataDir(), 'config.json');
 }
 
 export function getApiKey(): string {

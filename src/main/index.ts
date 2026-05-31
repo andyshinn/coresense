@@ -1,5 +1,22 @@
 import './storage/paths'; // must precede any module that touches app.getPath()
 import path from 'node:path';
+
+// Wire production implementations of the injectable seams. This must run after
+// './storage/paths' (so the dev userData redirect has applied) and before any
+// module calls userDataDir() / appLifecycle() / secretStore().
+setAppInfo({ isPackaged: app.isPackaged, appPath: app.getAppPath() });
+setUserDataDir(app.getPath('userData'));
+setAppLifecycle({
+  quit: () => app.quit(),
+  relaunch: () => app.relaunch(),
+  exit: (code) => app.exit(code),
+});
+setSecretStore({
+  available: () => safeStorage.isEncryptionAvailable(),
+  encryptString: (s) => safeStorage.encryptString(s),
+  decryptString: (b) => safeStorage.decryptString(b),
+});
+
 import {
   app,
   BrowserWindow,
@@ -8,6 +25,7 @@ import {
   Menu,
   type MenuItemConstructorOptions,
   nativeTheme,
+  safeStorage,
   session,
   shell,
 } from 'electron';
@@ -23,13 +41,17 @@ import { folderPath } from './logging/fileSink';
 import { buildMenu } from './menu';
 import { startNotifications } from './notifications';
 import { protocolSession } from './protocol';
+import { setAppInfo } from './runtime/appInfo';
+import { setAppLifecycle } from './runtime/appLifecycle';
+import { setSecretStore } from './runtime/secretStore';
+import { setUserDataDir } from './runtime/userData';
 import { startServer } from './server';
 import { stateHolder } from './state/holder';
 import { closeDb } from './storage/db';
 import { optimizeFts } from './storage/search';
 import { flushSettings } from './storage/settings';
-import { BleTransport } from './transport/ble';
 import { transportManager } from './transport/manager';
+import { installStartupTransport } from './transport/select';
 import { startUpdater } from './updater';
 import { isQuitConfirmed } from './window/quit';
 import { getMainWindow, setMainWindow } from './window/registry';
@@ -89,8 +111,10 @@ async function bootstrap() {
   // Apply logging settings from persisted app settings on boot.
   applyLoggingSettings(stateHolder().getAppSettings().logging);
 
-  // Register the default BLE transport.
-  transportManager.setTransport(new BleTransport());
+  // Select the startup transport: real BLE, or the env-gated replay transport
+  // when CORESENSE_FAKE_TRANSPORT is set (E2E). Dynamic import inside keeps
+  // native BLE deps from loading in test mode.
+  await installStartupTransport(process.env, transportManager);
 
   const proxy = stateHolder().getAppSettings().proxy;
   bridgeHandle = await startBridge({
@@ -114,6 +138,14 @@ async function bootstrap() {
   Menu.setApplicationMenu(buildMenu());
   wireTheme();
   protocolSession().start();
+  // E2E: the env-gated replay transport has no UI "connect" action. Trigger its
+  // fixture playback here — AFTER startServer() and protocolSession().start()
+  // have subscribed to the bus — so the replayed transportState/packets have
+  // listeners. (Firing it at install time, before these subscriptions, drops
+  // the replay entirely.)
+  if (process.env.CORESENSE_FAKE_TRANSPORT) {
+    void transportManager.getTransport()?.connect('replay');
+  }
   startNotifications();
   startUpdater();
 

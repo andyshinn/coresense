@@ -10,6 +10,10 @@ class TransportManager {
     this.active = t;
   }
 
+  clearTransport(): void {
+    this.active = null;
+  }
+
   getTransport(): ITransport | null {
     return this.active;
   }

@@ -16,6 +16,8 @@ export interface ContextMenuItem {
   disabled?: boolean;
   danger?: boolean;
   hint?: string;
+  /** Optional test anchor forwarded as `data-testid` on the rendered menu button. */
+  testid?: string;
 }
 
 export interface ContextMenuSeparator {
@@ -76,6 +78,7 @@ function ContextMenuItemRow({ entry, onClose }: { entry: ContextMenuItem; onClos
     <button
       type="button"
       role="menuitem"
+      data-testid={entry.testid}
       disabled={entry.disabled}
       onClick={() => {
         if (entry.disabled) return;
