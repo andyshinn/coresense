@@ -1,3 +1,4 @@
+import type { DiscoveredContact } from '../../shared/contacts/discovered';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -215,6 +216,22 @@ export const api = {
     request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/path`, {
       method: 'DELETE',
     }),
+  fetchDiscovered: (c: ApiClient) => request<DiscoveredContact[]>(c, `/api/discovered-contacts`),
+  addToRadio: (c: ApiClient, key: string) =>
+    request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/add-to-radio`, {
+      method: 'POST',
+    }),
+  removeFromRadio: (c: ApiClient, key: string) =>
+    request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/remove-from-radio`, {
+      method: 'POST',
+    }),
+  setFavourite: (c: ApiClient, key: string, favourite: boolean) =>
+    request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/favourite`, {
+      method: 'PUT',
+      body: JSON.stringify({ favourite }),
+    }),
+  clearDiscovered: (c: ApiClient) =>
+    request<{ ok: true }>(c, `/api/discovered-contacts/clear`, { method: 'POST' }),
   setPathHashMode: (c: ApiClient, size: 1 | 2 | 4) =>
     request<{ ok: true }>(c, '/api/radio/path-hash-mode', {
       method: 'PUT',

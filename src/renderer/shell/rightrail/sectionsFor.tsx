@@ -5,7 +5,8 @@ import { SettingsJumpRail } from '../SettingsJumpRail';
 import { Placeholder } from './atoms';
 import { viewKindFor } from './helpers';
 import { ChannelInfoSection } from './sections/ChannelInfo';
-import { ContactCardSection } from './sections/ContactCard';
+import { ContactDetail } from './sections/ContactDetail';
+import { ContactManagerRailBody, DiscoverySettings } from './sections/ContactManagerRail';
 import { HeardViaSection } from './sections/HeardVia';
 import {
   LogsActionsSection,
@@ -71,6 +72,24 @@ export function sectionsFor(
         label: 'Actions',
         defaultOpen: true,
         body: () => <LogsActionsSection />,
+      },
+    ];
+  }
+
+  // The Contact Manager panel uses the rail for contextual bulk + list actions.
+  if (activeKey === 'tool:contacts') {
+    return [
+      {
+        id: 'rail.cm.actions',
+        label: 'Actions',
+        defaultOpen: true,
+        body: () => <ContactManagerRailBody client={actions.client} />,
+      },
+      {
+        id: 'rail.cm.discovery',
+        label: 'Discovery settings',
+        defaultOpen: true,
+        body: () => <DiscoverySettings />,
       },
     ];
   }
@@ -160,7 +179,13 @@ export function sectionsFor(
           id: 'rail.contact.card',
           label: 'Contact card',
           defaultOpen: baseDefaultOpen,
-          body: () => <ContactCardSection contact={data.contact} />,
+          body: () => (
+            <ContactDetail
+              publicKeyHex={activeKey.startsWith('c:') ? activeKey.slice(2) : null}
+              client={actions.client}
+              showPath={false}
+            />
+          ),
         },
         {
           id: 'rail.contact.path',

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { DiscoveredContact } from '../../shared/contacts/discovered';
 import {
   type AppSettings,
   type AutoAddConfig,
@@ -8,6 +9,7 @@ import {
   type Capabilities,
   type Channel,
   type Contact,
+  type ContactKind,
   DEFAULT_APP_SETTINGS,
   DEFAULT_AUTO_ADD_CONFIG,
   DEFAULT_DEVICE_CAPABILITIES,
@@ -61,6 +63,47 @@ export interface SearchFilters {
 }
 
 const DEFAULT_SEARCH_FILTERS: SearchFilters = { kinds: ['channel', 'dm'] };
+
+// ---- Contact Manager view state -------------------------------------------
+export type CmStateTab = 'all' | 'on-radio' | 'discovered' | 'blocked';
+export type CmHeard = 'any' | 'hour' | 'day' | 'week';
+export type CmSortField = 'lastHeard' | 'firstHeard' | 'name' | 'type' | 'hops' | 'key';
+export type CmSortDir = 'asc' | 'desc';
+export type CmLayout = 'table' | 'list';
+
+/** Tabs in the RepeaterAdmin panel. Lives here (not the panel) so the store
+ *  can carry a pending deep-link target without importing a panel module. */
+export type RepeaterAdminTab = 'login' | 'path' | 'status' | 'acl' | 'neighbours' | 'owner' | 'cli';
+
+export interface ContactManagerState {
+  search: string;
+  stateTab: CmStateTab;
+  types: ContactKind[];
+  heard: CmHeard;
+  favOnly: boolean;
+  sortField: CmSortField;
+  sortDir: CmSortDir;
+  layout: CmLayout;
+  compact: boolean;
+  showKeys: boolean;
+  selected: string[];
+  focusKey: string | null;
+}
+
+const CM_DEFAULTS: ContactManagerState = {
+  search: '',
+  stateTab: 'all',
+  types: [],
+  heard: 'any',
+  favOnly: false,
+  sortField: 'lastHeard',
+  sortDir: 'asc',
+  layout: 'table',
+  compact: true,
+  showKeys: true,
+  selected: [],
+  focusKey: null,
+};
 
 // ---- Settings panel UI state ----------------------------------------------
 // The redesigned Settings panel and the RightRail jump-list are sibling
@@ -148,6 +191,16 @@ interface CoreState {
    *  disconnected. Drives the "grayed missing channel" rendering in LeftNav. */
   channelPresence: Set<string>;
   contacts: Contact[];
+  discovered: DiscoveredContact[];
+
+  // Contact Manager view state (filters, sort, selection, focus)
+  contactManager: ContactManagerState;
+  setCmFilter: (patch: Partial<ContactManagerState>) => void;
+  toggleCmSelected: (key: string) => void;
+  setCmSelected: (keys: string[]) => void;
+  clearCmSelected: () => void;
+  setCmFocus: (key: string | null) => void;
+  setCmSort: (field: CmSortField) => void;
   // Keyed by `key` (channel or contact key). The renderer is a cache —
   // authoritative history lives in main once Phase 3 lands.
   messagesByKey: Record<string, Message[]>;
@@ -177,6 +230,12 @@ interface CoreState {
   // need a full history for v1.
   repeaterStatusByKey: Record<string, RepeaterStatusSnapshot>;
   repeaterTelemetryByKey: Record<string, RepeaterTelemetrySnapshot>;
+
+  // Renderer-only deep-link intent: the detail panel's Telemetry/Permissions/
+  // Remote-Mgmt buttons set this, then navigate to the repeater contact;
+  // RepeaterAdmin consumes + clears it on mount. Not persisted.
+  repeaterAdminTab: RepeaterAdminTab | null;
+  setRepeaterAdminTab: (tab: RepeaterAdminTab | null) => void;
 
   // UI state (left/right pane open, active key, pinned items, rail sections)
   ui: UiState;
@@ -226,6 +285,7 @@ interface CoreState {
   applyChannels: (channels: Channel[]) => void;
   applyChannelPresence: (keys: string[]) => void;
   applyContacts: (contacts: Contact[]) => void;
+  applyDiscovered: (rows: DiscoveredContact[]) => void;
   applyOwner: (owner: Owner | null) => void;
   applyAppSettings: (settings: AppSettings) => void;
   applyBlockRules: (rules: BlockRule[]) => void;
@@ -339,7 +399,16 @@ function navStateUpdate(
 ): Partial<CoreState> {
   const recentKeys = [key, ...s.ui.recentKeys.filter((k) => k !== key)].slice(0, RECENT_KEYS_MAX);
   const out: Partial<CoreState> = {
-    ui: { ...s.ui, activeKey: key, selectedContactKey: null, selectedSiteKey: null, recentKeys },
+    ui: {
+      ...s.ui,
+      activeKey: key,
+      // The Contact Manager keeps its bulk/list actions in the right rail, so
+      // open it on arrival. Other destinations preserve the user's choice.
+      rightOpen: key === 'tool:contacts' ? true : s.ui.rightOpen,
+      selectedContactKey: null,
+      selectedSiteKey: null,
+      recentKeys,
+    },
     selectedMessageId: null,
   };
   if (historyDelta?.navPast !== undefined) out.navPast = historyDelta.navPast;
@@ -384,6 +453,8 @@ export const useStore = create<CoreState>((set) => ({
   channels: [],
   channelPresence: new Set<string>(),
   contacts: [],
+  discovered: [],
+  contactManager: CM_DEFAULTS,
   messagesByKey: {},
 
   capabilities: null,
@@ -402,6 +473,7 @@ export const useStore = create<CoreState>((set) => ({
 
   repeaterStatusByKey: {},
   repeaterTelemetryByKey: {},
+  repeaterAdminTab: null,
 
   ui: DEFAULT_UI_STATE,
   settingsUi: DEFAULT_SETTINGS_UI,
@@ -430,6 +502,7 @@ export const useStore = create<CoreState>((set) => ({
       channels: snapshot.channels,
       channelPresence: new Set(snapshot.channelPresence ?? []),
       contacts: snapshot.contacts,
+      discovered: snapshot.discoveredContacts ?? [],
       messagesByKey: groupMessagesByKey(snapshot.messages),
       capabilities: snapshot.capabilities,
       appSettings: snapshot.appSettings,
@@ -506,6 +579,27 @@ export const useStore = create<CoreState>((set) => ({
   applyChannels: (channels) => set(() => ({ channels })),
   applyChannelPresence: (keys) => set(() => ({ channelPresence: new Set(keys) })),
   applyContacts: (contacts) => set(() => ({ contacts })),
+  applyDiscovered: (rows) => set(() => ({ discovered: rows })),
+  setCmFilter: (patch) => set((s) => ({ contactManager: { ...s.contactManager, ...patch } })),
+  toggleCmSelected: (key) =>
+    set((s) => {
+      const has = s.contactManager.selected.includes(key);
+      const selected = has
+        ? s.contactManager.selected.filter((k) => k !== key)
+        : [...s.contactManager.selected, key];
+      return { contactManager: { ...s.contactManager, selected } };
+    }),
+  setCmSelected: (keys) =>
+    set((s) => ({ contactManager: { ...s.contactManager, selected: keys } })),
+  clearCmSelected: () => set((s) => ({ contactManager: { ...s.contactManager, selected: [] } })),
+  setCmFocus: (key) => set((s) => ({ contactManager: { ...s.contactManager, focusKey: key } })),
+  setRepeaterAdminTab: (tab) => set(() => ({ repeaterAdminTab: tab })),
+  setCmSort: (field) =>
+    set((s) => {
+      const { sortField, sortDir } = s.contactManager;
+      const dir: CmSortDir = sortField === field ? (sortDir === 'asc' ? 'desc' : 'asc') : 'asc';
+      return { contactManager: { ...s.contactManager, sortField: field, sortDir: dir } };
+    }),
   applyOwner: (owner) => set(() => ({ owner })),
   applyAppSettings: (settings) => {
     setRendererLogLevel(settings.logging.level);

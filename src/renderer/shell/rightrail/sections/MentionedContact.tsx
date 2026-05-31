@@ -1,5 +1,5 @@
 import type { Contact } from '../../../../shared/types';
-import { ContactCardSection } from './ContactCard';
+import { ContactDetail } from './ContactDetail';
 
 /** Contact card surfaced by clicking an @mention, with a Clear control. */
 export function MentionedContactSection({
@@ -11,7 +11,7 @@ export function MentionedContactSection({
 }) {
   return (
     <div className="space-y-2">
-      <ContactCardSection contact={contact} />
+      <ContactDetail publicKeyHex={contact.publicKeyHex} client={null} showPath={false} />
       <button
         type="button"
         onClick={onClear}

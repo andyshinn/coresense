@@ -24,9 +24,11 @@ import { applyLoggingSettings } from '../logging/apply';
 import { currentPath, folderPath } from '../logging/fileSink';
 import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
 import { protocolSession } from '../protocol';
+import { UnknownContactError } from '../protocol/errors';
 import { register as registerPendingChannelSend } from '../protocol/pendingChannelSends';
 import { appLifecycle } from '../runtime/appLifecycle';
 import { stateHolder } from '../state/holder';
+import { discoveredStore } from '../storage/discoveredContacts';
 import { searchMessages } from '../storage/search';
 import { transportManager } from '../transport/manager';
 import { markQuitConfirmed } from '../window/quit';
@@ -88,6 +90,10 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       channelPresence: protocolSession().getDevicePresence(),
       syncProgress: protocolSession().getSyncProgress(),
       contacts: holder.getContacts(),
+      discoveredContacts: discoveredStore.list(
+        holder.getRadioSettings().pathHashMode,
+        holder.getBlockRules(),
+      ),
       messages: holder.getRecentMessages(),
       appSettings: holder.getAppSettings(),
       radioSettings: holder.getRadioSettings(),
@@ -515,6 +521,66 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const holder = stateHolder();
     holder.removeContact(key);
     emit.contacts(holder.getContacts());
+    return c.json({ ok: true });
+  });
+
+  // ---- Discovered-contacts pool ---------------------------------------
+  api.get('/api/discovered-contacts', (c) => {
+    const holder = stateHolder();
+    return c.json(
+      discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
+    );
+  });
+
+  // Commit a discovered contact to the radio's store.
+  api.post('/api/contacts/:key/add-to-radio', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const pubkey = key.startsWith('c:') ? key.slice(2) : key;
+    try {
+      await protocolSession().addContactToRadio(pubkey);
+      return c.json({ ok: true });
+    } catch (err) {
+      if (err instanceof UnknownContactError) return c.json({ error: err.message }, 422);
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  // Delete a contact from the radio's store (stays in the discovered pool).
+  api.post('/api/contacts/:key/remove-from-radio', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const pubkey = key.startsWith('c:') ? key.slice(2) : key;
+    try {
+      await protocolSession().removeContactFromRadio(pubkey);
+      return c.json({ ok: true });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  // Toggle the radio-level favourite flag.
+  api.put('/api/contacts/:key/favourite', async (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const pubkey = key.startsWith('c:') ? key.slice(2) : key;
+    const body = (await c.req.json().catch(() => null)) as { favourite?: boolean } | null;
+    if (!body || typeof body.favourite !== 'boolean') {
+      return c.json({ error: 'favourite (boolean) required' }, 400);
+    }
+    try {
+      await protocolSession().setContactFavourite(pubkey, body.favourite);
+      return c.json({ ok: true });
+    } catch (err) {
+      if (err instanceof UnknownContactError) return c.json({ error: err.message }, 422);
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  // Drop discovered-only rows (keeps on-radio contacts).
+  api.post('/api/discovered-contacts/clear', (c) => {
+    discoveredStore.clearDiscoveredOnly();
+    const holder = stateHolder();
+    emit.discovered(
+      discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
+    );
     return c.json({ ok: true });
   });
 

@@ -1,4 +1,3 @@
-import { Users } from 'lucide-react';
 import { lazy, Suspense } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { logError, PanelErrorFallback } from '../components/errors/ErrorFallback';
@@ -29,6 +28,9 @@ const SearchResults = lazy(() =>
 );
 const Unreads = lazy(() => import('../panels/Unreads').then((m) => ({ default: m.Unreads })));
 const LogsPanel = lazy(() => import('../panels/logs').then((m) => ({ default: m.LogsPanel })));
+const ContactManager = lazy(() =>
+  import('../panels/contacts/ContactManager').then((m) => ({ default: m.ContactManager })),
+);
 
 interface MainPaneProps {
   client: ApiClient | null;
@@ -110,13 +112,7 @@ function MainPaneInner({
     return <Unreads client={client} />;
   }
   if (activeKey === 'tool:contacts') {
-    return (
-      <PlaceholderPanel
-        title="Contact Management"
-        description="Dedicated contact list editor. Coming with the channels/contacts editor in Phase 8."
-        icon={Users}
-      />
-    );
+    return <ContactManager client={client} />;
   }
 
   if (activeKey.startsWith('ch:')) {

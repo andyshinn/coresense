@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
+import { hopsFromOutPathLen } from '../../shared/contacts/discovered';
 import type {
   Channel,
   Contact,
@@ -16,6 +17,7 @@ import { type AdminMode, type AdminRole, adminSessions } from '../bridge/adminSe
 import { bus, emit } from '../events/bus';
 import { child } from '../log';
 import { stateHolder } from '../state/holder';
+import { discoveredStore } from '../storage/discoveredContacts';
 import { transportManager } from '../transport/manager';
 import { ADV_TYPE, PUSH, REQ_TYPE, RESP, STATS_TYPE, TXT_TYPE } from './codes';
 import {
@@ -26,6 +28,7 @@ import {
   parseChannelMsgV1,
   parseChannelMsgV3,
   parseContact,
+  parseContactDeleted,
   parseContactMsgV1,
   parseContactMsgV3,
   parseContactsStart,
@@ -54,6 +57,7 @@ import {
   buildGetStats,
   buildLogout,
   buildReboot,
+  buildRemoveContact,
   buildResetPath,
   buildSendBinaryReq,
   buildSendChannelText,
@@ -76,6 +80,7 @@ import {
   pathHashModeToSize,
   pathHashSizeToMode,
 } from './encode';
+import { UnknownContactError } from './errors';
 import { consumeMatching as consumeMeshObs } from './meshObservations';
 import { buildPath, channelHashOf } from './paths';
 import {
@@ -203,6 +208,10 @@ export class ProtocolSession {
    *  fresh RESP_CONTACTS_START arrives; consumed in RESP_END_OF_CONTACTS. */
   private contactsIterTotal = 0;
   private contactsIterCount = 0;
+  /** Pubkeys seen during the in-flight GET_CONTACTS iteration. Reset on
+   *  CONTACTS_START; consumed in END_OF_CONTACTS to reconcile on-radio flags. */
+  private contactsSyncSeen: string[] = [];
+  private resyncTimer: NodeJS.Timeout | null = null;
   /** Resolved when RESP_CONTACTS_START arrives during the handshake, so the
    *  channel-enumeration loop can wait for the contact total and avoid the
    *  progress bar jumping backwards when total grows mid-sync. */
@@ -583,6 +592,88 @@ export class ProtocolSession {
       hops: undefined,
     });
     emit.contacts(holder.getContacts());
+  }
+
+  /** Commit a discovered contact to the radio's store (CMD_ADD_UPDATE_CONTACT).
+   *  Optimistically marks it on-radio and schedules a re-sync to confirm. */
+  async addContactToRadio(publicKeyHex: string): Promise<void> {
+    const row = discoveredStore.get(publicKeyHex);
+    if (!row) {
+      log.warn(`unknown discovered contact ${publicKeyHex.slice(0, 12)}`);
+      throw new UnknownContactError(publicKeyHex);
+    }
+    const hasFix = row.gps_lat !== 0 || row.gps_lon !== 0;
+    const frame = buildAddUpdateContact({
+      publicKeyHex,
+      advType: row.type,
+      flags: row.flags,
+      outPathHex: row.out_path_len === 0xff ? '' : row.out_path_hex,
+      name: row.name,
+      ...(hasFix
+        ? { gpsLat: row.gps_lat, gpsLon: row.gps_lon, lastAdvertUnix: row.last_advert_unix }
+        : {}),
+    });
+    await this.writeFrame(frame);
+    discoveredStore.setOnRadio(publicKeyHex, true);
+    this.upsertOnRadioContact({
+      publicKeyHex,
+      type: row.type,
+      flags: row.flags,
+      outPathLen: row.out_path_len,
+      outPathHex: row.out_path_hex,
+      name: row.name,
+      lastAdvertUnix: row.last_advert_unix,
+      gpsLat: row.gps_lat,
+      gpsLon: row.gps_lon,
+      lastmod: row.lastmod,
+    });
+    this.emitDiscovered();
+    this.scheduleContactsResync();
+  }
+
+  /** Delete a contact from the radio's store (CMD_REMOVE_CONTACT). Keeps it in
+   *  the discovered pool, flagged off-radio. */
+  async removeContactFromRadio(publicKeyHex: string): Promise<void> {
+    await this.writeFrame(buildRemoveContact(publicKeyHex));
+    discoveredStore.setOnRadio(publicKeyHex, false);
+    const holder = stateHolder();
+    holder.removeContact(`c:${publicKeyHex}`);
+    emit.contacts(holder.getContacts());
+    this.emitDiscovered();
+  }
+
+  /** Toggle the favourite flag (contact flags bit 0). For on-radio contacts,
+   *  round-trips CMD_ADD_UPDATE_CONTACT so the firmware persists the flag
+   *  (protects from overwrite-oldest). Discovered-only contacts update locally. */
+  async setContactFavourite(publicKeyHex: string, favourite: boolean): Promise<void> {
+    const row = discoveredStore.get(publicKeyHex);
+    if (!row) {
+      log.warn(`unknown discovered contact ${publicKeyHex.slice(0, 12)}`);
+      throw new UnknownContactError(publicKeyHex);
+    }
+    if (row.on_radio !== 0) {
+      const flags = favourite ? row.flags | 0x01 : row.flags & ~0x01;
+      const hasFix = row.gps_lat !== 0 || row.gps_lon !== 0;
+      const frame = buildAddUpdateContact({
+        publicKeyHex,
+        advType: row.type,
+        flags,
+        outPathHex: row.out_path_len === 0xff ? '' : row.out_path_hex,
+        name: row.name,
+        ...(hasFix
+          ? { gpsLat: row.gps_lat, gpsLon: row.gps_lon, lastAdvertUnix: row.last_advert_unix }
+          : {}),
+      });
+      await this.writeFrame(frame);
+    }
+    discoveredStore.setFavourite(publicKeyHex, favourite);
+    const holder = stateHolder();
+    const existing = holder.getContacts().find((c) => c.key === `c:${publicKeyHex}`);
+    if (existing) {
+      holder.upsertContact({ ...existing, favourite });
+      emit.contacts(holder.getContacts());
+    }
+    this.emitDiscovered();
   }
 
   /** Toggle the per-contact "always use direct (companion-side) login" flag.
@@ -1322,6 +1413,7 @@ export class ProtocolSession {
       if (total !== null) {
         this.contactsIterTotal = total;
         this.contactsIterCount = 0;
+        this.contactsSyncSeen = [];
         this.updateSyncProgress({ contacts: { done: 0, total } });
         log.debug(`contacts iterator starting: total=${total}`);
       }
@@ -1331,7 +1423,8 @@ export class ProtocolSession {
     if (code === RESP.CONTACT) {
       const record = parseContact(frame);
       if (record) {
-        this.ingestContact(record);
+        this.contactsSyncSeen.push(record.publicKeyHex);
+        this.ingestContact(record, 'sync');
         this.contactsIterCount += 1;
         // Self-heal if the radio's CONTACTS_START total was optimistic (or
         // never arrived): never let `done` exceed `total`, which would render
@@ -1355,6 +1448,18 @@ export class ProtocolSession {
       this.updateSyncProgress({
         contacts: { done: this.contactsIterCount, total: this.contactsIterCount },
       });
+      const seen = this.contactsSyncSeen;
+      discoveredStore.reconcileOnRadio(seen);
+      const holder = stateHolder();
+      const seenSet = new Set(seen.map((pk) => `c:${pk}`));
+      for (const c of holder.getContacts()) {
+        if (!seenSet.has(c.key) && c.publicKeyHex.length >= 64) {
+          holder.removeContact(c.key);
+        }
+      }
+      this.contactsSyncSeen = [];
+      emit.contacts(holder.getContacts());
+      this.emitDiscovered();
       this.contactsIterTotal = 0;
       this.contactsIterCount = 0;
       this.resolveWaiter('contactsDoneWaiter');
@@ -1363,9 +1468,26 @@ export class ProtocolSession {
     if (code === PUSH.NEW_ADVERT) {
       const record = parseContact(frame);
       if (record) {
-        this.ingestContact(record);
+        this.ingestContact(record, 'advert');
         log.debug(`new advert: "${record.name}" (${record.publicKeyHex.slice(0, 12)})`);
       }
+      return;
+    }
+    if (code === PUSH.CONTACT_DELETED) {
+      const pubkey = parseContactDeleted(frame);
+      if (pubkey) {
+        discoveredStore.setOnRadio(pubkey, false);
+        const holder = stateHolder();
+        holder.removeContact(`c:${pubkey}`);
+        emit.contacts(holder.getContacts());
+        this.emitDiscovered();
+        log.debug(`contact evicted by firmware: ${pubkey.slice(0, 12)}`);
+      }
+      return;
+    }
+    if (code === PUSH.CONTACTS_FULL) {
+      log.warn('radio contact store is full');
+      emit.error('Radio contact store is full — remove or favourite contacts to make room.');
       return;
     }
     if (code === RESP.CHANNEL_MSG_RECV_V3 || code === RESP.CHANNEL_MSG_RECV) {
@@ -1603,11 +1725,74 @@ export class ProtocolSession {
     log.debug(`channel idx=${info.idx} "${info.name}"`);
   }
 
+  /** Debounced full GET_CONTACTS re-sync. Coalesces bursts of adverts into one
+   *  refresh so we pick up firmware auto-adds without hammering the link. */
+  private scheduleContactsResync(): void {
+    if (this.resyncTimer) return;
+    this.resyncTimer = setTimeout(() => {
+      this.resyncTimer = null;
+      void this.writeFrame(buildGetContacts()).catch((err) => {
+        log.warn(`contacts re-sync failed: ${(err as Error).message}`);
+      });
+    }, 1500);
+  }
+
+  /** Push the full discovered pool to the renderer. */
+  private emitDiscovered(): void {
+    const holder = stateHolder();
+    emit.discovered(
+      discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
+    );
+  }
+
+  /** Whether the firmware would auto-store an advert of this ADV_TYPE, given
+   *  the current auto-add config. Used to decide whether to re-sync after a
+   *  not-on-radio advert. */
+  private shouldAutoAdd(advType: number): boolean {
+    const cfg = stateHolder().getAutoAddConfig();
+    if (cfg.mode === 'all') return true;
+    switch (advType) {
+      case ADV_TYPE.REPEATER:
+        return cfg.repeater;
+      case ADV_TYPE.ROOM:
+        return cfg.room;
+      case ADV_TYPE.SENSOR:
+        return cfg.sensor;
+      default:
+        return cfg.chat;
+    }
+  }
+
+  /** Upsert a contact heard from RESP_CONTACT (sync, on-radio) or
+   *  PUSH_NEW_ADVERT (live advert — on-radio only if already in the store).
+   *  Always records into the discovered pool with an app-tracked first-heard. */
+  private ingestContact(record: ContactRecord, source: 'sync' | 'advert'): void {
+    const holder = stateHolder();
+    const fullKey = `c:${record.publicKeyHex}`;
+    const alreadyOnRadio = holder.getContacts().some((c) => c.key === fullKey);
+    const onRadio = source === 'sync' ? true : alreadyOnRadio;
+
+    discoveredStore.upsert(record, {
+      onRadio,
+      nowMs: Date.now(),
+      heardLive: source === 'advert',
+    });
+
+    if (onRadio) {
+      this.upsertOnRadioContact(record);
+    }
+    this.emitDiscovered();
+
+    if (source === 'advert' && !onRadio && this.shouldAutoAdd(record.type)) {
+      this.scheduleContactsResync();
+    }
+  }
+
   /** Upsert a contact from a RESP_CONTACT / PUSH_NEW_ADVERT frame. When the
    *  contact matches an existing placeholder (`c:<6-byte-prefix>`), the
    *  placeholder is removed; messages already keyed to the placeholder stay
    *  there (cheap to leave — future cleanup can migrate them). */
-  private ingestContact(record: ContactRecord): void {
+  private upsertOnRadioContact(record: ContactRecord): void {
     const holder = stateHolder();
     const fullKey = `c:${record.publicKeyHex}`;
     const prefix6 = record.publicKeyHex.slice(0, 12);
@@ -1634,9 +1819,10 @@ export class ProtocolSession {
       name: record.name || record.publicKeyHex.slice(0, 12),
       kind: advTypeToKind(record.type),
       lastSeenMs: record.lastAdvertUnix > 0 ? record.lastAdvertUnix * 1000 : existing?.lastSeenMs,
-      hops: record.outPathLen === 0xff ? undefined : Math.floor(record.outPathLen / hashSize),
+      hops: hopsFromOutPathLen(record.outPathLen),
       pinned: existing?.pinned,
       muted: existing?.muted,
+      favourite: (record.flags & 0x01) !== 0,
       outPathHex: newOutPathHex || undefined,
       outPathHashSize: newOutPathHex ? hashSize : existing?.outPathHashSize,
       preferDirect: existing?.preferDirect,

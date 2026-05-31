@@ -5,6 +5,7 @@ import { type ServerType, serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { type WebSocket, WebSocketServer } from 'ws';
+import type { DiscoveredContact } from '../shared/contacts/discovered';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -41,6 +42,8 @@ import { createRoutes } from './api/routes';
 import type { BridgeHandle } from './bridge';
 import { bus } from './events/bus';
 import { getLogBuffer } from './log';
+import { stateHolder } from './state/holder';
+import { discoveredStore } from './storage/discoveredContacts';
 import { transportManager } from './transport/manager';
 
 const DEFAULT_PORT_PROD = 7654;
@@ -161,6 +164,16 @@ export async function startServer(
       payload: [...getLogBuffer()],
     };
     ws.send(JSON.stringify(logSnapshotMsg));
+    const holder = stateHolder();
+    ws.send(
+      JSON.stringify({
+        type: 'discovered',
+        payload: discoveredStore.list(
+          holder.getRadioSettings().pathHashMode,
+          holder.getBlockRules(),
+        ),
+      }),
+    );
     // Other clients should learn that the population just grew/shrank too.
     broadcastClientCount();
     const drop = () => {
@@ -187,6 +200,8 @@ export async function startServer(
   const onSyncProgress = (progress: SyncProgress) =>
     broadcast({ type: 'syncProgress', payload: progress });
   const onContacts = (contacts: Contact[]) => broadcast({ type: 'contacts', payload: contacts });
+  const onDiscovered = (rows: DiscoveredContact[]) =>
+    broadcast({ type: 'discovered', payload: rows });
   const onMessages = (key: string, messages: Message[]) =>
     broadcast({ type: 'messages', payload: { key, messages } });
   const onMessageState = (id: string, state: MessageState) =>
@@ -232,6 +247,7 @@ export async function startServer(
   bus.on('channelPresence', onChannelPresence);
   bus.on('syncProgress', onSyncProgress);
   bus.on('contacts', onContacts);
+  bus.on('discovered', onDiscovered);
   bus.on('messages', onMessages);
   bus.on('messageState', onMessageState);
   bus.on('messagePathHeard', onMessagePathHeard);
@@ -265,6 +281,7 @@ export async function startServer(
     bus.off('channelPresence', onChannelPresence);
     bus.off('syncProgress', onSyncProgress);
     bus.off('contacts', onContacts);
+    bus.off('discovered', onDiscovered);
     bus.off('messages', onMessages);
     bus.off('messageState', onMessageState);
     bus.off('messagePathHeard', onMessagePathHeard);
