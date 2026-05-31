@@ -6,7 +6,7 @@ import { Placeholder } from './atoms';
 import { viewKindFor } from './helpers';
 import { ChannelInfoSection } from './sections/ChannelInfo';
 import { ContactDetail } from './sections/ContactDetail';
-import { ContactManagerRailBody } from './sections/ContactManagerRail';
+import { ContactManagerRailBody, DiscoverySettings } from './sections/ContactManagerRail';
 import { HeardViaSection } from './sections/HeardVia';
 import {
   LogsActionsSection,
@@ -84,6 +84,12 @@ export function sectionsFor(
         label: 'Actions',
         defaultOpen: true,
         body: () => <ContactManagerRailBody client={actions.client} />,
+      },
+      {
+        id: 'rail.cm.discovery',
+        label: 'Discovery settings',
+        defaultOpen: true,
+        body: () => <DiscoverySettings />,
       },
     ];
   }

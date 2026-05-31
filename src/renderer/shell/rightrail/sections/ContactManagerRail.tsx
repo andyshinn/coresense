@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../components/ui/dialog';
+import { KeyValueRow } from '../../../components/ui/KeyValueRow';
 import { type ApiClient, api } from '../../../lib/api';
 import { deriveContactView } from '../../../lib/contactManagerView';
 import { notify } from '../../../lib/notify';
@@ -185,7 +186,6 @@ const PRUNE_OPTIONS: Array<{ label: string; ms: number }> = [
 function ListActions({ client }: { client: ApiClient | null }) {
   const discovered = useStore((s) => s.discovered);
   const cm = useStore((s) => s.contactManager);
-  const setActiveKey = useStore((s) => s.setActiveKey);
   const blockRulesCount = useStore((s) => s.blockRules.length);
   const [showClear, setShowClear] = useState(false);
   const [showBlock, setShowBlock] = useState(false);
@@ -299,12 +299,6 @@ function ListActions({ client }: { client: ApiClient | null }) {
       </div>
 
       <div className="space-y-1.5 border-t border-cs-border pt-3">
-        <RailActionButton
-          icon={Settings}
-          label="Auto-Add settings"
-          sub="who joins automatically"
-          onClick={() => setActiveKey('tool:settings:radio')}
-        />
         <div className="grid grid-cols-2 gap-1.5">
           <RailActionButton
             icon={Upload}
@@ -398,4 +392,47 @@ export function ContactManagerRailBody({ client }: { client: ApiClient | null })
     );
   }
   return <ListActions client={client} />;
+}
+
+const AUTO_ADD_KINDS: Array<{ key: 'chat' | 'repeater' | 'room' | 'sensor'; label: string }> = [
+  { key: 'chat', label: 'Users' },
+  { key: 'repeater', label: 'Repeaters' },
+  { key: 'room', label: 'Rooms' },
+  { key: 'sensor', label: 'Sensors' },
+];
+
+/** Read-only summary of the radio's auto-add (discovery) config, mirroring the
+ *  Radio settings panel (same `autoAddConfig` store slice), plus a jump to edit
+ *  it there. Shown as its own rail header so the current behaviour is visible
+ *  without leaving the Contact Manager. */
+export function DiscoverySettings() {
+  const cfg = useStore((s) => s.autoAddConfig);
+  const setActiveKey = useStore((s) => s.setActiveKey);
+
+  const autoAddLabel =
+    cfg.mode === 'all'
+      ? 'All node types'
+      : AUTO_ADD_KINDS.filter((k) => cfg[k.key])
+          .map((k) => k.label)
+          .join(', ') || 'None';
+
+  return (
+    <div className="space-y-2.5">
+      <div className="space-y-1.5">
+        <KeyValueRow label="Auto-add" value={autoAddLabel} />
+        <KeyValueRow label="Overwrite oldest" value={cfg.overwriteOldest ? 'On' : 'Off'} />
+        <KeyValueRow
+          label="Max hops"
+          value={cfg.maxHops == null ? 'No limit' : String(cfg.maxHops)}
+          mono
+        />
+      </div>
+      <RailActionButton
+        icon={Settings}
+        label="Auto-Add settings"
+        sub="edit in Radio settings"
+        onClick={() => setActiveKey('tool:settings:radio')}
+      />
+    </div>
+  );
 }
