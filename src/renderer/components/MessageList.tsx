@@ -82,7 +82,11 @@ function buildItems(messages: Message[], firstUnreadIdx: number): Item[] {
 
 function initialLocationFor(items: Item[]) {
   const dividerIdx = items.findIndex((i) => i.kind === 'divider');
-  if (dividerIdx >= 0) return { index: dividerIdx, align: 'start' as const };
+  // `start-no-overflow` pins the divider to the top of the viewport but only
+  // as far as the scrollable range allows — when there aren't enough messages
+  // below it to fill the view, it stops at the natural bottom instead of
+  // overscrolling and leaving an empty gap under the last message.
+  if (dividerIdx >= 0) return { index: dividerIdx, align: 'start-no-overflow' as const };
   return { index: 'LAST' as const, align: 'end' as const };
 }
 
@@ -333,7 +337,10 @@ export function MessageList({
           ItemContent={ItemRow}
           EmptyPlaceholder={EmptyState}
           onRenderedDataChange={handleRenderedDataChange}
-          shortSizeAlign="bottom"
+          // When the conversation is shorter than the viewport, keep messages
+          // pinned to the bottom but animate the shift as a new message lands
+          // instead of snapping it into place.
+          shortSizeAlign="bottom-smooth"
         />
       </VirtuosoMessageListLicense>
       {menu &&
