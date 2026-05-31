@@ -12,7 +12,6 @@ export function CapacityMeter() {
           <span className={warn ? 'text-cs-warn' : 'text-cs-accent'}>{onRadio}</span>
           <span className="text-cs-text-dim"> / {max || '—'}</span>
         </div>
-        <div className="font-mono text-[9px] text-cs-text-dim">on radio</div>
       </div>
       <div className="h-1.5 w-14 overflow-hidden rounded-full border border-cs-border bg-cs-bg-3">
         <div
