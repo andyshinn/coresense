@@ -1,6 +1,6 @@
 import maplibregl, { type Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { hasValidFix, type MapSettings, type TileManifest } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { log } from '../../lib/logger';
@@ -22,13 +22,39 @@ const mapLog = log.getSubLogger({ name: 'map' });
 
 const VIEWPORT_PERSIST_DEBOUNCE_MS = 500;
 
+// Default overlay stack — the standard Map View layers. Module-scope so the
+// component doesn't allocate a fresh function on every render.
+const defaultOverlays = (map: MapLibreMap | null) => (
+  <>
+    <MapClusters map={map} />
+    <MapLocalNode map={map} />
+    <MapInfo map={map} />
+  </>
+);
+
 interface MapCanvasProps {
   client: ApiClient;
   manifest: TileManifest;
   settings: MapSettings;
+  // Optional overlay renderer — defaults to the standard clusters/local/info
+  // stack. A focused view (e.g. repeater neighbours) passes its own layer.
+  renderOverlays?: (map: MapLibreMap | null) => ReactNode;
+  // When false, the moveend/zoom persistence effect is skipped (transient
+  // sub-maps must not overwrite the Map View's saved viewport).
+  persistViewport?: boolean;
+  // Initial camera. Defaults to pickInitialView (persisted viewport / freshest
+  // contact / extract centre).
+  initialView?: InitialView;
 }
 
-export function MapCanvas({ client, manifest, settings }: MapCanvasProps) {
+export function MapCanvas({
+  client,
+  manifest,
+  settings,
+  renderOverlays,
+  persistViewport = true,
+  initialView,
+}: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   // Mirror the ref into state so child components (MapInfo) can subscribe to
@@ -57,7 +83,7 @@ export function MapCanvas({ client, manifest, settings }: MapCanvasProps) {
 
     ensurePmtilesProtocol(client);
 
-    const initial = pickInitialView(manifest, settings);
+    const initial = initialView ?? pickInitialView(manifest, settings);
     const map = new maplibregl.Map({
       container,
       style: buildStyle({ baseUrl: client.baseUrl, manifest, settings, theme }),
@@ -223,6 +249,7 @@ export function MapCanvas({ client, manifest, settings }: MapCanvasProps) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    if (!persistViewport) return;
 
     let timer: ReturnType<typeof setTimeout> | null = null;
     const flush = () => {
@@ -266,19 +293,19 @@ export function MapCanvas({ client, manifest, settings }: MapCanvasProps) {
       map.off('rotateend', schedule);
       map.off('pitchend', schedule);
     };
-  }, [client]);
+  }, [client, persistViewport]);
+
+  const overlays = renderOverlays ?? defaultOverlays;
 
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
-      <MapClusters map={mapInstance} />
-      <MapLocalNode map={mapInstance} />
-      <MapInfo map={mapInstance} />
+      {overlays(mapInstance)}
     </div>
   );
 }
 
-interface InitialView {
+export interface InitialView {
   center: [number, number];
   zoom: number;
   bearing: number;
