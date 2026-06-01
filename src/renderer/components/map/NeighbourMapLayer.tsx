@@ -81,7 +81,12 @@ export function NeighbourMapLayer({
     () => neighbours.filter((n) => n.located && n.lat != null && n.lon != null),
     [neighbours],
   );
-  const activeId = hoveredId ?? selectedId;
+  // Only a plotted (located) neighbour can be "active" on the map. Hovering or
+  // selecting an off-map row must not dim every marker/link while highlighting
+  // nothing.
+  const locatedIds = useMemo(() => new Set(located.map((n) => n.pubKeyPrefixHex)), [located]);
+  const rawActive = hoveredId ?? selectedId;
+  const activeId = rawActive != null && locatedIds.has(rawActive) ? rawActive : null;
   const focalPoint: FocalPoint = { lat: focal.lat, lon: focal.lon };
 
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
@@ -199,7 +204,12 @@ export function NeighbourMapLayer({
   // Frame focal + located neighbours when the located SET (or focal) changes —
   // not on hover/select.
   const boundsKey = useMemo(
-    () => `${located.map((n) => n.pubKeyPrefixHex).join(',')}|${focal.lat},${focal.lon}`,
+    // Sorted so a pure re-order (same set, new Order) doesn't trigger a refit.
+    () =>
+      `${located
+        .map((n) => n.pubKeyPrefixHex)
+        .sort()
+        .join(',')}|${focal.lat},${focal.lon}`,
     [located, focal.lat, focal.lon],
   );
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-fit only when boundsKey changes
@@ -214,6 +224,17 @@ export function NeighbourMapLayer({
       map.fitBounds(bounds, { padding: 64, maxZoom: 15, duration: 300 });
     }
   }, [map, boundsKey]);
+
+  // Click on empty map space clears selection — markers stopPropagation their
+  // own clicks, so this only fires for the basemap. Mirrors MapClusters.
+  useEffect(() => {
+    if (!map) return;
+    const onClick = () => onSelect(null);
+    map.on('click', onClick);
+    return () => {
+      map.off('click', onClick);
+    };
+  }, [map, onSelect]);
 
   // Tear down markers + layer/source on unmount.
   useEffect(() => {
