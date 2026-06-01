@@ -94,7 +94,11 @@ const ItemRow: ItemContent<Item, RowContext> = ({ data, context }) => {
   if (data.kind === 'divider') return <UnreadDivider />;
   const m = data.m;
   const isSelf = m.fromPublicKeyHex === undefined;
-  const sender = m.fromPublicKeyHex ? (context.contactByPk.get(m.fromPublicKeyHex) ?? null) : null;
+  // Resolve the display name here (the row context already holds contactByPk)
+  // and pass it down — MessageRow/MessageItem are name-only, not Contact-aware.
+  const senderName =
+    (m.fromPublicKeyHex ? context.contactByPk.get(m.fromPublicKeyHex)?.name : undefined) ??
+    deriveSenderName(m.fromPublicKeyHex);
   return (
     <MessageRow
       message={m}
@@ -104,7 +108,7 @@ const ItemRow: ItemContent<Item, RowContext> = ({ data, context }) => {
       onSelect={() => context.onSelect(m.id)}
       onContextMenu={(e) => context.onContextMenu(m, e)}
       style={context.style}
-      sender={sender}
+      senderName={senderName}
       onReply={context.onReply}
     />
   );

@@ -2,6 +2,7 @@ import { Loader2, Send } from 'lucide-react';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { RadioSettings } from '../../shared/types';
 import { loraAirtimeMs } from '../lib/airtime';
+import { shouldSendOnKey } from '../lib/composerKeys';
 import { useStore } from '../lib/store';
 import { cn } from '../lib/utils';
 
@@ -111,9 +112,21 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const sendCombo = returnToSend
-      ? e.key === 'Enter' && !e.shiftKey
-      : e.key === 'Enter' && (e.metaKey || e.ctrlKey);
+    // The macOS emoji/character picker (⌃⌘Space) and IMEs confirm a candidate
+    // with Return while the field is mid-composition. The browser flags that
+    // keydown via isComposing (keyCode 229 where isComposing is unreliable);
+    // pass it through so a composing Return inserts the emoji instead of
+    // leaking out as our send shortcut and firing the draft. See NOTES.md.
+    const sendCombo = shouldSendOnKey(
+      {
+        key: e.key,
+        shiftKey: e.shiftKey,
+        metaKey: e.metaKey,
+        ctrlKey: e.ctrlKey,
+        isComposing: e.nativeEvent.isComposing || e.keyCode === 229,
+      },
+      returnToSend,
+    );
     if (sendCombo) {
       e.preventDefault();
       void submit();

@@ -25,7 +25,10 @@ const TIME_FORMAT_OPTIONS = [
 ] as const;
 
 const eqAppearance = (a: AppSettingsType, b: AppSettingsType) =>
-  a.theme === b.theme && a.messageStyle === b.messageStyle && a.timeFormat === b.timeFormat;
+  a.theme === b.theme &&
+  a.messageStyle === b.messageStyle &&
+  a.unreadsStyle === b.unreadsStyle &&
+  a.timeFormat === b.timeFormat;
 
 export function AppearanceSection({ client }: SectionProps) {
   const saved = useStore((s) => s.appSettings);
@@ -36,7 +39,12 @@ export function AppearanceSection({ client }: SectionProps) {
     onSave: (d) =>
       saveApp(
         client,
-        { theme: d.theme, messageStyle: d.messageStyle, timeFormat: d.timeFormat },
+        {
+          theme: d.theme,
+          messageStyle: d.messageStyle,
+          unreadsStyle: d.unreadsStyle,
+          timeFormat: d.timeFormat,
+        },
         'Appearance saved',
       ),
   });
@@ -66,13 +74,25 @@ export function AppearanceSection({ client }: SectionProps) {
       />
       <Row
         label="Message density"
-        description="Compact shows one line per message; rich shows sender + RSSI/SNR/hops."
+        description="Conversation messages. Compact shows one line (sender + body); rich shows avatar, sender, and a meta row. Both show hops + path hash."
         changed={draft.messageStyle !== saved.messageStyle}
         control={
           <Select
             value={draft.messageStyle}
             options={MESSAGE_STYLE_OPTIONS}
             onChange={(style) => setDraft((s) => ({ ...s, messageStyle: style }))}
+          />
+        }
+      />
+      <Row
+        label="Unread density"
+        description="Unreads triage previews — set independently from the conversation density above."
+        changed={draft.unreadsStyle !== saved.unreadsStyle}
+        control={
+          <Select
+            value={draft.unreadsStyle}
+            options={MESSAGE_STYLE_OPTIONS}
+            onChange={(style) => setDraft((s) => ({ ...s, unreadsStyle: style }))}
           />
         }
       />

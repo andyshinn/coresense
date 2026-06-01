@@ -99,6 +99,45 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Discord-style scrollbars. macOS/Chromium defaults to a grey overlay bar;
+   defining ::-webkit-scrollbar switches to classic (non-overlay) bars that
+   reserve a fixed gutter, so fading the thumb in/out causes no layout shift.
+   The thumb is transparent at rest; initScrollbarReveal() (lib/scrollbarReveal)
+   tags the scrolling element with [data-cs-scroll-hover] while the pointer is
+   over it and [data-cs-scrolling] while it scrolls, which fades the handle in
+   and then back out — mimicking Discord's auto-hide handle. Colors use the
+   cs-* palette so they track the active light/dark theme. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background-clip: padding-box;
+  transition: background-color 0.2s ease;
+}
+/* Reveal the handle while the pointer is over the scroll area or while it's
+   actively scrolling (Discord behavior). */
+[data-cs-scroll-hover]::-webkit-scrollbar-thumb,
+[data-cs-scrolling]::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--cs-border-strong));
+}
+/* Brighten on direct hover / while actively dragging the handle. */
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(var(--cs-text-dim));
+}
+::-webkit-scrollbar-thumb:active {
+  background-color: rgb(var(--cs-text-muted));
+}
+
 /* Window-drag affordances for the custom title bar (Electron docs:
    custom-window-interactions). Children opt out so buttons remain clickable. */
 .titlebar-drag {
