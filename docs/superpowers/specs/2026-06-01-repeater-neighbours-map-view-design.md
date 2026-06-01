@@ -27,8 +27,10 @@ real Coresense architecture rather than the prototype's static artboard.
 
 ## Non-goals
 
-- No new IPC/protocol work. `RepeaterNeighbour` and `api.repeaterNeighbours`
-  stay exactly as they are.
+- No new IPC/protocol/firmware work. `RepeaterNeighbour` and
+  `api.repeaterNeighbours` stay exactly as they are. (We don't own the MeshCore
+  firmware, so a richer response is not an option — see "Protocol
+  investigation".)
 - No "Tweaks" panel (that was design-tool scaffolding) — the landed visual
   choices are baked in.
 - No click-through navigation from a neighbour to its own contact detail (the
@@ -50,7 +52,8 @@ real Coresense architecture rather than the prototype's static artboard.
   (`src/shared/types.ts`). The protocol returns **no name and no location**.
   `api.repeaterNeighbours(client, key, { count, offset, orderBy, prefixLen })`
   → `{ page: { total, neighbours[] } }`. The current tab requests `prefixLen: 6`
-  (3-byte prefix).
+  (6 **bytes** → 12 hex chars). `pubKeyPrefixHex` is the first 6 bytes of the
+  neighbour's Ed25519 public key.
 - **Map:** `src/renderer/components/map/MapCanvas.tsx` is mount-once, always
   renders `MapClusters` (all contacts) + `MapLocalNode` + `MapInfo`, and persists
   the viewport globally to store + server. It is **not** reusable as-is for a
@@ -93,6 +96,27 @@ real Coresense architecture rather than the prototype's static artboard.
 - SNR labels on links: **none** — the line **colour** is the only SNR encoding
   on the map.
 - List density: comfortable. List width: ~360px. Name-source glyph: shown.
+
+### Protocol investigation (firmware)
+
+Cross-checked the MeshCore firmware (`simple_repeater` neighbours handler,
+`REQ_TYPE_GET_NEIGHBOURS = 0x06`) against Coresense's decode path. Findings:
+
+- The firmware sends **only** `{ keyPrefix, heardSecsAgo, snr }` per neighbour,
+  and Coresense already parses all three — **nothing is dropped** on our side.
+- The repeater stores only `{ Identity, advert_timestamp, heard_timestamp, snr }`
+  per neighbour. It **overhears** the name and (optional) lat/lon in the repeater
+  adverts that populate its table, but discards them — so a richer response
+  would be *possible in principle* via a firmware change, but:
+- **We don't control the firmware**, so extending the response is out of scope.
+
+**Accepted consequence — the sparse remote map is a first-class state.** When
+inspecting a *remote* repeater, its neighbours are nodes near it that we usually
+can't hear ourselves, so they won't be in our contact DB → resolved as
+"Unknown repeater" with no location → off-map. The empty/placeholder map and the
+"No location advert" list group are therefore **common** states for remote
+repeaters (not rare edge cases) and must be polished accordingly. The map is
+richest for repeaters near you (whose neighbours you've also heard).
 
 ## Data model & resolution
 
@@ -139,9 +163,13 @@ export function resolveNeighbours(
 5. `'protocol'` source is reserved for future firmware that returns a name; not
    produced today.
 
-Note: `prefixLen` stays `6` on the fetch request. The longer the prefix, the
-fewer collisions; bumping it is out of scope but the resolver handles collisions
-regardless.
+Note: `prefixLen` stays `6` on the fetch request. Six bytes (48 bits) makes a
+prefix collision across a typical <350-contact mesh astronomically unlikely, so
+the `ambiguous` path is a rare safety net rather than a common case. (The
+protocol allows requesting up to the full 32-byte key, but the firmware's
+130-byte response buffer means more bytes/entry = fewer neighbours per fetch
+— ~11 per fetch at 6 bytes vs ~3 at full key — so a longer prefix is not worth
+the extra round-trips. See "Protocol investigation".)
 
 ## Map architecture — parameterizing `MapCanvas`
 
@@ -220,7 +248,9 @@ Reuses `SignalBars` + `fmtSnr` (SNR readout) and `MarkerShape`/`shapeMarkup`
   resolved from contacts; an ambiguity indicator when `ambiguous`) · pubkey
   prefix + heard-time (`fmtSecsAgo`) · SNR readout (`SignalBars` + `fmtSnr`).
 - **Off-map group:** neighbours without a location advert are grouped under a
-  "No location advert" divider at the bottom, with a count.
+  "No location advert" divider at the bottom, with a count. (Common for remote
+  repeaters — see "Protocol investigation" — so this group deserves real polish,
+  not just an afterthought.)
 - **Empty state:** before the first Fetch, a "Press Fetch to load neighbours"
   prompt.
 
@@ -283,7 +313,9 @@ State is lifted into the restructured `NeighboursTab`:
   - `neighbourLinks`: feature collection + fit-bounds from focal + located set;
     empty/no-focal-GPS cases.
 - **Component:** list grouping (located vs off-map divider + counts), unknown +
-  ambiguity glyphs, hover/select state coupling, empty (pre-fetch) state.
+  ambiguity glyphs, hover/select state coupling, empty (pre-fetch) state, and the
+  all-off-map / no-focal-GPS state (map placeholder, every row in the off-map
+  group) — the common remote-repeater case.
 - **Regression:** all 150 existing tests stay green; assert `MapCanvas` defaults
   (no `renderOverlays`/`persistViewport`/`initialView`) reproduce current Map
   View behavior (clusters mounted, viewport persisted).
