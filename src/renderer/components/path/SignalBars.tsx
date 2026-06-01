@@ -54,3 +54,15 @@ export function snrTokenVar(snr: number): string {
 export function fmtSnr(s: number): string {
   return `${s.toFixed(2)}dB`;
 }
+
+/** Fixed SNR band colours (hex), matching the --cs-online/--cs-warn/--cs-danger
+ *  tokens. Used where a concrete colour string is required — e.g. MapLibre paint,
+ *  which can't resolve CSS custom properties. Bands are semantic and
+ *  theme-independent, so hard-coding the hexes keeps them in sync with the
+ *  SignalBars gauge by construction. */
+export function snrColor(snr: number): string {
+  const b = snrBand(snr);
+  if (b === 'strong') return '#84cc16';
+  if (b === 'mid') return '#f59e0b';
+  return '#dc2626';
+}
