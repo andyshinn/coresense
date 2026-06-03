@@ -307,7 +307,11 @@ export type TimeFormatPref = 'auto' | '12h' | '24h';
 
 export interface AppSettings {
   theme: ThemePrefValue;
+  /** Density for the channel/DM conversation message list. */
   messageStyle: MessageStyle;
+  /** Density for the Unreads triage previews — separate from `messageStyle` so
+   *  a busy triage list can stay denser than live conversations. */
+  unreadsStyle: MessageStyle;
   /** 12/24-hour clock for all rendered timestamps. */
   timeFormat: TimeFormatPref;
   composer: {
@@ -394,6 +398,7 @@ export type ContactGrouping = 'nested' | 'top-level';
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: 'auto',
   messageStyle: 'rich',
+  unreadsStyle: 'compact',
   timeFormat: 'auto',
   composer: { returnToSend: true, autoFocus: true },
   notifications: {

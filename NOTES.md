@@ -3,7 +3,6 @@
 * Clicking notifications should take us to that part of the application. Right now clicking notifications only pulls up the app but doesn't take us to the message or contact or channel. Sending a message immediately scrolls it back down to the bottom correctly.
 * New section scrolls up to the top and leaves a gap at the bottom. We should only scroll up as far as allows the scrollbar to go.
 * Hop count and hash mode are not showing up on messages like the official app. These should show up next to the timestamp of the message.
-* On macOS< when i type a word (such as `salute`) into the message field, and then ctrl+cmd+spacebar to bring up the emjoi picker, when I hit return to pick an emoji it ends up sending the text message instead of inserting the emoji.
 * Trace path (trace packets) don't seem to be handled properly over the bridge. When the official client does a trace it always times out. When I connect to the radio directly from the official client and do the same trace it works fine. This is likely an issue with the bridge not properly handling trace packets.
 * Theme settings ligh / dark have no effect. Should switch between our different light / dark themes if we force one.
 

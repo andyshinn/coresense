@@ -1,14 +1,12 @@
-import { ArrowRight, Check, ChevronDown, ChevronUp, Inbox } from 'lucide-react';
-import { useState } from 'react';
+import { Check, ChevronDown, ChevronUp, Inbox } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChannelKind, ContactKind } from '../../shared/types';
-import { MessageBody } from '../components/MessageBody';
+import { MessageItem } from '../components/MessageItem';
 import { RelativeTime } from '../components/RelativeTime';
-import { SenderLabel } from '../components/SenderLabel';
 import { type UnreadConversation, useUnreadConversations } from '../hooks/useUnreads';
 import type { ApiClient } from '../lib/api';
 import { CHANNEL_ICON, CONTACT_ICON } from '../lib/conversationIcons';
 import { useStore } from '../lib/store';
-import { fmtDateTime, fmtTime } from '../lib/time';
 import { cn, deriveSenderName } from '../lib/utils';
 
 type Filter = 'all' | 'channels' | 'direct';
@@ -42,6 +40,34 @@ export function Unreads({ client: _client }: { client: ApiClient | null }) {
   const directAll = conversations.filter((c) => c.kind === 'contact');
   const filtered =
     filter === 'channels' ? channelsAll : filter === 'direct' ? directAll : conversations;
+
+  // Esc (while viewing Unreads) clears the topmost card shown on the page —
+  // press repeatedly to triage from the top down. Shift+Esc (clear all) is a
+  // global shortcut handled in App; bail here so the two don't collide. The
+  // ref tracks the current top so the listener registers once. This effect
+  // only runs while the Unreads panel is mounted, so the shortcut is naturally
+  // scoped to "looking at unreads".
+  const topmostKeyRef = useRef<string | null>(null);
+  topmostKeyRef.current = filtered[0]?.key ?? null;
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.shiftKey) return;
+      // Defer to anything that owns Esc for dismissal (command palette, the
+      // add-channel popover) so we don't clear a card out from under it.
+      const s = useStore.getState();
+      if (s.paletteOpen || s.addChannelOpen) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
+        return;
+      }
+      const key = topmostKeyRef.current;
+      if (!key) return;
+      e.preventDefault();
+      markAllRead(key);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [markAllRead]);
 
   const totalCount = conversations.reduce((s, c) => s + c.count, 0);
   const filteredCount = filtered.reduce((s, c) => s + c.count, 0);
@@ -83,8 +109,8 @@ export function Unreads({ client: _client }: { client: ApiClient | null }) {
           </button>
         </div>
         <p className="mt-1 font-mono text-[10px] text-cs-text-dim">
-          Triage everything you missed in one place · newest first · marking does not send anything
-          over the air
+          Triage everything you missed · newest first · Esc clears the top card · ⇧Esc clears all ·
+          nothing is sent over the air
         </p>
         <div className="mt-3 flex items-center gap-1 text-xs">
           <FilterTab
@@ -204,6 +230,8 @@ function UnreadCard({
       : CONTACT_KIND_LABEL[conversation.contactKind ?? 'chat'];
 
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
+  // Unreads has its own density, separate from the conversation list.
+  const unreadsStyle = useStore((s) => s.appSettings.unreadsStyle);
   // Cap the previews per card so chatty conversations stay bounded; when the
   // cap is disabled every unread message renders in full. The cap can also be
   // lifted per-card in-session via the expand control — that state is
@@ -218,8 +246,17 @@ function UnreadCard({
   return (
     <div className="rounded-md border border-cs-border bg-cs-bg-2">
       <div className="flex flex-wrap items-center gap-2 border-b border-cs-border px-3 py-2">
-        <Icon className="size-3.5 text-cs-accent" aria-hidden="true" />
-        <span className="text-sm font-semibold text-cs-text">{conversation.name}</span>
+        <button
+          type="button"
+          onClick={onOpen}
+          title={`Open ${conversation.name}`}
+          className="group flex items-center gap-2"
+        >
+          <Icon className="size-3.5 text-cs-accent" aria-hidden="true" />
+          <span className="text-sm font-semibold text-cs-text group-hover:text-cs-accent group-hover:underline">
+            {conversation.name}
+          </span>
+        </button>
         <span className="rounded-full border border-cs-accent/40 bg-cs-accent-soft/20 px-1.5 py-px font-mono text-[9px] text-cs-text tabular-nums">
           {conversation.count} new
         </span>
@@ -234,14 +271,6 @@ function UnreadCard({
           >
             <Check className="size-3" aria-hidden="true" />
             Mark read
-          </button>
-          <button
-            type="button"
-            onClick={onOpen}
-            className="flex items-center gap-1 rounded-md bg-cs-accent px-2.5 py-1 text-xs font-semibold text-cs-bg transition-colors hover:bg-cs-accent/90"
-          >
-            Open
-            <ArrowRight className="size-3" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -274,20 +303,14 @@ function UnreadCard({
             />
           )}
           {preview.map((m) => (
-            <div key={m.id} className="grid grid-cols-[auto_1fr] gap-3 px-3 py-1">
-              <span
-                title={fmtDateTime(m.ts, timeFormat)}
-                className="pt-0.5 font-mono text-[10px] text-cs-text-dim tabular-nums"
-              >
-                {fmtTime(m.ts, timeFormat)}
-              </span>
-              <div className="min-w-0">
-                <SenderLabel name={previewSender(conversation, m.fromPublicKeyHex)} />
-                <p className="text-sm leading-snug text-cs-text whitespace-pre-wrap wrap-break-word">
-                  <MessageBody body={m.body} />
-                </p>
-              </div>
-            </div>
+            <MessageItem
+              key={m.id}
+              message={m}
+              isSelf={false}
+              style={unreadsStyle}
+              senderName={previewSender(conversation, m.fromPublicKeyHex)}
+              timeFormat={timeFormat}
+            />
           ))}
         </div>
       </div>

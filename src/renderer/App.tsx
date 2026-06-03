@@ -90,6 +90,10 @@ export function App() {
         const s = useStore.getState();
         s.setActiveKey('tool:search');
         s.requestSearchFocus();
+      } else if (e.shiftKey && e.key === 'Escape') {
+        // Shift+Esc clears every unread, from anywhere in the app.
+        e.preventDefault();
+        useStore.getState().markAllReadGlobal();
       }
     };
     window.addEventListener('keydown', onKeyDown);
