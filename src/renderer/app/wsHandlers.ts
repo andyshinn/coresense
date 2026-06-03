@@ -61,6 +61,9 @@ export function createWsMessageHandler(deps: WsMessageHandlerDeps): (msg: WsMess
       case 'discovered':
         s.applyDiscovered(msg.payload);
         break;
+      case 'contactEvicted':
+        notify.info(`Contact removed by radio: ${msg.payload.name}`);
+        break;
       case 'messages':
         s.applyMessages(msg.payload.key, msg.payload.messages);
         break;

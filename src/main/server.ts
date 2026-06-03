@@ -202,6 +202,8 @@ export async function startServer(
   const onContacts = (contacts: Contact[]) => broadcast({ type: 'contacts', payload: contacts });
   const onDiscovered = (rows: DiscoveredContact[]) =>
     broadcast({ type: 'discovered', payload: rows });
+  const onContactEvicted = (name: string) =>
+    broadcast({ type: 'contactEvicted', payload: { name } });
   const onMessages = (key: string, messages: Message[]) =>
     broadcast({ type: 'messages', payload: { key, messages } });
   const onMessageState = (id: string, state: MessageState) =>
@@ -248,6 +250,7 @@ export async function startServer(
   bus.on('syncProgress', onSyncProgress);
   bus.on('contacts', onContacts);
   bus.on('discovered', onDiscovered);
+  bus.on('contactEvicted', onContactEvicted);
   bus.on('messages', onMessages);
   bus.on('messageState', onMessageState);
   bus.on('messagePathHeard', onMessagePathHeard);
@@ -282,6 +285,7 @@ export async function startServer(
     bus.off('syncProgress', onSyncProgress);
     bus.off('contacts', onContacts);
     bus.off('discovered', onDiscovered);
+    bus.off('contactEvicted', onContactEvicted);
     bus.off('messages', onMessages);
     bus.off('messageState', onMessageState);
     bus.off('messagePathHeard', onMessagePathHeard);

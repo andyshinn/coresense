@@ -932,6 +932,7 @@ export type WsMessage =
   | { type: 'syncProgress'; payload: SyncProgress }
   | { type: 'contacts'; payload: Contact[] }
   | { type: 'discovered'; payload: DiscoveredContact[] }
+  | { type: 'contactEvicted'; payload: { name: string } }
   | { type: 'messages'; payload: { key: string; messages: Message[] } }
   | { type: 'messageState'; payload: { id: string; state: MessageState } }
   | { type: 'messagePathHeard'; payload: { id: string; path: MessagePath; state: MessageState } }

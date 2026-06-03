@@ -1500,12 +1500,18 @@ export class ProtocolSession {
     if (code === PUSH.CONTACT_DELETED) {
       const pubkey = parseContactDeleted(frame);
       if (pubkey) {
-        discoveredStore.setOnRadio(pubkey, false);
         const holder = stateHolder();
+        // Resolve a display name before dropping the contact, for the toast.
+        const name =
+          holder.getContacts().find((c) => c.key === `c:${pubkey}`)?.name ??
+          discoveredStore.get(pubkey)?.name ??
+          pubkey.slice(0, 12);
+        discoveredStore.setOnRadio(pubkey, false);
         holder.removeContact(`c:${pubkey}`);
         emit.contacts(holder.getContacts());
         this.emitDiscovered();
-        log.debug(`contact evicted by firmware: ${pubkey.slice(0, 12)}`);
+        emit.contactEvicted(name);
+        log.info(`contact evicted by radio: ${name} ${pubkey.slice(0, 12)}`);
       }
       return;
     }
