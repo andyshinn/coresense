@@ -24,7 +24,7 @@ import { applyLoggingSettings } from '../logging/apply';
 import { currentPath, folderPath } from '../logging/fileSink';
 import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
 import { protocolSession } from '../protocol';
-import { UnknownContactError } from '../protocol/errors';
+import { ContactTableFullError, UnknownContactError } from '../protocol/errors';
 import { register as registerPendingChannelSend } from '../protocol/pendingChannelSends';
 import { appLifecycle } from '../runtime/appLifecycle';
 import { stateHolder } from '../state/holder';
@@ -541,6 +541,9 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       return c.json({ ok: true });
     } catch (err) {
       if (err instanceof UnknownContactError) return c.json({ error: err.message }, 422);
+      if (err instanceof ContactTableFullError) {
+        return c.json({ error: err.message, code: 'CONTACT_TABLE_FULL' }, 409);
+      }
       return c.json({ error: (err as Error).message }, 503);
     }
   });

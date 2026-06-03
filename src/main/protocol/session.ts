@@ -19,7 +19,7 @@ import { child } from '../log';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { transportManager } from '../transport/manager';
-import { ADV_TYPE, PUSH, REQ_TYPE, RESP, STATS_TYPE, TXT_TYPE } from './codes';
+import { ADV_TYPE, ERR_CODE, PUSH, REQ_TYPE, RESP, STATS_TYPE, TXT_TYPE } from './codes';
 import {
   type ContactRecord,
   parseAutoAddConfig,
@@ -80,7 +80,7 @@ import {
   pathHashModeToSize,
   pathHashSizeToMode,
 } from './encode';
-import { UnknownContactError } from './errors';
+import { ContactTableFullError, UnknownContactError } from './errors';
 import { consumeMatching as consumeMeshObs } from './meshObservations';
 import { buildPath, channelHashOf } from './paths';
 import {
@@ -602,7 +602,7 @@ export class ProtocolSession {
   }
 
   /** Commit a discovered contact to the radio's store (CMD_ADD_UPDATE_CONTACT).
-   *  Optimistically marks it on-radio and schedules a re-sync to confirm. */
+   *  Awaits the radio's RESP_OK/ERR before marking the contact on-radio. */
   async addContactToRadio(publicKeyHex: string): Promise<void> {
     const row = discoveredStore.get(publicKeyHex);
     if (!row) {
@@ -620,7 +620,24 @@ export class ProtocolSession {
         ? { gpsLat: row.gps_lat, gpsLon: row.gps_lon, lastAdvertUnix: row.last_advert_unix }
         : {}),
     });
-    await this.writeFrame(frame);
+    // Await the radio's reply before claiming the contact is on-radio. RESP_ERR
+    // with ERR_CODE_TABLE_FULL means the store is full — surface it and leave
+    // on_radio untouched rather than lying to the UI.
+    const ack = this.awaitAck();
+    try {
+      await this.writeFrame(frame);
+    } catch (err) {
+      this.popPendingAck(ack.entry);
+      throw err;
+    }
+    const result = await ack.promise;
+    if (!result.ok) {
+      if (result.errorCode === ERR_CODE.TABLE_FULL) {
+        log.warn(`add contact rejected: contact table full ${publicKeyHex.slice(0, 12)}`);
+        throw new ContactTableFullError();
+      }
+      throw new Error('radio did not confirm add-contact');
+    }
     discoveredStore.setOnRadio(publicKeyHex, true);
     this.upsertOnRadioContact({
       publicKeyHex,
