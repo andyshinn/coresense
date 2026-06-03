@@ -1,7 +1,8 @@
 import { app, Notification } from 'electron';
 import type { BlockMatchHints } from '../shared/blocking/match';
 import { isMessageBlocked } from '../shared/blocking/match';
-import type { Message } from '../shared/types';
+import { shouldFireDiscovered } from '../shared/notifications/discovered';
+import type { ContactKind, Message } from '../shared/types';
 import { blockingStore } from './blocking/store';
 import { bus, emit } from './events/bus';
 import { child } from './log';
@@ -23,6 +24,7 @@ const MAX_NOTIFIED_IDS = 500;
 
 export function startNotifications(): void {
   bus.on('messages', onMessages);
+  bus.on('contactDiscovered', onContactDiscovered);
   bus.on('appSettings', recomputeBadge);
   // Muting a channel/contact updates these lists; recompute so the dock badge
   // drops the now-muted conversation's unread count.
@@ -124,6 +126,31 @@ function maybeNotify(m: Message): void {
   });
   n.show();
   log.debug(`notified kind=${kind} key=${m.key} id=${m.id}`);
+}
+
+function onContactDiscovered(c: { key: string; name: string; kind: ContactKind }): void {
+  const holder = stateHolder();
+  const policy = holder.getAppSettings().notifications;
+  if (!shouldFireDiscovered(policy, isMainWindowFocused())) return;
+  if (!Notification.isSupported()) {
+    log.debug('native notifications unavailable; skipping discovered contact');
+    return;
+  }
+  const n = new Notification({
+    title: 'New contact discovered',
+    body: c.name,
+    silent: !policy.sound,
+  });
+  n.on('click', () => {
+    const win = getMainWindow();
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+    emit.menuAction({ kind: 'focusKey', key: c.key });
+  });
+  n.show();
+  log.debug(`notified discovered contact ${c.key.slice(0, 14)}`);
 }
 
 type Kind = 'directMessage' | 'channelMention' | 'channelMessage' | 'repeaterAlert' | 'sensorAlert';

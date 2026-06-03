@@ -326,6 +326,8 @@ export interface AppSettings {
     channelMessage: boolean;
     repeaterAlert: boolean;
     sensorAlert: boolean;
+    /** Fire a native notification the first time a contact is heard. */
+    discoveredContact: boolean;
     sound: boolean;
     suppressWhenFocused: boolean;
     dockBadge: boolean;
@@ -407,6 +409,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     channelMessage: false,
     repeaterAlert: true,
     sensorAlert: false,
+    discoveredContact: true,
     sound: true,
     suppressWhenFocused: true,
     dockBadge: true,

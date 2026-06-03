@@ -1805,6 +1805,11 @@ export class ProtocolSession {
     const alreadyOnRadio = holder.getContacts().some((c) => c.key === fullKey);
     const onRadio = source === 'sync' ? true : alreadyOnRadio;
 
+    // First-ever sighting: no row in the discovered pool yet (checked before
+    // the upsert below). Only a live advert is a "discovery" — a GET_CONTACTS
+    // sync is just the device listing what it already stores.
+    const isNewDiscovery = source === 'advert' && discoveredStore.get(record.publicKeyHex) === null;
+
     discoveredStore.upsert(record, {
       onRadio,
       nowMs: Date.now(),
@@ -1815,6 +1820,14 @@ export class ProtocolSession {
       this.upsertOnRadioContact(record);
     }
     this.emitDiscovered();
+
+    if (isNewDiscovery) {
+      emit.contactDiscovered({
+        key: fullKey,
+        name: record.name || record.publicKeyHex.slice(0, 12),
+        kind: advTypeToKind(record.type),
+      });
+    }
 
     if (source === 'advert' && !onRadio && this.shouldAutoAdd(record.type)) {
       this.scheduleContactsResync();

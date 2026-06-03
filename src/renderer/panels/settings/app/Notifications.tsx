@@ -16,6 +16,7 @@ const eqNotifications = (a: AppSettingsType, b: AppSettingsType) => {
     x.channelMessage === y.channelMessage &&
     x.repeaterAlert === y.repeaterAlert &&
     x.sensorAlert === y.sensorAlert &&
+    x.discoveredContact === y.discoveredContact &&
     x.sound === y.sound &&
     x.suppressWhenFocused === y.suppressWhenFocused &&
     x.dockBadge === y.dockBadge
@@ -77,6 +78,14 @@ export function NotificationsSection({ client }: SectionProps) {
         label="Sensor alerts"
         changed={n.sensorAlert !== s0.sensorAlert}
         control={<Toggle checked={n.sensorAlert} onChange={(v) => setN({ sensorAlert: v })} />}
+      />
+      <Row
+        label="Discovered contacts"
+        description="When a never-before-seen node is first heard."
+        changed={n.discoveredContact !== s0.discoveredContact}
+        control={
+          <Toggle checked={n.discoveredContact} onChange={(v) => setN({ discoveredContact: v })} />
+        }
       />
       <Row
         label="Play sound"
