@@ -246,7 +246,11 @@ export function NeighbourMapLayer({
     };
   }, [map, onSelect]);
 
-  // Tear down markers + layer/source on unmount.
+  // Tear down markers on unmount. The link source/layer are NOT removed here:
+  // this overlay only unmounts when its MapCanvas does, and MapCanvas calls
+  // map.remove() which destroys the style (and our source/layer) with it.
+  // Calling map.getLayer() on an already-removed map throws — mirror MapClusters,
+  // which likewise leaves its sources/layers to map.remove().
   useEffect(() => {
     const markers = markersRef.current;
     return () => {
@@ -254,12 +258,8 @@ export function NeighbourMapLayer({
       markers.clear();
       focalMarkerRef.current?.remove();
       focalMarkerRef.current = null;
-      if (map) {
-        if (map.getLayer(LINK_LAYER)) map.removeLayer(LINK_LAYER);
-        if (map.getSource(LINK_SOURCE)) map.removeSource(LINK_SOURCE);
-      }
     };
-  }, [map]);
+  }, []);
 
   if (neighbours.length === 0) return null;
   const offMap = neighbours.length - located.length;
