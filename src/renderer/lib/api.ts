@@ -30,6 +30,18 @@ export interface ApiClient {
   apiKey: string;
 }
 
+/** Pull a `{ "error": "…" }` message out of a JSON error body, or null if the
+ *  body isn't JSON / has no string error. Lets callers show the server's
+ *  friendly message instead of the raw status + payload. */
+export function parseServerError(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as { error?: unknown };
+    return typeof parsed?.error === 'string' ? parsed.error : null;
+  } catch {
+    return null;
+  }
+}
+
 async function request<T>(client: ApiClient, path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${client.baseUrl}${path}`, {
     ...init,
@@ -40,8 +52,8 @@ async function request<T>(client: ApiClient, path: string, init: RequestInit = {
     },
   });
   if (!res.ok) {
-    const message = await res.text().catch(() => res.statusText);
-    throw new Error(`${res.status} ${message}`);
+    const body = await res.text().catch(() => '');
+    throw new Error(parseServerError(body) ?? `${res.status} ${body || res.statusText}`);
   }
   return res.json() as Promise<T>;
 }
