@@ -40,22 +40,29 @@ function markerContact(n: ResolvedNeighbour): Contact {
 }
 
 // Focal repeater marker — distinct double-ring + persistent label. Inline
-// styles keep it self-contained (no extra CSS file).
+// styles keep it self-contained (no extra CSS file). The container is exactly
+// the 50×50 glyph so `anchor: 'center'` lands the glyph centre on the
+// coordinate (where the SNR links terminate); the label is positioned
+// absolutely below so it doesn't shift the anchored centre.
 function buildFocalElement(name: string): HTMLDivElement {
   const el = document.createElement('div');
-  el.style.display = 'flex';
-  el.style.flexDirection = 'column';
-  el.style.alignItems = 'center';
-  el.style.gap = '4px';
+  el.style.position = 'relative';
+  el.style.width = '50px';
+  el.style.height = '50px';
   el.style.pointerEvents = 'none';
   el.innerHTML = `
-    <svg width="50" height="50" viewBox="0 0 50 50" aria-hidden="true">
+    <svg width="50" height="50" viewBox="0 0 50 50" aria-hidden="true" style="display:block">
       <circle cx="25" cy="25" r="23" fill="none" stroke="#f59e0b" stroke-width="1" opacity="0.3" />
       <circle cx="25" cy="25" r="18" fill="none" stroke="#f59e0b" stroke-width="1.4" opacity="0.75" />
       <rect x="16" y="16" width="18" height="18" rx="3" fill="#84cc16" stroke="#0c0a06" stroke-width="1.5" />
     </svg>`;
   const label = document.createElement('span');
   label.textContent = name;
+  label.style.position = 'absolute';
+  label.style.top = '100%';
+  label.style.left = '50%';
+  label.style.transform = 'translateX(-50%)';
+  label.style.marginTop = '4px';
   label.style.background = 'rgba(12,10,6,0.92)';
   label.style.border = '1px solid #f59e0b';
   label.style.color = '#f5f1e6';
