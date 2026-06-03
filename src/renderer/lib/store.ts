@@ -119,6 +119,8 @@ export interface NeighboursViewState {
   busy: boolean;
   selectedId: string | null;
   hoveredId: string | null;
+  /** Show name labels on every neighbour marker (not just the focal). */
+  showNames: boolean;
 }
 
 const NB_DEFAULTS: NeighboursViewState = {
@@ -129,6 +131,7 @@ const NB_DEFAULTS: NeighboursViewState = {
   busy: false,
   selectedId: null,
   hoveredId: null,
+  showNames: true,
 };
 
 // ---- Settings panel UI state ----------------------------------------------
@@ -279,6 +282,7 @@ interface CoreState {
   setNeighboursBusy: (busy: boolean) => void;
   setNeighbourSelected: (id: string | null) => void;
   setNeighbourHovered: (id: string | null) => void;
+  setNeighboursShowNames: (showNames: boolean) => void;
 
   // UI state (left/right pane open, active key, pinned items, rail sections)
   ui: UiState;
@@ -668,6 +672,8 @@ export const useStore = create<CoreState>((set) => ({
   setNeighboursBusy: (busy) => set((s) => ({ neighbours: { ...s.neighbours, busy } })),
   setNeighbourSelected: (id) => set((s) => ({ neighbours: { ...s.neighbours, selectedId: id } })),
   setNeighbourHovered: (id) => set((s) => ({ neighbours: { ...s.neighbours, hoveredId: id } })),
+  setNeighboursShowNames: (showNames) =>
+    set((s) => ({ neighbours: { ...s.neighbours, showNames } })),
   setCmSort: (field) =>
     set((s) => {
       const { sortField, sortDir } = s.contactManager;

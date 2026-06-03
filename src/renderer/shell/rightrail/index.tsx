@@ -2,6 +2,7 @@ import { PanelRightClose } from 'lucide-react';
 import { useMemo } from 'react';
 import { Collapsible } from '../../components/Collapsible';
 import type { ApiClient } from '../../lib/api';
+import { resolveNeighbourPublicKey } from '../../lib/neighbours';
 import { useStore } from '../../lib/store';
 import { MapDetailsRail } from '../../panels/map/MapDetailsRail';
 import { railTitle } from './helpers';
@@ -30,6 +31,8 @@ export function RightRail({ client }: RightRailProps) {
   const selectedContactKey = useStore((s) => s.ui.selectedContactKey);
   const setSelectedContact = useStore((s) => s.setSelectedContact);
   const repeaterAdminActiveTab = useStore((s) => s.repeaterAdminActiveTab);
+  const discovered = useStore((s) => s.discovered);
+  const neighbours = useStore((s) => s.neighbours);
 
   const data: RailData = useMemo(() => {
     const channel = activeKey.startsWith('ch:')
@@ -46,6 +49,17 @@ export function RightRail({ client }: RightRailProps) {
       ? (contacts.find((c) => c.key === selectedContactKey) ?? null)
       : null;
     const repeaters = contacts.filter((c) => c.kind === 'repeater');
+    // On a repeater's Neighbours tab with a neighbour selected, the contact card
+    // targets that neighbour's resolved contact; otherwise the focal contact.
+    const selectedNeighbourPk =
+      contact?.kind === 'repeater' &&
+      repeaterAdminActiveTab === 'neighbours' &&
+      neighbours.forKey === activeKey &&
+      neighbours.selectedId
+        ? resolveNeighbourPublicKey(neighbours.selectedId, contacts, discovered)
+        : null;
+    const cardPublicKeyHex =
+      selectedNeighbourPk ?? (activeKey.startsWith('c:') ? activeKey.slice(2) : null);
     return {
       channel,
       contact,
@@ -53,11 +67,14 @@ export function RightRail({ client }: RightRailProps) {
       mentionedContact,
       repeaters,
       repeaterAdminActiveTab,
+      cardPublicKeyHex,
     };
   }, [
     activeKey,
     channels,
     contacts,
+    discovered,
+    neighbours,
     messagesByKey,
     selectedMessageId,
     selectedContactKey,

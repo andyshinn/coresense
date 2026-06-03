@@ -36,6 +36,9 @@ export interface RailData {
   repeaters: Contact[];
   /** The repeater detail panel's open tab — drives the Neighbours rail section. */
   repeaterAdminActiveTab: RepeaterAdminTab | null;
+  /** publicKeyHex the contact-card section should show — the selected neighbour
+   *  on the Neighbours tab, otherwise the focal contact. */
+  cardPublicKeyHex: string | null;
 }
 
 /** Build the ordered list of rail sections for the active view + selection state. */
@@ -152,7 +155,7 @@ export function sectionsFor(
     : [];
 
   // The repeater Neighbours tab promotes its list to the top of the rail, with
-  // the usual contact sections kept (collapsed) below it.
+  // the usual contact sections kept below it.
   const neighbourSections: RailSection[] =
     data.contact?.kind === 'repeater' && data.repeaterAdminActiveTab === 'neighbours'
       ? [
@@ -167,10 +170,9 @@ export function sectionsFor(
         ]
       : [];
 
-  const baseDefaultOpen =
-    messageSections.length === 0 &&
-    mentionedSections.length === 0 &&
-    neighbourSections.length === 0;
+  // Contact card stays open by default even when the Neighbours section is
+  // present, so the selected neighbour's card is visible below the list.
+  const baseDefaultOpen = messageSections.length === 0 && mentionedSections.length === 0;
   switch (viewKindFor(activeKey)) {
     case 'channel':
       return [
@@ -205,7 +207,7 @@ export function sectionsFor(
           defaultOpen: baseDefaultOpen,
           body: () => (
             <ContactDetail
-              publicKeyHex={activeKey.startsWith('c:') ? activeKey.slice(2) : null}
+              publicKeyHex={data.cardPublicKeyHex}
               client={actions.client}
               showPath={false}
             />

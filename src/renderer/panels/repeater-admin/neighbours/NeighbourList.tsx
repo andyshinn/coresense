@@ -1,6 +1,7 @@
 import { MapPinOff } from 'lucide-react';
 import { MarkerShape } from '../../../components/map/markers/MarkerShape';
 import { fmtSnr, SignalBars, snrTokenVar } from '../../../components/path/SignalBars';
+import { Switch } from '../../../components/ui/switch';
 import {
   NEIGHBOUR_SORTS,
   type NeighbourSortKey,
@@ -18,6 +19,8 @@ interface NeighbourListProps {
   onSort: (k: NeighbourSortKey) => void;
   onCount: (n: number) => void;
   onFetch: () => void;
+  showNames: boolean;
+  onShowNames: (v: boolean) => void;
   selectedId: string | null;
   hoveredId: string | null;
   onHover: (id: string | null) => void;
@@ -123,6 +126,8 @@ export function NeighbourList({
   onSort,
   onCount,
   onFetch,
+  showNames,
+  onShowNames,
   selectedId,
   hoveredId,
   onHover,
@@ -139,6 +144,15 @@ export function NeighbourList({
     <div className="space-y-3">
       {/* Controls */}
       <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2 text-[11.5px] text-cs-text-muted">
+          <span>Show names on map</span>
+          <Switch
+            size="sm"
+            checked={showNames}
+            onCheckedChange={onShowNames}
+            aria-label="Show names on map"
+          />
+        </div>
         <label className="flex flex-col gap-1 text-[11px] text-cs-text-muted">
           Order
           <select

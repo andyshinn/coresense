@@ -25,6 +25,8 @@ interface NeighbourMapLayerProps {
   neighbours: ResolvedNeighbour[];
   selectedId: string | null;
   hoveredId: string | null;
+  // Show name labels on every neighbour marker (not just on hover/select).
+  showNames: boolean;
   onHover: (id: string | null) => void;
   onSelect: (id: string | null) => void;
 }
@@ -81,6 +83,7 @@ export function NeighbourMapLayer({
   neighbours,
   selectedId,
   hoveredId,
+  showNames,
   onHover,
   onSelect,
 }: NeighbourMapLayerProps) {
@@ -108,7 +111,7 @@ export function NeighbourMapLayer({
     selected: selectedId === id,
     faded: activeId != null && activeId !== id,
     stale: false,
-    showLabel: false,
+    showLabel: showNames,
   });
 
   renderRef.current = () => {
@@ -206,7 +209,7 @@ export function NeighbourMapLayer({
   useEffect(() => {
     if (!map) return;
     renderRef.current();
-  }, [map, located, selectedId, hoveredId, focal.lat, focal.lon, focal.name]);
+  }, [map, located, selectedId, hoveredId, showNames, focal.lat, focal.lon, focal.name]);
 
   // Frame focal + located neighbours when the located SET (or focal) changes —
   // not on hover/select.

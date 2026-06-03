@@ -87,6 +87,7 @@ export function NeighboursTab({ contact, client }: Props) {
               neighbours={displayed}
               selectedId={selectedId}
               hoveredId={hoveredId}
+              showNames={nb.showNames}
               onHover={setNeighbourHovered}
               onSelect={setNeighbourSelected}
             />

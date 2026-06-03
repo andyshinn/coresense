@@ -40,6 +40,7 @@ export function NeighboursRailBody({
   const setNeighboursPage = useStore((s) => s.setNeighboursPage);
   const setNeighbourSelected = useStore((s) => s.setNeighbourSelected);
   const setNeighbourHovered = useStore((s) => s.setNeighbourHovered);
+  const setNeighboursShowNames = useStore((s) => s.setNeighboursShowNames);
 
   const isForThis = nb.forKey === contact.key;
   const page = isForThis ? nb.page : null;
@@ -85,6 +86,8 @@ export function NeighboursRailBody({
       onSort={setNeighboursSort}
       onCount={setNeighboursCount}
       onFetch={doFetch}
+      showNames={nb.showNames}
+      onShowNames={setNeighboursShowNames}
       selectedId={selectedId}
       hoveredId={hoveredId}
       onHover={setNeighbourHovered}

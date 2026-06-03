@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   type ResolvedNeighbour,
+  resolveNeighbourPublicKey,
   resolveNeighbours,
   sortNeighbours,
 } from '../../../../src/renderer/lib/neighbours';
@@ -87,6 +88,16 @@ describe('resolveNeighbours', () => {
     const [r] = resolveNeighbours([raw('aabbccddeeff')], [c], [d]);
     expect(r.name).toBe('OnRadio');
     expect(r.ambiguous).toBe(false);
+  });
+});
+
+describe('resolveNeighbourPublicKey', () => {
+  it('returns the matched contact publicKeyHex for a prefix', () => {
+    const c = contact({ publicKeyHex: 'aabbccddeeff0011', name: 'Mt Bonnell' });
+    expect(resolveNeighbourPublicKey('aabbccddeeff', [c], [])).toBe('aabbccddeeff0011');
+  });
+  it('returns null for an unmatched prefix', () => {
+    expect(resolveNeighbourPublicKey('zzzz', [], [])).toBeNull();
   });
 });
 
