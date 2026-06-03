@@ -29,6 +29,7 @@ export function RightRail({ client }: RightRailProps) {
   const selectedMessageId = useStore((s) => s.selectedMessageId);
   const selectedContactKey = useStore((s) => s.ui.selectedContactKey);
   const setSelectedContact = useStore((s) => s.setSelectedContact);
+  const repeaterAdminActiveTab = useStore((s) => s.repeaterAdminActiveTab);
 
   const data: RailData = useMemo(() => {
     const channel = activeKey.startsWith('ch:')
@@ -45,8 +46,23 @@ export function RightRail({ client }: RightRailProps) {
       ? (contacts.find((c) => c.key === selectedContactKey) ?? null)
       : null;
     const repeaters = contacts.filter((c) => c.kind === 'repeater');
-    return { channel, contact, selectedMessage, mentionedContact, repeaters };
-  }, [activeKey, channels, contacts, messagesByKey, selectedMessageId, selectedContactKey]);
+    return {
+      channel,
+      contact,
+      selectedMessage,
+      mentionedContact,
+      repeaters,
+      repeaterAdminActiveTab,
+    };
+  }, [
+    activeKey,
+    channels,
+    contacts,
+    messagesByKey,
+    selectedMessageId,
+    selectedContactKey,
+    repeaterAdminActiveTab,
+  ]);
 
   const sections = useMemo(
     () =>

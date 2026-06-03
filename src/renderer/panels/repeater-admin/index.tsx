@@ -44,6 +44,14 @@ export function RepeaterAdmin({ contact, client }: Props) {
   const [tab, setTab] = useState<TabId>('login');
   const pendingTab = useStore((s) => s.repeaterAdminTab);
   const setRepeaterAdminTab = useStore((s) => s.setRepeaterAdminTab);
+  const setRepeaterAdminActiveTab = useStore((s) => s.setRepeaterAdminActiveTab);
+
+  // Publish the open tab so the right rail can show the Neighbours list section
+  // when this panel is on the Neighbours tab. Clear it when the panel unmounts.
+  useEffect(() => {
+    setRepeaterAdminActiveTab(tab);
+    return () => setRepeaterAdminActiveTab(null);
+  }, [tab, setRepeaterAdminActiveTab]);
 
   // Apply a deep-link target requested by the contact-detail panel, then clear
   // it so a later manual tab change isn't reverted. Runs whether the panel was

@@ -35,6 +35,7 @@ import {
   type PathLearnedEvent,
   type RadioSettings,
   type RawPacket,
+  type RepeaterNeighboursPage,
   type RepeaterStatusSnapshot,
   type RepeaterTelemetrySnapshot,
   type SearchSort,
@@ -47,6 +48,7 @@ import {
   type UiState,
 } from '../../shared/types';
 import { setRendererLogLevel } from './logger';
+import type { NeighbourSortKey } from './neighbours';
 
 const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null, terrain: null };
 
@@ -103,6 +105,30 @@ const CM_DEFAULTS: ContactManagerState = {
   showKeys: true,
   selected: [],
   focusKey: null,
+};
+
+// Repeater Neighbours view state — shared between the map (main pane) and the
+// neighbour list (right rail) so hover/selection couple across the two. `forKey`
+// tags the data to the focal repeater so a fetched page never shows under a
+// different repeater.
+export interface NeighboursViewState {
+  forKey: string | null;
+  page: RepeaterNeighboursPage | null;
+  sortKey: NeighbourSortKey;
+  count: number;
+  busy: boolean;
+  selectedId: string | null;
+  hoveredId: string | null;
+}
+
+const NB_DEFAULTS: NeighboursViewState = {
+  forKey: null,
+  page: null,
+  sortKey: 'snr-desc',
+  count: 16,
+  busy: false,
+  selectedId: null,
+  hoveredId: null,
 };
 
 // ---- Settings panel UI state ----------------------------------------------
@@ -236,6 +262,23 @@ interface CoreState {
   // RepeaterAdmin consumes + clears it on mount. Not persisted.
   repeaterAdminTab: RepeaterAdminTab | null;
   setRepeaterAdminTab: (tab: RepeaterAdminTab | null) => void;
+
+  // The repeater detail panel's currently-open tab, published so the right rail
+  // can show the Neighbours list section when that tab is active. Persistent
+  // (unlike the transient deep-link `repeaterAdminTab` above); cleared when the
+  // panel unmounts.
+  repeaterAdminActiveTab: RepeaterAdminTab | null;
+  setRepeaterAdminActiveTab: (tab: RepeaterAdminTab | null) => void;
+
+  // Repeater Neighbours view (map + rail list) — see NeighboursViewState.
+  neighbours: NeighboursViewState;
+  setNeighboursFor: (key: string) => void;
+  setNeighboursPage: (page: RepeaterNeighboursPage | null, forKey: string) => void;
+  setNeighboursSort: (sortKey: NeighbourSortKey) => void;
+  setNeighboursCount: (count: number) => void;
+  setNeighboursBusy: (busy: boolean) => void;
+  setNeighbourSelected: (id: string | null) => void;
+  setNeighbourHovered: (id: string | null) => void;
 
   // UI state (left/right pane open, active key, pinned items, rail sections)
   ui: UiState;
@@ -474,6 +517,8 @@ export const useStore = create<CoreState>((set) => ({
   repeaterStatusByKey: {},
   repeaterTelemetryByKey: {},
   repeaterAdminTab: null,
+  repeaterAdminActiveTab: null,
+  neighbours: NB_DEFAULTS,
 
   ui: DEFAULT_UI_STATE,
   settingsUi: DEFAULT_SETTINGS_UI,
@@ -594,6 +639,35 @@ export const useStore = create<CoreState>((set) => ({
   clearCmSelected: () => set((s) => ({ contactManager: { ...s.contactManager, selected: [] } })),
   setCmFocus: (key) => set((s) => ({ contactManager: { ...s.contactManager, focusKey: key } })),
   setRepeaterAdminTab: (tab) => set(() => ({ repeaterAdminTab: tab })),
+  setRepeaterAdminActiveTab: (tab) =>
+    set((s) => ({
+      repeaterAdminActiveTab: tab,
+      // Entering the Neighbours tab surfaces its controls/list in the rail, so
+      // make sure the rail is open (open-only — never auto-collapses).
+      ui: tab === 'neighbours' ? { ...s.ui, rightOpen: true } : s.ui,
+    })),
+  setNeighboursFor: (key) =>
+    set((s) =>
+      s.neighbours.forKey === key
+        ? {}
+        : {
+            neighbours: {
+              ...s.neighbours,
+              forKey: key,
+              page: null,
+              selectedId: null,
+              hoveredId: null,
+              busy: false,
+            },
+          },
+    ),
+  setNeighboursPage: (page, forKey) =>
+    set((s) => (s.neighbours.forKey === forKey ? { neighbours: { ...s.neighbours, page } } : {})),
+  setNeighboursSort: (sortKey) => set((s) => ({ neighbours: { ...s.neighbours, sortKey } })),
+  setNeighboursCount: (count) => set((s) => ({ neighbours: { ...s.neighbours, count } })),
+  setNeighboursBusy: (busy) => set((s) => ({ neighbours: { ...s.neighbours, busy } })),
+  setNeighbourSelected: (id) => set((s) => ({ neighbours: { ...s.neighbours, selectedId: id } })),
+  setNeighbourHovered: (id) => set((s) => ({ neighbours: { ...s.neighbours, hoveredId: id } })),
   setCmSort: (field) =>
     set((s) => {
       const { sortField, sortDir } = s.contactManager;

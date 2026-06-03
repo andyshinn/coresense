@@ -1,6 +1,7 @@
 import type { Channel, Contact, Message } from '../../../shared/types';
 import { SetPathEditor } from '../../components/path/SetPathEditor';
 import type { ApiClient } from '../../lib/api';
+import type { RepeaterAdminTab } from '../../lib/store';
 import { SettingsJumpRail } from '../SettingsJumpRail';
 import { Placeholder } from './atoms';
 import { viewKindFor } from './helpers';
@@ -17,6 +18,7 @@ import {
 } from './sections/LogsFilters';
 import { MentionedContactSection } from './sections/MentionedContact';
 import { MessageInfoSection } from './sections/MessageInfo';
+import { NeighboursRailBody } from './sections/NeighboursRail';
 import { VersionSection } from './sections/VersionSection';
 
 export interface RailSection {
@@ -32,6 +34,8 @@ export interface RailData {
   selectedMessage: Message | null;
   mentionedContact: Contact | null;
   repeaters: Contact[];
+  /** The repeater detail panel's open tab — drives the Neighbours rail section. */
+  repeaterAdminActiveTab: RepeaterAdminTab | null;
 }
 
 /** Build the ordered list of rail sections for the active view + selection state. */
@@ -147,7 +151,26 @@ export function sectionsFor(
       ]
     : [];
 
-  const baseDefaultOpen = messageSections.length === 0 && mentionedSections.length === 0;
+  // The repeater Neighbours tab promotes its list to the top of the rail, with
+  // the usual contact sections kept (collapsed) below it.
+  const neighbourSections: RailSection[] =
+    data.contact?.kind === 'repeater' && data.repeaterAdminActiveTab === 'neighbours'
+      ? [
+          {
+            id: 'rail.repeater.neighbours',
+            label: 'Neighbours',
+            defaultOpen: true,
+            body: () => (
+              <NeighboursRailBody contact={data.contact as Contact} client={actions.client} />
+            ),
+          },
+        ]
+      : [];
+
+  const baseDefaultOpen =
+    messageSections.length === 0 &&
+    mentionedSections.length === 0 &&
+    neighbourSections.length === 0;
   switch (viewKindFor(activeKey)) {
     case 'channel':
       return [
@@ -173,6 +196,7 @@ export function sectionsFor(
     case 'dm':
     case 'repeater':
       return [
+        ...neighbourSections,
         ...mentionedSections,
         ...messageSections,
         {

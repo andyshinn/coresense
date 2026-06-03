@@ -52,17 +52,17 @@ function NeighbourRow({
       onMouseEnter={() => onHover(n.pubKeyPrefixHex)}
       onMouseLeave={() => onHover(null)}
       onClick={() => onSelect(selected ? null : n.pubKeyPrefixHex)}
-      className={`flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors ${bg} ${
+      className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors ${bg} ${
         selected ? 'border-l-2 border-cs-accent' : 'border-l-2 border-transparent'
       }`}
     >
       <span className="shrink-0" style={{ opacity: n.located ? 1 : 0.55 }}>
-        <MarkerShape type="repeater" size={22} opacity={unknown ? 0.5 : 1} dashed={unknown} />
+        <MarkerShape type="repeater" size={20} opacity={unknown ? 0.5 : 1} dashed={unknown} />
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
           <span
-            className={`truncate text-[13px] ${
+            className={`truncate text-[12.5px] ${
               unknown ? 'font-normal italic text-cs-text-dim' : 'font-medium text-cs-text'
             }`}
           >
@@ -89,16 +89,16 @@ function NeighbourRow({
             </span>
           )}
         </span>
-        <span className="mt-0.5 flex items-center gap-1.5 font-mono text-[10.5px] text-cs-text-dim">
+        <span className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-cs-text-dim">
           <span className="truncate">{n.pubKeyPrefixHex}</span>
           <span className="opacity-50">·</span>
           <span className="shrink-0">{fmtSecsAgo(n.heardSecsAgo)}</span>
         </span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-0.5">
-        <SignalBars snr={n.snrDb} size={13} />
+        <SignalBars snr={n.snrDb} size={12} />
         <span
-          className="font-mono text-[11px] tabular-nums"
+          className="font-mono text-[10.5px] tabular-nums"
           style={{ color: `rgb(var(${snrTokenVar(n.snrDb)}))` }}
         >
           {fmtSnr(n.snrDb)}
@@ -108,6 +108,10 @@ function NeighbourRow({
   );
 }
 
+/** Neighbour list rendered as a right-rail section body: Order / Count / Fetch
+ *  controls, a counts line, then located rows followed by an off-map group.
+ *  Flowing layout (no fixed-width panel) so it fits the rail's collapsible
+ *  section; rows bleed to the rail edges via -mx-3. */
 export function NeighbourList({
   neighbours,
   total,
@@ -129,13 +133,13 @@ export function NeighbourList({
   const offMap = neighbours.filter((n) => !locatedIds.has(n.pubKeyPrefixHex));
 
   const fieldCls =
-    'h-8 rounded-md border border-cs-border bg-cs-bg-3 px-2.5 font-mono text-[12.5px] text-cs-text outline-none';
+    'h-8 w-full rounded-md border border-cs-border bg-cs-bg-2 px-2.5 font-mono text-[12px] text-cs-text outline-none';
 
   return (
-    <div className="flex w-[360px] shrink-0 flex-col overflow-hidden border-l border-cs-border bg-cs-bg-2">
+    <div className="space-y-3">
       {/* Controls */}
-      <div className="flex shrink-0 flex-col gap-2.5 border-b border-cs-border p-3.5">
-        <label className="flex flex-col gap-1 text-[11.5px] text-cs-text-muted">
+      <div className="space-y-2">
+        <label className="flex flex-col gap-1 text-[11px] text-cs-text-muted">
           Order
           <select
             value={sortKey}
@@ -149,8 +153,8 @@ export function NeighbourList({
             ))}
           </select>
         </label>
-        <div className="flex items-end gap-2.5">
-          <label className="flex w-[70px] shrink-0 flex-col gap-1 text-[11.5px] text-cs-text-muted">
+        <div className="flex items-end gap-2">
+          <label className="flex w-16 shrink-0 flex-col gap-1 text-[11px] text-cs-text-muted">
             Count
             <input
               type="number"
@@ -168,66 +172,61 @@ export function NeighbourList({
             type="button"
             onClick={onFetch}
             disabled={busy}
-            className="h-8 flex-1 rounded-md border border-cs-border bg-cs-bg-3 text-[12.5px] font-medium text-cs-text transition-colors hover:bg-cs-accent-soft/30 disabled:opacity-50"
+            className="h-8 flex-1 rounded-md border border-cs-border bg-cs-bg-2 text-[12px] font-medium text-cs-text transition-colors hover:bg-cs-accent-soft/30 disabled:opacity-50"
           >
             {busy ? 'Fetching…' : 'Fetch neighbours'}
           </button>
         </div>
       </div>
 
-      {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-cs-border px-3.5 py-2.5">
-        <span className="font-mono text-[10px] tracking-widest text-cs-text-dim">NEIGHBOURS</span>
-        <span className="font-mono text-[10.5px] text-cs-text-muted">
+      {/* Counts (the rail section header already reads "Neighbours") */}
+      {hasFetched && neighbours.length > 0 && (
+        <div className="text-right font-mono text-[10px] text-cs-text-dim">
           {mapShown ? `${located.length} on map · ` : ''}
           {neighbours.length} of {total} heard
-        </span>
-      </div>
+        </div>
+      )}
 
       {/* Body */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {!hasFetched ? (
-          <div className="flex h-full flex-col items-center justify-center gap-1 p-8 text-center">
-            <span className="text-[13px] text-cs-text-muted">No neighbours loaded</span>
-            <span className="text-[11px] text-cs-text-dim">
-              Press "Fetch neighbours" to query the repeater.
-            </span>
-          </div>
-        ) : (
-          <>
-            {located.map((n) => (
-              <NeighbourRow
-                key={n.pubKeyPrefixHex}
-                n={n}
-                selected={selectedId === n.pubKeyPrefixHex}
-                hovered={hoveredId === n.pubKeyPrefixHex}
-                onHover={onHover}
-                onSelect={onSelect}
-              />
-            ))}
-            {offMap.length > 0 && (
-              <>
-                <div className="flex items-center gap-2 px-3.5 pb-1.5 pt-3 font-mono text-[9.5px] uppercase tracking-wider text-cs-text-dim">
-                  <MapPinOff size={11} aria-hidden="true" />
-                  <span className="flex-1">No location advert</span>
-                  <span>{offMap.length}</span>
-                </div>
-                {offMap.map((n) => (
-                  <NeighbourRow
-                    key={n.pubKeyPrefixHex}
-                    n={n}
-                    selected={selectedId === n.pubKeyPrefixHex}
-                    hovered={hoveredId === n.pubKeyPrefixHex}
-                    onHover={onHover}
-                    onSelect={onSelect}
-                  />
-                ))}
-              </>
-            )}
-            <div className="h-2" />
-          </>
-        )}
-      </div>
+      {!hasFetched ? (
+        <p className="py-3 text-center text-[11px] text-cs-text-dim">
+          Press “Fetch neighbours” to query the repeater.
+        </p>
+      ) : neighbours.length === 0 ? (
+        <p className="py-3 text-center text-[11px] text-cs-text-dim">No neighbours reported.</p>
+      ) : (
+        <div className="-mx-3">
+          {located.map((n) => (
+            <NeighbourRow
+              key={n.pubKeyPrefixHex}
+              n={n}
+              selected={selectedId === n.pubKeyPrefixHex}
+              hovered={hoveredId === n.pubKeyPrefixHex}
+              onHover={onHover}
+              onSelect={onSelect}
+            />
+          ))}
+          {offMap.length > 0 && (
+            <>
+              <div className="flex items-center gap-2 px-3 pb-1 pt-2.5 font-mono text-[9.5px] uppercase tracking-wider text-cs-text-dim">
+                <MapPinOff size={11} aria-hidden="true" />
+                <span className="flex-1">No location advert</span>
+                <span>{offMap.length}</span>
+              </div>
+              {offMap.map((n) => (
+                <NeighbourRow
+                  key={n.pubKeyPrefixHex}
+                  n={n}
+                  selected={selectedId === n.pubKeyPrefixHex}
+                  hovered={hoveredId === n.pubKeyPrefixHex}
+                  onHover={onHover}
+                  onSelect={onSelect}
+                />
+              ))}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
