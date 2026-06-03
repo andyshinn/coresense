@@ -149,6 +149,14 @@ export const RESP = {
   AUTOADD_CONFIG: 0x19,
 } as const;
 
+// Firmware error codes carried in a RESP_ERR frame as the byte after the code:
+//   [RESP_ERR=0x01][err_code]. Only TABLE_FULL is acted on today — the radio
+//   rejects CMD_ADD_UPDATE_CONTACT with 0x03 when its on-device contact store
+//   is full (overwrite-oldest off, or every slot is a favourite).
+export const ERR_CODE = {
+  TABLE_FULL: 0x03,
+} as const;
+
 // ADV_TYPE values from src/helpers/AdvertDataHelpers.h, used in RESP_CONTACT
 // frames to identify what kind of node the contact is.
 export const ADV_TYPE = {

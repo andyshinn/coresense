@@ -150,8 +150,15 @@ const SET_CHANNEL_TIMEOUT_MS = 2000;
 // battery/radio-stats polling pattern (protocol traffic doubles as liveness).
 const LIVENESS_POLL_MS = 60_000;
 
+export interface AckResult {
+  ok: boolean;
+  /** Firmware error code byte from a RESP_ERR reply (frame[1]); undefined on
+   *  RESP_OK or on timeout. */
+  errorCode?: number;
+}
+
 interface PendingAck {
-  resolve: (ok: boolean) => void;
+  resolve: (result: AckResult) => void;
   timer: NodeJS.Timeout;
 }
 
@@ -731,7 +738,7 @@ export class ProtocolSession {
       log.warn(`setRadioParams write failed: ${(err as Error).message}`);
       return false;
     }
-    const ok1 = await paramsAck.promise;
+    const ok1 = (await paramsAck.promise).ok;
     if (!ok1) return false;
     await sleep(WRITE_GAP_MS);
     const powerAck = this.awaitAck();
@@ -742,7 +749,7 @@ export class ProtocolSession {
       log.warn(`setRadioTxPower write failed: ${(err as Error).message}`);
       return false;
     }
-    const ok2 = await powerAck.promise;
+    const ok2 = (await powerAck.promise).ok;
     if (!ok2) return false;
     const holder = stateHolder();
     const next = {
@@ -770,7 +777,7 @@ export class ProtocolSession {
       log.warn(`setAdvertName write failed: ${(err as Error).message}`);
       return false;
     }
-    const ok = await ack.promise;
+    const ok = (await ack.promise).ok;
     if (!ok) return false;
     const holder = stateHolder();
     holder.setDeviceIdentity({ ...holder.getDeviceIdentity(), name });
@@ -795,7 +802,7 @@ export class ProtocolSession {
       log.warn(`setAdvertLatLon write failed: ${(err as Error).message}`);
       return false;
     }
-    const ok = await ack.promise;
+    const ok = (await ack.promise).ok;
     if (!ok) return false;
     const holder = stateHolder();
     holder.setDeviceIdentity({ ...holder.getDeviceIdentity(), lat, lon });
@@ -827,7 +834,7 @@ export class ProtocolSession {
       log.warn(`setOtherParams write failed: ${(err as Error).message}`);
       return false;
     }
-    const ok = await ack.promise;
+    const ok = (await ack.promise).ok;
     if (!ok) return false;
     const holder = stateHolder();
     holder.setTelemetryPolicy({ ...policy });
@@ -849,7 +856,7 @@ export class ProtocolSession {
       log.warn(`setAutoAddConfig write failed: ${(err as Error).message}`);
       return false;
     }
-    const ok = await ack.promise;
+    const ok = (await ack.promise).ok;
     if (!ok) return false;
     return true;
   }
@@ -878,7 +885,7 @@ export class ProtocolSession {
       log.warn(`setCustomVar(gps) write failed: ${(err as Error).message}`);
       return false;
     }
-    if (!(await ack1.promise)) return false;
+    if (!(await ack1.promise).ok) return false;
     await sleep(WRITE_GAP_MS);
     const ack2 = this.awaitAck();
     try {
@@ -888,7 +895,7 @@ export class ProtocolSession {
       log.warn(`setCustomVar(gps_interval) write failed: ${(err as Error).message}`);
       return false;
     }
-    if (!(await ack2.promise)) return false;
+    if (!(await ack2.promise).ok) return false;
     const holder = stateHolder();
     holder.setGpsConfig({ enabled: cfg.enabled, intervalSec: interval });
     emit.gpsConfig(holder.getGpsConfig());
@@ -1158,7 +1165,7 @@ export class ProtocolSession {
       // Resolve any in-flight acks as failures rather than leaving callers hung.
       for (const p of this.pendingAcks.splice(0)) {
         clearTimeout(p.timer);
-        p.resolve(false);
+        p.resolve({ ok: false });
       }
       // Any DM still awaiting RESP_SENT will never get one — fail them so the
       // UI doesn't leave 'sending' spinners forever.
@@ -1228,7 +1235,7 @@ export class ProtocolSession {
       clearTimeout(ack.entry.timer);
       return false;
     }
-    return ack.promise;
+    return (await ack.promise).ok;
   }
 
   /** Mark a channel as present on the device. Call after a successful
@@ -1269,13 +1276,13 @@ export class ProtocolSession {
     return deriveChannelSecret(name);
   }
 
-  private awaitAck(): { promise: Promise<boolean>; entry: PendingAck } {
+  private awaitAck(): { promise: Promise<AckResult>; entry: PendingAck } {
     let entry!: PendingAck;
-    const promise = new Promise<boolean>((resolve) => {
+    const promise = new Promise<AckResult>((resolve) => {
       const timer = setTimeout(() => {
         const i = this.pendingAcks.indexOf(entry);
         if (i !== -1) this.pendingAcks.splice(i, 1);
-        resolve(false);
+        resolve({ ok: false });
       }, SET_CHANNEL_TIMEOUT_MS);
       entry = { resolve, timer };
       this.pendingAcks.push(entry);
@@ -1283,11 +1290,11 @@ export class ProtocolSession {
     return { promise, entry };
   }
 
-  private resolveNextAck(ok: boolean): boolean {
+  private resolveNextAck(ok: boolean, errorCode?: number): boolean {
     const entry = this.pendingAcks.shift();
     if (!entry) return false;
     clearTimeout(entry.timer);
-    entry.resolve(ok);
+    entry.resolve({ ok, errorCode });
     return true;
   }
 
@@ -1673,10 +1680,13 @@ export class ProtocolSession {
       return;
     }
     if (code === RESP.OK || code === RESP.ERR) {
-      // SET_CHANNEL awaiters get first crack at any OK/ERR. If none are
-      // queued and we have a DM in flight, a bare RESP_ERR means the radio
-      // rejected the send (e.g. unknown recipient prefix) — fail the DM.
-      if (this.resolveNextAck(code === RESP.OK)) return;
+      // Device-write awaiters get first crack at any OK/ERR. A RESP_ERR carries
+      // an error-code byte (frame[1]) — thread it through so callers like
+      // addContactToRadio can detect ERR_CODE_TABLE_FULL. If no awaiter is
+      // queued and a DM is in flight, a bare RESP_ERR means the radio rejected
+      // the send (e.g. unknown recipient prefix) — fail the DM.
+      const errorCode = code === RESP.ERR ? frame[1] : undefined;
+      if (this.resolveNextAck(code === RESP.OK, errorCode)) return;
       if (code === RESP.ERR) this.failOldestDmSend('radio rejected send');
       return;
     }
