@@ -505,7 +505,7 @@ export const DEFAULT_MAP_SETTINGS: MapSettings = {
   favouritesOnly: false,
   clusteringEnabled: true,
   lightBasemap: false,
-  coLocationMeters: 50,
+  coLocationMeters: 150,
   showMarkerLabels: false,
 };
 
