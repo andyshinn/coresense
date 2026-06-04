@@ -68,57 +68,68 @@ export function useUnreadByKey(): Record<string, number> {
   );
 }
 
-// Rich aggregate hook — what the Unreads panel needs. Joins unread keys against
-// the channel/contact lists; keys with no matching conversation (e.g. a removed
-// channel whose messages still linger) are dropped. Sorted newest-first.
+// Pure core of useUnreadConversations — shared with non-React callers (e.g. the
+// keyboard unread-nav selector). Joins unread keys against the channel/contact
+// lists; keys with no matching conversation are dropped. Sorted newest-first.
+export function computeUnreadConversations(
+  messagesByKey: Record<string, Message[]>,
+  lastReadByKey: Record<string, number>,
+  channels: Channel[],
+  contacts: Contact[],
+): UnreadConversation[] {
+  const channelByKey = new Map<string, Channel>();
+  for (const ch of channels) channelByKey.set(ch.key, ch);
+  const contactByKey = new Map<string, Contact>();
+  for (const c of contacts) contactByKey.set(c.key, c);
+
+  const out: UnreadConversation[] = [];
+  for (const [key, list] of Object.entries(messagesByKey)) {
+    const lastRead = lastReadByKey[key] ?? 0;
+    const unread = list.filter((m) => isUnread(m, lastRead)).sort((a, b) => a.ts - b.ts);
+    if (unread.length === 0) continue;
+    const lastTs = unread[unread.length - 1].ts;
+
+    const channel = channelByKey.get(key);
+    if (channel) {
+      if (channel.muted) continue;
+      out.push({
+        key,
+        name: channel.name,
+        kind: 'channel',
+        channelKind: channel.kind,
+        count: unread.length,
+        messages: unread,
+        lastTs,
+      });
+      continue;
+    }
+    const contact = contactByKey.get(key);
+    if (contact) {
+      if (contact.muted) continue;
+      out.push({
+        key,
+        name: contact.name,
+        kind: 'contact',
+        contactKind: contact.kind,
+        count: unread.length,
+        messages: unread,
+        lastTs,
+      });
+    }
+  }
+  out.sort((a, b) => b.lastTs - a.lastTs);
+  return out;
+}
+
+// Rich aggregate hook — what the Unreads panel needs.
 export function useUnreadConversations(): UnreadConversation[] {
   const messagesByKey = useStore((s) => s.messagesByKey);
   const lastReadByKey = useStore((s) => s.ui.lastReadByKey);
   const channels = useStore((s) => s.channels);
   const contacts = useStore((s) => s.contacts);
 
-  return useMemo(() => {
-    const channelByKey = new Map<string, Channel>();
-    for (const ch of channels) channelByKey.set(ch.key, ch);
-    const contactByKey = new Map<string, Contact>();
-    for (const c of contacts) contactByKey.set(c.key, c);
-
-    const out: UnreadConversation[] = [];
-    for (const [key, list] of Object.entries(messagesByKey)) {
-      const lastRead = lastReadByKey[key] ?? 0;
-      const unread = list.filter((m) => isUnread(m, lastRead)).sort((a, b) => a.ts - b.ts);
-      if (unread.length === 0) continue;
-      const lastTs = unread[unread.length - 1].ts;
-
-      const channel = channelByKey.get(key);
-      if (channel) {
-        if (channel.muted) continue;
-        out.push({
-          key,
-          name: channel.name,
-          kind: 'channel',
-          channelKind: channel.kind,
-          count: unread.length,
-          messages: unread,
-          lastTs,
-        });
-        continue;
-      }
-      const contact = contactByKey.get(key);
-      if (contact) {
-        if (contact.muted) continue;
-        out.push({
-          key,
-          name: contact.name,
-          kind: 'contact',
-          contactKind: contact.kind,
-          count: unread.length,
-          messages: unread,
-          lastTs,
-        });
-      }
-    }
-    out.sort((a, b) => b.lastTs - a.lastTs);
-    return out;
-  }, [messagesByKey, lastReadByKey, channels, contacts]);
+  return useMemo(
+    () => computeUnreadConversations(messagesByKey, lastReadByKey, channels, contacts),
+    [messagesByKey, lastReadByKey, channels, contacts],
+  );
 }
