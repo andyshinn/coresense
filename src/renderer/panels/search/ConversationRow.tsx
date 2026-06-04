@@ -1,11 +1,7 @@
 import { Hash } from 'lucide-react';
 import type { ConversationHit } from '../../../shared/types';
 import { CONTACT_ICON } from '../../lib/conversationIcons';
-
-function shortPk(pk: string): string {
-  if (pk.length <= 12) return pk;
-  return `${pk.slice(0, 6)}…${pk.slice(-4)}`;
-}
+import { shortPk } from './format';
 
 export function ConversationRow({ hit, onClick }: { hit: ConversationHit; onClick: () => void }) {
   // Channels use the hash glyph; contacts use the shared per-kind icon

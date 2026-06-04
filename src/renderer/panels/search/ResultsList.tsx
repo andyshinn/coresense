@@ -2,13 +2,9 @@ import { Loader2 } from 'lucide-react';
 import type { ConversationHit, MessageHit } from '../../../shared/types';
 import { EmptyState, Section } from './atoms';
 import { ConversationRow } from './ConversationRow';
+import { shortPk } from './format';
 import { MessageRow } from './MessageRow';
 import { partitionConversations } from './partition';
-
-function shortPk(pk: string): string {
-  if (pk.length <= 12) return pk;
-  return `${pk.slice(0, 6)}…${pk.slice(-4)}`;
-}
 
 interface Props {
   hasQuery: boolean;

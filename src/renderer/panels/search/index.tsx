@@ -8,6 +8,7 @@ import type {
 import { type ApiClient, api } from '../../lib/api';
 import { useStore } from '../../lib/store';
 import { applyCategorySelection } from './categoryFilter';
+import { shortPk } from './format';
 import { ResultsList } from './ResultsList';
 import { SearchHeader } from './SearchHeader';
 
@@ -17,11 +18,6 @@ interface Props {
 
 const DEBOUNCE_MS = 150;
 const PAGE_LIMIT = 100;
-
-function shortPk(pk: string): string {
-  if (pk.length <= 12) return pk;
-  return `${pk.slice(0, 6)}…${pk.slice(-4)}`;
-}
 
 export function SearchResults({ client }: Props) {
   const searchQuery = useStore((s) => s.searchQuery);
