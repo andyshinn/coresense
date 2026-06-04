@@ -6,6 +6,7 @@ import { ApiKeyGate } from './components/ApiKeyGate';
 import { PacketLogHost, PathLearnedDialogHost, StatusBarHost } from './components/AppHosts';
 import { Toaster } from './components/ui/sonner';
 import { CommandPalette } from './features/command-palette';
+import { ShortcutsHelpDialog } from './features/help-overlay';
 import { useWebSocket } from './hooks/useWebSocket';
 import { type ApiClient, api, fetchCapabilities } from './lib/api';
 import { loadApiKey, saveApiKey } from './lib/apiKey';
@@ -283,6 +284,7 @@ export function App() {
     <AppShell client={client}>
       <Toaster richColors closeButton position="bottom-right" />
       <CommandPalette client={client} cycleThemePref={cycleThemePref} />
+      <ShortcutsHelpDialog />
       <PathLearnedDialogHost client={client} />
       <div className="flex h-full flex-1 flex-col">
         <div className="flex-1 overflow-hidden">
