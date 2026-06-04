@@ -53,9 +53,10 @@ export function Unreads({ client: _client }: { client: ApiClient | null }) {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.shiftKey) return;
       // Defer to anything that owns Esc for dismissal (command palette, the
-      // add-channel popover) so we don't clear a card out from under it.
+      // add-channel popover, the keyboard-shortcuts help overlay) so we don't
+      // clear a card out from under it.
       const s = useStore.getState();
-      if (s.paletteOpen || s.addChannelOpen) return;
+      if (s.paletteOpen || s.addChannelOpen || s.helpOpen) return;
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
         return;
