@@ -319,7 +319,7 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
       kind: r.kind,
       name: r.name,
       publicKeyHex: r.kind === 'contact' && r.key.startsWith('c:') ? r.key.slice(2) : undefined,
-      contactKind: r.kind === 'contact' ? ((r.contact_kind as ContactKind) || undefined) : undefined,
+      contactKind: r.kind === 'contact' ? (r.contact_kind as ContactKind) || undefined : undefined,
       score: r.score,
       messageMatches: matchCountByKey.get(r.key) ?? 0,
     }));

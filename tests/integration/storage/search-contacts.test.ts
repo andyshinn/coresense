@@ -43,10 +43,30 @@ describe('search — contacts by kind', () => {
     rebuildConversationsIndex({
       channels: [],
       contacts: [
-        contact({ key: 'c:chat', name: 'ChatPerson', kind: 'chat', publicKeyHex: pk('c4a7', '0001') }),
-        contact({ key: 'c:rep', name: 'RepeaterNode', kind: 'repeater', publicKeyHex: pk('4ce9', '0002') }),
-        contact({ key: 'c:room', name: 'RoomServer', kind: 'room', publicKeyHex: pk('40b0', '0003') }),
-        contact({ key: 'c:sen', name: 'SensorNode', kind: 'sensor', publicKeyHex: pk('5e50', '0004') }),
+        contact({
+          key: 'c:chat',
+          name: 'ChatPerson',
+          kind: 'chat',
+          publicKeyHex: pk('c4a7', '0001'),
+        }),
+        contact({
+          key: 'c:rep',
+          name: 'RepeaterNode',
+          kind: 'repeater',
+          publicKeyHex: pk('4ce9', '0002'),
+        }),
+        contact({
+          key: 'c:room',
+          name: 'RoomServer',
+          kind: 'room',
+          publicKeyHex: pk('40b0', '0003'),
+        }),
+        contact({
+          key: 'c:sen',
+          name: 'SensorNode',
+          kind: 'sensor',
+          publicKeyHex: pk('5e50', '0004'),
+        }),
       ],
     });
     const kindOf = (name: string) =>
@@ -63,8 +83,18 @@ describe('search — contacts by kind', () => {
     rebuildConversationsIndex({
       channels: [],
       contacts: [
-        contact({ key: 'c:r1', name: 'North Ridge', kind: 'repeater', publicKeyHex: pk('77aa', '0011') }),
-        contact({ key: 'c:r2', name: 'South Peak', kind: 'repeater', publicKeyHex: pk('88bb', '0022') }),
+        contact({
+          key: 'c:r1',
+          name: 'North Ridge',
+          kind: 'repeater',
+          publicKeyHex: pk('77aa', '0011'),
+        }),
+        contact({
+          key: 'c:r2',
+          name: 'South Peak',
+          kind: 'repeater',
+          publicKeyHex: pk('88bb', '0022'),
+        }),
         contact({ key: 'c:chat', name: 'Alice', kind: 'chat', publicKeyHex: pk('a1ce', '0033') }),
       ],
     });
