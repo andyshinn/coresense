@@ -38,6 +38,7 @@ import {
   type RepeaterNeighboursPage,
   type RepeaterStatusSnapshot,
   type RepeaterTelemetrySnapshot,
+  type SearchCategory,
   type SearchSort,
   type StateSnapshot,
   type SyncProgress,
@@ -56,7 +57,7 @@ const MAX_PACKETS = 500;
 const MAX_LOGS = 5000;
 
 export interface SearchFilters {
-  categories: ('channel' | 'dm')[];
+  categories: SearchCategory[];
   key?: string;
   /** Sender hex public key or the literal 'self' for owner-sent. */
   fromPk?: string;
@@ -64,7 +65,7 @@ export interface SearchFilters {
   tsTo?: number;
 }
 
-const DEFAULT_SEARCH_FILTERS: SearchFilters = { categories: ['channel', 'dm'] };
+const DEFAULT_SEARCH_FILTERS: SearchFilters = { categories: ['channel', 'dm', 'contact'] };
 
 // ---- Contact Manager view state -------------------------------------------
 export type CmStateTab = 'all' | 'on-radio' | 'discovered' | 'blocked';

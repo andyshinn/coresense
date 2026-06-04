@@ -228,10 +228,15 @@ export interface Owner {
 
 export type SearchSort = 'relevance' | 'recency';
 
+export type SearchCategory = 'channel' | 'dm' | 'contact';
+
 export interface SearchOptions {
   query: string;
   sort: SearchSort;
-  categories?: ('channel' | 'dm')[];
+  /** Result categories to include. Omitted/empty → all three. 'channel' and
+   *  'dm' gate message rows by m.kind; 'channel' also shows the Channels
+   *  conversation section; 'contact' shows the Contacts conversation section. */
+  categories?: SearchCategory[];
   /** Restrict to a single conversation key. */
   key?: string;
   /** Hex public key of sender. Self-sent messages have from_pk = NULL, so
