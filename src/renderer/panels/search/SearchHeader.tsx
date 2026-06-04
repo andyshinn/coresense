@@ -1,8 +1,9 @@
 import { Loader2, Search } from 'lucide-react';
 import type { RefObject } from 'react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type { Contact, SearchSort } from '../../../shared/types';
 import type { SearchFilters } from '../../lib/store';
-import { DateInput, FilterChip, SortPill } from './atoms';
+import { DateInput, SortPill } from './atoms';
 
 interface Props {
   inputRef: RefObject<HTMLInputElement | null>;
@@ -12,7 +13,7 @@ interface Props {
   loading: boolean;
   filters: SearchFilters;
   setFilters: (next: Partial<SearchFilters>) => void;
-  toggleKind: (k: 'channel' | 'dm') => void;
+  onCategoriesChange: (next: string[]) => void;
   conversationOptions: { key: string; label: string }[];
   contacts: Contact[];
   observedUnknownSenders: Map<string, string>;
@@ -28,7 +29,7 @@ export function SearchHeader({
   loading,
   filters,
   setFilters,
-  toggleKind,
+  onCategoriesChange,
   conversationOptions,
   contacts,
   observedUnknownSenders,
@@ -65,16 +66,24 @@ export function SearchHeader({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
-        <FilterChip
-          label="Channels"
-          active={filters.categories.includes('channel')}
-          onClick={() => toggleKind('channel')}
-        />
-        <FilterChip
-          label="DMs"
-          active={filters.categories.includes('dm')}
-          onClick={() => toggleKind('dm')}
-        />
+        <ToggleGroup
+          type="multiple"
+          variant="outline"
+          size="sm"
+          value={filters.categories}
+          onValueChange={onCategoriesChange}
+          className="flex-wrap"
+        >
+          <ToggleGroupItem value="channel" aria-label="Filter channels">
+            Channels
+          </ToggleGroupItem>
+          <ToggleGroupItem value="dm" aria-label="Filter direct messages">
+            DMs
+          </ToggleGroupItem>
+          <ToggleGroupItem value="contact" aria-label="Filter contacts">
+            Contacts
+          </ToggleGroupItem>
+        </ToggleGroup>
         <select
           value={filters.key ?? ''}
           onChange={(e) => setFilters({ key: e.target.value || undefined })}
