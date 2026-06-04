@@ -23,7 +23,7 @@ import { blockingStore } from '../blocking/store';
 import { emit } from '../events/bus';
 import { hasApiKey } from '../map/api-key';
 import { messagesStore } from '../storage/messages';
-import { rebuildConversationsIndex } from '../storage/search';
+import { rebuildConversationsIndex, type SearchBlockContext } from '../storage/search';
 import { settingsStore } from '../storage/settings';
 
 // Persistent state holder. Settings/channels/contacts/ui live in JSON files;
@@ -335,6 +335,17 @@ class StateHolder {
 
   getBlockRules(): BlockRule[] {
     return blockingStore().list();
+  }
+  /** Snapshot of the inputs needed to evaluate block rules against messages
+   *  right now (current contacts + active rules + compiled regex cache). Handed
+   *  to searchMessages so the search module stays a pure query layer instead of
+   *  reaching into the state/blocking singletons itself. */
+  getSearchBlockContext(): SearchBlockContext {
+    return {
+      contacts: this.contacts,
+      blockRules: blockingStore().list(),
+      regexCache: blockingStore().regexCacheRef(),
+    };
   }
   addBlockRules(partials: Array<Omit<BlockRule, 'id' | 'createdAt' | 'matchCount'>>): BlockRule[] {
     const inserted = blockingStore().addMany(partials);

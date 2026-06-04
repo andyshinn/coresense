@@ -713,7 +713,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     ) {
       return c.json({ error: 'query and sort are required' }, 400);
     }
-    return c.json(searchMessages(body));
+    return c.json(searchMessages(body, stateHolder().getSearchBlockContext()));
   });
 
   // Repeater admin: request a status / telemetry snapshot from a contact.

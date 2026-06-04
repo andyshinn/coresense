@@ -48,7 +48,10 @@ describe('messagesStore round-trip', () => {
     messagesStore.insert(msg({ id: 's1', body: 'the quick brown fox' }));
     // searchMessages takes a SearchOptions object; sort is required.
     // MessageHit.id maps from the DB mid column, which equals Message.id.
-    const results = searchMessages({ query: 'quick', sort: 'relevance' });
+    const results = searchMessages(
+      { query: 'quick', sort: 'relevance' },
+      { contacts: [], blockRules: [], regexCache: new Map() },
+    );
     expect(results.messages.some((r) => r.id === 's1')).toBe(true);
   });
 });

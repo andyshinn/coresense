@@ -1,5 +1,6 @@
 import { isMessageBlocked } from '../../shared/blocking/match';
 import type {
+  BlockRule,
   Channel,
   Contact,
   ConversationHit,
@@ -7,8 +8,6 @@ import type {
   SearchOptions,
   SearchResults,
 } from '../../shared/types';
-import { blockingStore } from '../blocking/store';
-import { stateHolder } from '../state/holder';
 import { openDb } from './db';
 
 // Tokens shorter than this are dropped to avoid massively broad result sets
@@ -95,7 +94,20 @@ interface ConversationRow {
   score: number;
 }
 
-export function searchMessages(opts: SearchOptions): SearchResults {
+// `contacts` is injected by the caller (the API route reads it from the state
+/** Everything searchMessages needs to flag hits that match an active block
+ *  rule: `contacts` resolves from_pk → contact name, `blockRules` + `regexCache`
+ *  drive isMessageBlocked. Injected by the caller (the API route builds it from
+ *  the state holder) so this stays a pure query module — it never reaches into
+ *  the app-state / blocking singletons itself. Pass empty values to skip
+ *  annotation (e.g. tests): `{ contacts: [], blockRules: [], regexCache: new Map() }`. */
+export interface SearchBlockContext {
+  contacts: Contact[];
+  blockRules: BlockRule[];
+  regexCache: Map<string, RegExp>;
+}
+
+export function searchMessages(opts: SearchOptions, block: SearchBlockContext): SearchResults {
   const db = openDb();
   const built = buildMatchExpression(opts.query);
   if (!built) {
@@ -253,12 +265,11 @@ export function searchMessages(opts: SearchOptions): SearchResults {
   // body), so for channel messages only name / nameRegex rules can ever match
   // — pubkey / pubkeyPrefix rules silently no-op on channel hits because the
   // origin-hop shortId/pubkey isn't recoverable from the index.
-  const rules = blockingStore().list();
+  const rules = block.blockRules;
   if (rules.length > 0) {
-    const regexCache = blockingStore().regexCacheRef();
-    const contacts = stateHolder().getContacts();
+    const regexCache = block.regexCache;
     const contactNameByPk = (pk: string): string | undefined =>
-      contacts.find((c) => c.publicKeyHex === pk)?.name;
+      block.contacts.find((c) => c.publicKeyHex === pk)?.name;
     for (const h of messageHits) {
       const synthetic = {
         id: h.id,
