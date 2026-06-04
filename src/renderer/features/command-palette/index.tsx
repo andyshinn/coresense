@@ -8,6 +8,7 @@ import {
   CommandItem,
   CommandList,
 } from '../../components/ui/command';
+import { Kbd } from '../../components/ui/kbd';
 import type { ApiClient } from '../../lib/api';
 import { loadLastDevice } from '../../lib/lastDevice';
 import { useStore } from '../../lib/store';
@@ -16,6 +17,10 @@ import { buildGotoItems } from './items/goto';
 import { buildPinnedItems } from './items/pinned';
 import { buildRecentItems } from './items/recent';
 import type { PaletteItem } from './types';
+
+// Smaller, filled key-cap look for the palette footer hints (overrides the
+// shared Kbd's default outline/size).
+const FOOTER_KBD_CLS = 'h-auto min-w-0 border-cs-border bg-cs-bg-3 px-1 py-px text-[10px]';
 
 interface Props {
   client: ApiClient | null;
@@ -180,18 +185,10 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
         ))}
       </CommandList>
       <footer className="flex shrink-0 items-center gap-3 border-t border-cs-border bg-cs-bg-2 px-3 py-1.5 text-[10px] text-cs-text-dim">
-        <Kbd>↑↓</Kbd> navigate
-        <Kbd>↵</Kbd> run
-        <Kbd>esc</Kbd> close
+        <Kbd className={FOOTER_KBD_CLS}>↑↓</Kbd> navigate
+        <Kbd className={FOOTER_KBD_CLS}>↵</Kbd> run
+        <Kbd className={FOOTER_KBD_CLS}>esc</Kbd> close
       </footer>
     </CommandDialog>
-  );
-}
-
-function Kbd({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="rounded border border-cs-border bg-cs-bg-3 px-1 py-px font-mono text-[10px] text-cs-text-muted">
-      {children}
-    </kbd>
   );
 }
