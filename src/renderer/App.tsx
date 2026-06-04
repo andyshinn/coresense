@@ -10,6 +10,7 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { type ApiClient, api, fetchCapabilities } from './lib/api';
 import { loadApiKey, saveApiKey } from './lib/apiKey';
 import { notify } from './lib/notify';
+import { dispatchShortcut } from './lib/shortcut-dispatch';
 import { useStore } from './lib/store';
 import {
   applyTheme,
@@ -74,27 +75,13 @@ export function App() {
     // the linter is the cheapest path forward.
   }, [setSystemDark]);
 
-  // Global Cmd/Ctrl+K (command palette) and Cmd/Ctrl+F (search panel)
-  // listeners. The menu accelerators handle these when nothing else has focus,
-  // but a focused input swallows the keydown — this captures the bubbled event
-  // so the shortcut works regardless of focus. Cmd+F routes to the Search
-  // panel rather than the optional sidebar quick-filter input, so it works
-  // identically whether or not `showLeftNavSearch` is enabled.
+  // Global keyboard shortcuts. The native menu accelerators handle the
+  // menu-surface bindings even when an input is focused; this listener owns the
+  // renderer-surface ones (Quick find, Help, unread-nav, ⌘1-9, Mark all read).
+  // See src/shared/shortcuts.ts for the single source of truth.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault();
-        useStore.getState().openPalette();
-      } else if ((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F')) {
-        e.preventDefault();
-        const s = useStore.getState();
-        s.setActiveKey('tool:search');
-        s.requestSearchFocus();
-      } else if (e.shiftKey && e.key === 'Escape') {
-        // Shift+Esc clears every unread, from anywhere in the app.
-        e.preventDefault();
-        useStore.getState().markAllReadGlobal();
-      }
+      if (dispatchShortcut(e)) e.preventDefault();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);

@@ -297,6 +297,8 @@ interface CoreState {
   selectedMessageId: string | null;
   // Cmd+K palette open state. Not persisted across reloads.
   paletteOpen: boolean;
+  // Keyboard-shortcuts help overlay open state. Not persisted across reloads.
+  helpOpen: boolean;
   // Add Channel popover open state. Not persisted across reloads.
   addChannelOpen: boolean;
 
@@ -402,6 +404,8 @@ interface CoreState {
   clearPackets: () => void;
   openPalette: () => void;
   closePalette: () => void;
+  openHelp: () => void;
+  closeHelp: () => void;
   setAddChannelOpen: (open: boolean) => void;
 
   setSearchQuery: (query: string) => void;
@@ -532,6 +536,7 @@ export const useStore = create<CoreState>((set) => ({
   busy: false,
   selectedMessageId: null,
   paletteOpen: false,
+  helpOpen: false,
   addChannelOpen: false,
 
   searchQuery: '',
@@ -860,6 +865,8 @@ export const useStore = create<CoreState>((set) => ({
     }),
   openPalette: () => set(() => ({ paletteOpen: true })),
   closePalette: () => set(() => ({ paletteOpen: false })),
+  openHelp: () => set(() => ({ helpOpen: true })),
+  closeHelp: () => set(() => ({ helpOpen: false })),
   setAddChannelOpen: (open) => set({ addChannelOpen: open }),
 
   setSearchQuery: (query) => set(() => ({ searchQuery: query })),
