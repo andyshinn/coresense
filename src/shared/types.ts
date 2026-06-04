@@ -270,6 +270,9 @@ export interface ConversationHit {
   name: string;
   /** For contacts: hex public key. For channels: undefined. */
   publicKeyHex?: string;
+  /** Contact sub-kind; present only when kind === 'contact'. Drives the
+   *  search row's icon + badge and (future) a kind filter. */
+  contactKind?: ContactKind;
   score: number;
   /** Count of messages in this conversation matching the same query. */
   messageMatches: number;

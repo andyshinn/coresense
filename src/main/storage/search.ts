@@ -3,6 +3,7 @@ import type {
   BlockRule,
   Channel,
   Contact,
+  ContactKind,
   ConversationHit,
   MessageHit,
   SearchOptions,
@@ -91,6 +92,8 @@ interface ConversationRow {
   key: string;
   name: string;
   pk_prefix: string;
+  /** Empty string for channels; the ContactKind value for contacts. */
+  contact_kind: string;
   score: number;
 }
 
@@ -124,7 +127,7 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
   // (more negative) score winning.
   const convoRows = db
     .prepare(
-      `SELECT kind, key, name, pk_prefix, bm25(conversations_fts) AS score
+      `SELECT kind, key, name, pk_prefix, contact_kind, bm25(conversations_fts) AS score
        FROM conversations_fts
        WHERE conversations_fts MATCH ?
        ORDER BY bm25(conversations_fts) ASC
@@ -145,7 +148,7 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
       .join(' OR ');
     const revRows = db
       .prepare(
-        `SELECT kind, key, name, pk_prefix, bm25(conversations_fts) AS score
+        `SELECT kind, key, name, pk_prefix, contact_kind, bm25(conversations_fts) AS score
          FROM conversations_fts
          WHERE conversations_fts MATCH ?
          ORDER BY bm25(conversations_fts) ASC
@@ -316,6 +319,7 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
       kind: r.kind,
       name: r.name,
       publicKeyHex: r.kind === 'contact' && r.key.startsWith('c:') ? r.key.slice(2) : undefined,
+      contactKind: r.kind === 'contact' ? ((r.contact_kind as ContactKind) || undefined) : undefined,
       score: r.score,
       messageMatches: matchCountByKey.get(r.key) ?? 0,
     }));
@@ -336,17 +340,17 @@ export function rebuildConversationsIndex(snapshot: {
   const db = openDb();
   db.exec(`DELETE FROM conversations_fts`);
   const ins = db.prepare(
-    `INSERT INTO conversations_fts (kind, key, name, pk_prefix, pk_suffix_rev)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO conversations_fts (kind, key, name, pk_prefix, pk_suffix_rev, contact_kind)
+     VALUES (?, ?, ?, ?, ?, ?)`,
   );
   db.exec('BEGIN');
   try {
     for (const ch of snapshot.channels) {
-      ins.run('channel', ch.key, ch.name, '', '');
+      ins.run('channel', ch.key, ch.name, '', '', '');
     }
     for (const c of snapshot.contacts) {
       const pk = c.publicKeyHex.toLowerCase();
-      ins.run('contact', c.key, c.name, pk.slice(0, 16), reverseStr(pk.slice(-16)));
+      ins.run('contact', c.key, c.name, pk.slice(0, 16), reverseStr(pk.slice(-16)), c.kind);
     }
     db.exec('COMMIT');
   } catch (err) {
