@@ -1,13 +1,6 @@
-import type { LucideIcon } from 'lucide-react';
-import { DoorOpen, Hash, Radio, User } from 'lucide-react';
+import { Hash } from 'lucide-react';
 import type { ConversationHit } from '../../../shared/types';
-
-const CONTACT_KIND_ICON: Record<string, LucideIcon> = {
-  chat: User,
-  repeater: Radio,
-  sensor: Radio,
-  room: DoorOpen,
-};
+import { CONTACT_ICON } from '../../lib/conversationIcons';
 
 function shortPk(pk: string): string {
   if (pk.length <= 12) return pk;
@@ -15,7 +8,9 @@ function shortPk(pk: string): string {
 }
 
 export function ConversationRow({ hit, onClick }: { hit: ConversationHit; onClick: () => void }) {
-  const Icon = hit.kind === 'channel' ? Hash : (CONTACT_KIND_ICON.chat ?? User);
+  // Channels use the hash glyph; contacts use the shared per-kind icon
+  // (chat → MessageCircle, repeater → Radio, room → DoorOpen, sensor → Activity).
+  const Icon = hit.kind === 'channel' ? Hash : CONTACT_ICON[hit.contactKind ?? 'chat'];
   return (
     <li>
       <button
@@ -25,6 +20,11 @@ export function ConversationRow({ hit, onClick }: { hit: ConversationHit; onClic
       >
         <Icon size={14} className="text-cs-text-muted" aria-hidden="true" />
         <span className="truncate">{hit.name}</span>
+        {hit.contactKind && (
+          <span className="rounded border border-cs-border px-1 text-[10px] text-cs-text-dim">
+            {hit.contactKind}
+          </span>
+        )}
         {hit.publicKeyHex && (
           <span className="font-mono text-[10px] text-cs-text-dim">
             {shortPk(hit.publicKeyHex)}

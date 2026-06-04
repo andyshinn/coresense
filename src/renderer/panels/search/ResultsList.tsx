@@ -3,6 +3,7 @@ import type { ConversationHit, MessageHit } from '../../../shared/types';
 import { EmptyState, Section } from './atoms';
 import { ConversationRow } from './ConversationRow';
 import { MessageRow } from './MessageRow';
+import { partitionConversations } from './partition';
 
 function shortPk(pk: string): string {
   if (pk.length <= 12) return pk;
@@ -52,6 +53,7 @@ export function ResultsList({
   // header reads "(visible of total)" and "Load more" continues to fetch
   // against the unfiltered server total.
   const visibleMessages = messages.filter((m) => m.blocked !== true);
+  const { channels, contacts } = partitionConversations(conversations);
   return (
     <div className="flex-1 overflow-y-auto">
       {!hasQuery && (
@@ -64,10 +66,23 @@ export function ResultsList({
       {empty && <EmptyState title="No results" body={`No matches for "${searchQuery}".`} />}
       {hasResults && (
         <div className="space-y-4 p-4">
-          {conversations.length > 0 && (
-            <Section title={`Conversations (${conversations.length})`}>
+          {channels.length > 0 && (
+            <Section title={`Channels (${channels.length})`}>
               <ul className="divide-y divide-cs-border">
-                {conversations.map((hit) => (
+                {channels.map((hit) => (
+                  <ConversationRow
+                    key={hit.key}
+                    hit={hit}
+                    onClick={() => onConversationClick(hit)}
+                  />
+                ))}
+              </ul>
+            </Section>
+          )}
+          {contacts.length > 0 && (
+            <Section title={`Contacts (${contacts.length})`}>
+              <ul className="divide-y divide-cs-border">
+                {contacts.map((hit) => (
                   <ConversationRow
                     key={hit.key}
                     hit={hit}
