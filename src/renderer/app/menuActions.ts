@@ -1,5 +1,6 @@
 import type { MenuAction } from '../../shared/types';
 import { api } from '../lib/api';
+import { loadLastDevice } from '../lib/lastDevice';
 import { notify } from '../lib/notify';
 import { useStore } from '../lib/store';
 
@@ -66,6 +67,32 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         void api.sendAdvert({ baseUrl, apiKey }).then(
           () => notify.success('Self-advert sent'),
           (err) => notify.error(`Advert failed: ${(err as Error).message}`, err),
+        );
+        break;
+      }
+      case 'openPacketLog':
+        setActiveKey('tool:packetlog');
+        break;
+      case 'reconnect': {
+        if (!baseUrl || !apiKey) break;
+        const last = loadLastDevice();
+        if (!last) {
+          notify.error('No previous device to reconnect to');
+          break;
+        }
+        const ts = useStore.getState().transportState;
+        if (ts !== 'idle' && ts !== 'error') break; // already connected/connecting
+        void api.connect({ baseUrl, apiKey }, last.id).catch((err) => {
+          notify.error(`Reconnect failed: ${(err as Error).message}`, err);
+        });
+        break;
+      }
+      case 'toggleRepeat': {
+        if (!baseUrl || !apiKey) break;
+        const rs = useStore.getState().radioSettings;
+        void api.putRadioSettings({ baseUrl, apiKey }, { ...rs, repeatMode: !rs.repeatMode }).then(
+          () => notify.success(`Repeat mode ${rs.repeatMode ? 'disabled' : 'enabled'}`),
+          (err) => notify.error(`Repeat toggle failed: ${(err as Error).message}`, err),
         );
         break;
       }

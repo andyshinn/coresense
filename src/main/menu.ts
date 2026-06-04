@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, type MenuItemConstructorOptions, shell } from 'electron';
+import { accelFor, menuActionFor } from '../shared/shortcuts';
 import type { MenuAction } from '../shared/types';
 import { showAboutDialog } from './about';
 import { emit } from './events/bus';
@@ -21,8 +22,8 @@ export function buildMenu(): Menu {
         { type: 'separator' },
         {
           label: 'Settings…',
-          accelerator: `${mod}+,`,
-          click: send({ kind: 'openSettings' }),
+          accelerator: accelFor('settings'),
+          click: send(menuActionFor('settings')),
         },
         { type: 'separator' },
         { role: 'services' },
@@ -52,8 +53,18 @@ export function buildMenu(): Menu {
       { type: 'separator' },
       {
         label: 'Send Advert',
-        accelerator: `${mod}+Shift+A`,
-        click: send({ kind: 'sendAdvert' }),
+        accelerator: accelFor('sendAdvert'),
+        click: send(menuActionFor('sendAdvert')),
+      },
+      {
+        label: 'Reconnect Radio',
+        accelerator: accelFor('reconnect'),
+        click: send(menuActionFor('reconnect')),
+      },
+      {
+        label: 'Toggle Repeat Mode',
+        accelerator: accelFor('toggleRepeat'),
+        click: send(menuActionFor('toggleRepeat')),
       },
       {
         label: 'Disconnect Radio',
@@ -65,8 +76,8 @@ export function buildMenu(): Menu {
             { type: 'separator' },
             {
               label: 'Settings…',
-              accelerator: `${mod}+,`,
-              click: send({ kind: 'openSettings' }),
+              accelerator: accelFor('settings'),
+              click: send(menuActionFor('settings')),
             },
             { type: 'separator' },
             { role: 'quit' },
@@ -92,45 +103,30 @@ export function buildMenu(): Menu {
     submenu: [
       {
         label: 'Command Palette…',
-        accelerator: `${mod}+K`,
-        click: send({ kind: 'openPalette' }),
+        accelerator: accelFor('commandPalette'),
+        click: send(menuActionFor('commandPalette')),
       },
       { type: 'separator' },
       {
         label: 'Toggle Left Nav',
-        accelerator: `${mod}+\\`,
-        click: send({ kind: 'toggleLeftNav' }),
+        accelerator: accelFor('toggleSidebar'),
+        click: send(menuActionFor('toggleSidebar')),
       },
       {
         label: 'Toggle Right Rail',
-        accelerator: `${mod}+.`,
-        click: send({ kind: 'toggleRightRail' }),
-      },
-      { type: 'separator' },
-      {
-        label: 'Focus Channels',
-        accelerator: `${mod}+1`,
-        click: send({ kind: 'focusSection', section: 'channels' }),
+        accelerator: accelFor('toggleRightRail'),
+        click: send(menuActionFor('toggleRightRail')),
       },
       {
-        label: 'Focus Contacts',
-        accelerator: `${mod}+2`,
-        click: send({ kind: 'focusSection', section: 'contacts' }),
-      },
-      {
-        label: 'Focus Tools',
-        accelerator: `${mod}+3`,
-        click: send({ kind: 'focusSection', section: 'tools' }),
-      },
-      {
-        label: 'Focus Connection',
-        accelerator: `${mod}+4`,
-        click: send({ kind: 'focusSection', section: 'connection' }),
+        label: 'Packet Log',
+        accelerator: accelFor('packetLog'),
+        click: send(menuActionFor('packetLog')),
       },
       { type: 'separator' },
       {
         label: 'Cycle Theme',
-        click: send({ kind: 'cycleTheme' }),
+        accelerator: accelFor('toggleTheme'),
+        click: send(menuActionFor('toggleTheme')),
       },
       { type: 'separator' },
       { role: 'reload' },
@@ -159,19 +155,19 @@ export function buildMenu(): Menu {
       { type: 'separator' },
       {
         label: 'Previous Pinned',
-        accelerator: `${mod}+[`,
-        click: send({ kind: 'cyclePinned', direction: 'prev' }),
+        accelerator: accelFor('prevPinned'),
+        click: send(menuActionFor('prevPinned')),
       },
       {
         label: 'Next Pinned',
-        accelerator: `${mod}+]`,
-        click: send({ kind: 'cyclePinned', direction: 'next' }),
+        accelerator: accelFor('nextPinned'),
+        click: send(menuActionFor('nextPinned')),
       },
       { type: 'separator' },
       {
         label: 'Pin / Unpin Current',
-        accelerator: `${mod}+D`,
-        click: send({ kind: 'pinToggle' }),
+        accelerator: accelFor('pinCurrent'),
+        click: send(menuActionFor('pinCurrent')),
       },
     ],
   });

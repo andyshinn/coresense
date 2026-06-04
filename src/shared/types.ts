@@ -780,7 +780,9 @@ export type MenuAction =
   | { kind: 'openPalette' }
   | { kind: 'toggleRightRail' }
   | { kind: 'toggleLeftNav' }
-  | { kind: 'focusSection'; section: 'channels' | 'contacts' | 'tools' | 'connection' }
+  | { kind: 'openPacketLog' }
+  | { kind: 'reconnect' }
+  | { kind: 'toggleRepeat' }
   | { kind: 'cyclePinned'; direction: 'prev' | 'next' }
   | { kind: 'sendAdvert' }
   | { kind: 'focusKey'; key: string }
