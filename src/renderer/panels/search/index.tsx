@@ -7,6 +7,7 @@ import type {
 } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { useStore } from '../../lib/store';
+import { applyCategorySelection } from './categoryFilter';
 import { ResultsList } from './ResultsList';
 import { SearchHeader } from './SearchHeader';
 
@@ -132,7 +133,7 @@ export function SearchResults({ client }: Props) {
         const r: SearchResultsPayload = await api.search(client, {
           query: searchQuery,
           sort,
-          kinds: filters.kinds,
+          categories: filters.categories,
           key: filters.key,
           fromPk: filters.fromPk,
           tsFrom: filters.tsFrom,
@@ -158,7 +159,7 @@ export function SearchResults({ client }: Props) {
     client,
     searchQuery,
     sort,
-    filters.kinds,
+    filters.categories,
     filters.key,
     filters.fromPk,
     filters.tsFrom,
@@ -172,7 +173,7 @@ export function SearchResults({ client }: Props) {
       const r: SearchResultsPayload = await api.search(client, {
         query: searchQuery,
         sort,
-        kinds: filters.kinds,
+        categories: filters.categories,
         key: filters.key,
         fromPk: filters.fromPk,
         tsFrom: filters.tsFrom,
@@ -238,14 +239,8 @@ export function SearchResults({ client }: Props) {
     [setSort, client, appSettings],
   );
 
-  const toggleKind = (k: 'channel' | 'dm') => {
-    const has = filters.kinds.includes(k);
-    const next = has ? filters.kinds.filter((x) => x !== k) : [...filters.kinds, k];
-    // Don't allow zero kinds — would silently hide all messages. Treat the
-    // second-toggle-off as "select only the other one" which the user
-    // intends.
-    if (next.length === 0) setFilters({ kinds: [k === 'channel' ? 'dm' : 'channel'] });
-    else setFilters({ kinds: next });
+  const onCategoriesChange = (next: string[]) => {
+    setFilters({ categories: applyCategorySelection(next, filters.categories) });
   };
 
   const hasQuery = searchQuery.trim().length > 0;
@@ -263,7 +258,7 @@ export function SearchResults({ client }: Props) {
         loading={loading}
         filters={filters}
         setFilters={setFilters}
-        toggleKind={toggleKind}
+        onCategoriesChange={onCategoriesChange}
         conversationOptions={conversationOptions}
         contacts={contacts}
         observedUnknownSenders={observedUnknownSenders}

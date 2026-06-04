@@ -60,13 +60,19 @@ export function openDb(): DatabaseSync {
     -- channel/contact mutation rather than maintained incrementally.
     -- pk_prefix holds the first 16 hex chars; pk_suffix_rev holds the LAST
     -- 16 hex chars REVERSED so FTS5's prefix-only wildcard ('abc*') doubles
-    -- as suffix matching when we reverse the user's hex query.
-    CREATE VIRTUAL TABLE IF NOT EXISTS conversations_fts USING fts5(
+    -- as suffix matching when we reverse the user's hex query. contact_kind is
+    -- indexed so typing a kind ('repeater') surfaces those contacts and a
+    -- future filter can use it. Dropped + recreated (not IF NOT EXISTS) because
+    -- the table is derived: FTS5 can't ALTER ADD COLUMN, and the data is
+    -- repopulated by rebuildConversationsIndex on open.
+    DROP TABLE IF EXISTS conversations_fts;
+    CREATE VIRTUAL TABLE conversations_fts USING fts5(
       kind UNINDEXED,
       key  UNINDEXED,
       name,
       pk_prefix,
       pk_suffix_rev,
+      contact_kind,
       tokenize = 'unicode61 remove_diacritics 2'
     );
 

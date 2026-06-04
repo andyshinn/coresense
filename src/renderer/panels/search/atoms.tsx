@@ -3,31 +3,6 @@ import { cn } from '../../lib/utils';
 
 const END_OF_DAY_MS = 86_399_999;
 
-export function FilterChip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'h-7 rounded-md border px-2 transition-colors',
-        active
-          ? 'border-cs-accent bg-cs-accent-soft/20 text-cs-text'
-          : 'border-cs-border bg-cs-bg-3 text-cs-text-muted hover:text-cs-text',
-      )}
-    >
-      {label}
-    </button>
-  );
-}
-
 export function SortPill({
   label,
   active,

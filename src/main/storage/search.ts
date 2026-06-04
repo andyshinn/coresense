@@ -3,8 +3,10 @@ import type {
   BlockRule,
   Channel,
   Contact,
+  ContactKind,
   ConversationHit,
   MessageHit,
+  SearchCategory,
   SearchOptions,
   SearchResults,
 } from '../../shared/types';
@@ -91,6 +93,8 @@ interface ConversationRow {
   key: string;
   name: string;
   pk_prefix: string;
+  /** Empty string for channels; the ContactKind value for contacts. */
+  contact_kind: string;
   score: number;
 }
 
@@ -116,7 +120,15 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
 
   const limit = Math.min(opts.limit ?? DEFAULT_LIMIT, HARD_LIMIT);
   const offset = Math.min(Math.max(opts.offset ?? 0, 0), HARD_OFFSET);
-  const kinds = opts.kinds ?? ['channel', 'dm'];
+  const categories = opts.categories?.length
+    ? opts.categories
+    : (['channel', 'dm', 'contact'] as SearchCategory[]);
+  const showChannels = categories.includes('channel');
+  const showContacts = categories.includes('contact');
+  // Message rows are gated by the message-kind subset of the selected
+  // categories. 'contact' is a conversation-section category, not a message
+  // kind, so it never appears here.
+  const msgKinds = categories.filter((c) => c === 'channel' || c === 'dm');
 
   // ---- Conversation hits (run first; feeds the sender-union) -------------
   // Two passes: forward match on name + pk_prefix, then a separate pass on
@@ -124,7 +136,7 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
   // (more negative) score winning.
   const convoRows = db
     .prepare(
-      `SELECT kind, key, name, pk_prefix, bm25(conversations_fts) AS score
+      `SELECT kind, key, name, pk_prefix, contact_kind, bm25(conversations_fts) AS score
        FROM conversations_fts
        WHERE conversations_fts MATCH ?
        ORDER BY bm25(conversations_fts) ASC
@@ -145,7 +157,7 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
       .join(' OR ');
     const revRows = db
       .prepare(
-        `SELECT kind, key, name, pk_prefix, bm25(conversations_fts) AS score
+        `SELECT kind, key, name, pk_prefix, contact_kind, bm25(conversations_fts) AS score
          FROM conversations_fts
          WHERE conversations_fts MATCH ?
          ORDER BY bm25(conversations_fts) ASC
@@ -161,6 +173,11 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
   // Pubkeys of matched *contact* conversations — these become the sender
   // expansion. A search for "Alice" pulls every message where she's the
   // from_pk in addition to bodies containing 'Alice'.
+  //
+  // Deliberately collected from the unfiltered matches, BEFORE the showContacts
+  // category filter below: sender-expansion is part of the message ('dm') leg,
+  // not the Contacts section. So searching "Alice" with the dm category on still
+  // surfaces her DMs even when the Contacts section itself is hidden.
   const senderPks: string[] = [];
   for (const r of convoByKey.values()) {
     if (r.kind === 'contact' && r.key.startsWith('c:')) senderPks.push(r.key.slice(2));
@@ -171,9 +188,9 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
   // filterParams array and splice it in twice.
   const filters: string[] = [];
   const filterParams: (string | number)[] = [];
-  if (kinds.length < 2) {
+  if (msgKinds.length === 1) {
     filters.push(`m.kind = ?`);
-    filterParams.push(kinds[0]);
+    filterParams.push(msgKinds[0]);
   }
   if (opts.key) {
     filters.push(`m.key = ?`);
@@ -244,7 +261,11 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
   }
   unionParams.push(limit, offset);
 
-  const messageRows = db.prepare(unionSql).all(...unionParams) as unknown as MessageRow[];
+  // No message kinds selected (only 'contact') → skip the message query.
+  const wantMessages = msgKinds.length > 0;
+  const messageRows = wantMessages
+    ? (db.prepare(unionSql).all(...unionParams) as unknown as MessageRow[])
+    : [];
 
   const messageHits: MessageHit[] = messageRows.map((r) => ({
     id: r.mid,
@@ -293,8 +314,9 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
     : `SELECT COUNT(*) AS n FROM (${bodyLeg})`;
   const countParams: (string | number)[] = [built.match, ...filterParams];
   if (senderLeg) countParams.push(...senderPks, ...filterParams, built.match);
-  const { n: totalMessages = 0 } =
-    (db.prepare(countSql).get(...countParams) as unknown as { n: number } | undefined) ?? {};
+  const totalMessages = wantMessages
+    ? ((db.prepare(countSql).get(...countParams) as unknown as { n: number } | undefined)?.n ?? 0)
+    : 0;
 
   // ---- Per-key body-match counts (conversation badges) --------------------
   const matchCountRows = db
@@ -310,12 +332,14 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
   for (const r of matchCountRows) matchCountByKey.set(r.key, r.n);
 
   const conversations: ConversationHit[] = [...convoByKey.values()]
+    .filter((r) => (r.kind === 'channel' ? showChannels : showContacts))
     .sort((a, b) => a.score - b.score)
     .map((r) => ({
       key: r.key,
       kind: r.kind,
       name: r.name,
       publicKeyHex: r.kind === 'contact' && r.key.startsWith('c:') ? r.key.slice(2) : undefined,
+      contactKind: r.kind === 'contact' ? (r.contact_kind as ContactKind) || undefined : undefined,
       score: r.score,
       messageMatches: matchCountByKey.get(r.key) ?? 0,
     }));
@@ -336,17 +360,17 @@ export function rebuildConversationsIndex(snapshot: {
   const db = openDb();
   db.exec(`DELETE FROM conversations_fts`);
   const ins = db.prepare(
-    `INSERT INTO conversations_fts (kind, key, name, pk_prefix, pk_suffix_rev)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO conversations_fts (kind, key, name, pk_prefix, pk_suffix_rev, contact_kind)
+     VALUES (?, ?, ?, ?, ?, ?)`,
   );
   db.exec('BEGIN');
   try {
     for (const ch of snapshot.channels) {
-      ins.run('channel', ch.key, ch.name, '', '');
+      ins.run('channel', ch.key, ch.name, '', '', '');
     }
     for (const c of snapshot.contacts) {
       const pk = c.publicKeyHex.toLowerCase();
-      ins.run('contact', c.key, c.name, pk.slice(0, 16), reverseStr(pk.slice(-16)));
+      ins.run('contact', c.key, c.name, pk.slice(0, 16), reverseStr(pk.slice(-16)), c.kind);
     }
     db.exec('COMMIT');
   } catch (err) {
