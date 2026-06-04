@@ -67,12 +67,12 @@ export function SearchHeader({
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
         <FilterChip
           label="Channels"
-          active={filters.kinds.includes('channel')}
+          active={filters.categories.includes('channel')}
           onClick={() => toggleKind('channel')}
         />
         <FilterChip
           label="DMs"
-          active={filters.kinds.includes('dm')}
+          active={filters.categories.includes('dm')}
           onClick={() => toggleKind('dm')}
         />
         <select

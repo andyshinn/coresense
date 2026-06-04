@@ -56,7 +56,7 @@ const MAX_PACKETS = 500;
 const MAX_LOGS = 5000;
 
 export interface SearchFilters {
-  kinds: ('channel' | 'dm')[];
+  categories: ('channel' | 'dm')[];
   key?: string;
   /** Sender hex public key or the literal 'self' for owner-sent. */
   fromPk?: string;
@@ -64,7 +64,7 @@ export interface SearchFilters {
   tsTo?: number;
 }
 
-const DEFAULT_SEARCH_FILTERS: SearchFilters = { kinds: ['channel', 'dm'] };
+const DEFAULT_SEARCH_FILTERS: SearchFilters = { categories: ['channel', 'dm'] };
 
 // ---- Contact Manager view state -------------------------------------------
 export type CmStateTab = 'all' | 'on-radio' | 'discovered' | 'blocked';

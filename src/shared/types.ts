@@ -231,7 +231,7 @@ export type SearchSort = 'relevance' | 'recency';
 export interface SearchOptions {
   query: string;
   sort: SearchSort;
-  kinds?: ('channel' | 'dm')[];
+  categories?: ('channel' | 'dm')[];
   /** Restrict to a single conversation key. */
   key?: string;
   /** Hex public key of sender. Self-sent messages have from_pk = NULL, so

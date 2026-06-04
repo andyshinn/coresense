@@ -119,7 +119,7 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
 
   const limit = Math.min(opts.limit ?? DEFAULT_LIMIT, HARD_LIMIT);
   const offset = Math.min(Math.max(opts.offset ?? 0, 0), HARD_OFFSET);
-  const kinds = opts.kinds ?? ['channel', 'dm'];
+  const categories = opts.categories ?? ['channel', 'dm'];
 
   // ---- Conversation hits (run first; feeds the sender-union) -------------
   // Two passes: forward match on name + pk_prefix, then a separate pass on
@@ -174,9 +174,9 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
   // filterParams array and splice it in twice.
   const filters: string[] = [];
   const filterParams: (string | number)[] = [];
-  if (kinds.length < 2) {
+  if (categories.length < 2) {
     filters.push(`m.kind = ?`);
-    filterParams.push(kinds[0]);
+    filterParams.push(categories[0]);
   }
   if (opts.key) {
     filters.push(`m.key = ?`);
