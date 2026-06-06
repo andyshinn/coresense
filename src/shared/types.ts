@@ -228,10 +228,15 @@ export interface Owner {
 
 export type SearchSort = 'relevance' | 'recency';
 
+export type SearchCategory = 'channel' | 'dm' | 'contact';
+
 export interface SearchOptions {
   query: string;
   sort: SearchSort;
-  kinds?: ('channel' | 'dm')[];
+  /** Result categories to include. Omitted/empty → all three. 'channel' and
+   *  'dm' gate message rows by m.kind; 'channel' also shows the Channels
+   *  conversation section; 'contact' shows the Contacts conversation section. */
+  categories?: SearchCategory[];
   /** Restrict to a single conversation key. */
   key?: string;
   /** Hex public key of sender. Self-sent messages have from_pk = NULL, so
@@ -270,6 +275,9 @@ export interface ConversationHit {
   name: string;
   /** For contacts: hex public key. For channels: undefined. */
   publicKeyHex?: string;
+  /** Contact sub-kind; present only when kind === 'contact'. Drives the
+   *  search row's icon + badge and (future) a kind filter. */
+  contactKind?: ContactKind;
   score: number;
   /** Count of messages in this conversation matching the same query. */
   messageMatches: number;
