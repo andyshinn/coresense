@@ -1,5 +1,5 @@
 import { PanelLeftOpen, PanelRightOpen } from 'lucide-react';
-import { type ReactNode, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { SidebarInset, SidebarProvider } from '../components/ui/sidebar';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
@@ -7,6 +7,7 @@ import { cn } from '../lib/utils';
 import { LeftNav } from './leftnav';
 import { RightRail } from './rightrail';
 import { TitleBar } from './TitleBar';
+import { useDeselectOnOutsideClick } from './useDeselectOnOutsideClick';
 
 interface AppShellProps {
   title?: string;
@@ -23,23 +24,10 @@ export function AppShell({ title, children, showShell = true, client = null }: A
   const toggleLeftNav = useStore((s) => s.toggleLeftNav);
   const toggleRightRail = useStore((s) => s.toggleRightRail);
 
-  // Deselect the active message when the user clicks anywhere off it — empty
-  // space, the composer, the left nav, etc. A click on a message row selects
-  // that row instead (its own onClick runs first), and a click inside the
-  // detail rail is left alone so reading/acting on the detail doesn't dismiss
-  // it. Read/write via getState() so this listener never re-subscribes.
-  useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
-      if (useStore.getState().selectedMessageId == null) return;
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      if (target.closest('[data-testid="message-row"]')) return;
-      if (target.closest('[aria-label="Detail rail"]')) return;
-      useStore.getState().setSelectedMessage(null);
-    };
-    document.addEventListener('click', onDocClick);
-    return () => document.removeEventListener('click', onDocClick);
-  }, []);
+  // Deselect the active message when the user clicks off it (empty space, the
+  // composer, the left nav, …). See the hook for why this is needed and how it
+  // avoids dismissing on clicks inside the detail rail.
+  useDeselectOnOutsideClick();
 
   if (!showShell) {
     return (

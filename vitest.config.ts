@@ -1,4 +1,5 @@
 import path from 'node:path';
+import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
 // `~build/git` and `~build/package` are virtual modules supplied by
@@ -42,6 +43,26 @@ export default defineConfig({
           environment: 'node',
           include: ['tests/integration/**/*.test.ts'],
           setupFiles: ['tests/integration/setup.ts'],
+        },
+      },
+      {
+        // Renderer component tests. Unlike `unit`/`integration` (node-only),
+        // these mount real React components in jsdom so we get the real
+        // React-flush-then-document-bubble timing and a real Event.composedPath
+        // (see tests/component/deselect-on-outside-click.test.tsx). The react
+        // plugin transforms TSX; jsdom supplies the DOM.
+        plugins: [react()],
+        resolve: {
+          alias: {
+            '@': path.resolve(__dirname, 'src/renderer'),
+            ...buildInfoAlias,
+          },
+        },
+        test: {
+          name: 'dom',
+          environment: 'jsdom',
+          include: ['tests/component/**/*.test.tsx'],
+          setupFiles: ['tests/component/setup.ts'],
         },
       },
     ],
