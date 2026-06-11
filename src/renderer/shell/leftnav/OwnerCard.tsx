@@ -1,53 +1,27 @@
-import { Copy, Megaphone, User } from 'lucide-react';
-import { useCallback, useState } from 'react';
-import type { Owner, TransportState } from '../../../shared/types';
+import { Copy, Radio } from 'lucide-react';
+import type { Owner } from '../../../shared/types';
 import { CopyButton } from '../../components/CopyButton';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
 import { KeyValueGroup, KeyValueRow } from '../../components/ui/KeyValueRow';
 import { SidebarMenu, SidebarMenuItem } from '../../components/ui/sidebar';
-import { type ApiClient, api } from '../../lib/api';
+import { Identicon } from '../../features/quick-actions/Identicon';
+import { QuickActions } from '../../features/quick-actions/QuickActions';
+import type { ApiClient } from '../../lib/api';
 import { formatVoltage, lipoPercent } from '../../lib/battery';
-import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
-import { fmtBandwidth, fmtFreq, fmtGpsInterval, fmtStorageKb } from './ownerFormat';
+import { fmtBandwidth, fmtFreq, fmtFreqMhz, fmtGpsInterval, fmtStorageKb } from './ownerFormat';
 
-const TRANSPORT_LABEL: Record<TransportState, string> = {
-  idle: 'Not connected',
-  scanning: 'Scanning',
-  connecting: 'Connecting',
-  connected: 'Connected',
-  error: 'Error',
-};
-
-const TRANSPORT_DOT: Record<TransportState, string> = {
-  idle: 'bg-cs-text-dim',
-  scanning: 'bg-cs-warn animate-pulse',
-  connecting: 'bg-cs-accent animate-pulse',
-  connected: 'bg-cs-online',
-  error: 'bg-cs-danger',
-};
-
-/** Header identity card — radio name, public-key prefix, battery, and a flood-advert action. */
+/** Header identity card — identicon, name, battery, instrument rail, and the
+ *  user's configured quick actions. Hovering the header reveals full radio detail. */
 export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiClient | null }) {
   const deviceInfo = useStore((s) => s.deviceInfo);
+  const radio = useStore((s) => s.radioSettings);
+  const identity = useStore((s) => s.deviceIdentity);
+  const gps = useStore((s) => s.gpsConfig);
   const transport = useStore((s) => s.transportState);
-  const pathHashMode = useStore((s) => s.radioSettings.pathHashMode);
+  const pathHashMode = radio.pathHashMode;
   const connected = transport === 'connected';
-  const [advertising, setAdvertising] = useState(false);
-
-  const onFloodAdvert = useCallback(async () => {
-    if (!client) return;
-    setAdvertising(true);
-    try {
-      await api.sendAdvert(client, true);
-      notify.success('Flood advert sent');
-    } catch (err) {
-      notify.error(`Flood advert failed: ${(err as Error).message}`, err);
-    } finally {
-      setAdvertising(false);
-    }
-  }, [client]);
 
   const battMv = deviceInfo.batteryMv;
   const battPct = lipoPercent(battMv);
@@ -62,17 +36,13 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
             {/* Hovering this top row reveals the full radio details. */}
             <HoverCardTrigger asChild>
               <div className="flex items-center gap-2">
-                <div className="relative flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-cs-accent-soft/40 text-cs-accent">
-                  <User className="size-4" />
-                  <span
-                    role="img"
-                    aria-label={TRANSPORT_LABEL[transport]}
-                    className={cn(
-                      'absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-cs-bg-2',
-                      TRANSPORT_DOT[transport],
-                    )}
-                  />
-                </div>
+                {owner ? (
+                  <Identicon hex={owner.publicKeyHex} size={32} />
+                ) : (
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-cs-border bg-cs-bg-3 text-cs-text-dim">
+                    <Radio className="size-4" aria-hidden />
+                  </div>
+                )}
                 <div className="grid min-w-0 flex-1 leading-tight group-data-[collapsible=icon]:hidden">
                   <span
                     data-testid="owner-name"
@@ -126,17 +96,26 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
                 </div>
               </div>
 
-              {/* Flood advert */}
-              <button
-                type="button"
-                onClick={onFloodAdvert}
-                disabled={!connected || !client || advertising}
-                title={connected ? 'Broadcast a flood advert' : 'Connect a radio to advertise'}
-                className="flex h-7 items-center justify-center gap-1.5 rounded-md border border-cs-border bg-cs-bg-3 text-xs text-cs-text-muted transition-colors hover:bg-cs-bg-2 hover:text-cs-text disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-cs-bg-3 disabled:hover:text-cs-text-muted"
-              >
-                <Megaphone aria-hidden="true" className="size-3.5" />
-                {advertising ? 'Advertising…' : 'Flood advert'}
-              </button>
+              {/* Instrument rail — radio state at a glance */}
+              <div className="grid grid-cols-3 gap-x-2 gap-y-1.5">
+                <RailCell k="FREQ" v={fmtFreqMhz(radio.frequencyHz)} accent />
+                <RailCell k="SF" v={String(radio.spreadingFactor)} />
+                <RailCell k="TX" v={`${radio.txPowerDbm}dB`} />
+                <RailCell
+                  k="GPS"
+                  v={gps.enabled ? fmtGpsInterval(gps.intervalSec) : 'off'}
+                  accent={gps.enabled}
+                />
+                <RailCell
+                  k="ADV·LOC"
+                  v={identity.sharePositionInAdvert ? 'on' : 'off'}
+                  accent={identity.sharePositionInAdvert}
+                />
+                <RailCell k="RPT" v={radio.repeatMode ? 'on' : 'off'} />
+              </div>
+
+              {/* Configurable quick actions */}
+              <QuickActions owner={owner} client={client} />
             </div>
           </div>
           <HoverCardContent align="start" side="right" sideOffset={8} className="w-64 p-3">
@@ -145,6 +124,18 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
         </HoverCard>
       </SidebarMenuItem>
     </SidebarMenu>
+  );
+}
+
+/** One cell of the instrument rail (label over mono value). */
+function RailCell({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="font-mono text-[8.5px] uppercase tracking-wide text-cs-text-dim">{k}</span>
+      <span className={cn('font-mono text-[11px]', accent ? 'text-cs-accent' : 'text-cs-text')}>
+        {v}
+      </span>
+    </div>
   );
 }
 
