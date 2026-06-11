@@ -10,23 +10,7 @@ import { formatVoltage, lipoPercent } from '../../lib/battery';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
-
-/** Frequency in Hz formatted as MHz with three decimals. */
-function fmtFreq(hz: number): string {
-  return `${(hz / 1e6).toFixed(3)} MHz`;
-}
-/** Bandwidth in Hz formatted as kHz. */
-function fmtBandwidth(hz: number): string {
-  return `${hz / 1000} kHz`;
-}
-/** Storage in KB formatted as MB once it crosses the threshold. */
-function fmtStorageKb(kb: number): string {
-  return kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`;
-}
-/** GPS interval seconds formatted as minutes when an even minute. */
-function fmtGpsInterval(sec: number): string {
-  return sec % 60 === 0 ? `${sec / 60} min` : `${sec}s`;
-}
+import { fmtBandwidth, fmtFreq, fmtGpsInterval, fmtStorageKb } from './ownerFormat';
 
 const TRANSPORT_LABEL: Record<TransportState, string> = {
   idle: 'Not connected',
