@@ -5,6 +5,7 @@
 * Hop count and hash mode are not showing up on messages like the official app. These should show up next to the timestamp of the message.
 * Trace path (trace packets) don't seem to be handled properly over the bridge. When the official client does a trace it always times out. When I connect to the radio directly from the official client and do the same trace it works fine. This is likely an issue with the bridge not properly handling trace packets.
 * Theme settings ligh / dark have no effect. Should switch between our different light / dark themes if we force one.
+* When BLE disconnects (from a device leaving home or too far, etc) the app gets stuck in "Connecting" state with no way to cancel or retry. We should have some reasonable timeouts and also a way to force-cancel connecting so we can manually retry.
 
 # Next
 

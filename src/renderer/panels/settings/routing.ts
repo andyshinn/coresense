@@ -17,6 +17,7 @@ const LEGACY_SUFFIX_TO_TAB: Record<string, SettingsTab> = {
   telemetry: 'radio',
   extra: 'extra',
   info: 'radio',
+  quickActions: 'quickActions',
 };
 
 export function tabFromActiveKey(key: string): SettingsTab | undefined {

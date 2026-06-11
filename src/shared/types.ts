@@ -1,3 +1,4 @@
+import type { QuickActionId } from '../renderer/features/quick-actions/ids';
 import type { DiscoveredContact } from './contacts/discovered';
 
 export type TransportState = 'idle' | 'scanning' | 'connecting' | 'connected' | 'error';
@@ -401,6 +402,10 @@ export interface AppSettings {
     fileEnabled: boolean;
     level: LogLevel;
   };
+  /** Ordered owner-card quick-action ids (max 4; first renders as the primary
+   *  button). Validated against the catalog on read, so unknown/removed ids are
+   *  dropped. */
+  quickActions: QuickActionId[];
 }
 
 export type ContactGrouping = 'nested' | 'top-level';
@@ -439,6 +444,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   commandPalette: { hintWeightPct: 50 },
   unreadsPreview: { enabled: true, limit: 25 },
   logging: { fileEnabled: false, level: 'info' },
+  quickActions: ['flood', 'gps', 'shareLoc', 'disconnect'],
 };
 
 /** Bundled vector basemap + raster terrain sources for the Map panel.

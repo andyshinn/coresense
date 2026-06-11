@@ -5,9 +5,9 @@ import { cn } from '../../lib/utils';
 // reflect the live radio connection.
 export function StatusPill({ tab }: { tab: SettingsTab }) {
   const connected = useStore((s) => s.transportState === 'connected');
-  const online = tab === 'app' ? true : connected;
+  const online = tab === 'app' || tab === 'quickActions' ? true : connected;
   const label =
-    tab === 'app'
+    tab === 'app' || tab === 'quickActions'
       ? 'Local · stored on this machine'
       : connected
         ? 'Radio connected'

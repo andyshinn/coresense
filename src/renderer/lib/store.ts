@@ -139,7 +139,7 @@ const NB_DEFAULTS: NeighboursViewState = {
 // The redesigned Settings panel and the RightRail jump-list are sibling
 // components under AppShell, so their shared state (which sections exist,
 // which are dirty, the active section, the unsaved-changes prompt) lives here.
-export type SettingsTab = 'app' | 'radio' | 'blocked' | 'extra';
+export type SettingsTab = 'app' | 'quickActions' | 'radio' | 'blocked' | 'extra';
 
 export interface SettingsSectionMeta {
   id: string;
