@@ -119,7 +119,7 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
             </div>
           </div>
           <HoverCardContent align="start" side="right" sideOffset={8} className="w-72 p-3">
-            <OwnerCardPopover owner={owner} />
+            <OwnerCardPopover />
           </HoverCardContent>
         </HoverCard>
       </SidebarMenuItem>

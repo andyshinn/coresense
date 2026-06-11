@@ -1,6 +1,5 @@
 import { MapPin } from 'lucide-react';
 import type { ReactNode } from 'react';
-import type { Owner } from '../../../shared/types';
 import { lipoPercent } from '../../lib/battery';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
@@ -103,8 +102,9 @@ function MiniStat({ on, label }: { on: boolean; label: string }) {
   );
 }
 
-/** Instrument-style hover popover: gauges, radio grid, capacity bars, position. */
-export function OwnerCardPopover(_props: { owner: Owner | null }) {
+/** Instrument-style hover popover: gauges, radio grid, capacity bars, position.
+ *  Reads everything from the store, so it takes no props. */
+export function OwnerCardPopover() {
   const deviceInfo = useStore((s) => s.deviceInfo);
   const radio = useStore((s) => s.radioSettings);
   const identity = useStore((s) => s.deviceIdentity);
