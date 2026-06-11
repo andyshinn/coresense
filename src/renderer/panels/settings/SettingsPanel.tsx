@@ -1,4 +1,4 @@
-import { Cog, Radio, Settings, ShieldOff, Wrench } from 'lucide-react';
+import { Cog, Radio, Settings, ShieldOff, Wrench, Zap } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { ApiKeySection } from '../../components/settings/ApiKeySection';
 import { MapKeySection } from '../../components/settings/MapKeySection';
@@ -16,6 +16,7 @@ import {
 import { BlockedSection } from './blocked';
 import { DangerZoneSection, ImportExportSection, MaintenanceSection } from './ExtraSections';
 import { type PillTab, PillTabs } from './PillTabs';
+import { QuickActionsTab } from './quick-actions/QuickActionsTab';
 import {
   BluetoothSection,
   ContactSettingsSection,
@@ -34,6 +35,9 @@ import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 // Ordered section metadata per tab — drives section registration (for the
 // RightRail jump list) and the IntersectionObserver scroll-spy.
 const TAB_SECTIONS: Record<SettingsTab, SettingsSectionMeta[]> = {
+  quickActions: [
+    { id: 'quickActions-actions', title: 'Owner Card Quick Actions', tab: 'quickActions' },
+  ],
   app: [
     { id: 'app-appearance', title: 'Appearance', tab: 'app' },
     { id: 'app-composer', title: 'Composer', tab: 'app' },
@@ -135,6 +139,7 @@ export function SettingsPanel({ client, initialTab, initialSection }: Props) {
 
   const pillTabs: PillTab<SettingsTab>[] = [
     { id: 'app', label: 'Application Settings', icon: Cog, dirty: tabDirty('app') },
+    { id: 'quickActions', label: 'Quick Actions', icon: Zap, dirty: tabDirty('quickActions') },
     { id: 'radio', label: 'Radio Settings', icon: Radio, dirty: tabDirty('radio') },
     { id: 'blocked', label: 'Blocked', icon: ShieldOff, dirty: tabDirty('blocked') },
     { id: 'extra', label: 'Extra Tools', icon: Wrench },
@@ -156,6 +161,7 @@ export function SettingsPanel({ client, initialTab, initialSection }: Props) {
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-7 pb-10">
         {activeTab === 'app' && <AppTab client={client} />}
+        {activeTab === 'quickActions' && <QuickActionsTab client={client} />}
         {activeTab === 'radio' && <RadioTab client={client} />}
         {activeTab === 'blocked' && <BlockedTab client={client} />}
         {activeTab === 'extra' && <ExtraTab client={client} />}
