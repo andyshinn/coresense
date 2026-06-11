@@ -97,7 +97,7 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
               </div>
 
               {/* Instrument rail — radio state at a glance */}
-              <div className="grid grid-cols-3 gap-x-2 gap-y-1.5">
+              {/* <div className="grid grid-cols-3 gap-x-2 gap-y-1.5">
                 <RailCell k="FREQ" v={fmtFreqMhz(radio.frequencyHz)} accent />
                 <RailCell k="SF" v={String(radio.spreadingFactor)} />
                 <RailCell k="TX" v={`${radio.txPowerDbm}dB`} />
@@ -112,7 +112,7 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
                   accent={identity.sharePositionInAdvert}
                 />
                 <RailCell k="RPT" v={radio.repeatMode ? 'on' : 'off'} />
-              </div>
+              </div> */}
 
               {/* Configurable quick actions */}
               <QuickActions owner={owner} client={client} />
