@@ -2,7 +2,6 @@ import { Copy, Radio } from 'lucide-react';
 import type { Owner } from '../../../shared/types';
 import { CopyButton } from '../../components/CopyButton';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
-import { KeyValueGroup, KeyValueRow } from '../../components/ui/KeyValueRow';
 import { SidebarMenu, SidebarMenuItem } from '../../components/ui/sidebar';
 import { Identicon } from '../../features/quick-actions/Identicon';
 import { QuickActions } from '../../features/quick-actions/QuickActions';
@@ -10,7 +9,8 @@ import type { ApiClient } from '../../lib/api';
 import { formatVoltage, lipoPercent } from '../../lib/battery';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
-import { fmtBandwidth, fmtFreq, fmtFreqMhz, fmtGpsInterval, fmtStorageKb } from './ownerFormat';
+import { OwnerCardPopover } from './OwnerCardPopover';
+import { fmtFreqMhz, fmtGpsInterval } from './ownerFormat';
 
 /** Header identity card — identicon, name, battery, instrument rail, and the
  *  user's configured quick actions. Hovering the header reveals full radio detail. */
@@ -118,8 +118,8 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
               <QuickActions owner={owner} client={client} />
             </div>
           </div>
-          <HoverCardContent align="start" side="right" sideOffset={8} className="w-64 p-3">
-            <RadioDetailsContent owner={owner} />
+          <HoverCardContent align="start" side="right" sideOffset={8} className="w-72 p-3">
+            <OwnerCardPopover owner={owner} />
           </HoverCardContent>
         </HoverCard>
       </SidebarMenuItem>
@@ -135,101 +135,6 @@ function RailCell({ k, v, accent }: { k: string; v: string; accent?: boolean }) 
       <span className={cn('font-mono text-[11px]', accent ? 'text-cs-accent' : 'text-cs-text')}>
         {v}
       </span>
-    </div>
-  );
-}
-
-/** Full radio picture surfaced from already-synced store state for the OwnerCard hover popover. */
-function RadioDetailsContent({ owner }: { owner: Owner | null }) {
-  const deviceInfo = useStore((s) => s.deviceInfo);
-  const radio = useStore((s) => s.radioSettings);
-  const identity = useStore((s) => s.deviceIdentity);
-  const gps = useStore((s) => s.gpsConfig);
-  const contactCount = useStore((s) => s.contacts.length);
-  const channelCount = useStore((s) => s.channels.length);
-
-  const hasLocation = identity.lat !== null && identity.lon !== null;
-
-  return (
-    <div className="flex flex-col gap-3">
-      {owner && (
-        <KeyValueGroup title="Public key">
-          <CopyButton
-            value={owner.publicKeyHex}
-            title="Copy public key"
-            className="group flex items-start gap-1.5 rounded text-left"
-          >
-            <span className="break-all font-mono text-[10px] leading-relaxed text-cs-text-muted group-hover:text-cs-text">
-              {owner.publicKeyHex}
-            </span>
-            <Copy
-              aria-hidden="true"
-              className="mt-px size-3 shrink-0 text-cs-text-dim group-hover:text-cs-text"
-            />
-          </CopyButton>
-        </KeyValueGroup>
-      )}
-
-      <KeyValueGroup title="Radio">
-        <KeyValueRow label="Frequency" value={fmtFreq(radio.frequencyHz)} mono />
-        <KeyValueRow label="Bandwidth" value={fmtBandwidth(radio.bandwidthHz)} mono />
-        <KeyValueRow label="Spreading" value={`SF${radio.spreadingFactor}`} mono />
-        <KeyValueRow label="Coding rate" value={`4/${radio.codingRate}`} mono />
-        <KeyValueRow label="TX power" value={`${radio.txPowerDbm} dBm`} mono />
-        <KeyValueRow label="Path hash" value={`${radio.pathHashMode}-byte`} mono />
-      </KeyValueGroup>
-
-      <KeyValueGroup title="Device">
-        <KeyValueRow label="Model" value={deviceInfo.deviceModel || '—'} mono />
-        <KeyValueRow
-          label="Firmware"
-          value={deviceInfo.firmwareVerCode > 0 ? `v${deviceInfo.firmwareVerCode}` : '—'}
-          mono
-        />
-        <KeyValueRow label="Repeat mode" value={radio.repeatMode ? 'On' : 'Off'} mono />
-      </KeyValueGroup>
-
-      <KeyValueGroup title="Capacity">
-        <KeyValueRow
-          label="Contacts"
-          value={`${contactCount} / ${deviceInfo.maxContacts || '—'}`}
-          mono
-        />
-        <KeyValueRow
-          label="Channels"
-          value={`${channelCount} / ${deviceInfo.maxChannels || '—'}`}
-          mono
-        />
-        <KeyValueRow
-          label="Storage"
-          value={
-            deviceInfo.storageTotalKb > 0
-              ? `${fmtStorageKb(deviceInfo.storageUsedKb)} / ${fmtStorageKb(deviceInfo.storageTotalKb)}`
-              : '—'
-          }
-          mono
-        />
-      </KeyValueGroup>
-
-      <KeyValueGroup title="Position">
-        <KeyValueRow
-          label="Location"
-          value={
-            hasLocation ? `${identity.lat?.toFixed(5)}, ${identity.lon?.toFixed(5)}` : 'Not set'
-          }
-          mono
-        />
-        <KeyValueRow
-          label="Share in advert"
-          value={identity.sharePositionInAdvert ? 'Yes' : 'No'}
-          mono
-        />
-        <KeyValueRow
-          label="GPS"
-          value={gps.enabled ? `On · ${fmtGpsInterval(gps.intervalSec)}` : 'Off'}
-          mono
-        />
-      </KeyValueGroup>
     </div>
   );
 }
