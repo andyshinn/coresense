@@ -48,7 +48,7 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
                     data-testid="owner-name"
                     className="truncate text-sm font-medium text-cs-text"
                   >
-                    {owner?.name ?? 'No identity'}
+                    {owner?.name ?? (connected ? 'No identity' : 'Not connected')}
                   </span>
                   {owner ? (
                     <div className="flex w-fit items-center gap-1.5">
@@ -69,7 +69,7 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
                     </div>
                   ) : (
                     <span className="truncate font-mono text-[10px] tracking-wide text-cs-text-dim">
-                      configure to send adverts
+                      {connected ? 'configure to send adverts' : 'Connect a radio'}
                     </span>
                   )}
                 </div>
