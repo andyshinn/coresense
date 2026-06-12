@@ -82,6 +82,7 @@ import {
 } from './encode';
 import { ContactTableFullError, ProtocolError, UnknownContactError } from './errors';
 import type { FeatureContext } from './feature';
+import { contactsFullFeature } from './features/contactsFull';
 import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
 import { consumeMatching as consumeMeshObs } from './meshObservations';
 import { buildPath, channelHashOf } from './paths';
@@ -265,7 +266,7 @@ export class ProtocolSession {
     request: (frame, opts) => this.request(frame, opts),
   };
   /** Inbound-frame handlers, keyed by wire code. Empty until features migrate. */
-  private readonly registry = new FeatureRegistry([]);
+  private readonly registry = new FeatureRegistry([contactsFullFeature]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
   start(): void {
@@ -957,8 +958,8 @@ export class ProtocolSession {
     return getDeviceTime(this.ctx);
   }
 
-  /** Set the radio's RTC clock (unix seconds). Rejects ProtocolError on a
-   *  firmware ILLEGAL_ARG (the radio refuses a clock earlier than its own). */
+  /** Set the radio's RTC clock (unix seconds). Rejects ProtocolError if the
+   *  radio returns RESP_ERR (e.g. a clock earlier than its own → ILLEGAL_ARG). */
   setDeviceTime(epochSecs: number): Promise<void> {
     return setDeviceTime(this.ctx, epochSecs);
   }
@@ -1618,11 +1619,6 @@ export class ProtocolSession {
         emit.contactEvicted(name);
         log.info(`contact evicted by radio: ${name} ${pubkey.slice(0, 12)}`);
       }
-      return;
-    }
-    if (code === PUSH.CONTACTS_FULL) {
-      log.warn('radio contact store is full');
-      emit.error('Radio contact store is full — remove or favourite contacts to make room.');
       return;
     }
     if (code === RESP.CHANNEL_MSG_RECV_V3 || code === RESP.CHANNEL_MSG_RECV) {
