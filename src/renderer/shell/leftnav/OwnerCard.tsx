@@ -10,15 +10,12 @@ import { formatVoltage, lipoPercent } from '../../lib/battery';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
 import { OwnerCardPopover } from './OwnerCardPopover';
-import { fmtFreqMhz, fmtGpsInterval } from './ownerFormat';
 
 /** Header identity card — identicon, name, battery, instrument rail, and the
  *  user's configured quick actions. Hovering the header reveals full radio detail. */
 export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiClient | null }) {
   const deviceInfo = useStore((s) => s.deviceInfo);
   const radio = useStore((s) => s.radioSettings);
-  const identity = useStore((s) => s.deviceIdentity);
-  const gps = useStore((s) => s.gpsConfig);
   const transport = useStore((s) => s.transportState);
   const pathHashMode = radio.pathHashMode;
   const connected = transport === 'connected';
@@ -96,24 +93,6 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
                 </div>
               </div>
 
-              {/* Instrument rail — radio state at a glance */}
-              {/* <div className="grid grid-cols-3 gap-x-2 gap-y-1.5">
-                <RailCell k="FREQ" v={fmtFreqMhz(radio.frequencyHz)} accent />
-                <RailCell k="SF" v={String(radio.spreadingFactor)} />
-                <RailCell k="TX" v={`${radio.txPowerDbm}dB`} />
-                <RailCell
-                  k="GPS"
-                  v={gps.enabled ? fmtGpsInterval(gps.intervalSec) : 'off'}
-                  accent={gps.enabled}
-                />
-                <RailCell
-                  k="ADV·LOC"
-                  v={identity.sharePositionInAdvert ? 'on' : 'off'}
-                  accent={identity.sharePositionInAdvert}
-                />
-                <RailCell k="RPT" v={radio.repeatMode ? 'on' : 'off'} />
-              </div> */}
-
               {/* Configurable quick actions */}
               <QuickActions owner={owner} client={client} />
             </div>
@@ -124,17 +103,5 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
         </HoverCard>
       </SidebarMenuItem>
     </SidebarMenu>
-  );
-}
-
-/** One cell of the instrument rail (label over mono value). */
-function RailCell({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="font-mono text-[8.5px] uppercase tracking-wide text-cs-text-dim">{k}</span>
-      <span className={cn('font-mono text-[11px]', accent ? 'text-cs-accent' : 'text-cs-text')}>
-        {v}
-      </span>
-    </div>
   );
 }
