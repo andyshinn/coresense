@@ -103,6 +103,15 @@ export const CMD = {
   SET_AUTO_ADD_CONFIG: 0x3a,
   // CMD_GET_AUTO_ADD_CONFIG: [0x3b]. Replies RESP_AUTOADD_CONFIG.
   GET_AUTO_ADD_CONFIG: 0x3b,
+
+  // ---- Phase 3 (firmware v1.16.0 parity) additions ----
+
+  // CMD_SET_TUNING_PARAMS: [0x15][rx_delay_base×1000 u32 LE][airtime_factor×1000
+  //   u32 LE] (9B). Firmware divides each by 1000 back into a float and
+  //   constrains rx_delay_base 0..20, airtime_factor 0..9. Replies RESP_OK.
+  SET_TUNING_PARAMS: 0x15,
+  // CMD_GET_TUNING_PARAMS: [0x2b]. Replies RESP_TUNING_PARAMS.
+  GET_TUNING_PARAMS: 0x2b,
 } as const;
 
 // Protocol version we negotiate with the firmware. 4 matches the official
@@ -151,6 +160,12 @@ export const RESP = {
   STATS: 0x18,
   // RESP_AUTOADD_CONFIG [0x19][flags u8] — mirrors SET_AUTO_ADD_CONFIG flags.
   AUTOADD_CONFIG: 0x19,
+
+  // ---- Phase 3 (firmware v1.16.0 parity) additions ----
+
+  // RESP_TUNING_PARAMS [0x17][rx_delay_base×1000 u32 LE][airtime_factor×1000
+  //   u32 LE] (9B) — reply to CMD_GET_TUNING_PARAMS.
+  TUNING_PARAMS: 0x17,
 } as const;
 
 // Firmware error codes carried in a RESP_ERR frame as the byte after the code:

@@ -57,6 +57,7 @@ import { encodeSetRadioParams, encodeSetRadioTxPower } from './features/radioPar
 import * as repeaterAdmin from './features/repeaterAdmin';
 import { encodeAppStart, selfInfoFeature } from './features/selfInfo';
 import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
+import { getTuningParams, setTuningParams, type TuningParams } from './features/tuning';
 import { FeatureRegistry } from './registry';
 import type {
   AclEntry,
@@ -464,6 +465,16 @@ export class ProtocolSession {
    *  Sent as two separate frames since the firmware splits them. Includes the
    *  trailing `clientRepeat` byte only when the connected firmware supports it
    *  (ver_code ≥ 9 — surfaced via DeviceCapabilities.repeatMode). */
+  /** Read the radio airtime/backoff tuning params (CMD_GET_TUNING_PARAMS). */
+  async getTuningParams(): Promise<TuningParams> {
+    return getTuningParams(this.ctx);
+  }
+
+  /** Write the radio airtime/backoff tuning params (CMD_SET_TUNING_PARAMS). */
+  async setTuningParams(params: TuningParams): Promise<void> {
+    return setTuningParams(this.ctx, params);
+  }
+
   async setRadioParams(opts: {
     frequencyHz: number;
     bandwidthHz: number;
