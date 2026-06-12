@@ -7,7 +7,6 @@ import {
   buildReboot,
   buildSendAnonReq,
   buildSendBinaryReq,
-  buildSendDmText,
   buildSendLogin,
   buildSendSelfAdvert,
   buildSendStatusReq,
@@ -25,26 +24,6 @@ describe('encode: bare-opcode commands', () => {
 
   it('buildReboot appends the literal "reboot"', () => {
     expect(hex(buildReboot())).toBe('137265626f6f74');
-  });
-});
-
-describe('encode: DM text framing + validation', () => {
-  it('lays out [cmd][txt_type][attempt][ts u32 LE][6B pubkey prefix][text]', () => {
-    const out = buildSendDmText({
-      destPublicKeyHex: 'aabbccddeeff00112233445566778899',
-      text: 'hi',
-      timestampUnix: 1,
-    });
-    expect(out[0]).toBe(0x02); // SEND_TXT_MSG
-    expect(out[1]).toBe(0); // PLAIN
-    expect(out[2]).toBe(0); // attempt
-    expect(out.readUInt32LE(3)).toBe(1); // timestamp
-    expect(out.subarray(7, 13).toString('hex')).toBe('aabbccddeeff'); // first 6 bytes
-    expect(out.subarray(13).toString('utf8')).toBe('hi');
-  });
-
-  it('rejects a public key shorter than 6 bytes', () => {
-    expect(() => buildSendDmText({ destPublicKeyHex: 'aabb', text: 'x' })).toThrow(/≥6 bytes/);
   });
 });
 

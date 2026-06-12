@@ -1,33 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { CMD, type STATS_TYPE, TXT_TYPE } from './codes';
-
-// CMD_SEND_TXT_MSG payload (firmware: companion_radio/MyMesh.cpp):
-//   [0x02][txt_type 1B][attempt 1B][ts 4B LE][dest pubkey prefix 6B][text UTF-8...]
-// The firmware looks the recipient up by the first 6 bytes of their public key
-// (contacts the device has learned from adverts). Pass the full pubkey hex; we
-// take the first 6 bytes ourselves so callers don't have to slice.
-export function buildSendDmText(opts: {
-  destPublicKeyHex: string;
-  text: string;
-  txtType?: number;
-  attempt?: number;
-  timestampUnix?: number;
-}): Buffer {
-  const pubkey = Buffer.from(opts.destPublicKeyHex, 'hex');
-  if (pubkey.length < 6) {
-    throw new Error(`dest public key must be ≥6 bytes, got ${pubkey.length}`);
-  }
-  const text = Buffer.from(opts.text, 'utf8');
-  const ts = opts.timestampUnix ?? Math.floor(Date.now() / 1000);
-  const out = Buffer.alloc(13 + text.length);
-  out[0] = CMD.SEND_TXT_MSG;
-  out[1] = opts.txtType ?? TXT_TYPE.PLAIN;
-  out[2] = opts.attempt ?? 0;
-  out.writeUInt32LE(ts >>> 0, 3);
-  pubkey.copy(out, 7, 0, 6);
-  text.copy(out, 13);
-  return out;
-}
+import { CMD, type STATS_TYPE } from './codes';
 
 // CMD_SEND_STATUS_REQ (firmware: companion_radio/MyMesh.cpp):
 //   [0x1b][32B recipient pub_key]

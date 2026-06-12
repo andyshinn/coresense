@@ -2,7 +2,6 @@ import { Buffer } from 'node:buffer';
 import type {
   Channel,
   ContactKind,
-  Message,
   RawPacket,
   SyncProgress,
   TransportState,
@@ -15,21 +14,13 @@ import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { transportManager } from '../transport/manager';
 import { ADV_TYPE, ERR_CODE, PUSH, REQ_TYPE, RESP, STATS_TYPE, TXT_TYPE } from './codes';
-import {
-  parseContactMsgV1,
-  parseContactMsgV3,
-  parseSendConfirmed,
-  parseSentAck,
-  parseStatusResponse,
-  parseTelemetryResponse,
-} from './decode';
+import { parseStatusResponse, parseTelemetryResponse } from './decode';
 import {
   buildAnonLogin,
   buildGetStats,
   buildLogout,
   buildReboot,
   buildSendBinaryReq,
-  buildSendDmText,
   buildSendLogin,
   buildSendSelfAdvert,
   buildSendStatusReq,
@@ -71,13 +62,8 @@ import {
 import { contactsFullFeature } from './features/contactsFull';
 import { customVarsFeature, encodeGetCustomVar, encodeSetCustomVar } from './features/customVars';
 import { deviceInfoFeature, encodeDeviceQuery } from './features/deviceInfo';
-import {
-  drainFeature,
-  isDraining,
-  pumpAfterRecv,
-  resetDrain,
-  scheduleDrain,
-} from './features/drain';
+import * as directMessages from './features/directMessages';
+import { drainFeature, resetDrain, scheduleDrain } from './features/drain';
 import { encodeSetPathHashMode, pathHashSizeToMode } from './features/pathHash';
 import { encodeSetRadioParams, encodeSetRadioTxPower } from './features/radioParams';
 import { encodeAppStart, selfInfoFeature } from './features/selfInfo';
@@ -122,11 +108,6 @@ const CONTACTS_DONE_WAIT_MS = 10_000;
 // Small delay between consecutive cmd writes so the BLE link doesn't queue too
 // many frames the radio can't ack in time. Empirical on Heltec/RAK hardware.
 const WRITE_GAP_MS = 50;
-
-// DM send → RESP_SENT has no correlation id, so we FIFO outgoing DMs and pop on
-// each RESP_SENT. After RESP_SENT lands we hold the expected_ack hash → message
-// id mapping until a PUSH_SEND_CONFIRMED arrives (or until ACK_RETENTION_MS).
-const ACK_RETENTION_MS = 60_000;
 
 // How long to wait for RESP_OK / RESP_ERR after a SET_CHANNEL write before
 // giving up. The radio normally responds within ~50ms; 2s leaves slack for a
@@ -176,11 +157,6 @@ interface PendingTyped {
 
 const ADMIN_SENT_TIMEOUT_MS = 5_000;
 const ADMIN_REPLY_TIMEOUT_MS = 20_000;
-// Per-attempt wait inside sendDmTextWithRetry. The radio's RESP_SENT carries
-// an `est_timeout` we could read here, but the worst-case for a multi-hop flood
-// is bounded by retention not link speed — pick a value generous enough for a
-// 3-hop round-trip but short enough that 3+2 attempts don't take all day.
-const PER_ATTEMPT_TIMEOUT_MS = 30_000;
 const CLI_REPLY_TIMEOUT_MS = 30_000;
 // Default wait for a typed RESP_* reply to a feature ctx.request({ expect }).
 const REQUEST_TIMEOUT_MS = 5_000;
@@ -195,12 +171,6 @@ export class ProtocolSession {
   /** High-level handshake progress surfaced to the UI footer. Updated as we
    *  enumerate channel slots (and, later, contacts) during handshake. */
   private syncProgress: SyncProgress = { ...DEFAULT_SYNC_PROGRESS };
-  /** DM message ids in transmit order. Popped on each RESP_SENT to attach the
-   *  ack-hash + state transition to the right message. */
-  private readonly dmSendQueue: string[] = [];
-  /** expected_ack hex → message id, populated on RESP_SENT and cleared on
-   *  PUSH_SEND_CONFIRMED or after ACK_RETENTION_MS. */
-  private readonly pendingDmAcks = new Map<string, { messageId: string; timer: NodeJS.Timeout }>();
   /** Resolved when RESP_CONTACTS_START arrives during the handshake, so the
    *  channel-enumeration loop can wait for the contact total and avoid the
    *  progress bar jumping backwards when total grows mid-sync. */
@@ -216,8 +186,9 @@ export class ProtocolSession {
     timer: NodeJS.Timeout;
   } | null = null;
   /** FIFO of admin sends still awaiting their RESP_SENT tag echo. Drained
-   *  ahead of `dmSendQueue` in handleSent — admin writes are serialised, so
-   *  the oldest entry is always the one the radio just acknowledged. */
+   *  ahead of the DM send queue via the directMessages `onSentTag` hook —
+   *  admin writes are serialised, so the oldest entry is always the one the
+   *  radio just acknowledged. */
   private readonly adminSentQueue: PendingAdminSent[] = [];
   /** Active CLI reply awaiters keyed by 6B sender pubkey prefix hex. */
   private readonly pendingCli = new Map<string, PendingCli>();
@@ -246,6 +217,7 @@ export class ProtocolSession {
     drainFeature,
     channels.channelsFeature,
     channelMessages.channelMessagesFeature,
+    directMessages.directMessagesFeature,
   ]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
@@ -253,6 +225,27 @@ export class ProtocolSession {
     bus.on('packet', this.onPacket);
     bus.on('transportState', this.onTransportState);
     bus.on('contactsSync', this.onContactsSync);
+    // Repeater admin (Phase 2f) shares the RESP_SENT / CONTACT_MSG_RECV opcodes
+    // the directMessages feature now owns. Until repeater-admin migrates, the
+    // session's admin queues get first crack via these hooks (returning true
+    // when an admin awaiter consumed the frame).
+    directMessages.setAdminHooks({
+      onSentTag: (tagHex) => {
+        const adminAwait = this.adminSentQueue.shift();
+        if (!adminAwait) return false;
+        clearTimeout(adminAwait.timer);
+        adminAwait.resolve(tagHex);
+        return true;
+      },
+      onCliReply: (prefix, body) => {
+        const pending = this.pendingCli.get(prefix);
+        if (!pending) return false;
+        clearTimeout(pending.timer);
+        this.pendingCli.delete(prefix);
+        pending.resolve(body);
+        return true;
+      },
+    });
     this.purgeCorruptedChannels();
     channels.rebuildIndexes();
     // If the transport already happens to be connected at start (e.g. auto-
@@ -283,6 +276,7 @@ export class ProtocolSession {
     bus.off('contactsSync', this.onContactsSync);
     resetContactsIter();
     resetDrain();
+    directMessages.resetDmState('session stopped');
     this.stopLivenessPoll();
   }
 
@@ -307,133 +301,17 @@ export class ProtocolSession {
     messageId: string,
     opts: { attempt?: number } = {},
   ): Promise<{ ok: boolean; error?: string }> {
-    const contact = stateHolder()
-      .getContacts()
-      .find((c) => c.key === contactKey);
-    if (!contact) return { ok: false, error: `unknown contact ${contactKey}` };
-    if (!contact.publicKeyHex || contact.publicKeyHex.length < 12) {
-      return { ok: false, error: `contact ${contactKey} has no usable public key` };
-    }
-
-    const frame = buildSendDmText({
-      destPublicKeyHex: contact.publicKeyHex,
-      text,
-      attempt: opts.attempt,
-    });
-    this.dmSendQueue.push(messageId);
-    try {
-      await this.writeFrame(frame);
-      return { ok: true };
-    } catch (err) {
-      // The radio won't reply with RESP_SENT, so pop the entry to keep the
-      // FIFO aligned with the next successful write.
-      const i = this.dmSendQueue.indexOf(messageId);
-      if (i !== -1) this.dmSendQueue.splice(i, 1);
-      return { ok: false, error: (err as Error).message };
-    }
+    return directMessages.sendDmText(this.ctx, contactKey, text, messageId, opts);
   }
 
   /** Send a DM with retry + flood fallback, mirroring the official client's
-   *  behavior. If the contact has a known out_path: 3 attempts using the path,
-   *  then 2 more after a CMD_RESET_PATH so the radio floods. If no path is
-   *  known: 3 flood attempts straight away. When a flood attempt succeeds and
-   *  the radio (via the next advert) hands us a different out_path, emit a
-   *  `pathLearned` event so the renderer can prompt-or-toast. */
+   *  behavior. */
   async sendDmTextWithRetry(
     contactKey: string,
     text: string,
     messageId: string,
   ): Promise<{ ok: boolean; error?: string }> {
-    const holder = stateHolder();
-    const initial = holder.getContacts().find((c) => c.key === contactKey);
-    if (!initial) return { ok: false, error: `unknown contact ${contactKey}` };
-    if (!initial.publicKeyHex || initial.publicKeyHex.length < 64) {
-      return { ok: false, error: `contact ${contactKey} has no full 32B public key` };
-    }
-    const initialPathHex = initial.outPathHex ?? '';
-    const initialManual = initial.pathManual === true;
-    const hadPath = initialPathHex.length > 0;
-    const knownAttempts = hadPath ? 3 : 0;
-    const floodAttempts = hadPath ? 2 : 3;
-
-    let attempt = 0;
-    // Phase 1: try the known path.
-    for (let i = 0; i < knownAttempts; i += 1) {
-      const r = await this.sendDmText(contactKey, text, messageId, { attempt });
-      attempt += 1;
-      if (!r.ok) continue;
-      if ((await this.awaitDmOutcome(messageId, PER_ATTEMPT_TIMEOUT_MS)) === 'ack') {
-        return { ok: true };
-      }
-    }
-
-    // Phase 2: drop the path on the radio, then flood.
-    if (hadPath && floodAttempts > 0) {
-      try {
-        await this.writeFrame(encodeResetPath(initial.publicKeyHex));
-        holder.upsertContact({
-          ...initial,
-          outPathHex: undefined,
-          hops: undefined,
-          pathManual: false,
-        });
-        emit.contacts(holder.getContacts());
-      } catch (err) {
-        log.warn(`resetContactPath during retry failed: ${(err as Error).message}`);
-      }
-    }
-    for (let i = 0; i < floodAttempts; i += 1) {
-      const r = await this.sendDmText(contactKey, text, messageId, { attempt });
-      attempt += 1;
-      if (!r.ok) continue;
-      if ((await this.awaitDmOutcome(messageId, PER_ATTEMPT_TIMEOUT_MS)) === 'ack') {
-        const post = holder.getContacts().find((c) => c.key === contactKey);
-        const newPath = post?.outPathHex ?? '';
-        if (newPath && newPath !== initialPathHex) {
-          emit.pathLearned({
-            contactKey,
-            newOutPathHex: newPath,
-            newOutPathHashSize: post?.outPathHashSize ?? holder.getRadioSettings().pathHashMode,
-            previousOutPathHex: initialPathHex,
-            previousManual: initialManual,
-            learnedAt: Date.now(),
-          });
-        }
-        return { ok: true };
-      }
-    }
-
-    // All attempts timed out — surface as 'failed' for the UI.
-    holder.setMessageState(messageId, 'failed');
-    emit.messageState(messageId, 'failed');
-    return { ok: false, error: 'all retry attempts failed' };
-  }
-
-  /** Resolve when `messageId` reaches a terminal state ('ack' or 'failed'),
-   *  or when `timeoutMs` elapses. Used by sendDmTextWithRetry to know when an
-   *  attempt has succeeded vs. when to retry. */
-  private awaitDmOutcome(messageId: string, timeoutMs: number): Promise<'ack' | 'timeout'> {
-    return new Promise((resolve) => {
-      const handler = (id: string, state: string) => {
-        if (id !== messageId) return;
-        if (state === 'ack') {
-          cleanup();
-          resolve('ack');
-        } else if (state === 'failed') {
-          cleanup();
-          resolve('timeout');
-        }
-      };
-      const timer = setTimeout(() => {
-        cleanup();
-        resolve('timeout');
-      }, timeoutMs);
-      const cleanup = () => {
-        bus.off('messageState', handler);
-        clearTimeout(timer);
-      };
-      bus.on('messageState', handler);
-    });
+    return directMessages.sendDmTextWithRetry(this.ctx, contactKey, text, messageId);
   }
 
   /** Request a status snapshot from a repeater/room/contact. Returns ok on
@@ -1031,21 +909,20 @@ export class ProtocolSession {
       }, CLI_REPLY_TIMEOUT_MS);
       this.pendingCli.set(prefix, { pubKeyPrefixHex: prefix, resolve, reject, timer });
     });
-    const frame = buildSendDmText({
+    const frame = directMessages.encodeSendDmText({
       destPublicKeyHex: contact.publicKeyHex,
       text: command,
       txtType: TXT_TYPE.CLI_DATA,
     });
-    // CLI sends are still DMs at the wire level — push onto dmSendQueue so the
-    // RESP_SENT FIFO advances correctly. The id is synthetic; the radio doesn't
-    // ack CLI sends with PUSH_SEND_CONFIRMED so we won't get a state flip.
+    // CLI sends are still DMs at the wire level — push onto the DM send FIFO so
+    // the RESP_SENT FIFO advances correctly. The id is synthetic; the radio
+    // doesn't ack CLI sends with PUSH_SEND_CONFIRMED so we won't get a state flip.
     const syntheticId = `cli-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    this.dmSendQueue.push(syntheticId);
+    directMessages.enqueueDmSend(syntheticId);
     try {
       await this.writeFrame(frame);
     } catch (err) {
-      const i = this.dmSendQueue.indexOf(syntheticId);
-      if (i !== -1) this.dmSendQueue.splice(i, 1);
+      directMessages.dequeueDmSend(syntheticId);
       const pending = this.pendingCli.get(prefix);
       if (pending) {
         clearTimeout(pending.timer);
@@ -1231,9 +1108,7 @@ export class ProtocolSession {
       }
       // Any DM still awaiting RESP_SENT will never get one — fail them so the
       // UI doesn't leave 'sending' spinners forever.
-      while (this.dmSendQueue.length > 0) this.failOldestDmSend('transport disconnected');
-      for (const entry of this.pendingDmAcks.values()) clearTimeout(entry.timer);
-      this.pendingDmAcks.clear();
+      directMessages.resetDmState('transport disconnected');
       // Fail any in-flight admin awaiters so callers don't hang past disconnect.
       while (this.adminSentQueue.length > 0) {
         const entry = this.adminSentQueue.shift();
@@ -1498,18 +1373,6 @@ export class ProtocolSession {
       return;
     }
 
-    if (code === RESP.CONTACT_MSG_RECV_V3 || code === RESP.CONTACT_MSG_RECV) {
-      this.handleContactMsg(code, frame);
-      return;
-    }
-    if (code === RESP.SENT) {
-      this.handleSent(frame);
-      return;
-    }
-    if (code === PUSH.SEND_CONFIRMED) {
-      this.handleSendConfirmed(frame);
-      return;
-    }
     if (code === PUSH.STATUS_RESPONSE) {
       this.handleStatusResponse(frame);
       return;
@@ -1565,99 +1428,10 @@ export class ProtocolSession {
       // the send (e.g. unknown recipient prefix) — fail the DM.
       const errorCode = code === RESP.ERR ? frame[1] : undefined;
       if (this.resolveNextAck(code === RESP.OK, errorCode)) return;
-      if (code === RESP.ERR) this.failOldestDmSend('radio rejected send');
+      if (code === RESP.ERR) directMessages.failOldestDmSend('radio rejected send');
       return;
     }
   };
-
-  private handleContactMsg(code: number, frame: Buffer): void {
-    const parsed =
-      code === RESP.CONTACT_MSG_RECV_V3 ? parseContactMsgV3(frame) : parseContactMsgV1(frame);
-    if (!parsed) return;
-    // CLI replies arrive on the same opcode as DMs; route them to the
-    // matching admin awaiter and don't insert them into the message store.
-    if (parsed.txtType === TXT_TYPE.CLI_DATA) {
-      const pending = this.pendingCli.get(parsed.senderPubKeyPrefixHex.toLowerCase());
-      if (pending) {
-        clearTimeout(pending.timer);
-        this.pendingCli.delete(parsed.senderPubKeyPrefixHex.toLowerCase());
-        pending.resolve(parsed.body);
-        if (isDraining()) pumpAfterRecv(this.ctx);
-        return;
-      }
-    }
-
-    const holder = stateHolder();
-    const prefix = parsed.senderPubKeyPrefixHex;
-    let contact = holder
-      .getContacts()
-      .find((c) => c.publicKeyHex.toLowerCase().startsWith(prefix.toLowerCase()));
-
-    if (!contact) {
-      // Unknown sender — synth a placeholder contact keyed by the 6-byte
-      // prefix. A future advert handler (Phase 7+) will reconcile this when
-      // the full pubkey + display name arrive.
-      contact = {
-        key: `c:${prefix}`,
-        publicKeyHex: prefix,
-        name: `(${prefix})`,
-        kind: 'chat',
-      };
-      holder.upsertContact(contact);
-      emit.contacts(holder.getContacts());
-      log.debug(`synth contact for unknown sender prefix=${prefix}`);
-    }
-
-    const message: Message = {
-      id: `radio-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-      key: contact.key,
-      ts: parsed.timestampUnix * 1000,
-      fromPublicKeyHex: contact.publicKeyHex,
-      body: parsed.body,
-      state: 'received',
-      meta: { snr: parsed.snrDb },
-    };
-    holder.insertMessage(message);
-    emit.messages(contact.key, holder.getMessagesForKey(contact.key));
-    log.debug(
-      `contact msg from=${prefix} → "${contact.name}" body=${JSON.stringify(parsed.body.slice(0, 60))}`,
-    );
-    // The radio only tickles PUSH_MSG_WAITING once per queue event; keep
-    // pulling until NO_MORE_MESSAGES.
-    if (isDraining()) pumpAfterRecv(this.ctx);
-  }
-
-  private handleSent(frame: Buffer): void {
-    const sent = parseSentAck(frame);
-    if (!sent) return;
-    // Admin writes are serialised through adminSentQueue and ack'd ahead of
-    // DM sends. The expected_ack u32 from RESP_SENT is the same `tag` the
-    // firmware will echo back in PUSH_BINARY_RESPONSE / PUSH_LOGIN_SUCCESS.
-    const adminAwait = this.adminSentQueue.shift();
-    if (adminAwait) {
-      clearTimeout(adminAwait.timer);
-      adminAwait.resolve(sent.expectedAckHex);
-      return;
-    }
-    const messageId = this.dmSendQueue.shift();
-    if (!messageId) {
-      // RESP_SENT for a non-DM (e.g. channel send echo) — no state machine.
-      return;
-    }
-    const holder = stateHolder();
-    holder.setMessageState(messageId, 'sent');
-    emit.messageState(messageId, 'sent');
-    log.debug(
-      `dm sent id=${messageId} flood=${sent.flood} ack=${sent.expectedAckHex} timeout=${sent.estTimeoutMs}ms`,
-    );
-
-    if (sent.expectedAckHex !== '00000000') {
-      const timer = setTimeout(() => {
-        this.pendingDmAcks.delete(sent.expectedAckHex);
-      }, ACK_RETENTION_MS);
-      this.pendingDmAcks.set(sent.expectedAckHex, { messageId, timer });
-    }
-  }
 
   private handleStatusResponse(frame: Buffer): void {
     const parsed = parseStatusResponse(frame);
@@ -1703,26 +1477,6 @@ export class ProtocolSession {
     log.debug(
       `telemetry response from "${contact.name}" payload=${parsed.payloadHex.length / 2}B fields=${parsed.fields.length}`,
     );
-  }
-
-  private handleSendConfirmed(frame: Buffer): void {
-    const conf = parseSendConfirmed(frame);
-    if (!conf) return;
-    const entry = this.pendingDmAcks.get(conf.ackHex);
-    if (!entry) return;
-    clearTimeout(entry.timer);
-    this.pendingDmAcks.delete(conf.ackHex);
-    stateHolder().setMessageState(entry.messageId, 'ack');
-    emit.messageState(entry.messageId, 'ack');
-    log.debug(`dm ack id=${entry.messageId} ack=${conf.ackHex} rtt=${conf.tripTimeMs}ms`);
-  }
-
-  private failOldestDmSend(reason: string): void {
-    const messageId = this.dmSendQueue.shift();
-    if (!messageId) return;
-    stateHolder().setMessageState(messageId, 'failed');
-    emit.messageState(messageId, 'failed');
-    log.warn(`dm failed id=${messageId}: ${reason}`);
   }
 }
 
