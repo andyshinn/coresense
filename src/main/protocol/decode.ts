@@ -1,75 +1,5 @@
 import type { Buffer } from 'node:buffer';
 
-// RESP_CHANNEL_MSG_RECV_V3 frame layout (firmware: companion_radio/MyMesh.cpp
-// onChannelMessageRecv):
-//   [0]: 0x11
-//   [1]: snr*4 (signed int8) — divide by 4 for dB
-//   [2..3]: 2B reserved
-//   [4]: channel index (slot on the radio)
-//   [5]: path_len (hop count for flood; 0xFF for direct)
-//   [6]: txt_type
-//   [7..10]: timestamp uint32 LE (UNIX seconds)
-//   [11..]: text body (often prefixed "name: ")
-export interface ChannelMsgV3 {
-  snrDb: number;
-  channelIdx: number;
-  pathLen: number;
-  txtType: number;
-  timestampUnix: number;
-  body: string;
-  /** Body with the trailing "name: " sender prefix split out, when present. */
-  senderName: string | null;
-  cleanBody: string;
-}
-
-export function parseChannelMsgV3(frame: Buffer): ChannelMsgV3 | null {
-  if (frame.length < 12) return null;
-  const snrRaw = frame.readInt8(1);
-  const channelIdx = frame[4];
-  const pathLen = frame[5];
-  const txtType = frame[6];
-  const timestampUnix = frame.readUInt32LE(7);
-  const body = frame.subarray(11).toString('utf8').replace(/\0+$/, '');
-  const { senderName, cleanBody } = splitSenderPrefix(body);
-  return {
-    snrDb: snrRaw / 4,
-    channelIdx,
-    pathLen,
-    txtType,
-    timestampUnix,
-    body,
-    senderName,
-    cleanBody,
-  };
-}
-
-// Older RESP_CHANNEL_MSG_RECV (0x08) — no SNR/reserved prefix.
-//   [0]: 0x08
-//   [1]: channel index
-//   [2]: path_len
-//   [3]: txt_type
-//   [4..7]: timestamp uint32 LE
-//   [8..]: text body
-export function parseChannelMsgV1(frame: Buffer): ChannelMsgV3 | null {
-  if (frame.length < 8) return null;
-  const channelIdx = frame[1];
-  const pathLen = frame[2];
-  const txtType = frame[3];
-  const timestampUnix = frame.readUInt32LE(4);
-  const body = frame.subarray(8).toString('utf8').replace(/\0+$/, '');
-  const { senderName, cleanBody } = splitSenderPrefix(body);
-  return {
-    snrDb: 0,
-    channelIdx,
-    pathLen,
-    txtType,
-    timestampUnix,
-    body,
-    senderName,
-    cleanBody,
-  };
-}
-
 // PUSH_STATUS_RESPONSE (firmware: companion_radio/MyMesh.cpp):
 //   [0x87][1B reserved][6B sender pub_key_prefix][status bytes...]
 // "status bytes" is the raw status blob the repeater returned. The firmware
@@ -330,19 +260,4 @@ export function parseSendConfirmed(frame: Buffer): SendConfirmed | null {
     ackHex: frame.subarray(1, 5).toString('hex'),
     tripTimeMs: frame.readUInt32LE(5),
   };
-}
-
-// Sender names on channel messages are conventionally prefixed "name: " by the
-// originating node. Strip them for cleaner rendering; keep the original body
-// available too.
-function splitSenderPrefix(body: string): { senderName: string | null; cleanBody: string } {
-  const colon = body.indexOf(': ');
-  if (colon <= 0 || colon > 32) return { senderName: null, cleanBody: body };
-  const candidate = body.slice(0, colon);
-  // Reject control chars but allow non-ASCII (sender names commonly include emoji).
-  for (let i = 0; i < candidate.length; i++) {
-    const code = candidate.charCodeAt(i);
-    if (code < 0x20 || code === 0x7f) return { senderName: null, cleanBody: body };
-  }
-  return { senderName: candidate, cleanBody: body.slice(colon + 2) };
 }

@@ -7,7 +7,6 @@ import {
   buildReboot,
   buildSendAnonReq,
   buildSendBinaryReq,
-  buildSendChannelText,
   buildSendDmText,
   buildSendLogin,
   buildSendSelfAdvert,
@@ -52,11 +51,6 @@ describe('encode: DM text framing + validation', () => {
 describe('encode: bare/simple builders (missing coverage)', () => {
   it('buildGetStats appends the subtype', () => {
     expect(hex(buildGetStats(0x00))).toBe('3800');
-  });
-
-  it('buildSendChannelText lays out [cmd][flags][idx][ts u32 LE][text]', () => {
-    const out = buildSendChannelText({ channelIdx: 2, text: 'hi', timestampUnix: 1, flags: 0 });
-    expect(hex(out)).toBe('030002010000006869');
   });
 });
 

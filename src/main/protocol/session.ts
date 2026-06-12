@@ -1,10 +1,8 @@
 import { Buffer } from 'node:buffer';
-import { createHash } from 'node:crypto';
 import type {
   Channel,
   ContactKind,
   Message,
-  MessagePath,
   RawPacket,
   SyncProgress,
   TransportState,
@@ -18,8 +16,6 @@ import { discoveredStore } from '../storage/discoveredContacts';
 import { transportManager } from '../transport/manager';
 import { ADV_TYPE, ERR_CODE, PUSH, REQ_TYPE, RESP, STATS_TYPE, TXT_TYPE } from './codes';
 import {
-  parseChannelMsgV1,
-  parseChannelMsgV3,
   parseContactMsgV1,
   parseContactMsgV3,
   parseSendConfirmed,
@@ -33,7 +29,6 @@ import {
   buildLogout,
   buildReboot,
   buildSendBinaryReq,
-  buildSendChannelText,
   buildSendDmText,
   buildSendLogin,
   buildSendSelfAdvert,
@@ -60,6 +55,7 @@ import {
   setAutoAddConfig,
 } from './features/autoAdd';
 import { battStorageFeature, encodeGetBattAndStorage } from './features/battStorage';
+import * as channelMessages from './features/channelMessages';
 import * as channels from './features/channels';
 import {
   contactsFeature,
@@ -86,8 +82,6 @@ import { encodeSetPathHashMode, pathHashSizeToMode } from './features/pathHash';
 import { encodeSetRadioParams, encodeSetRadioTxPower } from './features/radioParams';
 import { encodeAppStart, selfInfoFeature } from './features/selfInfo';
 import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
-import { consumeMatching as consumeMeshObs } from './meshObservations';
-import { buildPath, channelHashOf } from './paths';
 import { FeatureRegistry } from './registry';
 import {
   type AclEntry,
@@ -251,6 +245,7 @@ export class ProtocolSession {
     contactsFeature,
     drainFeature,
     channels.channelsFeature,
+    channelMessages.channelMessagesFeature,
   ]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
@@ -300,23 +295,7 @@ export class ProtocolSession {
     channelKey: string,
     text: string,
   ): Promise<{ ok: boolean; error?: string; channelHash?: number }> {
-    const channel = stateHolder()
-      .getChannels()
-      .find((c) => c.key === channelKey);
-    if (!channel) return { ok: false, error: `unknown channel ${channelKey}` };
-    const idx = channel.idx ?? channels.findIdxByKey(channelKey);
-    if (idx === undefined || idx === null) {
-      return { ok: false, error: `no slot index known for ${channelKey}` };
-    }
-
-    const frame = buildSendChannelText({ channelIdx: idx, text });
-    try {
-      await this.writeFrame(frame);
-      const channelHash = channelHashOf(channel) ?? undefined;
-      return { ok: true, channelHash };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
+    return channelMessages.sendChannelText(this.ctx, channelKey, text);
   }
 
   /** Send a DM to a contact. Returns ok on transport-level write success; the
@@ -1519,10 +1498,6 @@ export class ProtocolSession {
       return;
     }
 
-    if (code === RESP.CHANNEL_MSG_RECV_V3 || code === RESP.CHANNEL_MSG_RECV) {
-      this.handleChannelMsg(code, frame);
-      return;
-    }
     if (code === RESP.CONTACT_MSG_RECV_V3 || code === RESP.CONTACT_MSG_RECV) {
       this.handleContactMsg(code, frame);
       return;
@@ -1748,73 +1723,6 @@ export class ProtocolSession {
     stateHolder().setMessageState(messageId, 'failed');
     emit.messageState(messageId, 'failed');
     log.warn(`dm failed id=${messageId}: ${reason}`);
-  }
-
-  private handleChannelMsg(code: number, frame: Buffer): void {
-    const parsed =
-      code === RESP.CHANNEL_MSG_RECV_V3 ? parseChannelMsgV3(frame) : parseChannelMsgV1(frame);
-    if (!parsed) return;
-    const channel = channels.getChannelByIdx(parsed.channelIdx);
-    if (!channel) {
-      log.warn(
-        `incoming channel msg idx=${parsed.channelIdx} doesn't match any known channel slot`,
-      );
-      return;
-    }
-
-    const holder = stateHolder();
-    const owner = holder.getOwner();
-
-    // Pull matching mesh-side observations for this channel + hop count and
-    // build the Message's paths from them. parsed.pathLen carries the firmware
-    // path_len byte (hashSize in bits 6..7, hashCount in bits 0..5); 0xFF means
-    // "direct, no flood" — no per-hop bytes to fetch.
-    const paths: MessagePath[] = [];
-    let finalSnr = parsed.snrDb;
-    if (parsed.pathLen !== 0xff) {
-      const hashCount = parsed.pathLen & 0x3f;
-      const channelHashByte = channelHashOf(channel);
-      if (channelHashByte != null) {
-        const observations = consumeMeshObs(channelHashByte, hashCount);
-        for (const obs of observations) {
-          paths.push(
-            buildPath(obs.pathHex, obs.hashSize, obs.finalSnr, parsed.senderName, owner?.name),
-          );
-        }
-        // Prefer the SNR our radio measured on the LoRa frame (mesh side) over
-        // the one the firmware quoted in 0x11 — they're the same value when the
-        // observation arrived from the same hop, and the mesh one is fresher.
-        if (observations.length > 0) finalSnr = observations[0].finalSnr;
-      }
-    }
-
-    // Deterministic id: re-receipts of the same flood message via different
-    // paths collide here so upsertMessage merges them into one row.
-    const bodyHash = createHash('sha1').update(parsed.cleanBody).digest('hex').slice(0, 12);
-    const id = `chmsg-${channel.key}-${parsed.timestampUnix}-${bodyHash}`;
-
-    const message: Message = {
-      id,
-      key: channel.key,
-      ts: parsed.timestampUnix * 1000,
-      // No pubkey at the channel-message layer; the sender is identified by the
-      // "name: " prefix the originating node tacks onto the body.
-      fromPublicKeyHex: parsed.senderName ? `name:${parsed.senderName}` : 'unknown',
-      body: parsed.cleanBody,
-      state: 'received',
-      meta: {
-        snr: finalSnr,
-        ...(paths.length > 0 ? { paths } : {}),
-      },
-    };
-    holder.upsertMessage(message);
-    emit.messages(channel.key, holder.getMessagesForKey(channel.key));
-    log.debug(
-      `channel msg idx=${parsed.channelIdx} → "${channel.name}" (${channel.key}) ` +
-        `from=${parsed.senderName ?? 'unknown'} paths=${paths.length} ` +
-        `body=${JSON.stringify(parsed.cleanBody.slice(0, 60))}`,
-    );
-    if (isDraining()) pumpAfterRecv(this.ctx);
   }
 }
 

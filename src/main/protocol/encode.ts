@@ -1,25 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { CMD, type STATS_TYPE, TXT_TYPE } from './codes';
 
-// CMD_SEND_CHAN_TXT_MSG payload (per src/main/bridge/drain.ts):
-//   [0x03][flags 1B][chan_idx 1B][ts 4B LE][text UTF-8...]
-export function buildSendChannelText(opts: {
-  channelIdx: number;
-  text: string;
-  timestampUnix?: number;
-  flags?: number;
-}): Buffer {
-  const text = Buffer.from(opts.text, 'utf8');
-  const ts = opts.timestampUnix ?? Math.floor(Date.now() / 1000);
-  const out = Buffer.alloc(7 + text.length);
-  out[0] = CMD.SEND_CHAN_TXT_MSG;
-  out[1] = opts.flags ?? 0;
-  out[2] = opts.channelIdx & 0xff;
-  out.writeUInt32LE(ts >>> 0, 3);
-  text.copy(out, 7);
-  return out;
-}
-
 // CMD_SEND_TXT_MSG payload (firmware: companion_radio/MyMesh.cpp):
 //   [0x02][txt_type 1B][attempt 1B][ts 4B LE][dest pubkey prefix 6B][text UTF-8...]
 // The firmware looks the recipient up by the first 6 bytes of their public key
