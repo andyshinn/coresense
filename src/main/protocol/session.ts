@@ -153,7 +153,10 @@ export class ProtocolSession {
     writeFrame: (frame) => this.writeFrame(frame),
     request: (frame, opts) => this.request(frame, opts),
   };
-  /** Inbound-frame handlers, keyed by wire code. Empty until features migrate. */
+  /** Inbound-frame dispatch: every code-owned RESP/PUSH frame is handled by
+   *  exactly one of these feature modules. The only frames NOT routed here are
+   *  solicited typed replies (ctx.request `expect`, via pendingTyped) and the
+   *  shared RESP_OK/RESP_ERR ack channel — see onPacket. */
   private readonly registry = new FeatureRegistry([
     contactsFullFeature,
     battStorageFeature,
@@ -1077,24 +1080,25 @@ export class ProtocolSession {
         return;
       }
     }
-    // (2) Modular feature handlers. Falls through to the legacy chain below for
-    //     any code no feature has claimed yet.
+    // (2) Code-owned frames go to their feature module.
     const feature = this.registry.get(code);
     if (feature) {
       feature.handle(code, frame, this.ctx);
       return;
     }
 
+    // (3) The shared RESP_OK / RESP_ERR ack channel. These have no correlation
+    //     id and aren't owned by any single feature — they route to the oldest
+    //     queued device-write awaiter (the pendingAcks FIFO that backs every
+    //     ctx.request()). A RESP_ERR carries an error-code byte (frame[1]) so
+    //     callers like addContactToRadio can detect ERR_CODE_TABLE_FULL. If no
+    //     awaiter is queued, a bare RESP_ERR means the radio rejected an
+    //     in-flight send — fail the oldest DM. Any other unclaimed code is a
+    //     no-op (e.g. a reply to a command we don't issue yet).
     if (code === RESP.OK || code === RESP.ERR) {
-      // Device-write awaiters get first crack at any OK/ERR. A RESP_ERR carries
-      // an error-code byte (frame[1]) — thread it through so callers like
-      // addContactToRadio can detect ERR_CODE_TABLE_FULL. If no awaiter is
-      // queued and a DM is in flight, a bare RESP_ERR means the radio rejected
-      // the send (e.g. unknown recipient prefix) — fail the DM.
       const errorCode = code === RESP.ERR ? frame[1] : undefined;
       if (this.resolveNextAck(code === RESP.OK, errorCode)) return;
       if (code === RESP.ERR) directMessages.failOldestDmSend('radio rejected send');
-      return;
     }
   };
 }

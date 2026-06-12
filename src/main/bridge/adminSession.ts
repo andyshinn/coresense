@@ -1,5 +1,3 @@
-import type { Buffer } from 'node:buffer';
-
 // Per-repeater admin auth state, plus a pending-request map keyed by the u32
 // tag the firmware echoes in RESP_SENT after we issue a mesh-side request
 // (login, ACL list, neighbours, owner info). PUSH_BINARY_RESPONSE /
@@ -119,11 +117,3 @@ export class AdminSessionStore {
 }
 
 export const adminSessions = new AdminSessionStore();
-
-// Helper: read the 4-byte tag at the start of a PUSH_BINARY_RESPONSE payload
-// (after the 2-byte header the firmware already stripped — handed back to us
-// in `BinaryResponse.payload`). Use this when a caller stored the tag in
-// `pending` keyed by hex.
-export function tagFromBuffer(buf: Buffer, offset = 0): string {
-  return buf.subarray(offset, offset + 4).toString('hex');
-}

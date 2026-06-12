@@ -1,8 +1,8 @@
 import type { Buffer } from 'node:buffer';
 
-/** The controlled slice of ProtocolSession a feature module may touch. Module
- *  singletons the legacy branches already import (stateHolder, emit,
- *  adminSessions, discoveredStore) are imported directly, not threaded here. */
+/** The controlled slice of ProtocolSession a feature module may touch. Other
+ *  shared singletons (stateHolder, emit, adminSessions, discoveredStore) are
+ *  imported directly by the feature modules, not threaded through here. */
 export interface FeatureContext {
   /** Write a raw companion frame to the radio. */
   writeFrame(frame: Buffer): Promise<void>;

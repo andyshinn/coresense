@@ -128,57 +128,6 @@ export function parseTraceData(frame: Buffer): TraceData | null {
   return { pubKeyPrefixHex, tagHex, authHex, flags, pathHashSize, hops, finalSnrDb };
 }
 
-// Full 59-byte RepeaterStats decode (firmware: companion_radio/MyMeshRepeater.cpp
-// handleRequest REQ_TYPE_GET_STATUS reply, MyMesh.cpp:700-707 wraps it into a
-// PUSH_STATUS_RESPONSE frame with [0x87][0][6B prefix][stats...]).
-//
-// Field layout matches the C struct memcpy order. Offsets are relative to the
-// start of the stats blob (i.e. after the 8-byte PUSH_STATUS_RESPONSE header).
-export interface RepeaterStats {
-  battMv: number;
-  txQueueLen: number;
-  noiseFloor: number;
-  lastRssi: number;
-  nPacketsRecv: number;
-  nPacketsSent: number;
-  totalAirSecs: number;
-  uptimeSecs: number;
-  nSentFlood: number;
-  nSentDirect: number;
-  nRecvFlood: number;
-  nRecvDirect: number;
-  errEvents: number;
-  lastSnrDb: number;
-  nDirectDups: number;
-  nFloodDups: number;
-  totalRxAirSecs: number;
-  nRecvErrors: number;
-}
-
-export function parseRepeaterStatsBlob(b: Buffer): RepeaterStats | null {
-  if (b.length < 59) return null;
-  return {
-    battMv: b.readUInt16LE(0),
-    txQueueLen: b.readUInt8(2),
-    noiseFloor: b.readInt16LE(3),
-    lastRssi: b.readInt16LE(5),
-    nPacketsRecv: b.readUInt32LE(7),
-    nPacketsSent: b.readUInt32LE(11),
-    totalAirSecs: b.readUInt32LE(15),
-    uptimeSecs: b.readUInt32LE(19),
-    nSentFlood: b.readUInt32LE(23),
-    nSentDirect: b.readUInt32LE(27),
-    nRecvFlood: b.readUInt32LE(31),
-    nRecvDirect: b.readUInt32LE(35),
-    errEvents: b.readUInt16LE(39),
-    lastSnrDb: b.readInt16LE(41) / 4,
-    nDirectDups: b.readUInt32LE(43),
-    nFloodDups: b.readUInt32LE(47),
-    totalRxAirSecs: b.readUInt32LE(51),
-    nRecvErrors: b.readUInt32LE(55),
-  };
-}
-
 // ACL list response body (inside PUSH_BINARY_RESPONSE payload, after the 4B
 // tag we already stripped in parseBinaryResponse). Repeating 7-byte entries:
 //   [6B pubkey prefix][1B perms]
