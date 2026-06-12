@@ -23,12 +23,9 @@ import {
   buildSetAdvertName,
   buildSetChannel,
   buildSetOtherParams,
-  buildSetPathHashMode,
   buildSetRadioParams,
   buildSetRadioTxPower,
   deriveChannelSecret,
-  pathHashModeToSize,
-  pathHashSizeToMode,
 } from '../../../../src/main/protocol/encode';
 
 const hex = (b: Buffer) => b.toString('hex');
@@ -84,20 +81,6 @@ describe('encode: SET_OTHER_PARAMS bit packing', () => {
 describe('encode: SET_ADVERT_NAME / SET_CUSTOM_VAR', () => {
   it('buildSetAdvertName appends the UTF-8 name', () => {
     expect(hex(buildSetAdvertName('Hand'))).toBe('0848616e64');
-  });
-});
-
-describe('encode: SET_PATH_HASH_MODE + size/mode conversions', () => {
-  it('emits [0x3d][0x00][mode]', () => {
-    expect(hex(buildSetPathHashMode(1))).toBe('3d0001');
-  });
-
-  it('round-trips per-hop byte size ↔ mode', () => {
-    for (const size of [1, 2, 3] as const) {
-      expect(pathHashModeToSize(pathHashSizeToMode(size))).toBe(size);
-    }
-    expect(pathHashSizeToMode(1)).toBe(0);
-    expect(pathHashSizeToMode(3)).toBe(2);
   });
 });
 

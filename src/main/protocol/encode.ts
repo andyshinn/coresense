@@ -280,26 +280,6 @@ export function buildRemoveContact(destPublicKeyHex: string): Buffer {
   return out;
 }
 
-// CMD_SET_PATH_HASH_MODE: [0x3d][0x00][mode u8]. The 0x00 is a required
-// discriminator byte — firmware MyMesh.cpp:1431 gates the handler on
-// `cmd_frame[1] == 0 && len >= 3`. mode is 0/1/2 (1/2/3 bytes per hop hash).
-// Persists across reboots on the radio side. (Firmware sends
-// `_prefs.path_hash_mode + 1` bytes per hop — see MyMesh.cpp:487.)
-export function buildSetPathHashMode(mode: number): Buffer {
-  const m = mode & 0x03;
-  return Buffer.from([CMD.SET_PATH_HASH_MODE, 0x00, m]);
-}
-
-/** Convert our per-hop byte size (1|2|3) to the firmware's mode byte (0|1|2). */
-export function pathHashSizeToMode(size: 1 | 2 | 3): 0 | 1 | 2 {
-  return (size - 1) as 0 | 1 | 2;
-}
-/** Inverse of pathHashSizeToMode. */
-export function pathHashModeToSize(mode: number): 1 | 2 | 3 {
-  const m = Math.max(0, Math.min(2, mode));
-  return (m + 1) as 1 | 2 | 3;
-}
-
 // CMD_SEND_TRACE_PATH: [0x24][tag u32 LE][auth u32 LE][flags u8][path bytes...]
 // Firmware checks `len > 10`, so we always emit ≥1 path byte. flags bits 0..1
 // encode the per-hop hash size (path length must be multiple of 1<<size).

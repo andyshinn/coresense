@@ -3,8 +3,8 @@ import { emit } from '../../events/bus';
 import { stateHolder } from '../../state/holder';
 import { BufferWriter } from '../buffer';
 import { APP_PROTOCOL_VERSION, CMD, RESP } from '../codes';
-import { pathHashModeToSize } from '../encode';
 import type { Feature } from '../feature';
+import { pathHashModeToSize } from './pathHash';
 
 // RESP_DEVICE_INFO. The official client treats most of the payload as
 // firmware-version-specific metadata; we only need the few fields we surface

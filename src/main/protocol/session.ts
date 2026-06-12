@@ -58,11 +58,9 @@ import {
   buildSetAdvertName,
   buildSetChannel,
   buildSetOtherParams,
-  buildSetPathHashMode,
   buildSetRadioParams,
   buildSetRadioTxPower,
   deriveChannelSecret,
-  pathHashSizeToMode,
 } from './encode';
 import {
   ContactTableFullError,
@@ -81,6 +79,7 @@ import { battStorageFeature, encodeGetBattAndStorage } from './features/battStor
 import { contactsFullFeature } from './features/contactsFull';
 import { customVarsFeature, encodeGetCustomVar, encodeSetCustomVar } from './features/customVars';
 import { deviceInfoFeature, encodeDeviceQuery } from './features/deviceInfo';
+import { encodeSetPathHashMode, pathHashSizeToMode } from './features/pathHash';
 import { encodeAppStart, selfInfoFeature } from './features/selfInfo';
 import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
 import { consumeMatching as consumeMeshObs } from './meshObservations';
@@ -742,7 +741,7 @@ export class ProtocolSession {
   /** Set the radio's global path-hash mode (bytes per hop). Persists on the
    *  radio and updates local RadioSettings on RESP_OK. */
   async setPathHashMode(size: 1 | 2 | 3): Promise<void> {
-    await this.writeFrame(buildSetPathHashMode(pathHashSizeToMode(size)));
+    await this.writeFrame(encodeSetPathHashMode(pathHashSizeToMode(size)));
     const holder = stateHolder();
     const current = holder.getRadioSettings();
     holder.setRadioSettings({ ...current, pathHashMode: size });
