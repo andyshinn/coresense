@@ -4,11 +4,8 @@ import {
   parseChannelInfo,
   parseChannelMsgV1,
   parseChannelMsgV3,
-  parseContact,
   parseContactMsgV1,
   parseContactMsgV3,
-  parseContactsStart,
-  parseEndOfContacts,
   parseSendConfirmed,
   parseSentAck,
   parseStatusResponse,
@@ -127,48 +124,6 @@ describe('parseContactMsgV1 (legacy, no snr prefix)', () => {
 
   it('returns null below 13 bytes', () => {
     expect(parseContactMsgV1(Buffer.alloc(12))).toBeNull();
-  });
-});
-
-describe('parseContact', () => {
-  it('reads pubkey, type/flags, out_path, name, gps, timestamps', () => {
-    const frame = Buffer.alloc(148);
-    frame[0] = 0x03;
-    Buffer.alloc(32, 0x11).copy(frame, 1); // pubkey
-    frame[33] = 2; // type (repeater)
-    frame[34] = 0x05; // flags
-    frame[35] = 2; // out_path_len
-    Buffer.from([0xa1, 0xb2]).copy(frame, 36); // out_path
-    Buffer.from('Repeater-1', 'utf8').copy(frame, 100); // name
-    frame.writeUInt32LE(1000, 132); // last_advert
-    frame.writeInt32LE(37_123456, 136); // gps_lat → 37.123456
-    frame.writeInt32LE(-122_654321, 140); // gps_lon → -122.654321
-    frame.writeUInt32LE(2000, 144); // lastmod
-    const c = parseContact(frame);
-    expect(c?.publicKeyHex).toBe('11'.repeat(32));
-    expect(c?.type).toBe(2);
-    expect(c?.flags).toBe(0x05);
-    expect(c?.outPathLen).toBe(2);
-    expect(c?.outPathHex).toBe('a1b2');
-    expect(c?.name).toBe('Repeater-1');
-    expect(c?.lastAdvertUnix).toBe(1000);
-    expect(c?.gpsLat).toBeCloseTo(37.123456, 5);
-    expect(c?.gpsLon).toBeCloseTo(-122.654321, 5);
-    expect(c?.lastmod).toBe(2000);
-  });
-
-  it('returns null below 148 bytes', () => {
-    expect(parseContact(Buffer.alloc(147))).toBeNull();
-  });
-});
-
-describe('parseContactsStart / parseEndOfContacts', () => {
-  it('read a u32 LE count / lastmod at offset 1', () => {
-    const start = Buffer.from([0x02, 0x05, 0x00, 0x00, 0x00]);
-    const end = Buffer.from([0x04, 0x10, 0x00, 0x00, 0x00]);
-    expect(parseContactsStart(start)).toBe(5);
-    expect(parseEndOfContacts(end)).toBe(16);
-    expect(parseContactsStart(Buffer.alloc(4))).toBeNull();
   });
 });
 

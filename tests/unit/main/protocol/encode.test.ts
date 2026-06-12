@@ -1,15 +1,12 @@
 import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
 import {
-  buildAddUpdateContact,
   buildAnonLogin,
   buildGetChannel,
-  buildGetContacts,
   buildGetNextMsg,
   buildGetStats,
   buildLogout,
   buildReboot,
-  buildResetPath,
   buildSendAnonReq,
   buildSendBinaryReq,
   buildSendChannelText,
@@ -42,16 +39,6 @@ describe('encode: bare-opcode commands', () => {
 
   it('buildReboot appends the literal "reboot"', () => {
     expect(hex(buildReboot())).toBe('137265626f6f74');
-  });
-});
-
-describe('encode: GET_CONTACTS', () => {
-  it('is a bare opcode with no `since`', () => {
-    expect(hex(buildGetContacts())).toBe('04');
-  });
-
-  it('appends `since` as u32 LE', () => {
-    expect(hex(buildGetContacts(0x100))).toBe('0400010000');
   });
 });
 
@@ -107,10 +94,6 @@ describe('encode: 32-byte-pubkey commands (missing coverage)', () => {
     expect(hex(buildLogout(pk))).toBe(`1d${pk}`);
   });
 
-  it('buildResetPath is [0x0d][32B pubkey]', () => {
-    expect(hex(buildResetPath(pk))).toBe(`0d${pk}`);
-  });
-
   it('buildSendStatusReq is [0x1b][32B pubkey]', () => {
     expect(hex(buildSendStatusReq(pk))).toBe(`1b${pk}`);
   });
@@ -145,8 +128,6 @@ describe('encode: 32-byte-pubkey commands (missing coverage)', () => {
 });
 
 describe('encode: structured builders (missing coverage)', () => {
-  const pk = 'aa'.repeat(32);
-
   it('buildSetChannel lays out [0x20][idx][name 32B null-padded][secret 16B]', () => {
     const out = buildSetChannel(1, 'General', 'ab'.repeat(16));
     expect(out.length).toBe(50);
@@ -170,43 +151,5 @@ describe('encode: structured builders (missing coverage)', () => {
     expect(() => buildSendTracePath({ tag: 1, authCode: 2, path: Buffer.alloc(0) })).toThrow(
       /≥1 byte/,
     );
-  });
-
-  it('buildAddUpdateContact omits the GPS tail when not provided (136 bytes)', () => {
-    const out = buildAddUpdateContact({
-      publicKeyHex: pk,
-      advType: 1,
-      flags: 0,
-      outPathHex: '',
-      name: 'Bob',
-      timestampUnix: 5,
-    });
-    expect(out.length).toBe(136);
-    expect(out[0]).toBe(0x09);
-    expect(out.subarray(1, 33).toString('hex')).toBe(pk);
-    expect(out[33]).toBe(1); // advType
-    expect(out[34]).toBe(0); // flags
-    expect(out[35]).toBe(0); // out_path_len
-    const nameRegion = out.subarray(100, 132);
-    expect(nameRegion.subarray(0, nameRegion.indexOf(0)).toString('utf8')).toBe('Bob');
-    expect(out.readUInt32LE(132)).toBe(5);
-  });
-
-  it('buildAddUpdateContact includes the GPS tail when provided (148 bytes)', () => {
-    const out = buildAddUpdateContact({
-      publicKeyHex: pk,
-      advType: 1,
-      flags: 0,
-      outPathHex: '',
-      name: 'Bob',
-      timestampUnix: 5,
-      gpsLat: 1,
-      gpsLon: 2,
-      lastAdvertUnix: 10,
-    });
-    expect(out.length).toBe(148);
-    expect(out.readInt32LE(136)).toBe(1_000_000);
-    expect(out.readInt32LE(140)).toBe(2_000_000);
-    expect(out.readUInt32LE(144)).toBe(10);
   });
 });

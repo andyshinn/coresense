@@ -20,32 +20,23 @@ import { discoveredStore } from '../storage/discoveredContacts';
 import { transportManager } from '../transport/manager';
 import { ADV_TYPE, ERR_CODE, PUSH, REQ_TYPE, RESP, STATS_TYPE, TXT_TYPE } from './codes';
 import {
-  type ContactRecord,
   parseChannelInfo,
   parseChannelMsgV1,
   parseChannelMsgV3,
-  parseContact,
-  parseContactDeleted,
   parseContactMsgV1,
   parseContactMsgV3,
-  parseContactsStart,
-  parseEndOfContacts,
   parseSendConfirmed,
   parseSentAck,
   parseStatusResponse,
   parseTelemetryResponse,
 } from './decode';
 import {
-  buildAddUpdateContact,
   buildAnonLogin,
   buildGetChannel,
-  buildGetContacts,
   buildGetNextMsg,
   buildGetStats,
   buildLogout,
   buildReboot,
-  buildRemoveContact,
-  buildResetPath,
   buildSendBinaryReq,
   buildSendChannelText,
   buildSendDmText,
@@ -76,6 +67,17 @@ import {
   setAutoAddConfig,
 } from './features/autoAdd';
 import { battStorageFeature, encodeGetBattAndStorage } from './features/battStorage';
+import {
+  type ContactRecord,
+  decodeContact,
+  decodeContactDeleted,
+  decodeContactsStart,
+  decodeEndOfContacts,
+  encodeAddUpdateContact,
+  encodeGetContacts,
+  encodeRemoveContact,
+  encodeResetPath,
+} from './features/contacts';
 import { contactsFullFeature } from './features/contactsFull';
 import { customVarsFeature, encodeGetCustomVar, encodeSetCustomVar } from './features/customVars';
 import { deviceInfoFeature, encodeDeviceQuery } from './features/deviceInfo';
@@ -409,7 +411,7 @@ export class ProtocolSession {
     // Phase 2: drop the path on the radio, then flood.
     if (hadPath && floodAttempts > 0) {
       try {
-        await this.writeFrame(buildResetPath(initial.publicKeyHex));
+        await this.writeFrame(encodeResetPath(initial.publicKeyHex));
         holder.upsertContact({
           ...initial,
           outPathHex: undefined,
@@ -592,7 +594,7 @@ export class ProtocolSession {
         `outPathHex length ${pathBytes}B must be a multiple of pathHashMode ${hashSize}B`,
       );
     }
-    const frame = buildAddUpdateContact({
+    const frame = encodeAddUpdateContact({
       publicKeyHex: contact.publicKeyHex,
       advType: contactKindToAdvType(contact.kind),
       flags: 0,
@@ -620,7 +622,7 @@ export class ProtocolSession {
     if (!contact.publicKeyHex || contact.publicKeyHex.length < 64) {
       throw new Error(`contact ${contactKey} has no full 32B public key`);
     }
-    await this.writeFrame(buildResetPath(contact.publicKeyHex));
+    await this.writeFrame(encodeResetPath(contact.publicKeyHex));
     holder.upsertContact({
       ...contact,
       outPathHex: undefined,
@@ -639,7 +641,7 @@ export class ProtocolSession {
       throw new UnknownContactError(publicKeyHex);
     }
     const hasFix = row.gps_lat !== 0 || row.gps_lon !== 0;
-    const frame = buildAddUpdateContact({
+    const frame = encodeAddUpdateContact({
       publicKeyHex,
       advType: row.type,
       flags: row.flags,
@@ -687,7 +689,7 @@ export class ProtocolSession {
   /** Delete a contact from the radio's store (CMD_REMOVE_CONTACT). Keeps it in
    *  the discovered pool, flagged off-radio. */
   async removeContactFromRadio(publicKeyHex: string): Promise<void> {
-    await this.writeFrame(buildRemoveContact(publicKeyHex));
+    await this.writeFrame(encodeRemoveContact(publicKeyHex));
     discoveredStore.setOnRadio(publicKeyHex, false);
     const holder = stateHolder();
     holder.removeContact(`c:${publicKeyHex}`);
@@ -707,7 +709,7 @@ export class ProtocolSession {
     if (row.on_radio !== 0) {
       const flags = favourite ? row.flags | 0x01 : row.flags & ~0x01;
       const hasFix = row.gps_lat !== 0 || row.gps_lon !== 0;
-      const frame = buildAddUpdateContact({
+      const frame = encodeAddUpdateContact({
         publicKeyHex,
         advType: row.type,
         flags,
@@ -1473,7 +1475,7 @@ export class ProtocolSession {
       // very fast END_OF_CONTACTS can't race past us.
       const contactsStart = this.armWaiter('contactsStartWaiter', CONTACTS_START_WAIT_MS);
       const contactsDone = this.armWaiter('contactsDoneWaiter', CONTACTS_DONE_WAIT_MS);
-      await this.writeFrame(buildGetContacts());
+      await this.writeFrame(encodeGetContacts());
       await contactsStart;
       await sleep(WRITE_GAP_MS);
       // Enumerate channels. Empty slots return RESP_ERR or an all-zero key
@@ -1548,7 +1550,7 @@ export class ProtocolSession {
       return;
     }
     if (code === RESP.CONTACTS_START) {
-      const total = parseContactsStart(frame);
+      const total = decodeContactsStart(frame);
       if (total !== null) {
         this.contactsIterTotal = total;
         this.contactsIterCount = 0;
@@ -1560,7 +1562,7 @@ export class ProtocolSession {
       return;
     }
     if (code === RESP.CONTACT) {
-      const record = parseContact(frame);
+      const record = decodeContact(frame);
       if (record) {
         this.contactsSyncSeen.push(record.publicKeyHex);
         this.ingestContact(record, 'sync');
@@ -1578,7 +1580,7 @@ export class ProtocolSession {
       return;
     }
     if (code === RESP.END_OF_CONTACTS) {
-      const mostRecent = parseEndOfContacts(frame);
+      const mostRecent = decodeEndOfContacts(frame);
       log.debug(
         `contacts iterator done: ${this.contactsIterCount}/${this.contactsIterTotal} most_recent_lastmod=${mostRecent}`,
       );
@@ -1605,7 +1607,7 @@ export class ProtocolSession {
       return;
     }
     if (code === PUSH.NEW_ADVERT) {
-      const record = parseContact(frame);
+      const record = decodeContact(frame);
       if (record) {
         this.ingestContact(record, 'advert');
         log.debug(`new advert: "${record.name}" (${record.publicKeyHex.slice(0, 12)})`);
@@ -1613,7 +1615,7 @@ export class ProtocolSession {
       return;
     }
     if (code === PUSH.CONTACT_DELETED) {
-      const pubkey = parseContactDeleted(frame);
+      const pubkey = decodeContactDeleted(frame);
       if (pubkey) {
         const holder = stateHolder();
         // Resolve a display name before dropping the contact, for the toast.
@@ -1768,7 +1770,7 @@ export class ProtocolSession {
     if (this.resyncTimer) return;
     this.resyncTimer = setTimeout(() => {
       this.resyncTimer = null;
-      void this.writeFrame(buildGetContacts()).catch((err) => {
+      void this.writeFrame(encodeGetContacts()).catch((err) => {
         log.warn(`contacts re-sync failed: ${(err as Error).message}`);
       });
     }, 1500);
