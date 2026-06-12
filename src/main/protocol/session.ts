@@ -11,7 +11,7 @@ import type {
 } from '../../shared/types';
 import { DEFAULT_SYNC_PROGRESS } from '../../shared/types';
 import { type AdminMode, type AdminRole, adminSessions } from '../bridge/adminSession';
-import { bus, emit } from '../events/bus';
+import { bus, type ContactsSyncSignal, emit } from '../events/bus';
 import { child } from '../log';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
@@ -66,16 +66,13 @@ import {
 } from './features/autoAdd';
 import { battStorageFeature, encodeGetBattAndStorage } from './features/battStorage';
 import {
-  decodeContact,
-  decodeContactDeleted,
-  decodeContactsStart,
-  decodeEndOfContacts,
+  contactsFeature,
   emitDiscovered,
   encodeAddUpdateContact,
   encodeGetContacts,
   encodeRemoveContact,
   encodeResetPath,
-  ingestContact,
+  resetContactsIter,
   scheduleContactsResync,
   upsertOnRadioContact,
 } from './features/contacts';
@@ -227,13 +224,6 @@ export class ProtocolSession {
   /** expected_ack hex → message id, populated on RESP_SENT and cleared on
    *  PUSH_SEND_CONFIRMED or after ACK_RETENTION_MS. */
   private readonly pendingDmAcks = new Map<string, { messageId: string; timer: NodeJS.Timeout }>();
-  /** Contacts received in the current GET_CONTACTS iteration. Reset when a
-   *  fresh RESP_CONTACTS_START arrives; consumed in RESP_END_OF_CONTACTS. */
-  private contactsIterTotal = 0;
-  private contactsIterCount = 0;
-  /** Pubkeys seen during the in-flight GET_CONTACTS iteration. Reset on
-   *  CONTACTS_START; consumed in END_OF_CONTACTS to reconcile on-radio flags. */
-  private contactsSyncSeen: string[] = [];
   /** Resolved when RESP_CONTACTS_START arrives during the handshake, so the
    *  channel-enumeration loop can wait for the contact total and avoid the
    *  progress bar jumping backwards when total grows mid-sync. */
@@ -275,12 +265,14 @@ export class ProtocolSession {
     deviceInfoFeature,
     selfInfoFeature,
     customVarsFeature,
+    contactsFeature,
   ]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
   start(): void {
     bus.on('packet', this.onPacket);
     bus.on('transportState', this.onTransportState);
+    bus.on('contactsSync', this.onContactsSync);
     this.purgeCorruptedChannels();
     this.rebuildIndexes();
     // If the transport already happens to be connected at start (e.g. auto-
@@ -308,6 +300,8 @@ export class ProtocolSession {
   stop(): void {
     bus.off('packet', this.onPacket);
     bus.off('transportState', this.onTransportState);
+    bus.off('contactsSync', this.onContactsSync);
+    resetContactsIter();
     this.stopLivenessPoll();
   }
 
@@ -1517,6 +1511,23 @@ export class ProtocolSession {
     w.resolve();
   }
 
+  /** Bridge the contacts feature's iterator signals into the handshake's
+   *  progress bar + start/done waiters. The feature owns the iterator state;
+   *  the session owns the composite SyncProgress and the handshake coordination.
+   *  `EventEmitter.emit` runs this synchronously, so the timing matches the old
+   *  inline `updateSyncProgress` / `resolveWaiter` calls exactly. */
+  private onContactsSync = (s: ContactsSyncSignal): void => {
+    if (s.phase === 'start') {
+      if (s.total !== null) this.updateSyncProgress({ contacts: { done: 0, total: s.total } });
+      this.resolveWaiter('contactsStartWaiter');
+    } else if (s.phase === 'progress') {
+      this.updateSyncProgress({ contacts: { done: s.done, total: s.total } });
+    } else {
+      this.updateSyncProgress({ contacts: { done: s.done, total: s.done } });
+      this.resolveWaiter('contactsDoneWaiter');
+    }
+  };
+
   private onPacket = (p: RawPacket) => {
     if (p.kind !== 'companion') return;
     const code = p.code;
@@ -1547,89 +1558,6 @@ export class ProtocolSession {
 
     if (code === RESP.CHANNEL_INFO) {
       this.handleChannelInfo(frame);
-      return;
-    }
-    if (code === RESP.CONTACTS_START) {
-      const total = decodeContactsStart(frame);
-      if (total !== null) {
-        this.contactsIterTotal = total;
-        this.contactsIterCount = 0;
-        this.contactsSyncSeen = [];
-        this.updateSyncProgress({ contacts: { done: 0, total } });
-        log.debug(`contacts iterator starting: total=${total}`);
-      }
-      this.resolveWaiter('contactsStartWaiter');
-      return;
-    }
-    if (code === RESP.CONTACT) {
-      const record = decodeContact(frame);
-      if (record) {
-        this.contactsSyncSeen.push(record.publicKeyHex);
-        ingestContact(this.ctx, record, 'sync');
-        this.contactsIterCount += 1;
-        // Self-heal if the radio's CONTACTS_START total was optimistic (or
-        // never arrived): never let `done` exceed `total`, which would render
-        // as e.g. "41/40" in the footer.
-        if (this.contactsIterCount > this.contactsIterTotal) {
-          this.contactsIterTotal = this.contactsIterCount;
-        }
-        this.updateSyncProgress({
-          contacts: { done: this.contactsIterCount, total: this.contactsIterTotal },
-        });
-      }
-      return;
-    }
-    if (code === RESP.END_OF_CONTACTS) {
-      const mostRecent = decodeEndOfContacts(frame);
-      log.debug(
-        `contacts iterator done: ${this.contactsIterCount}/${this.contactsIterTotal} most_recent_lastmod=${mostRecent}`,
-      );
-      // Snap contact total to the actual delivered count so the bar reads
-      // N/N even if the radio's CONTACTS_START total was optimistic.
-      this.updateSyncProgress({
-        contacts: { done: this.contactsIterCount, total: this.contactsIterCount },
-      });
-      const seen = this.contactsSyncSeen;
-      discoveredStore.reconcileOnRadio(seen);
-      const holder = stateHolder();
-      const seenSet = new Set(seen.map((pk) => `c:${pk}`));
-      for (const c of holder.getContacts()) {
-        if (!seenSet.has(c.key) && c.publicKeyHex.length >= 64) {
-          holder.removeContact(c.key);
-        }
-      }
-      this.contactsSyncSeen = [];
-      emit.contacts(holder.getContacts());
-      emitDiscovered();
-      this.contactsIterTotal = 0;
-      this.contactsIterCount = 0;
-      this.resolveWaiter('contactsDoneWaiter');
-      return;
-    }
-    if (code === PUSH.NEW_ADVERT) {
-      const record = decodeContact(frame);
-      if (record) {
-        ingestContact(this.ctx, record, 'advert');
-        log.debug(`new advert: "${record.name}" (${record.publicKeyHex.slice(0, 12)})`);
-      }
-      return;
-    }
-    if (code === PUSH.CONTACT_DELETED) {
-      const pubkey = decodeContactDeleted(frame);
-      if (pubkey) {
-        const holder = stateHolder();
-        // Resolve a display name before dropping the contact, for the toast.
-        const name =
-          holder.getContacts().find((c) => c.key === `c:${pubkey}`)?.name ??
-          discoveredStore.get(pubkey)?.name ??
-          pubkey.slice(0, 12);
-        discoveredStore.setOnRadio(pubkey, false);
-        holder.removeContact(`c:${pubkey}`);
-        emit.contacts(holder.getContacts());
-        emitDiscovered();
-        emit.contactEvicted(name);
-        log.info(`contact evicted by radio: ${name} ${pubkey.slice(0, 12)}`);
-      }
       return;
     }
     if (code === RESP.CHANNEL_MSG_RECV_V3 || code === RESP.CHANNEL_MSG_RECV) {

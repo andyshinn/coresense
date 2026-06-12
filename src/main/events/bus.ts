@@ -32,6 +32,14 @@ import type {
   UiState,
 } from '../../shared/types';
 
+/** Contact-sync coordination signal emitted by the contacts feature while a
+ *  GET_CONTACTS iteration streams in. The ProtocolSession forwards it to the
+ *  handshake's progress bar + start/done waiters (see onContactsSync). */
+export type ContactsSyncSignal =
+  | { phase: 'start'; total: number | null }
+  | { phase: 'progress'; done: number; total: number }
+  | { phase: 'done'; done: number };
+
 export const bus = new EventEmitter();
 
 // Note: avoid Node EventEmitter's reserved 'error' event — it throws when
@@ -46,6 +54,7 @@ export const emit = {
   channels: (channels: Channel[]) => bus.emit('channels', channels),
   channelPresence: (keys: string[]) => bus.emit('channelPresence', keys),
   syncProgress: (progress: SyncProgress) => bus.emit('syncProgress', progress),
+  contactsSync: (s: ContactsSyncSignal) => bus.emit('contactsSync', s),
   contacts: (contacts: Contact[]) => bus.emit('contacts', contacts),
   discovered: (rows: DiscoveredContact[]) => bus.emit('discovered', rows),
   contactEvicted: (name: string) => bus.emit('contactEvicted', name),
@@ -84,6 +93,7 @@ export type BusEvents = {
   channels: (channels: Channel[]) => void;
   channelPresence: (keys: string[]) => void;
   syncProgress: (progress: SyncProgress) => void;
+  contactsSync: (s: ContactsSyncSignal) => void;
   contacts: (contacts: Contact[]) => void;
   discovered: (rows: DiscoveredContact[]) => void;
   contactEvicted: (name: string) => void;

@@ -5,8 +5,8 @@ import { emit } from '../../events/bus';
 import { child } from '../../log';
 import { stateHolder } from '../../state/holder';
 import { discoveredStore } from '../../storage/discoveredContacts';
-import { ADV_TYPE, CMD } from '../codes';
-import type { FeatureContext } from '../feature';
+import { ADV_TYPE, CMD, PUSH, RESP } from '../codes';
+import type { Feature, FeatureContext } from '../feature';
 
 const log = child('protocol');
 
@@ -313,3 +313,112 @@ export function ingestContact(
     scheduleContactsResync(ctx);
   }
 }
+
+// ---- Inbound feature ---------------------------------------------------
+
+// Iterator state for the in-flight GET_CONTACTS stream. Reset on CONTACTS_START
+// (and on disconnect via resetContactsIter). Module-level because there is a
+// single ProtocolSession; the handshake's progress + waiters are driven by the
+// emitted `contactsSync` signal, NOT by these directly (see session.onContactsSync).
+let iterTotal = 0;
+let iterCount = 0;
+let syncSeen: string[] = [];
+
+/** Clear the iterator counters + any pending resync (called on disconnect). */
+export function resetContactsIter(): void {
+  iterTotal = 0;
+  iterCount = 0;
+  syncSeen = [];
+  if (resyncTimer) {
+    clearTimeout(resyncTimer);
+    resyncTimer = null;
+  }
+}
+
+export const contactsFeature: Feature = {
+  handles: [
+    RESP.CONTACTS_START,
+    RESP.CONTACT,
+    RESP.END_OF_CONTACTS,
+    PUSH.NEW_ADVERT,
+    PUSH.CONTACT_DELETED,
+  ],
+  handle: (code, frame, ctx) => {
+    if (code === RESP.CONTACTS_START) {
+      const total = decodeContactsStart(frame);
+      if (total !== null) {
+        iterTotal = total;
+        iterCount = 0;
+        syncSeen = [];
+        log.debug(`contacts iterator starting: total=${total}`);
+      }
+      emit.contactsSync({ phase: 'start', total });
+      return;
+    }
+    if (code === RESP.CONTACT) {
+      const record = decodeContact(frame);
+      if (record) {
+        syncSeen.push(record.publicKeyHex);
+        ingestContact(ctx, record, 'sync');
+        iterCount += 1;
+        // Self-heal if the radio's CONTACTS_START total was optimistic (or
+        // never arrived): never let `done` exceed `total`, which would render
+        // as e.g. "41/40" in the footer.
+        if (iterCount > iterTotal) {
+          iterTotal = iterCount;
+        }
+        emit.contactsSync({ phase: 'progress', done: iterCount, total: iterTotal });
+      }
+      return;
+    }
+    if (code === RESP.END_OF_CONTACTS) {
+      const mostRecent = decodeEndOfContacts(frame);
+      log.debug(
+        `contacts iterator done: ${iterCount}/${iterTotal} most_recent_lastmod=${mostRecent}`,
+      );
+      const seen = syncSeen;
+      discoveredStore.reconcileOnRadio(seen);
+      const holder = stateHolder();
+      const seenSet = new Set(seen.map((pk) => `c:${pk}`));
+      for (const c of holder.getContacts()) {
+        if (!seenSet.has(c.key) && c.publicKeyHex.length >= 64) {
+          holder.removeContact(c.key);
+        }
+      }
+      syncSeen = [];
+      emit.contacts(holder.getContacts());
+      emitDiscovered();
+      // Snap contact total to the actual delivered count so the bar reads N/N
+      // even if the radio's CONTACTS_START total was optimistic.
+      const done = iterCount;
+      iterTotal = 0;
+      iterCount = 0;
+      emit.contactsSync({ phase: 'done', done });
+      return;
+    }
+    if (code === PUSH.NEW_ADVERT) {
+      const record = decodeContact(frame);
+      if (record) {
+        ingestContact(ctx, record, 'advert');
+        log.debug(`new advert: "${record.name}" (${record.publicKeyHex.slice(0, 12)})`);
+      }
+      return;
+    }
+    // PUSH.CONTACT_DELETED — firmware evicted a contact (overwrite-oldest).
+    const pubkey = decodeContactDeleted(frame);
+    if (pubkey) {
+      const holder = stateHolder();
+      // Resolve a display name before dropping the contact, for the toast.
+      const name =
+        holder.getContacts().find((c) => c.key === `c:${pubkey}`)?.name ??
+        discoveredStore.get(pubkey)?.name ??
+        pubkey.slice(0, 12);
+      discoveredStore.setOnRadio(pubkey, false);
+      holder.removeContact(`c:${pubkey}`);
+      emit.contacts(holder.getContacts());
+      emitDiscovered();
+      emit.contactEvicted(name);
+      log.info(`contact evicted by radio: ${name} ${pubkey.slice(0, 12)}`);
+    }
+  },
+};
