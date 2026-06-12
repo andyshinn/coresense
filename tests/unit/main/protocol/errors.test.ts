@@ -4,7 +4,7 @@ import { FeatureDisabledError, ProtocolError } from '../../../../src/main/protoc
 
 describe('ERR_CODE', () => {
   it('covers the firmware error set', () => {
-    expect(ERR_CODE).toMatchObject({
+    expect(ERR_CODE).toStrictEqual({
       UNSUPPORTED_CMD: 0x01,
       NOT_FOUND: 0x02,
       TABLE_FULL: 0x03,
@@ -31,5 +31,6 @@ describe('ProtocolError', () => {
 describe('FeatureDisabledError', () => {
   it('is an Error subclass', () => {
     expect(new FeatureDisabledError()).toBeInstanceOf(Error);
+    expect(new FeatureDisabledError().name).toBe('FeatureDisabledError');
   });
 });
