@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAnonLogin,
   buildGetChannel,
-  buildGetNextMsg,
   buildGetStats,
   buildLogout,
   buildReboot,
@@ -23,10 +22,6 @@ import {
 const hex = (b: Buffer) => b.toString('hex');
 
 describe('encode: bare-opcode commands', () => {
-  it('buildGetNextMsg is a single opcode', () => {
-    expect(hex(buildGetNextMsg())).toBe('0a');
-  });
-
   it('buildGetChannel appends the slot index', () => {
     expect(hex(buildGetChannel(0))).toBe('1f00');
     expect(hex(buildGetChannel(3))).toBe('1f03');

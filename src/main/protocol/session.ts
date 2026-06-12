@@ -31,7 +31,6 @@ import {
 import {
   buildAnonLogin,
   buildGetChannel,
-  buildGetNextMsg,
   buildGetStats,
   buildLogout,
   buildReboot,
@@ -79,6 +78,13 @@ import {
 import { contactsFullFeature } from './features/contactsFull';
 import { customVarsFeature, encodeGetCustomVar, encodeSetCustomVar } from './features/customVars';
 import { deviceInfoFeature, encodeDeviceQuery } from './features/deviceInfo';
+import {
+  drainFeature,
+  isDraining,
+  pumpAfterRecv,
+  resetDrain,
+  scheduleDrain,
+} from './features/drain';
 import { encodeSetPathHashMode, pathHashSizeToMode } from './features/pathHash';
 import { encodeSetRadioParams, encodeSetRadioTxPower } from './features/radioParams';
 import { encodeAppStart, selfInfoFeature } from './features/selfInfo';
@@ -125,10 +131,6 @@ const CONTACTS_DONE_WAIT_MS = 10_000;
 // Small delay between consecutive cmd writes so the BLE link doesn't queue too
 // many frames the radio can't ack in time. Empirical on Heltec/RAK hardware.
 const WRITE_GAP_MS = 50;
-// Backoff on the inbox-pump. The bridge's InboxRouter already serialises 0x0a
-// across proxy clients; we issue our own 0x0a but pace ourselves so we don't
-// starve concurrent phones.
-const DRAIN_INTERVAL_MS = 250;
 
 interface SessionDeps {
   /** Channel keys we've seen the radio publish, indexed by slot index. The
@@ -204,8 +206,6 @@ export class ProtocolSession {
     channelByIdx: new Map(),
   };
   private connected = false;
-  private drainBusy = false;
-  private drainPending = false;
   /** Channel keys the *currently connected* radio reports owning. Cleared on
    *  disconnect. Renderer uses this to gray out channels that exist only in
    *  app storage. */
@@ -266,6 +266,7 @@ export class ProtocolSession {
     selfInfoFeature,
     customVarsFeature,
     contactsFeature,
+    drainFeature,
   ]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
@@ -302,6 +303,7 @@ export class ProtocolSession {
     bus.off('transportState', this.onTransportState);
     bus.off('contactsSync', this.onContactsSync);
     resetContactsIter();
+    resetDrain();
     this.stopLivenessPoll();
   }
 
@@ -1256,6 +1258,8 @@ export class ProtocolSession {
     } else if (!this.connected && wasConnected) {
       log.info('transport disconnected');
       this.stopLivenessPoll();
+      // Abandon any in-flight drain round; a reconnect's handshake starts fresh.
+      resetDrain();
       this.devicePresence.clear();
       emit.channelPresence([...this.devicePresence]);
       this.updateSyncProgress({ ...DEFAULT_SYNC_PROGRESS });
@@ -1496,7 +1500,7 @@ export class ProtocolSession {
       // Drain any messages queued during the disconnect window. Self-advert
       // is user-initiated only (Cmd-Shift-A) — matching the official mobile
       // clients, which never auto-advertise.
-      void this.scheduleDrain();
+      void scheduleDrain(this.ctx);
     } catch (err) {
       log.warn(`handshake failed: ${(err as Error).message}`);
       this.updateSyncProgress({ ...DEFAULT_SYNC_PROGRESS });
@@ -1623,19 +1627,6 @@ export class ProtocolSession {
       }
       return;
     }
-    if (code === PUSH.MSG_WAITING) {
-      void this.scheduleDrain();
-      return;
-    }
-    if (code === RESP.NO_MORE_MESSAGES) {
-      this.drainBusy = false;
-      log.trace('drain done: NO_MORE_MESSAGES');
-      if (this.drainPending) {
-        this.drainPending = false;
-        void this.scheduleDrain();
-      }
-      return;
-    }
     if (code === RESP.OK || code === RESP.ERR) {
       // Device-write awaiters get first crack at any OK/ERR. A RESP_ERR carries
       // an error-code byte (frame[1]) — thread it through so callers like
@@ -1704,7 +1695,7 @@ export class ProtocolSession {
         clearTimeout(pending.timer);
         this.pendingCli.delete(parsed.senderPubKeyPrefixHex.toLowerCase());
         pending.resolve(parsed.body);
-        if (this.drainBusy) this.pumpNextDrain();
+        if (isDraining()) pumpAfterRecv(this.ctx);
         return;
       }
     }
@@ -1746,7 +1737,7 @@ export class ProtocolSession {
     );
     // The radio only tickles PUSH_MSG_WAITING once per queue event; keep
     // pulling until NO_MORE_MESSAGES.
-    if (this.drainBusy) this.pumpNextDrain();
+    if (isDraining()) pumpAfterRecv(this.ctx);
   }
 
   private handleSent(frame: Buffer): void {
@@ -1911,43 +1902,7 @@ export class ProtocolSession {
         `from=${parsed.senderName ?? 'unknown'} paths=${paths.length} ` +
         `body=${JSON.stringify(parsed.cleanBody.slice(0, 60))}`,
     );
-    if (this.drainBusy) this.pumpNextDrain();
-  }
-
-  /** Pump CMD_SYNC_NEXT_MESSAGE. The firmware sends ONE PUSH_MSG_WAITING per
-   *  queue event, so we have to chain GET_NEXT_MSG ourselves after every
-   *  *_MSG_RECV until the device replies with NO_MORE_MESSAGES. drainBusy is
-   *  cleared only on NO_MORE_MESSAGES — not after writeFrame returns — so the
-   *  pump doesn't oversubscribe the radio. */
-  private async scheduleDrain(): Promise<void> {
-    if (this.drainBusy) {
-      this.drainPending = true;
-      return;
-    }
-    this.drainBusy = true;
-    await sleep(DRAIN_INTERVAL_MS);
-    try {
-      await this.writeFrame(buildGetNextMsg());
-    } catch (err) {
-      log.warn(`drain write failed: ${(err as Error).message}`);
-      this.drainBusy = false;
-      // No reply will come, so re-arm if another PUSH_MSG_WAITING raced in.
-      if (this.drainPending) {
-        this.drainPending = false;
-        void this.scheduleDrain();
-      }
-    }
-  }
-
-  /** Called from handleChannelMsg / handleContactMsg after a drain returned a
-   *  message. Issues the next GET_NEXT_MSG immediately so we keep draining
-   *  until the device says NO_MORE_MESSAGES. */
-  private pumpNextDrain(): void {
-    if (!this.connected) return;
-    this.writeFrame(buildGetNextMsg()).catch((err) => {
-      log.warn(`drain pump write failed: ${(err as Error).message}`);
-      this.drainBusy = false;
-    });
+    if (isDraining()) pumpAfterRecv(this.ctx);
   }
 
   /** Recompute channel indexes from persisted channels so we can send before

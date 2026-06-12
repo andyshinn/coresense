@@ -30,12 +30,6 @@ export function buildSendChannelText(opts: {
   return out;
 }
 
-// CMD_GET_NEXT_MSG drains the device's inbox queue by one. Replied to with
-// RESP_CONTACT_MSG_RECV(_V3) / RESP_CHANNEL_MSG_RECV(_V3) / RESP_NO_MORE_MESSAGES.
-export function buildGetNextMsg(): Buffer {
-  return Buffer.from([CMD.GET_NEXT_MSG]);
-}
-
 // CMD_SEND_TXT_MSG payload (firmware: companion_radio/MyMesh.cpp):
 //   [0x02][txt_type 1B][attempt 1B][ts 4B LE][dest pubkey prefix 6B][text UTF-8...]
 // The firmware looks the recipient up by the first 6 bytes of their public key
