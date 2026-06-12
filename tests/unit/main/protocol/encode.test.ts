@@ -23,8 +23,6 @@ import {
   buildSetAdvertName,
   buildSetChannel,
   buildSetOtherParams,
-  buildSetRadioParams,
-  buildSetRadioTxPower,
   deriveChannelSecret,
 } from '../../../../src/main/protocol/encode';
 
@@ -43,10 +41,6 @@ describe('encode: bare-opcode commands', () => {
   it('buildSendSelfAdvert encodes the flood flag', () => {
     expect(hex(buildSendSelfAdvert())).toBe('0701');
     expect(hex(buildSendSelfAdvert(false))).toBe('0700');
-  });
-
-  it('buildSetRadioTxPower appends dBm', () => {
-    expect(hex(buildSetRadioTxPower(20))).toBe('0c14');
   });
 
   it('buildReboot appends the literal "reboot"', () => {
@@ -206,31 +200,6 @@ describe('encode: structured builders (missing coverage)', () => {
     expect(out[0]).toBe(0x0e);
     expect(out.readInt32LE(1)).toBe(37_500_000);
     expect(out.readInt32LE(5)).toBe(-122_250_000);
-  });
-
-  it('buildSetRadioParams lays out freq/bw/sf/cr, repeat byte only when set', () => {
-    const base = buildSetRadioParams({
-      frequencyHz: 915_000_000,
-      bandwidthHz: 250_000,
-      spreadingFactor: 11,
-      codingRate: 5,
-    });
-    expect(base.length).toBe(11);
-    expect(base[0]).toBe(0x0b);
-    expect(base.readUInt32LE(1)).toBe(915_000_000);
-    expect(base.readUInt32LE(5)).toBe(250_000);
-    expect(base[9]).toBe(11);
-    expect(base[10]).toBe(5);
-
-    const withRepeat = buildSetRadioParams({
-      frequencyHz: 915_000_000,
-      bandwidthHz: 250_000,
-      spreadingFactor: 11,
-      codingRate: 5,
-      clientRepeat: true,
-    });
-    expect(withRepeat.length).toBe(12);
-    expect(withRepeat[11]).toBe(1);
   });
 
   it('buildAddUpdateContact omits the GPS tail when not provided (136 bytes)', () => {

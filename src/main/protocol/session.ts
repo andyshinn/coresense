@@ -58,8 +58,6 @@ import {
   buildSetAdvertName,
   buildSetChannel,
   buildSetOtherParams,
-  buildSetRadioParams,
-  buildSetRadioTxPower,
   deriveChannelSecret,
 } from './encode';
 import {
@@ -80,6 +78,7 @@ import { contactsFullFeature } from './features/contactsFull';
 import { customVarsFeature, encodeGetCustomVar, encodeSetCustomVar } from './features/customVars';
 import { deviceInfoFeature, encodeDeviceQuery } from './features/deviceInfo';
 import { encodeSetPathHashMode, pathHashSizeToMode } from './features/pathHash';
+import { encodeSetRadioParams, encodeSetRadioTxPower } from './features/radioParams';
 import { encodeAppStart, selfInfoFeature } from './features/selfInfo';
 import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
 import { consumeMatching as consumeMeshObs } from './meshObservations';
@@ -770,7 +769,7 @@ export class ProtocolSession {
     const paramsAck = this.awaitAck();
     try {
       await this.writeFrame(
-        buildSetRadioParams({
+        encodeSetRadioParams({
           frequencyHz: opts.frequencyHz,
           bandwidthHz: opts.bandwidthHz,
           spreadingFactor: opts.spreadingFactor,
@@ -788,7 +787,7 @@ export class ProtocolSession {
     await sleep(WRITE_GAP_MS);
     const powerAck = this.awaitAck();
     try {
-      await this.writeFrame(buildSetRadioTxPower(opts.txPowerDbm));
+      await this.writeFrame(encodeSetRadioTxPower(opts.txPowerDbm));
     } catch (err) {
       this.popPendingAck(powerAck.entry);
       log.warn(`setRadioTxPower write failed: ${(err as Error).message}`);
