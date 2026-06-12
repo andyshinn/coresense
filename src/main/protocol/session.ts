@@ -80,9 +80,11 @@ import {
   pathHashModeToSize,
   pathHashSizeToMode,
 } from './encode';
-import { ContactTableFullError, UnknownContactError } from './errors';
+import { ContactTableFullError, ProtocolError, UnknownContactError } from './errors';
+import type { FeatureContext } from './feature';
 import { consumeMatching as consumeMeshObs } from './meshObservations';
 import { buildPath, channelHashOf } from './paths';
+import { FeatureRegistry } from './registry';
 import {
   type AclEntry,
   type LocalStats,
@@ -177,6 +179,13 @@ interface PendingCli {
   timer: NodeJS.Timeout;
 }
 
+// Awaiter for a solicited typed reply (a GET command's RESP_* frame), keyed by
+// expected code in `pendingTyped`. FIFO per code.
+interface PendingTyped {
+  resolve: (frame: Buffer) => void;
+  timer: NodeJS.Timeout;
+}
+
 const ADMIN_SENT_TIMEOUT_MS = 5_000;
 const ADMIN_REPLY_TIMEOUT_MS = 20_000;
 // Per-attempt wait inside sendDmTextWithRetry. The radio's RESP_SENT carries
@@ -185,6 +194,8 @@ const ADMIN_REPLY_TIMEOUT_MS = 20_000;
 // 3-hop round-trip but short enough that 3+2 attempts don't take all day.
 const PER_ATTEMPT_TIMEOUT_MS = 30_000;
 const CLI_REPLY_TIMEOUT_MS = 30_000;
+// Default wait for a typed RESP_* reply to a feature ctx.request({ expect }).
+const REQUEST_TIMEOUT_MS = 5_000;
 
 export class ProtocolSession {
   private readonly deps: SessionDeps = {
@@ -245,6 +256,15 @@ export class ProtocolSession {
     reject: (e: Error) => void;
     timer: NodeJS.Timeout;
   } | null = null;
+  /** FIFO of awaiters per expected RESP_* code, for ctx.request({ expect }). */
+  private readonly pendingTyped = new Map<number, PendingTyped[]>();
+  /** The capability surface handed to feature modules. */
+  private readonly ctx: FeatureContext = {
+    writeFrame: (frame) => this.writeFrame(frame),
+    request: (frame, opts) => this.request(frame, opts),
+  };
+  /** Inbound-frame handlers, keyed by wire code. Empty until features migrate. */
+  private readonly registry = new FeatureRegistry([]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
   start(): void {
@@ -1164,6 +1184,50 @@ export class ProtocolSession {
     await transport.sendBytes(frame);
   }
 
+  /** Generic send→await for feature modules. See FeatureContext.request. */
+  private async request(
+    frame: Buffer,
+    opts?: { expect?: number; timeoutMs?: number },
+  ): Promise<Buffer> {
+    if (opts?.expect === undefined) {
+      // RESP_OK / RESP_ERR path — reuse the shared ack FIFO (resolveNextAck).
+      const { promise, entry } = this.awaitAck();
+      try {
+        await this.writeFrame(frame);
+      } catch (err) {
+        this.popPendingAck(entry);
+        throw err;
+      }
+      const ack = await promise;
+      if (!ack.ok) throw new ProtocolError(ack.errorCode);
+      return Buffer.alloc(0);
+    }
+    // Typed-reply path — resolve the next inbound frame whose code === expect.
+    const expect = opts.expect;
+    const timeoutMs = opts.timeoutMs ?? REQUEST_TIMEOUT_MS;
+    return new Promise<Buffer>((resolve, reject) => {
+      const queue = this.pendingTyped.get(expect) ?? [];
+      const remove = () => {
+        const q = this.pendingTyped.get(expect);
+        if (!q) return;
+        const i = q.indexOf(entry);
+        if (i !== -1) q.splice(i, 1);
+      };
+      const timer = setTimeout(() => {
+        remove();
+        reject(new Error(`timeout waiting for frame 0x${expect.toString(16).padStart(2, '0')}`));
+      }, timeoutMs);
+      const entry: PendingTyped = { resolve, timer };
+      queue.push(entry);
+      this.pendingTyped.set(expect, queue);
+      this.writeFrame(frame).catch((err) => {
+        clearTimeout(timer);
+        remove();
+        reject(err as Error);
+      });
+    });
+  }
+
   private onTransportState = (state: TransportState) => {
     const wasConnected = this.connected;
     this.connected = state === 'connected';
@@ -1427,6 +1491,24 @@ export class ProtocolSession {
     log.trace(
       `rx code=0x${code.toString(16).padStart(2, '0')} (${p.codeName ?? '?'}) len=${frame.length}`,
     );
+
+    // (1) Solicited typed replies (ctx.request with `expect`) get first crack.
+    const typedQueue = this.pendingTyped.get(code);
+    if (typedQueue && typedQueue.length > 0) {
+      const entry = typedQueue.shift();
+      if (entry) {
+        clearTimeout(entry.timer);
+        entry.resolve(frame);
+        return;
+      }
+    }
+    // (2) Modular feature handlers. Falls through to the legacy chain below for
+    //     any code no feature has claimed yet.
+    const feature = this.registry.get(code);
+    if (feature) {
+      feature.handle(code, frame, this.ctx);
+      return;
+    }
 
     if (code === RESP.CHANNEL_INFO) {
       this.handleChannelInfo(frame);
