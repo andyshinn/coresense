@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAddUpdateContact,
   buildAnonLogin,
-  buildAppStart,
   buildGetChannel,
   buildGetContacts,
   buildGetCustomVar,
@@ -57,23 +56,6 @@ describe('encode: bare-opcode commands', () => {
 
   it('buildReboot appends the literal "reboot"', () => {
     expect(hex(buildReboot())).toBe('137265626f6f74');
-  });
-});
-
-describe('encode: APP_START', () => {
-  it('matches the logged handshake frame', () => {
-    // coresense.log: BLE_TX 24B cmd=0x01 hex=01010000000000006d657368636f72652d666c7574746572
-    expect(hex(buildAppStart('meshcore-flutter', 1))).toBe(
-      '01010000000000006d657368636f72652d666c7574746572',
-    );
-  });
-
-  it('lays out [cmd][version][6 reserved zero bytes][name]', () => {
-    const out = buildAppStart('mc', 1);
-    expect(out[0]).toBe(0x01);
-    expect(out[1]).toBe(0x01);
-    expect([...out.subarray(2, 8)]).toEqual([0, 0, 0, 0, 0, 0]);
-    expect(out.subarray(8).toString('utf8')).toBe('mc');
   });
 });
 

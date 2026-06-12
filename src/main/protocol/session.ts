@@ -7,7 +7,6 @@ import type {
   ContactKind,
   Message,
   MessagePath,
-  Owner,
   RawPacket,
   SyncProgress,
   TransportState,
@@ -32,7 +31,6 @@ import {
   parseContactsStart,
   parseCustomVars,
   parseEndOfContacts,
-  parseSelfInfo,
   parseSendConfirmed,
   parseSentAck,
   parseStatusResponse,
@@ -41,7 +39,6 @@ import {
 import {
   buildAddUpdateContact,
   buildAnonLogin,
-  buildAppStart,
   buildGetChannel,
   buildGetContacts,
   buildGetCustomVar,
@@ -86,6 +83,7 @@ import {
 import { battStorageFeature, encodeGetBattAndStorage } from './features/battStorage';
 import { contactsFullFeature } from './features/contactsFull';
 import { deviceInfoFeature, encodeDeviceQuery } from './features/deviceInfo';
+import { encodeAppStart, selfInfoFeature } from './features/selfInfo';
 import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
 import { consumeMatching as consumeMeshObs } from './meshObservations';
 import { buildPath, channelHashOf } from './paths';
@@ -275,6 +273,7 @@ export class ProtocolSession {
     battStorageFeature,
     autoAddFeature,
     deviceInfoFeature,
+    selfInfoFeature,
   ]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
@@ -1466,7 +1465,7 @@ export class ProtocolSession {
       // side, so APP_START alone is not enough to negotiate V3.
       await this.writeFrame(encodeDeviceQuery());
       await sleep(WRITE_GAP_MS);
-      await this.writeFrame(buildAppStart(APP_NAME, APP_VERSION));
+      await this.writeFrame(encodeAppStart(APP_NAME, APP_VERSION));
       await sleep(WRITE_GAP_MS);
       // Kick the contact iterator FIRST so RESP_CONTACTS_START gives us the
       // contact total before we start incrementing channel progress, and so
@@ -1692,22 +1691,6 @@ export class ProtocolSession {
         clearTimeout(this.pendingLocalStats.timer);
         this.pendingLocalStats.resolve(parsed);
         this.pendingLocalStats = null;
-      }
-      return;
-    }
-    if (code === RESP.SELF_INFO) {
-      const parsed = parseSelfInfo(frame);
-      if (parsed) {
-        const owner: Owner = {
-          name: parsed.name,
-          publicKeyHex: parsed.publicKeyHex,
-          // Codebase convention for pubkey prefixes is the first 12 hex chars
-          // (6 bytes); the identity card shows fewer but stores the full key.
-          publicKeyShort: parsed.publicKeyHex.slice(0, 12),
-        };
-        stateHolder().setOwner(owner);
-        emit.owner(owner);
-        log.debug(`self-info: "${owner.name}" (${owner.publicKeyShort})`);
       }
       return;
     }

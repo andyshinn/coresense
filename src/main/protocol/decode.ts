@@ -457,29 +457,6 @@ function splitSenderPrefix(body: string): { senderName: string | null; cleanBody
 
 // ---- Settings-parity decoders ------------------------------------------
 
-// RESP_SELF_INFO [0x05][adv_type u8][tx_power u8][max_tx_power u8]
-//   [public_key 32B][...adv lat/lon + radio params, firmware-version-specific...]
-//   [name, trailing printable ASCII]. We only surface the two fields the
-//   identity card needs — the 32B pubkey at a fixed offset and the name via the
-//   same trailing-printable scan parseNodeNameFromSelfInfo / parseDeviceInfo use,
-//   which is firmware-version tolerant.
-export interface SelfInfo {
-  name: string;
-  publicKeyHex: string;
-}
-export function parseSelfInfo(frame: Buffer): SelfInfo | null {
-  if (frame.length < 36 || frame[0] !== 0x05) return null;
-  const publicKeyHex = frame.subarray(4, 36).toString('hex');
-  let start = frame.length;
-  while (start > 36) {
-    const b = frame[start - 1];
-    if (b >= 0x20 && b < 0x7f) start -= 1;
-    else break;
-  }
-  const name = frame.subarray(start).toString('utf8').trim();
-  return { name, publicKeyHex };
-}
-
 // RESP_CUSTOM_VARS: newline-separated "key:value" pairs. The firmware may also
 // use a NUL between entries on some older builds — we split on both to stay
 // compatible.

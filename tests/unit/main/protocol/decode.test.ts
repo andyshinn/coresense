@@ -10,34 +10,11 @@ import {
   parseContactsStart,
   parseCustomVars,
   parseEndOfContacts,
-  parseSelfInfo,
   parseSendConfirmed,
   parseSentAck,
   parseStatusResponse,
   parseTelemetryResponse,
 } from '../../../../src/main/protocol/decode';
-import { frameBuf } from '../../../support/frames';
-
-describe('parseSelfInfo (real fixture)', () => {
-  it('extracts the 32-byte public key at offset 4', () => {
-    const self = parseSelfInfo(frameBuf('selfInfo'));
-    expect(self).not.toBeNull();
-    expect(self?.publicKeyHex).toBe(
-      '1a3d3c6a09f057457bcf0ae5403e5c60072919d193ed8caff58501b7590dd5d5',
-    );
-    expect(self?.name).toContain('Hand'); // trailing printable name region
-  });
-
-  it('returns null when the code byte is not 0x05', () => {
-    const bad = Buffer.alloc(40);
-    bad[0] = 0x06;
-    expect(parseSelfInfo(bad)).toBeNull();
-  });
-
-  it('returns null below 36 bytes', () => {
-    expect(parseSelfInfo(Buffer.alloc(35))).toBeNull();
-  });
-});
 
 describe('parseChannelInfo', () => {
   it('reads idx, null-terminated name, and 16-byte key', () => {

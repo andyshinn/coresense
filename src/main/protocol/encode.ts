@@ -2,18 +2,6 @@ import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { CMD, type STATS_TYPE, TXT_TYPE } from './codes';
 
-// CMD_APP_START payload (per src/main/bridge/identity.ts):
-//   [0x01][version u8][6 reserved bytes][app name UTF-8]
-export function buildAppStart(appName: string, version = 1): Buffer {
-  const name = Buffer.from(appName, 'utf8');
-  const out = Buffer.alloc(8 + name.length);
-  out[0] = CMD.APP_START;
-  out[1] = version;
-  // bytes 2..7 stay zero
-  name.copy(out, 8);
-  return out;
-}
-
 // CMD_GET_CHANNEL: enumerate per-slot.
 //   [0x1f][idx]
 // We don't yet know if the firmware accepts a bare opcode for "all channels",
