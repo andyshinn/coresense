@@ -23,6 +23,10 @@ describe('BufferWriter', () => {
     expect(buf.length).toBe(3);
     expect(buf[2]).toBe(0x00);
   });
+
+  it('writeString encodes utf8 text', () => {
+    expect(new BufferWriter().writeString('hi').toBuffer().toString('hex')).toBe('6869');
+  });
 });
 
 describe('BufferReader', () => {
@@ -47,5 +51,16 @@ describe('BufferReader', () => {
     expect(r.readCString(4)).toBe('hi');
     expect(r.remaining).toBe(1);
     expect(r.readByte()).toBe(0x55);
+  });
+
+  it('readString returns the utf8 text of the remaining bytes', () => {
+    const r = new BufferReader(Buffer.from('hello', 'utf8'));
+    expect(r.readString()).toBe('hello');
+    expect(r.remaining).toBe(0);
+  });
+
+  it('readBytes throws a clear error on underrun', () => {
+    const r = new BufferReader(Buffer.from([0x01, 0x02]));
+    expect(() => r.readBytes(3)).toThrow(/only 2 remain/);
   });
 });

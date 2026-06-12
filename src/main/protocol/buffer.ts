@@ -44,6 +44,9 @@ export class BufferReader {
     return v;
   }
   readBytes(n: number): Buffer {
+    if (n > this.remaining) {
+      throw new RangeError(`BufferReader: requested ${n} bytes but only ${this.remaining} remain`);
+    }
     const v = this.buf.subarray(this.pos, this.pos + n);
     this.pos += n;
     return v;
@@ -72,8 +75,7 @@ export class BufferWriter {
     return this;
   }
   writeInt8(b: number): this {
-    this.bytes.push(b & 0xff);
-    return this;
+    return this.writeByte(b);
   }
   writeUInt16LE(n: number): this {
     this.bytes.push(n & 0xff, (n >>> 8) & 0xff);
@@ -98,6 +100,8 @@ export class BufferWriter {
    *  null-terminated (last byte forced to 0). */
   writeCString(s: string, maxLen: number): this {
     const out = Buffer.alloc(maxLen);
+    // Fixed-width truncation at a byte boundary (matches firmware char arrays);
+    // may split a multi-byte UTF-8 codepoint, same as the device.
     Buffer.from(s, 'utf8').copy(out, 0, 0, maxLen - 1);
     out[maxLen - 1] = 0;
     return this.writeBytes(out);
