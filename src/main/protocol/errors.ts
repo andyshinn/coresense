@@ -40,3 +40,11 @@ export class FeatureDisabledError extends Error {
     this.name = 'FeatureDisabledError';
   }
 }
+
+/** Thrown when a companion request times out waiting for its expected reply. */
+export class ProtocolTimeoutError extends Error {
+  constructor(public readonly expectedCode: number) {
+    super(`timeout waiting for frame 0x${expectedCode.toString(16).padStart(2, '0')}`);
+    this.name = 'ProtocolTimeoutError';
+  }
+}

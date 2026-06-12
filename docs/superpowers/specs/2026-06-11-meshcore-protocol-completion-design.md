@@ -165,14 +165,11 @@ branches already import directly (`stateHolder()`, `emit`, `adminSessions`,
 `discoveredStore`) stay direct imports — they are **not** threaded through the context.
 
 ```ts
-export interface FeatureContext {
+interface FeatureContext {
   writeFrame(frame: Buffer): Promise<void>;
-  /** Send → await a synchronous RESP_OK/ERR or one typed RESP. Replaces the
-   *  bespoke pendingAcks FIFO / pendingLocalStats single-slot patterns.
-   *  Rejects with ProtocolError(errCode) on RESP_ERR; FeatureDisabledError on RESP_DISABLED. */
-  request(opcode: number, frame: Buffer, opts?: { expect?: number; timeoutMs?: number }): Promise<Buffer>;
-  /** Await an async push correlated by tag (path discovery; mirrors adminSessions tags). */
-  awaitTag(tagHex: string, opts?: { timeoutMs?: number }): Promise<Buffer>;
+  // request(frame, { expect }) → typed GET reply; request(frame) → RESP_OK/ERR.
+  request(frame: Buffer, opts?: { expect?: number; timeoutMs?: number }): Promise<Buffer>;
+  // awaitTag(...) is added later, in the path-diagnostics phase (deferred; YAGNI).
 }
 ```
 

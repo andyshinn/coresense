@@ -80,7 +80,12 @@ import {
   pathHashModeToSize,
   pathHashSizeToMode,
 } from './encode';
-import { ContactTableFullError, ProtocolError, UnknownContactError } from './errors';
+import {
+  ContactTableFullError,
+  ProtocolError,
+  ProtocolTimeoutError,
+  UnknownContactError,
+} from './errors';
 import type { FeatureContext } from './feature';
 import { contactsFullFeature } from './features/contactsFull';
 import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
@@ -185,6 +190,7 @@ interface PendingCli {
 // expected code in `pendingTyped`. FIFO per code.
 interface PendingTyped {
   resolve: (frame: Buffer) => void;
+  reject: (err: Error) => void;
   timer: NodeJS.Timeout;
 }
 
@@ -1225,6 +1231,11 @@ export class ProtocolSession {
     }
     // Typed-reply path — resolve the next inbound frame whose code === expect.
     const expect = opts.expect;
+    // RESP_OK / RESP_ERR must flow through the bare-ack path above (omit `expect`);
+    // intercepting them as typed replies would steal a concurrent device-write's ack.
+    if (expect === RESP.OK || expect === RESP.ERR) {
+      throw new Error('request({ expect }) cannot await RESP_OK/RESP_ERR — omit `expect`');
+    }
     const timeoutMs = opts.timeoutMs ?? REQUEST_TIMEOUT_MS;
     return new Promise<Buffer>((resolve, reject) => {
       const queue = this.pendingTyped.get(expect) ?? [];
@@ -1233,12 +1244,13 @@ export class ProtocolSession {
         if (!q) return;
         const i = q.indexOf(entry);
         if (i !== -1) q.splice(i, 1);
+        if (q.length === 0) this.pendingTyped.delete(expect);
       };
       const timer = setTimeout(() => {
         remove();
-        reject(new Error(`timeout waiting for frame 0x${expect.toString(16).padStart(2, '0')}`));
+        reject(new ProtocolTimeoutError(expect));
       }, timeoutMs);
-      const entry: PendingTyped = { resolve, timer };
+      const entry: PendingTyped = { resolve, reject, timer };
       queue.push(entry);
       this.pendingTyped.set(expect, queue);
       this.writeFrame(frame).catch((err) => {
@@ -1292,6 +1304,15 @@ export class ProtocolSession {
         this.pendingLocalStats.reject(new Error('transport disconnected'));
         this.pendingLocalStats = null;
       }
+      // Fail any typed-reply awaiters (ctx.request with `expect`) so feature GETs
+      // reject promptly on disconnect instead of waiting out their timeout.
+      for (const queue of this.pendingTyped.values()) {
+        for (const entry of queue) {
+          clearTimeout(entry.timer);
+          entry.reject(new Error('transport disconnected'));
+        }
+      }
+      this.pendingTyped.clear();
       adminSessions.reset('transport disconnected');
     }
   };
@@ -1520,6 +1541,7 @@ export class ProtocolSession {
     const typedQueue = this.pendingTyped.get(code);
     if (typedQueue && typedQueue.length > 0) {
       const entry = typedQueue.shift();
+      if (typedQueue.length === 0) this.pendingTyped.delete(code);
       if (entry) {
         clearTimeout(entry.timer);
         entry.resolve(frame);

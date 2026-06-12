@@ -1,8 +1,8 @@
 import { Buffer } from 'node:buffer';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emit } from '../../../src/main/events/bus';
 import { protocolSession } from '../../../src/main/protocol';
-import { ProtocolError } from '../../../src/main/protocol/errors';
+import { ProtocolError, ProtocolTimeoutError } from '../../../src/main/protocol/errors';
 import { transportManager } from '../../../src/main/transport/manager';
 import { companionPacket, FakeTransport } from '../../support/fake-transport';
 
@@ -44,5 +44,36 @@ describe('device time round-trips', () => {
     const err = await p.catch((e) => e);
     expect(err).toBeInstanceOf(ProtocolError);
     expect((err as ProtocolError).errorCode).toBe(0x06);
+  });
+
+  it('getDeviceTime rejects when the transport disconnects mid-request', async () => {
+    const session = protocolSession();
+    session.start();
+    transportManager.setTransport(new FakeTransport());
+    // Drive the session 'connected' so the later 'disconnected' edge runs the
+    // transport-disconnect cleanup (which only fires on a connected→disconnected
+    // transition).
+    emit.transportState('connected');
+
+    const p = session.getDeviceTime();
+    await Promise.resolve();
+    emit.transportState('idle'); // disconnect edge → drains pendingTyped
+    await expect(p).rejects.toThrow(/disconnected/i);
+  });
+
+  it('getDeviceTime rejects with ProtocolTimeoutError after the timeout elapses', async () => {
+    vi.useFakeTimers();
+    try {
+      const session = protocolSession();
+      session.start();
+      transportManager.setTransport(new FakeTransport());
+
+      const p = session.getDeviceTime();
+      const expectation = expect(p).rejects.toBeInstanceOf(ProtocolTimeoutError);
+      await vi.advanceTimersByTimeAsync(5_000);
+      await expectation;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
