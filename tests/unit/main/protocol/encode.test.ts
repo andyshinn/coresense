@@ -5,7 +5,6 @@ import {
   buildAnonLogin,
   buildGetChannel,
   buildGetContacts,
-  buildGetCustomVar,
   buildGetNextMsg,
   buildGetStats,
   buildLogout,
@@ -23,7 +22,6 @@ import {
   buildSetAdvertLatLon,
   buildSetAdvertName,
   buildSetChannel,
-  buildSetCustomVar,
   buildSetOtherParams,
   buildSetPathHashMode,
   buildSetRadioParams,
@@ -87,10 +85,6 @@ describe('encode: SET_ADVERT_NAME / SET_CUSTOM_VAR', () => {
   it('buildSetAdvertName appends the UTF-8 name', () => {
     expect(hex(buildSetAdvertName('Hand'))).toBe('0848616e64');
   });
-
-  it('buildSetCustomVar formats "key:value" with boolean → 1/0', () => {
-    expect(hex(buildSetCustomVar('gps', true))).toBe('296770733a31');
-  });
 });
 
 describe('encode: SET_PATH_HASH_MODE + size/mode conversions', () => {
@@ -142,11 +136,6 @@ describe('encode: deriveChannelSecret', () => {
 });
 
 describe('encode: bare/simple builders (missing coverage)', () => {
-  it('buildGetCustomVar appends the key, or bare opcode for empty key', () => {
-    expect(hex(buildGetCustomVar())).toBe('28');
-    expect(hex(buildGetCustomVar('gps'))).toBe('28677073');
-  });
-
   it('buildGetStats appends the subtype', () => {
     expect(hex(buildGetStats(0x00))).toBe('3800');
   });

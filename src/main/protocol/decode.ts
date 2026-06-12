@@ -454,22 +454,3 @@ function splitSenderPrefix(body: string): { senderName: string | null; cleanBody
   }
   return { senderName: candidate, cleanBody: body.slice(colon + 2) };
 }
-
-// ---- Settings-parity decoders ------------------------------------------
-
-// RESP_CUSTOM_VARS: newline-separated "key:value" pairs. The firmware may also
-// use a NUL between entries on some older builds — we split on both to stay
-// compatible.
-export function parseCustomVars(frame: Buffer): Record<string, string> {
-  if (frame.length < 2) return {};
-  const text = frame.subarray(1).toString('utf8');
-  const out: Record<string, string> = {};
-  for (const line of text.split(/[\n\0]/)) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const colon = trimmed.indexOf(':');
-    if (colon === -1) continue;
-    out[trimmed.slice(0, colon).trim()] = trimmed.slice(colon + 1).trim();
-  }
-  return out;
-}

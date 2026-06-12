@@ -410,26 +410,6 @@ export function buildSetOtherParams(input: OtherParamsInput): Buffer {
   return out;
 }
 
-// CMD_GET_CUSTOM_VAR: variable-length key. Empty key returns the full set.
-export function buildGetCustomVar(key = ''): Buffer {
-  const k = Buffer.from(key, 'utf8');
-  const out = Buffer.alloc(1 + k.length);
-  out[0] = CMD.GET_CUSTOM_VAR;
-  k.copy(out, 1);
-  return out;
-}
-
-// CMD_SET_CUSTOM_VAR: "key:value" UTF-8. Used for GPS enable / interval and
-// other firmware tunables the user-facing UI may surface in the future.
-export function buildSetCustomVar(key: string, value: string | number | boolean): Buffer {
-  const v = typeof value === 'boolean' ? (value ? '1' : '0') : String(value);
-  const body = Buffer.from(`${key}:${v}`, 'utf8');
-  const out = Buffer.alloc(1 + body.length);
-  out[0] = CMD.SET_CUSTOM_VAR;
-  body.copy(out, 1);
-  return out;
-}
-
 // Mesh-level admin request encoder. The connected radio wraps this for us via
 // CMD_SEND_BINARY_REQ (0x32) — `[0x32][32B pubkey][req_type byte + req_data]`.
 // The reply comes back as PUSH_BINARY_RESPONSE tagged with the same u32 the

@@ -8,7 +8,6 @@ import {
   parseContactMsgV1,
   parseContactMsgV3,
   parseContactsStart,
-  parseCustomVars,
   parseEndOfContacts,
   parseSendConfirmed,
   parseSentAck,
@@ -229,19 +228,5 @@ describe('parseTelemetryResponse (CayenneLPP)', () => {
     ]);
     const res = parseTelemetryResponse(frame);
     expect(res?.fields[0]).toMatchObject({ channel: 0, name: 'Voltage', value: 4.2, unit: 'V' });
-  });
-});
-
-describe('parseCustomVars', () => {
-  it('parses newline-separated key:value pairs', () => {
-    const frame = Buffer.concat([
-      Buffer.from([0x15]),
-      Buffer.from('gps:1\ngps_interval:30', 'utf8'),
-    ]);
-    expect(parseCustomVars(frame)).toEqual({ gps: '1', gps_interval: '30' });
-  });
-
-  it('returns an empty object for a too-short frame', () => {
-    expect(parseCustomVars(Buffer.from([0x15]))).toEqual({});
   });
 });

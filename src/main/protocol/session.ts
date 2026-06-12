@@ -29,7 +29,6 @@ import {
   parseContactMsgV1,
   parseContactMsgV3,
   parseContactsStart,
-  parseCustomVars,
   parseEndOfContacts,
   parseSendConfirmed,
   parseSentAck,
@@ -41,7 +40,6 @@ import {
   buildAnonLogin,
   buildGetChannel,
   buildGetContacts,
-  buildGetCustomVar,
   buildGetNextMsg,
   buildGetStats,
   buildLogout,
@@ -59,7 +57,6 @@ import {
   buildSetAdvertLatLon,
   buildSetAdvertName,
   buildSetChannel,
-  buildSetCustomVar,
   buildSetOtherParams,
   buildSetPathHashMode,
   buildSetRadioParams,
@@ -82,6 +79,7 @@ import {
 } from './features/autoAdd';
 import { battStorageFeature, encodeGetBattAndStorage } from './features/battStorage';
 import { contactsFullFeature } from './features/contactsFull';
+import { customVarsFeature, encodeGetCustomVar, encodeSetCustomVar } from './features/customVars';
 import { deviceInfoFeature, encodeDeviceQuery } from './features/deviceInfo';
 import { encodeAppStart, selfInfoFeature } from './features/selfInfo';
 import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
@@ -274,6 +272,7 @@ export class ProtocolSession {
     autoAddFeature,
     deviceInfoFeature,
     selfInfoFeature,
+    customVarsFeature,
   ]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
@@ -912,7 +911,7 @@ export class ProtocolSession {
     const interval = Math.min(86399, Math.max(60, Math.floor(cfg.intervalSec)));
     const ack1 = this.awaitAck();
     try {
-      await this.writeFrame(buildSetCustomVar('gps', cfg.enabled));
+      await this.writeFrame(encodeSetCustomVar('gps', cfg.enabled));
     } catch (err) {
       this.popPendingAck(ack1.entry);
       log.warn(`setCustomVar(gps) write failed: ${(err as Error).message}`);
@@ -922,7 +921,7 @@ export class ProtocolSession {
     await sleep(WRITE_GAP_MS);
     const ack2 = this.awaitAck();
     try {
-      await this.writeFrame(buildSetCustomVar('gps_interval', interval));
+      await this.writeFrame(encodeSetCustomVar('gps_interval', interval));
     } catch (err) {
       this.popPendingAck(ack2.entry);
       log.warn(`setCustomVar(gps_interval) write failed: ${(err as Error).message}`);
@@ -988,7 +987,7 @@ export class ProtocolSession {
   async requestCustomVars(key = ''): Promise<void> {
     if (!this.connected) return;
     try {
-      await this.writeFrame(buildGetCustomVar(key));
+      await this.writeFrame(encodeGetCustomVar(key));
     } catch (err) {
       log.warn(`requestCustomVars write failed: ${(err as Error).message}`);
     }
@@ -1691,23 +1690,6 @@ export class ProtocolSession {
         clearTimeout(this.pendingLocalStats.timer);
         this.pendingLocalStats.resolve(parsed);
         this.pendingLocalStats = null;
-      }
-      return;
-    }
-    if (code === RESP.CUSTOM_VARS) {
-      const kv = parseCustomVars(frame);
-      if (kv.gps !== undefined || kv.gps_interval !== undefined) {
-        const holder = stateHolder();
-        const current = holder.getGpsConfig();
-        const next = {
-          enabled: kv.gps !== undefined ? kv.gps === '1' || kv.gps === 'true' : current.enabled,
-          intervalSec:
-            kv.gps_interval !== undefined
-              ? Number.parseInt(kv.gps_interval, 10) || current.intervalSec
-              : current.intervalSec,
-        };
-        holder.setGpsConfig(next);
-        emit.gpsConfig(next);
       }
       return;
     }
