@@ -1,9 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { hopsFromOutPathLen } from '../../shared/contacts/discovered';
 import type {
   Channel,
-  Contact,
   ContactKind,
   Message,
   MessagePath,
@@ -68,15 +66,18 @@ import {
 } from './features/autoAdd';
 import { battStorageFeature, encodeGetBattAndStorage } from './features/battStorage';
 import {
-  type ContactRecord,
   decodeContact,
   decodeContactDeleted,
   decodeContactsStart,
   decodeEndOfContacts,
+  emitDiscovered,
   encodeAddUpdateContact,
   encodeGetContacts,
   encodeRemoveContact,
   encodeResetPath,
+  ingestContact,
+  scheduleContactsResync,
+  upsertOnRadioContact,
 } from './features/contacts';
 import { contactsFullFeature } from './features/contactsFull';
 import { customVarsFeature, encodeGetCustomVar, encodeSetCustomVar } from './features/customVars';
@@ -233,7 +234,6 @@ export class ProtocolSession {
   /** Pubkeys seen during the in-flight GET_CONTACTS iteration. Reset on
    *  CONTACTS_START; consumed in END_OF_CONTACTS to reconcile on-radio flags. */
   private contactsSyncSeen: string[] = [];
-  private resyncTimer: NodeJS.Timeout | null = null;
   /** Resolved when RESP_CONTACTS_START arrives during the handshake, so the
    *  channel-enumeration loop can wait for the contact total and avoid the
    *  progress bar jumping backwards when total grows mid-sync. */
@@ -670,7 +670,7 @@ export class ProtocolSession {
       throw new Error('radio did not confirm add-contact');
     }
     discoveredStore.setOnRadio(publicKeyHex, true);
-    this.upsertOnRadioContact({
+    upsertOnRadioContact({
       publicKeyHex,
       type: row.type,
       flags: row.flags,
@@ -682,8 +682,8 @@ export class ProtocolSession {
       gpsLon: row.gps_lon,
       lastmod: row.lastmod,
     });
-    this.emitDiscovered();
-    this.scheduleContactsResync();
+    emitDiscovered();
+    scheduleContactsResync(this.ctx);
   }
 
   /** Delete a contact from the radio's store (CMD_REMOVE_CONTACT). Keeps it in
@@ -694,7 +694,7 @@ export class ProtocolSession {
     const holder = stateHolder();
     holder.removeContact(`c:${publicKeyHex}`);
     emit.contacts(holder.getContacts());
-    this.emitDiscovered();
+    emitDiscovered();
   }
 
   /** Toggle the favourite flag (contact flags bit 0). For on-radio contacts,
@@ -728,7 +728,7 @@ export class ProtocolSession {
       holder.upsertContact({ ...existing, favourite });
       emit.contacts(holder.getContacts());
     }
-    this.emitDiscovered();
+    emitDiscovered();
   }
 
   /** Toggle the per-contact "always use direct (companion-side) login" flag.
@@ -1565,7 +1565,7 @@ export class ProtocolSession {
       const record = decodeContact(frame);
       if (record) {
         this.contactsSyncSeen.push(record.publicKeyHex);
-        this.ingestContact(record, 'sync');
+        ingestContact(this.ctx, record, 'sync');
         this.contactsIterCount += 1;
         // Self-heal if the radio's CONTACTS_START total was optimistic (or
         // never arrived): never let `done` exceed `total`, which would render
@@ -1600,7 +1600,7 @@ export class ProtocolSession {
       }
       this.contactsSyncSeen = [];
       emit.contacts(holder.getContacts());
-      this.emitDiscovered();
+      emitDiscovered();
       this.contactsIterTotal = 0;
       this.contactsIterCount = 0;
       this.resolveWaiter('contactsDoneWaiter');
@@ -1609,7 +1609,7 @@ export class ProtocolSession {
     if (code === PUSH.NEW_ADVERT) {
       const record = decodeContact(frame);
       if (record) {
-        this.ingestContact(record, 'advert');
+        ingestContact(this.ctx, record, 'advert');
         log.debug(`new advert: "${record.name}" (${record.publicKeyHex.slice(0, 12)})`);
       }
       return;
@@ -1626,7 +1626,7 @@ export class ProtocolSession {
         discoveredStore.setOnRadio(pubkey, false);
         holder.removeContact(`c:${pubkey}`);
         emit.contacts(holder.getContacts());
-        this.emitDiscovered();
+        emitDiscovered();
         emit.contactEvicted(name);
         log.info(`contact evicted by radio: ${name} ${pubkey.slice(0, 12)}`);
       }
@@ -1762,143 +1762,6 @@ export class ProtocolSession {
     holder.upsertChannel(channel);
     emit.channels(holder.getChannels());
     log.debug(`channel idx=${info.idx} "${info.name}"`);
-  }
-
-  /** Debounced full GET_CONTACTS re-sync. Coalesces bursts of adverts into one
-   *  refresh so we pick up firmware auto-adds without hammering the link. */
-  private scheduleContactsResync(): void {
-    if (this.resyncTimer) return;
-    this.resyncTimer = setTimeout(() => {
-      this.resyncTimer = null;
-      void this.writeFrame(encodeGetContacts()).catch((err) => {
-        log.warn(`contacts re-sync failed: ${(err as Error).message}`);
-      });
-    }, 1500);
-  }
-
-  /** Push the full discovered pool to the renderer. */
-  private emitDiscovered(): void {
-    const holder = stateHolder();
-    emit.discovered(
-      discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
-    );
-  }
-
-  /** Whether the firmware would auto-store an advert of this ADV_TYPE, given
-   *  the current auto-add config. Used to decide whether to re-sync after a
-   *  not-on-radio advert. */
-  private shouldAutoAdd(advType: number): boolean {
-    const cfg = stateHolder().getAutoAddConfig();
-    if (cfg.mode === 'all') return true;
-    switch (advType) {
-      case ADV_TYPE.REPEATER:
-        return cfg.repeater;
-      case ADV_TYPE.ROOM:
-        return cfg.room;
-      case ADV_TYPE.SENSOR:
-        return cfg.sensor;
-      default:
-        return cfg.chat;
-    }
-  }
-
-  /** Upsert a contact heard from RESP_CONTACT (sync, on-radio) or
-   *  PUSH_NEW_ADVERT (live advert — on-radio only if already in the store).
-   *  Always records into the discovered pool with an app-tracked first-heard. */
-  private ingestContact(record: ContactRecord, source: 'sync' | 'advert'): void {
-    const holder = stateHolder();
-    const fullKey = `c:${record.publicKeyHex}`;
-    const alreadyOnRadio = holder.getContacts().some((c) => c.key === fullKey);
-    const onRadio = source === 'sync' ? true : alreadyOnRadio;
-
-    // First-ever sighting: no row in the discovered pool yet (checked before
-    // the upsert below). Only a live advert is a "discovery" — a GET_CONTACTS
-    // sync is just the device listing what it already stores.
-    const isNewDiscovery = source === 'advert' && discoveredStore.get(record.publicKeyHex) === null;
-
-    discoveredStore.upsert(record, {
-      onRadio,
-      nowMs: Date.now(),
-      heardLive: source === 'advert',
-    });
-
-    if (onRadio) {
-      this.upsertOnRadioContact(record);
-    }
-    this.emitDiscovered();
-
-    if (isNewDiscovery) {
-      emit.contactDiscovered({
-        key: fullKey,
-        name: record.name || record.publicKeyHex.slice(0, 12),
-        kind: advTypeToKind(record.type),
-      });
-    }
-
-    if (source === 'advert' && !onRadio && this.shouldAutoAdd(record.type)) {
-      this.scheduleContactsResync();
-    }
-  }
-
-  /** Upsert a contact from a RESP_CONTACT / PUSH_NEW_ADVERT frame. When the
-   *  contact matches an existing placeholder (`c:<6-byte-prefix>`), the
-   *  placeholder is removed; messages already keyed to the placeholder stay
-   *  there (cheap to leave — future cleanup can migrate them). */
-  private upsertOnRadioContact(record: ContactRecord): void {
-    const holder = stateHolder();
-    const fullKey = `c:${record.publicKeyHex}`;
-    const prefix6 = record.publicKeyHex.slice(0, 12);
-    const existing = holder.getContacts().find((c) => c.key === fullKey);
-    // The radio re-pushes the full contact record on every advert; preserve
-    // local-only fields the firmware doesn't know about.
-    const hashSize = holder.getRadioSettings().pathHashMode;
-    const advertOutPathHex = record.outPathLen === 0xff ? '' : record.outPathHex;
-    // Don't let a stray advert that reports "no path" wipe a path the user
-    // just set manually — the firmware can occasionally re-emit a contact
-    // entry with path_len=0 right after we write CMD_ADD_UPDATE_CONTACT (the
-    // advert was generated mid-flight). Only allow overwrites when the advert
-    // carries a non-empty path, OR when the existing entry wasn't manually
-    // set. Auto-learned paths (pathManual=false) still defer to firmware.
-    const newOutPathHex =
-      advertOutPathHex.length === 0 && existing?.pathManual === true
-        ? (existing.outPathHex ?? '')
-        : advertOutPathHex;
-    const pathChanged = (existing?.outPathHex ?? '') !== newOutPathHex;
-
-    const contact: Contact = {
-      key: fullKey,
-      publicKeyHex: record.publicKeyHex,
-      name: record.name || record.publicKeyHex.slice(0, 12),
-      kind: advTypeToKind(record.type),
-      lastSeenMs: record.lastAdvertUnix > 0 ? record.lastAdvertUnix * 1000 : existing?.lastSeenMs,
-      hops: hopsFromOutPathLen(record.outPathLen),
-      pinned: existing?.pinned,
-      muted: existing?.muted,
-      favourite: (record.flags & 0x01) !== 0,
-      outPathHex: newOutPathHex || undefined,
-      outPathHashSize: newOutPathHex ? hashSize : existing?.outPathHashSize,
-      preferDirect: existing?.preferDirect,
-      // If the radio's view of the path drifted away from a path the user set
-      // by hand, drop the manual flag — the firmware is the source of truth.
-      pathManual: pathChanged ? false : existing?.pathManual,
-      pathLearnedAt: pathChanged && newOutPathHex ? Date.now() : existing?.pathLearnedAt,
-      // Adverts carry the radio's last GPS fix. 0/0 is the firmware default for
-      // radios without a GPS module — treat as "no fix" and fall back to the
-      // last known position instead of nuking it.
-      gpsLat: record.gpsLat !== 0 || record.gpsLon !== 0 ? record.gpsLat : existing?.gpsLat,
-      gpsLon: record.gpsLat !== 0 || record.gpsLon !== 0 ? record.gpsLon : existing?.gpsLon,
-    };
-    holder.upsertContact(contact);
-
-    // Reconcile a synth placeholder we created for a prior incoming DM whose
-    // sender we hadn't seen an advert for yet.
-    const placeholderKey = `c:${prefix6}`;
-    if (placeholderKey !== fullKey && holder.getContacts().some((c) => c.key === placeholderKey)) {
-      holder.removeContact(placeholderKey);
-      log.debug(`reconciled placeholder ${placeholderKey} → ${fullKey}`);
-    }
-
-    emit.contacts(holder.getContacts());
   }
 
   private handleContactMsg(code: number, frame: Buffer): void {
@@ -2170,19 +2033,6 @@ export class ProtocolSession {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function advTypeToKind(type: number): ContactKind {
-  switch (type) {
-    case ADV_TYPE.REPEATER:
-      return 'repeater';
-    case ADV_TYPE.ROOM:
-      return 'room';
-    case ADV_TYPE.SENSOR:
-      return 'sensor';
-    default:
-      return 'chat';
-  }
 }
 
 function contactKindToAdvType(kind: ContactKind): number {

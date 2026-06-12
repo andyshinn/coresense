@@ -1,5 +1,14 @@
 import { Buffer } from 'node:buffer';
-import { CMD } from '../codes';
+import { advTypeToKind, hopsFromOutPathLen } from '../../../shared/contacts/discovered';
+import type { Contact } from '../../../shared/types';
+import { emit } from '../../events/bus';
+import { child } from '../../log';
+import { stateHolder } from '../../state/holder';
+import { discoveredStore } from '../../storage/discoveredContacts';
+import { ADV_TYPE, CMD } from '../codes';
+import type { FeatureContext } from '../feature';
+
+const log = child('protocol');
 
 // ---- Wire types --------------------------------------------------------
 
@@ -159,4 +168,148 @@ export function decodeEndOfContacts(frame: Buffer): number | null {
 export function decodeContactDeleted(frame: Buffer): string | null {
   if (frame.length < 1 + 32) return null;
   return frame.subarray(1, 33).toString('hex');
+}
+
+// ---- Ingest / app-logic ------------------------------------------------
+
+let resyncTimer: NodeJS.Timeout | null = null;
+
+/** Push the full discovered pool to the renderer. */
+export function emitDiscovered(): void {
+  const holder = stateHolder();
+  emit.discovered(
+    discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
+  );
+}
+
+/** Whether the firmware would auto-store an advert of this ADV_TYPE, given the
+ *  current auto-add config. Used to decide whether to re-sync after a
+ *  not-on-radio advert. */
+export function shouldAutoAdd(advType: number): boolean {
+  const cfg = stateHolder().getAutoAddConfig();
+  if (cfg.mode === 'all') return true;
+  switch (advType) {
+    case ADV_TYPE.REPEATER:
+      return cfg.repeater;
+    case ADV_TYPE.ROOM:
+      return cfg.room;
+    case ADV_TYPE.SENSOR:
+      return cfg.sensor;
+    default:
+      return cfg.chat;
+  }
+}
+
+/** Debounced full re-sync (CMD_GET_CONTACTS) after an auto-addable advert. */
+export function scheduleContactsResync(ctx: FeatureContext): void {
+  if (resyncTimer) return;
+  resyncTimer = setTimeout(() => {
+    resyncTimer = null;
+    void ctx.writeFrame(encodeGetContacts()).catch((err) => {
+      log.warn(`contacts re-sync failed: ${(err as Error).message}`);
+    });
+  }, 1500);
+}
+
+/** Upsert a contact from a RESP_CONTACT / PUSH_NEW_ADVERT frame. When the
+ *  contact matches an existing placeholder (`c:<6-byte-prefix>`), the
+ *  placeholder is removed; messages already keyed to the placeholder stay
+ *  there (cheap to leave — future cleanup can migrate them). */
+export function upsertOnRadioContact(record: ContactRecord): void {
+  const holder = stateHolder();
+  const fullKey = `c:${record.publicKeyHex}`;
+  const prefix6 = record.publicKeyHex.slice(0, 12);
+  const existing = holder.getContacts().find((c) => c.key === fullKey);
+  // The radio re-pushes the full contact record on every advert; preserve
+  // local-only fields the firmware doesn't know about.
+  const hashSize = holder.getRadioSettings().pathHashMode;
+  const advertOutPathHex = record.outPathLen === 0xff ? '' : record.outPathHex;
+  // Don't let a stray advert that reports "no path" wipe a path the user
+  // just set manually — the firmware can occasionally re-emit a contact
+  // entry with path_len=0 right after we write CMD_ADD_UPDATE_CONTACT (the
+  // advert was generated mid-flight). Only allow overwrites when the advert
+  // carries a non-empty path, OR when the existing entry wasn't manually
+  // set. Auto-learned paths (pathManual=false) still defer to firmware.
+  const newOutPathHex =
+    advertOutPathHex.length === 0 && existing?.pathManual === true
+      ? (existing.outPathHex ?? '')
+      : advertOutPathHex;
+  const pathChanged = (existing?.outPathHex ?? '') !== newOutPathHex;
+
+  const contact: Contact = {
+    key: fullKey,
+    publicKeyHex: record.publicKeyHex,
+    name: record.name || record.publicKeyHex.slice(0, 12),
+    kind: advTypeToKind(record.type),
+    lastSeenMs: record.lastAdvertUnix > 0 ? record.lastAdvertUnix * 1000 : existing?.lastSeenMs,
+    hops: hopsFromOutPathLen(record.outPathLen),
+    pinned: existing?.pinned,
+    muted: existing?.muted,
+    favourite: (record.flags & 0x01) !== 0,
+    outPathHex: newOutPathHex || undefined,
+    outPathHashSize: newOutPathHex ? hashSize : existing?.outPathHashSize,
+    preferDirect: existing?.preferDirect,
+    // If the radio's view of the path drifted away from a path the user set
+    // by hand, drop the manual flag — the firmware is the source of truth.
+    pathManual: pathChanged ? false : existing?.pathManual,
+    pathLearnedAt: pathChanged && newOutPathHex ? Date.now() : existing?.pathLearnedAt,
+    // Adverts carry the radio's last GPS fix. 0/0 is the firmware default for
+    // radios without a GPS module — treat as "no fix" and fall back to the
+    // last known position instead of nuking it.
+    gpsLat: record.gpsLat !== 0 || record.gpsLon !== 0 ? record.gpsLat : existing?.gpsLat,
+    gpsLon: record.gpsLat !== 0 || record.gpsLon !== 0 ? record.gpsLon : existing?.gpsLon,
+  };
+  holder.upsertContact(contact);
+
+  // Reconcile a synth placeholder we created for a prior incoming DM whose
+  // sender we hadn't seen an advert for yet.
+  const placeholderKey = `c:${prefix6}`;
+  if (placeholderKey !== fullKey && holder.getContacts().some((c) => c.key === placeholderKey)) {
+    holder.removeContact(placeholderKey);
+    log.debug(`reconciled placeholder ${placeholderKey} → ${fullKey}`);
+  }
+
+  emit.contacts(holder.getContacts());
+}
+
+/** Upsert a contact heard from RESP_CONTACT (sync, on-radio) or
+ *  PUSH_NEW_ADVERT (live advert — on-radio only if already in the store).
+ *  Always records into the discovered pool with an app-tracked first-heard. */
+export function ingestContact(
+  ctx: FeatureContext,
+  record: ContactRecord,
+  source: 'sync' | 'advert',
+): void {
+  const holder = stateHolder();
+  const fullKey = `c:${record.publicKeyHex}`;
+  const alreadyOnRadio = holder.getContacts().some((c) => c.key === fullKey);
+  const onRadio = source === 'sync' ? true : alreadyOnRadio;
+
+  // First-ever sighting: no row in the discovered pool yet (checked before
+  // the upsert below). Only a live advert is a "discovery" — a GET_CONTACTS
+  // sync is just the device listing what it already stores.
+  const isNewDiscovery = source === 'advert' && discoveredStore.get(record.publicKeyHex) === null;
+
+  discoveredStore.upsert(record, {
+    onRadio,
+    nowMs: Date.now(),
+    heardLive: source === 'advert',
+  });
+
+  if (onRadio) {
+    upsertOnRadioContact(record);
+  }
+  emitDiscovered();
+
+  if (isNewDiscovery) {
+    emit.contactDiscovered({
+      key: fullKey,
+      name: record.name || record.publicKeyHex.slice(0, 12),
+      kind: advTypeToKind(record.type),
+    });
+  }
+
+  if (source === 'advert' && !onRadio && shouldAutoAdd(record.type)) {
+    scheduleContactsResync(ctx);
+  }
 }

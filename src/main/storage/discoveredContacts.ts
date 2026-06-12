@@ -1,9 +1,10 @@
 import {
+  advTypeToKind,
   contactMatchesAnyBlockRule,
   type DiscoveredContact,
   hopsFromOutPathLen,
 } from '../../shared/contacts/discovered';
-import type { BlockRule, ContactKind, PathHashSize } from '../../shared/types';
+import type { BlockRule, PathHashSize } from '../../shared/types';
 import type { ContactRecord } from '../protocol/features/contacts';
 import { openDb } from './db';
 
@@ -22,19 +23,6 @@ interface Row {
   last_heard_ms: number;
   on_radio: number;
   favourite: number;
-}
-
-function advTypeToKind(type: number): ContactKind {
-  switch (type) {
-    case 2:
-      return 'repeater';
-    case 3:
-      return 'room';
-    case 4:
-      return 'sensor';
-    default:
-      return 'chat';
-  }
 }
 
 function rowToDiscovered(

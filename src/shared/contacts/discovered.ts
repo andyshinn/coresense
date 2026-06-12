@@ -36,6 +36,22 @@ export function hopsFromOutPathLen(outPathLen: number): number | undefined {
   return outPathLen === 0xff ? undefined : outPathLen;
 }
 
+/** Map a MeshCore ADV_TYPE byte (1 chat, 2 repeater, 3 room, 4 sensor) to the
+ *  app's ContactKind. Shared by the protocol contacts feature and the
+ *  discovered-contact store so the mapping lives in exactly one place. */
+export function advTypeToKind(type: number): ContactKind {
+  switch (type) {
+    case 2:
+      return 'repeater';
+    case 3:
+      return 'room';
+    case 4:
+      return 'sensor';
+    default:
+      return 'chat';
+  }
+}
+
 /** Evaluate a contact's pubkey/name against the enabled block rules. Mirrors
  *  the message matcher's rule semantics (see shared/blocking/match.ts) but for
  *  a contact identity rather than a message. */
