@@ -1,14 +1,15 @@
 # Protocol frame fixtures
 
-Real MeshCore companion-protocol frames, used by the `protocol/decode` unit tests.
+Real MeshCore companion-protocol frames, used by the per-feature protocol decoder unit tests.
 
 ## Provenance
 
 - **Source:** `coresense.log` in the repo root — a BLE device-connect session.
 - **Device:** Heltec T114, firmware `v1.15.0`, app protocol version 4.
 - **Frame form:** each `hex` is the full de-framed companion frame (leading
-  code byte + payload), i.e. exactly what `src/main/protocol/decode.ts`
-  `parseXxx(frame)` receives.
+  code byte + payload), i.e. exactly what a feature's `decode*(frame)` /
+  `parse*(frame)` receives (decoders now live in the per-feature modules under
+  `src/main/protocol/features/` and in `src/main/protocol/repeater.ts`).
 
 ## Regenerating / extending
 

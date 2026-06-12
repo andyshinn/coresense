@@ -266,7 +266,7 @@ in the Appendix.
 
 1. **`BufferReader`/`BufferWriter`** — described above (shared primitive).
 2. **CayenneLPP completeness** — port the missing LPP types into the existing table-driven
-   decoder ([decode.ts:235](../../../src/main/protocol/decode.ts#L235)): GPS (136, int24×3),
+   `CAYENNE_TYPES` decoder (moved in Phase 2f to [repeater.ts](../../../src/main/protocol/repeater.ts)): GPS (136, int24×3),
    Generic sensor (100), Percentage (120), Power (128), Concentration (125), Altitude (121),
    Distance (130), Energy (131), Direction (132), Unixtime (133), Accelerometer (113),
    Gyrometer (134), Colour (135), Frequency (118), Switch (142), Polyline (240). Adds
@@ -370,6 +370,16 @@ Surfaced while building/hardening the foundation (Phase 1, commits on `feat/prot
     these hooks (owning `adminSentQueue`/`pendingCli`) and the session's `start()` registration +
     residual queues are removed. Do NOT give repeater-admin its own `RESP_SENT`/`CONTACT_MSG_RECV`
     registry entry — `directMessages` owns those codes; admin participates only via the hook seam.
+  - **Phase 2f update (RESOLVED — seam closed):** Phase 2f migrated the repeater-admin cluster into
+    `features/repeaterAdmin.ts`, which now owns `adminSentQueue`/`pendingCli`/`pendingLocalStats` and
+    registers the `directMessages` hooks via `repeaterAdmin.registerAdminHooks()` (called from
+    `start()`). The session's inline `setAdminHooks` block + the residual admin queues are gone;
+    disconnect/stop now call `repeaterAdmin.resetAdmin()`. `directMessages` keeps ownership of
+    `RESP_SENT`/`CONTACT_MSG_RECV` (no repeater-admin registry entry) — admin participates only via
+    the hook seam, exactly as required above. The wire layer for repeater commands + responses
+    (incl. status/telemetry + CayenneLPP) consolidated into `protocol/repeater.ts`; `protocol/decode.ts`
+    was emptied and **deleted**. `telemetry` was folded into `repeaterAdmin` (not a separate module);
+    split it out only if a non-repeater telemetry source (periodic sensor push) later lands.
 - **No real-device validation.** All Phase 1 tests use synthetic frames. The Appendix byte
   layouts were extracted from firmware C++ by subagents and cross-checked against `codes.ts`,
   but each group should be confirmed against **real captured frames** as it lands — especially
