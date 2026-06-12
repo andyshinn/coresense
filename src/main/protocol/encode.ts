@@ -1,15 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { createHash } from 'node:crypto';
 import { CMD, type STATS_TYPE, TXT_TYPE } from './codes';
-
-// CMD_GET_CHANNEL: enumerate per-slot.
-//   [0x1f][idx]
-// We don't yet know if the firmware accepts a bare opcode for "all channels",
-// so we iterate by index 0..N-1. Empty slots come back as RESP_ERR (or a
-// RESP_CHANNEL_INFO with an all-zero key, which drain.ts already filters).
-export function buildGetChannel(idx: number): Buffer {
-  return Buffer.from([CMD.GET_CHANNEL, idx & 0xff]);
-}
 
 // CMD_SEND_CHAN_TXT_MSG payload (per src/main/bridge/drain.ts):
 //   [0x03][flags 1B][chan_idx 1B][ts 4B LE][text UTF-8...]
@@ -97,32 +87,6 @@ export function buildSendTelemetryReq(destPublicKeyHex: string): Buffer {
 // adverts; the auto-on-connect advert is also flood so first-time peers see us.
 export function buildSendSelfAdvert(flood = true): Buffer {
   return Buffer.from([CMD.SEND_SELF_ADVERT, flood ? 1 : 0]);
-}
-
-// CMD_SET_CHANNEL writes a channel slot. Mirror of RESP_CHANNEL_INFO:
-//   [0x20][idx][name 32B null-padded][secret 16B]
-// Firmware replies RESP_OK on success, RESP_ERR on rejection. The firmware
-// stores whatever bytes we give it — no special-case for empty name / zero
-// key — so "delete" is implemented by writing zeros and letting our enumerator
-// filter it back out via the all-zero-key empty check in parseChannelInfo.
-export function buildSetChannel(idx: number, name: string, secretHex: string): Buffer {
-  const out = Buffer.alloc(2 + 32 + 16);
-  out[0] = CMD.SET_CHANNEL;
-  out[1] = idx & 0xff;
-  const nameBuf = Buffer.from(name, 'utf8');
-  nameBuf.copy(out, 2, 0, Math.min(nameBuf.length, 32));
-  const secret = Buffer.from(secretHex, 'hex');
-  if (secret.length !== 16) {
-    throw new Error(`channel secret must be 16 bytes, got ${secret.length}`);
-  }
-  secret.copy(out, 2 + 32);
-  return out;
-}
-
-// Hashtag and well-known channels derive their shared key as SHA-256(name)[:16].
-// Matches meshcore_py and the official mobile app behavior.
-export function deriveChannelSecret(name: string): string {
-  return createHash('sha256').update(name, 'utf8').digest('hex').slice(0, 32);
 }
 
 // CMD_SEND_LOGIN: [0x1a][32B dest pubkey][ASCII password...] (firmware:

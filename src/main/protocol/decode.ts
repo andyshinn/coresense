@@ -1,41 +1,5 @@
 import type { Buffer } from 'node:buffer';
 
-// RESP_CHANNEL_INFO frame layout (firmware: companion_radio/MyMesh.cpp):
-//   [0]: 0x12
-//   [1]: idx
-//   [2..33]: name 32B null-padded
-//   [34..49]: shared key 16B
-export interface ChannelInfo {
-  idx: number;
-  name: string;
-  secretHex: string;
-  /** Channels with an all-zero key are unconfigured slots — skip them. */
-  empty: boolean;
-}
-
-const CHANNEL_INFO_FRAME_LEN = 50;
-
-export function parseChannelInfo(frame: Buffer): ChannelInfo | null {
-  if (frame.length < CHANNEL_INFO_FRAME_LEN) return null;
-  const idx = frame[1];
-  // The 32B region after idx holds a null-terminated channel name; firmware
-  // packs a second field (looks like a topic/owner) into the remaining bytes
-  // of the same 32B, so we must stop at the FIRST null — not strip trailing
-  // nulls.
-  const nameRegion = frame.subarray(2, 34);
-  const firstNull = nameRegion.indexOf(0);
-  const nameBytes = firstNull === -1 ? nameRegion : nameRegion.subarray(0, firstNull);
-  const name = nameBytes.toString('utf8');
-  const key = frame.subarray(34, 50);
-  const empty = key.every((b) => b === 0);
-  return {
-    idx,
-    name,
-    secretHex: key.toString('hex'),
-    empty,
-  };
-}
-
 // RESP_CHANNEL_MSG_RECV_V3 frame layout (firmware: companion_radio/MyMesh.cpp
 // onChannelMessageRecv):
 //   [0]: 0x11

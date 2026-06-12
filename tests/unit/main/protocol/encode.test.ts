@@ -2,7 +2,6 @@ import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
 import {
   buildAnonLogin,
-  buildGetChannel,
   buildGetStats,
   buildLogout,
   buildReboot,
@@ -15,18 +14,11 @@ import {
   buildSendStatusReq,
   buildSendTelemetryReq,
   buildSendTracePath,
-  buildSetChannel,
-  deriveChannelSecret,
 } from '../../../../src/main/protocol/encode';
 
 const hex = (b: Buffer) => b.toString('hex');
 
 describe('encode: bare-opcode commands', () => {
-  it('buildGetChannel appends the slot index', () => {
-    expect(hex(buildGetChannel(0))).toBe('1f00');
-    expect(hex(buildGetChannel(3))).toBe('1f03');
-  });
-
   it('buildSendSelfAdvert encodes the flood flag', () => {
     expect(hex(buildSendSelfAdvert())).toBe('0701');
     expect(hex(buildSendSelfAdvert(false))).toBe('0700');
@@ -54,20 +46,6 @@ describe('encode: DM text framing + validation', () => {
 
   it('rejects a public key shorter than 6 bytes', () => {
     expect(() => buildSendDmText({ destPublicKeyHex: 'aabb', text: 'x' })).toThrow(/≥6 bytes/);
-  });
-});
-
-describe('encode: deriveChannelSecret', () => {
-  it('is 16 bytes (32 lowercase hex chars) and deterministic', () => {
-    const a = deriveChannelSecret('public');
-    const b = deriveChannelSecret('public');
-    expect(a).toBe(b);
-    expect(a).toMatch(/^[0-9a-f]{32}$/);
-    expect(a).toBe('efa1f375d76194fa51a3556a97e641e6'); // golden: SHA-256('public')[:16]
-  });
-
-  it('differs for different channel names', () => {
-    expect(deriveChannelSecret('public')).not.toBe(deriveChannelSecret('private'));
   });
 });
 
@@ -123,20 +101,6 @@ describe('encode: 32-byte-pubkey commands (missing coverage)', () => {
 });
 
 describe('encode: structured builders (missing coverage)', () => {
-  it('buildSetChannel lays out [0x20][idx][name 32B null-padded][secret 16B]', () => {
-    const out = buildSetChannel(1, 'General', 'ab'.repeat(16));
-    expect(out.length).toBe(50);
-    expect(out[0]).toBe(0x20);
-    expect(out[1]).toBe(1);
-    const nameRegion = out.subarray(2, 34);
-    expect(nameRegion.subarray(0, nameRegion.indexOf(0)).toString('utf8')).toBe('General');
-    expect(out.subarray(34, 50).toString('hex')).toBe('ab'.repeat(16));
-  });
-
-  it('buildSetChannel rejects a secret that is not 16 bytes', () => {
-    expect(() => buildSetChannel(0, 'x', 'abcd')).toThrow(/16 bytes/);
-  });
-
   it('buildSendTracePath lays out [0x24][tag u32 LE][auth u32 LE][flags u8][path]', () => {
     const out = buildSendTracePath({ tag: 1, authCode: 2, flags: 0, path: Buffer.from([0xaa]) });
     expect(hex(out)).toBe('24010000000200000000aa');

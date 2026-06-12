@@ -18,7 +18,6 @@ import { discoveredStore } from '../storage/discoveredContacts';
 import { transportManager } from '../transport/manager';
 import { ADV_TYPE, ERR_CODE, PUSH, REQ_TYPE, RESP, STATS_TYPE, TXT_TYPE } from './codes';
 import {
-  parseChannelInfo,
   parseChannelMsgV1,
   parseChannelMsgV3,
   parseContactMsgV1,
@@ -30,7 +29,6 @@ import {
 } from './decode';
 import {
   buildAnonLogin,
-  buildGetChannel,
   buildGetStats,
   buildLogout,
   buildReboot,
@@ -42,8 +40,6 @@ import {
   buildSendStatusReq,
   buildSendTelemetryReq,
   buildSendTracePath,
-  buildSetChannel,
-  deriveChannelSecret,
 } from './encode';
 import {
   ContactTableFullError,
@@ -64,6 +60,7 @@ import {
   setAutoAddConfig,
 } from './features/autoAdd';
 import { battStorageFeature, encodeGetBattAndStorage } from './features/battStorage';
+import * as channels from './features/channels';
 import {
   contactsFeature,
   emitDiscovered,
@@ -132,13 +129,6 @@ const CONTACTS_DONE_WAIT_MS = 10_000;
 // many frames the radio can't ack in time. Empirical on Heltec/RAK hardware.
 const WRITE_GAP_MS = 50;
 
-interface SessionDeps {
-  /** Channel keys we've seen the radio publish, indexed by slot index. The
-   *  device tags incoming RESP_CHANNEL_MSG_RECV(_V3) frames with the channel
-   *  index, not a hash, so this is the dispatch map. */
-  channelByIdx: Map<number, Channel>;
-}
-
 // DM send → RESP_SENT has no correlation id, so we FIFO outgoing DMs and pop on
 // each RESP_SENT. After RESP_SENT lands we hold the expected_ack hash → message
 // id mapping until a PUSH_SEND_CONFIRMED arrives (or until ACK_RETENTION_MS).
@@ -202,14 +192,7 @@ const CLI_REPLY_TIMEOUT_MS = 30_000;
 const REQUEST_TIMEOUT_MS = 5_000;
 
 export class ProtocolSession {
-  private readonly deps: SessionDeps = {
-    channelByIdx: new Map(),
-  };
   private connected = false;
-  /** Channel keys the *currently connected* radio reports owning. Cleared on
-   *  disconnect. Renderer uses this to gray out channels that exist only in
-   *  app storage. */
-  private readonly devicePresence = new Set<string>();
   /** Queue of awaiters for the next RESP_OK / RESP_ERR. The companion protocol
    *  has no correlation id, so we FIFO: any OK/ERR routes to the oldest
    *  pending awaiter. Only SET_CHANNEL currently uses this; if more writers
@@ -267,6 +250,7 @@ export class ProtocolSession {
     customVarsFeature,
     contactsFeature,
     drainFeature,
+    channels.channelsFeature,
   ]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
@@ -275,7 +259,7 @@ export class ProtocolSession {
     bus.on('transportState', this.onTransportState);
     bus.on('contactsSync', this.onContactsSync);
     this.purgeCorruptedChannels();
-    this.rebuildIndexes();
+    channels.rebuildIndexes();
     // If the transport already happens to be connected at start (e.g. auto-
     // reconnect on app launch), kick the handshake immediately.
     if (transportManager.getState().state === 'connected') {
@@ -320,7 +304,7 @@ export class ProtocolSession {
       .getChannels()
       .find((c) => c.key === channelKey);
     if (!channel) return { ok: false, error: `unknown channel ${channelKey}` };
-    const idx = channel.idx ?? findIdxByKey(channelKey, this.deps.channelByIdx);
+    const idx = channel.idx ?? channels.findIdxByKey(channelKey);
     if (idx === undefined || idx === null) {
       return { ok: false, error: `no slot index known for ${channelKey}` };
     }
@@ -1251,8 +1235,7 @@ export class ProtocolSession {
     this.connected = state === 'connected';
     if (this.connected && !wasConnected) {
       log.info('transport connected — running handshake');
-      this.devicePresence.clear();
-      emit.channelPresence([...this.devicePresence]);
+      channels.clearPresence();
       void this.handshake();
       this.startLivenessPoll();
     } else if (!this.connected && wasConnected) {
@@ -1260,8 +1243,7 @@ export class ProtocolSession {
       this.stopLivenessPoll();
       // Abandon any in-flight drain round; a reconnect's handshake starts fresh.
       resetDrain();
-      this.devicePresence.clear();
-      emit.channelPresence([...this.devicePresence]);
+      channels.clearPresence();
       this.updateSyncProgress({ ...DEFAULT_SYNC_PROGRESS });
       // Resolve any in-flight acks as failures rather than leaving callers hung.
       for (const p of this.pendingAcks.splice(0)) {
@@ -1307,7 +1289,7 @@ export class ProtocolSession {
   /** Snapshot of channel keys currently present on the radio. Empty when the
    *  transport is disconnected. */
   getDevicePresence(): string[] {
-    return [...this.devicePresence];
+    return channels.getDevicePresence();
   }
 
   /** Snapshot of handshake progress. Used by GET /api/state to seed the
@@ -1332,20 +1314,7 @@ export class ProtocolSession {
    *  key, which our enumerator filters as `empty`. Returns true if the radio
    *  acked, false on RESP_ERR / timeout / disconnect. */
   async setChannel(idx: number, name: string, secretHex: string): Promise<boolean> {
-    if (!this.connected) return false;
-    const frame = buildSetChannel(idx, name, secretHex);
-    const ack = this.awaitAck();
-    try {
-      await this.writeFrame(frame);
-    } catch (err) {
-      log.warn(`setChannel write failed: ${(err as Error).message}`);
-      // Pop our awaiter; nothing will resolve it.
-      const i = this.pendingAcks.indexOf(ack.entry);
-      if (i !== -1) this.pendingAcks.splice(i, 1);
-      clearTimeout(ack.entry.timer);
-      return false;
-    }
-    return (await ack.promise).ok;
+    return channels.setChannel(this.ctx, idx, name, secretHex);
   }
 
   /** Mark a channel as present on the device. Call after a successful
@@ -1353,37 +1322,27 @@ export class ProtocolSession {
    *  this the new channel would stay grayed-out in the UI until the next
    *  full re-enumeration. */
   markChannelPresent(channel: Channel): void {
-    if (typeof channel.idx !== 'number') return;
-    this.deps.channelByIdx.set(channel.idx, channel);
-    this.devicePresence.add(channel.key);
-    emit.channelPresence([...this.devicePresence]);
+    channels.markChannelPresent(channel);
   }
 
   /** Mark a slot as no longer on the device (paired with a zero-key write).
    *  Frees the slot for pickFreeSlot and clears the presence flag. */
   markChannelAbsent(idx: number): void {
-    const existing = this.deps.channelByIdx.get(idx);
-    if (!existing) return;
-    this.deps.channelByIdx.delete(idx);
-    this.devicePresence.delete(existing.key);
-    emit.channelPresence([...this.devicePresence]);
+    channels.markChannelAbsent(idx);
   }
 
   /** Lowest unused slot index in 0..15, or null if all 16 are taken. The
    *  device-presence set is the authority; persisted `idx` on a Channel only
    *  counts when the radio confirmed it this session. */
   pickFreeSlot(): number | null {
-    for (let i = 0; i < 16; i += 1) {
-      if (!this.deps.channelByIdx.has(i)) return i;
-    }
-    return null;
+    return channels.pickFreeSlot();
   }
 
   /** Derive the 16-byte secret for a public/hashtag channel by name. Callers
    *  supplying their own secret (e.g. private channel imported from a share
    *  link) should pass it directly to setChannel instead. */
   deriveSecret(name: string): string {
-    return deriveChannelSecret(name);
+    return channels.deriveChannelSecret(name);
   }
 
   private awaitAck(timeoutMs: number = SET_CHANNEL_TIMEOUT_MS): {
@@ -1477,9 +1436,9 @@ export class ProtocolSession {
       await contactsStart;
       await sleep(WRITE_GAP_MS);
       // Enumerate channels. Empty slots return RESP_ERR or an all-zero key
-      // RESP_CHANNEL_INFO; both are filtered by parseChannelInfo / our handler.
+      // RESP_CHANNEL_INFO; both are filtered by decodeChannelInfo / channelsFeature.
       for (let i = 0; i < CHANNEL_SLOT_COUNT; i += 1) {
-        await this.writeFrame(buildGetChannel(i));
+        await this.writeFrame(channels.encodeGetChannel(i));
         await sleep(WRITE_GAP_MS);
         this.updateSyncProgress({
           channels: { done: i + 1, total: CHANNEL_SLOT_COUNT },
@@ -1560,10 +1519,6 @@ export class ProtocolSession {
       return;
     }
 
-    if (code === RESP.CHANNEL_INFO) {
-      this.handleChannelInfo(frame);
-      return;
-    }
     if (code === RESP.CHANNEL_MSG_RECV_V3 || code === RESP.CHANNEL_MSG_RECV) {
       this.handleChannelMsg(code, frame);
       return;
@@ -1639,49 +1594,6 @@ export class ProtocolSession {
       return;
     }
   };
-
-  private handleChannelInfo(frame: Buffer): void {
-    const info = parseChannelInfo(frame);
-    if (!info) return;
-    if (info.empty) {
-      // Slot was previously populated but is now empty (e.g. just deleted).
-      // Drop it from devicePresence and from the channelByIdx dispatch map so
-      // a future re-enumeration starts clean.
-      const existing = this.deps.channelByIdx.get(info.idx);
-      if (existing) {
-        this.deps.channelByIdx.delete(info.idx);
-        this.devicePresence.delete(existing.key);
-        emit.channelPresence([...this.devicePresence]);
-      }
-      return;
-    }
-
-    const key = `ch:${info.name}`;
-    const existing = stateHolder()
-      .getChannels()
-      .find((c) => c.key === key);
-    const channel: Channel = {
-      key,
-      name: info.name,
-      kind: info.name.startsWith('#') ? 'hashtag' : info.name === 'Public' ? 'public' : 'private',
-      secretHex: info.secretHex,
-      idx: info.idx,
-      // Preserve the user's manual ordering if they've reordered; otherwise
-      // seed from the radio's slot index so first-sync order is stable.
-      order: existing?.order ?? info.idx,
-      muted: existing?.muted,
-      pinned: existing?.pinned,
-    };
-
-    this.deps.channelByIdx.set(info.idx, channel);
-    this.devicePresence.add(key);
-    emit.channelPresence([...this.devicePresence]);
-
-    const holder = stateHolder();
-    holder.upsertChannel(channel);
-    emit.channels(holder.getChannels());
-    log.debug(`channel idx=${info.idx} "${info.name}"`);
-  }
 
   private handleContactMsg(code: number, frame: Buffer): void {
     const parsed =
@@ -1842,7 +1754,7 @@ export class ProtocolSession {
     const parsed =
       code === RESP.CHANNEL_MSG_RECV_V3 ? parseChannelMsgV3(frame) : parseChannelMsgV1(frame);
     if (!parsed) return;
-    const channel = this.deps.channelByIdx.get(parsed.channelIdx);
+    const channel = channels.getChannelByIdx(parsed.channelIdx);
     if (!channel) {
       log.warn(
         `incoming channel msg idx=${parsed.channelIdx} doesn't match any known channel slot`,
@@ -1904,14 +1816,6 @@ export class ProtocolSession {
     );
     if (isDraining()) pumpAfterRecv(this.ctx);
   }
-
-  /** Recompute channel indexes from persisted channels so we can send before
-   *  enumeration finishes (handshake takes ~1s). */
-  private rebuildIndexes(): void {
-    for (const ch of stateHolder().getChannels()) {
-      if (typeof ch.idx === 'number') this.deps.channelByIdx.set(ch.idx, ch);
-    }
-  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -1929,11 +1833,4 @@ function contactKindToAdvType(kind: ContactKind): number {
     default:
       return ADV_TYPE.CHAT;
   }
-}
-
-function findIdxByKey(key: string, byIdx: Map<number, Channel>): number | null {
-  for (const [idx, channel] of byIdx) {
-    if (channel.key === key) return idx;
-  }
-  return null;
 }

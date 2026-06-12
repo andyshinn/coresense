@@ -1,7 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
 import {
-  parseChannelInfo,
   parseChannelMsgV1,
   parseChannelMsgV3,
   parseContactMsgV1,
@@ -11,31 +10,6 @@ import {
   parseStatusResponse,
   parseTelemetryResponse,
 } from '../../../../src/main/protocol/decode';
-
-describe('parseChannelInfo', () => {
-  it('reads idx, null-terminated name, and 16-byte key', () => {
-    const frame = Buffer.alloc(50);
-    frame[0] = 0x12;
-    frame[1] = 2; // idx
-    Buffer.from('General', 'utf8').copy(frame, 2); // name region (null-padded)
-    Buffer.alloc(16, 0xab).copy(frame, 34); // 16-byte key, all 0xab
-    const info = parseChannelInfo(frame);
-    expect(info?.idx).toBe(2);
-    expect(info?.name).toBe('General');
-    expect(info?.secretHex).toBe('ab'.repeat(16));
-    expect(info?.empty).toBe(false);
-  });
-
-  it('flags an all-zero key as empty', () => {
-    const frame = Buffer.alloc(50);
-    frame[0] = 0x12;
-    expect(parseChannelInfo(frame)?.empty).toBe(true);
-  });
-
-  it('returns null below the 50-byte frame length', () => {
-    expect(parseChannelInfo(Buffer.alloc(49))).toBeNull();
-  });
-});
 
 describe('parseChannelMsgV3', () => {
   it('decodes snr/4, channel idx, timestamp, and splits the "name: " prefix', () => {
