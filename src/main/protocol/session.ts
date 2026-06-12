@@ -7,13 +7,13 @@ import type {
   TransportState,
 } from '../../shared/types';
 import { DEFAULT_SYNC_PROGRESS } from '../../shared/types';
-import { type AdminMode, type AdminRole, adminSessions } from '../bridge/adminSession';
+import type { AdminMode } from '../bridge/adminSession';
 import { bus, type ContactsSyncSignal, emit } from '../events/bus';
 import { child } from '../log';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { transportManager } from '../transport/manager';
-import { ADV_TYPE, ERR_CODE, PUSH, REQ_TYPE, RESP, STATS_TYPE, TXT_TYPE } from './codes';
+import { ADV_TYPE, ERR_CODE, RESP, type STATS_TYPE } from './codes';
 import { buildReboot, buildSendSelfAdvert } from './encode';
 import {
   ContactTableFullError,
@@ -54,36 +54,17 @@ import * as directMessages from './features/directMessages';
 import { drainFeature, resetDrain, scheduleDrain } from './features/drain';
 import { encodeSetPathHashMode, pathHashSizeToMode } from './features/pathHash';
 import { encodeSetRadioParams, encodeSetRadioTxPower } from './features/radioParams';
+import * as repeaterAdmin from './features/repeaterAdmin';
 import { encodeAppStart, selfInfoFeature } from './features/selfInfo';
 import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
 import { FeatureRegistry } from './registry';
-import {
-  type AclEntry,
-  buildAnonLogin,
-  buildGetStats,
-  buildLogout,
-  buildSendBinaryReq,
-  buildSendLogin,
-  buildSendStatusReq,
-  buildSendTelemetryReq,
-  buildSendTracePath,
-  type LocalStats,
-  type LoginFail,
-  type LoginSuccess,
-  type NeighboursPage,
-  type OwnerInfo,
-  parseAclList,
-  parseBinaryResponse,
-  parseLocalStats,
-  parseLoginFail,
-  parseLoginSuccess,
-  parseNeighbours,
-  parseOwnerInfo,
-  parseRawData,
-  parseStatusResponse,
-  parseTelemetryResponse,
-  parseTraceData,
-  type TraceData,
+import type {
+  AclEntry,
+  LocalStats,
+  LoginSuccess,
+  NeighboursPage,
+  OwnerInfo,
+  TraceData,
 } from './repeater';
 
 const log = child('protocol');
@@ -130,21 +111,6 @@ interface PendingAck {
   timer: NodeJS.Timeout;
 }
 
-interface PendingAdminSent {
-  resolve: (tagHex: string) => void;
-  reject: (err: Error) => void;
-  timer: NodeJS.Timeout;
-}
-
-// Awaiter for an out-of-band CLI reply (PAYLOAD_TYPE_TXT_MSG with txt_type=1)
-// from a specific remote pubkey. Matched by sender prefix.
-interface PendingCli {
-  pubKeyPrefixHex: string;
-  resolve: (text: string) => void;
-  reject: (err: Error) => void;
-  timer: NodeJS.Timeout;
-}
-
 // Awaiter for a solicited typed reply (a GET command's RESP_* frame), keyed by
 // expected code in `pendingTyped`. FIFO per code.
 interface PendingTyped {
@@ -153,9 +119,6 @@ interface PendingTyped {
   timer: NodeJS.Timeout;
 }
 
-const ADMIN_SENT_TIMEOUT_MS = 5_000;
-const ADMIN_REPLY_TIMEOUT_MS = 20_000;
-const CLI_REPLY_TIMEOUT_MS = 30_000;
 // Default wait for a typed RESP_* reply to a feature ctx.request({ expect }).
 const REQUEST_TIMEOUT_MS = 5_000;
 
@@ -183,19 +146,6 @@ export class ProtocolSession {
     resolve: () => void;
     timer: NodeJS.Timeout;
   } | null = null;
-  /** FIFO of admin sends still awaiting their RESP_SENT tag echo. Drained
-   *  ahead of the DM send queue via the directMessages `onSentTag` hook —
-   *  admin writes are serialised, so the oldest entry is always the one the
-   *  radio just acknowledged. */
-  private readonly adminSentQueue: PendingAdminSent[] = [];
-  /** Active CLI reply awaiters keyed by 6B sender pubkey prefix hex. */
-  private readonly pendingCli = new Map<string, PendingCli>();
-  /** Awaiter for the next RESP_CODE_STATS frame from a CMD_GET_STATS write. */
-  private pendingLocalStats: {
-    resolve: (s: LocalStats) => void;
-    reject: (e: Error) => void;
-    timer: NodeJS.Timeout;
-  } | null = null;
   /** FIFO of awaiters per expected RESP_* code, for ctx.request({ expect }). */
   private readonly pendingTyped = new Map<number, PendingTyped[]>();
   /** The capability surface handed to feature modules. */
@@ -216,6 +166,7 @@ export class ProtocolSession {
     channels.channelsFeature,
     channelMessages.channelMessagesFeature,
     directMessages.directMessagesFeature,
+    repeaterAdmin.repeaterAdminFeature,
   ]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
@@ -223,27 +174,9 @@ export class ProtocolSession {
     bus.on('packet', this.onPacket);
     bus.on('transportState', this.onTransportState);
     bus.on('contactsSync', this.onContactsSync);
-    // Repeater admin (Phase 2f) shares the RESP_SENT / CONTACT_MSG_RECV opcodes
-    // the directMessages feature now owns. Until repeater-admin migrates, the
-    // session's admin queues get first crack via these hooks (returning true
-    // when an admin awaiter consumed the frame).
-    directMessages.setAdminHooks({
-      onSentTag: (tagHex) => {
-        const adminAwait = this.adminSentQueue.shift();
-        if (!adminAwait) return false;
-        clearTimeout(adminAwait.timer);
-        adminAwait.resolve(tagHex);
-        return true;
-      },
-      onCliReply: (prefix, body) => {
-        const pending = this.pendingCli.get(prefix);
-        if (!pending) return false;
-        clearTimeout(pending.timer);
-        this.pendingCli.delete(prefix);
-        pending.resolve(body);
-        return true;
-      },
-    });
+    // The repeaterAdmin feature owns the admin awaiter queues and registers the
+    // directMessages intercept hooks (RESP_SENT tag + CLI reply) against them.
+    repeaterAdmin.registerAdminHooks();
     this.purgeCorruptedChannels();
     channels.rebuildIndexes();
     // If the transport already happens to be connected at start (e.g. auto-
@@ -275,6 +208,7 @@ export class ProtocolSession {
     resetContactsIter();
     resetDrain();
     directMessages.resetDmState('session stopped');
+    repeaterAdmin.resetAdmin('session stopped');
     this.stopLivenessPoll();
   }
 
@@ -312,94 +246,26 @@ export class ProtocolSession {
     return directMessages.sendDmTextWithRetry(this.ctx, contactKey, text, messageId);
   }
 
-  /** Request a status snapshot from a repeater/room/contact. Returns ok on
-   *  transport-level write; the actual `RepeaterStatusSnapshot` arrives later
-   *  via PUSH_STATUS_RESPONSE → emit.repeaterStatus(). */
+  /** Request a status snapshot from a repeater/room/contact. The actual
+   *  snapshot arrives later via PUSH_STATUS_RESPONSE → emit.repeaterStatus(). */
   async sendStatusReq(contactKey: string): Promise<{ ok: boolean; error?: string }> {
-    const contact = stateHolder()
-      .getContacts()
-      .find((c) => c.key === contactKey);
-    if (!contact) return { ok: false, error: `unknown contact ${contactKey}` };
-    if (!contact.publicKeyHex || contact.publicKeyHex.length < 64) {
-      return { ok: false, error: `contact ${contactKey} has no full 32B public key` };
-    }
-    try {
-      await this.writeFrame(buildSendStatusReq(contact.publicKeyHex));
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
+    return repeaterAdmin.sendStatusReq(this.ctx, contactKey);
   }
 
   /** Request a CayenneLPP telemetry blob from a contact. See sendStatusReq. */
   async sendTelemetryReq(contactKey: string): Promise<{ ok: boolean; error?: string }> {
-    const contact = stateHolder()
-      .getContacts()
-      .find((c) => c.key === contactKey);
-    if (!contact) return { ok: false, error: `unknown contact ${contactKey}` };
-    if (!contact.publicKeyHex || contact.publicKeyHex.length < 64) {
-      return { ok: false, error: `contact ${contactKey} has no full 32B public key` };
-    }
-    try {
-      await this.writeFrame(buildSendTelemetryReq(contact.publicKeyHex));
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
+    return repeaterAdmin.sendTelemetryReq(this.ctx, contactKey);
   }
 
   // ---- Repeater administration ------------------------------------------
 
-  /** Login to a repeater. The wire mode is derived from the contact's current
-   *  path state:
-   *    - `preferDirect=true` → CMD_SEND_LOGIN (companion-side, no mesh routing)
-   *    - else → CMD_SEND_ANON_REQ (mesh-routed; the radio uses whatever
-   *      out_path the contact currently has — N-hop if set, flood otherwise)
-   *  Success arrives later as PUSH_LOGIN_SUCCESS keyed on the recipient's
-   *  pubkey prefix; failure as PUSH_LOGIN_FAIL. Returns the effective mode so
-   *  the UI can label the toast (Direct / Flood / N-hop). */
+  /** Login to a repeater. Returns the effective mode so the UI can label the
+   *  toast (Direct / Flood / N-hop). */
   async repeaterLogin(
     contactKey: string,
     password: string,
   ): Promise<LoginSuccess & { mode: AdminMode; effective: 'direct' | 'flood' | 'path' }> {
-    const lookup = this.lookupRepeaterContact(contactKey);
-    if (!lookup.ok) throw new Error(lookup.error);
-    const contact = stateHolder()
-      .getContacts()
-      .find((c) => c.key === contactKey);
-    const preferDirect = contact?.preferDirect === true;
-    const hasPath = !!contact?.outPathHex && contact.outPathHex.length > 0;
-    const mode: AdminMode = preferDirect ? 'local' : 'remote';
-    const effective: 'direct' | 'flood' | 'path' = preferDirect
-      ? 'direct'
-      : hasPath
-        ? 'path'
-        : 'flood';
-
-    const prefix = lookup.publicKeyHex.slice(0, 12);
-    const wait = adminSessions.awaitLogin<LoginSuccess>(prefix, ADMIN_REPLY_TIMEOUT_MS);
-    const frame = preferDirect
-      ? buildSendLogin(lookup.publicKeyHex, password)
-      : buildAnonLogin(lookup.publicKeyHex, password);
-    try {
-      await this.writeFrame(frame);
-    } catch (err) {
-      adminSessions.rejectLogin(prefix, err as Error);
-      throw err;
-    }
-    const result = await wait;
-    const role: AdminRole = result.isAdmin ? 'admin' : 'guest';
-    adminSessions.setSession({
-      contactKey,
-      publicKeyHex: lookup.publicKeyHex,
-      mode,
-      role,
-      permissionsBits: result.permissions,
-      aclPermissionsBits: result.aclPermissions,
-      firmwareVerLevel: result.firmwareVerLevel,
-      loggedInAt: Date.now(),
-    });
-    return { ...result, mode, effective };
+    return repeaterAdmin.repeaterLogin(this.ctx, contactKey, password);
   }
 
   // ---- Path management --------------------------------------------------
@@ -840,178 +706,43 @@ export class ProtocolSession {
   }
 
   async repeaterLogout(contactKey: string): Promise<void> {
-    const contact = this.lookupRepeaterContact(contactKey);
-    if (!contact.ok) throw new Error(contact.error);
-    await this.writeFrame(buildLogout(contact.publicKeyHex));
-    adminSessions.clearSession(contactKey);
+    return repeaterAdmin.repeaterLogout(this.ctx, contactKey);
   }
 
   /** Request the ACL list. Admin-only (firmware returns nothing if guest). */
   async repeaterRequestAcl(contactKey: string): Promise<AclEntry[]> {
-    const reqData = Buffer.from([REQ_TYPE.GET_ACCESS_LIST, 0, 0]);
-    const payload = await this.sendBinaryReq(contactKey, reqData);
-    return parseAclList(payload);
+    return repeaterAdmin.repeaterRequestAcl(this.ctx, contactKey);
   }
 
   async repeaterRequestNeighbours(
     contactKey: string,
-    opts: {
-      count?: number;
-      offset?: number;
-      orderBy?: number;
-      prefixLen?: number;
-    } = {},
+    opts: { count?: number; offset?: number; orderBy?: number; prefixLen?: number } = {},
   ): Promise<NeighboursPage> {
-    const count = opts.count ?? 16;
-    const offset = opts.offset ?? 0;
-    const orderBy = opts.orderBy ?? 0;
-    const prefixLen = opts.prefixLen ?? 6;
-    const reqData = Buffer.alloc(11);
-    reqData[0] = REQ_TYPE.GET_NEIGHBOURS;
-    reqData[1] = 0; // request version
-    reqData[2] = count & 0xff;
-    reqData.writeUInt16LE(offset & 0xffff, 3);
-    reqData[5] = orderBy & 0xff;
-    reqData[6] = prefixLen & 0xff;
-    // bytes 7..10: random blob to keep packet hash unique (firmware ignores it)
-    for (let i = 7; i < 11; i += 1) reqData[i] = Math.floor(Math.random() * 256);
-    const payload = await this.sendBinaryReq(contactKey, reqData);
-    const parsed = parseNeighbours(payload, prefixLen);
-    if (!parsed) throw new Error('failed to parse neighbours response');
-    return parsed;
+    return repeaterAdmin.repeaterRequestNeighbours(this.ctx, contactKey, opts);
   }
 
   async repeaterRequestOwnerInfo(contactKey: string): Promise<OwnerInfo> {
-    const reqData = Buffer.from([REQ_TYPE.GET_OWNER_INFO]);
-    const payload = await this.sendBinaryReq(contactKey, reqData);
-    return parseOwnerInfo(payload);
+    return repeaterAdmin.repeaterRequestOwnerInfo(this.ctx, contactKey);
   }
 
-  /** Send a remote CLI command (e.g. "setperm <hex> 1", "discover.neighbors")
-   *  as a text message with txt_type=CLI_DATA. The reply arrives as a normal
-   *  RESP_CONTACT_MSG_RECV(_V3) with txt_type=CLI_DATA; we intercept it by
-   *  sender prefix and resolve the awaiter. */
+  /** Send a remote CLI command; the reply is routed back by sender prefix. */
   async repeaterSendCli(contactKey: string, command: string): Promise<string> {
-    const contact = this.lookupRepeaterContact(contactKey);
-    if (!contact.ok) throw new Error(contact.error);
-    const prefix = contact.publicKeyHex.slice(0, 12);
-    const wait = new Promise<string>((resolve, reject) => {
-      const existing = this.pendingCli.get(prefix);
-      if (existing) {
-        clearTimeout(existing.timer);
-        existing.reject(new Error('superseded by newer CLI command'));
-      }
-      const timer = setTimeout(() => {
-        this.pendingCli.delete(prefix);
-        reject(new Error(`CLI command timed out after ${CLI_REPLY_TIMEOUT_MS}ms`));
-      }, CLI_REPLY_TIMEOUT_MS);
-      this.pendingCli.set(prefix, { pubKeyPrefixHex: prefix, resolve, reject, timer });
-    });
-    const frame = directMessages.encodeSendDmText({
-      destPublicKeyHex: contact.publicKeyHex,
-      text: command,
-      txtType: TXT_TYPE.CLI_DATA,
-    });
-    // CLI sends are still DMs at the wire level — push onto the DM send FIFO so
-    // the RESP_SENT FIFO advances correctly. The id is synthetic; the radio
-    // doesn't ack CLI sends with PUSH_SEND_CONFIRMED so we won't get a state flip.
-    const syntheticId = `cli-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    directMessages.enqueueDmSend(syntheticId);
-    try {
-      await this.writeFrame(frame);
-    } catch (err) {
-      directMessages.dequeueDmSend(syntheticId);
-      const pending = this.pendingCli.get(prefix);
-      if (pending) {
-        clearTimeout(pending.timer);
-        this.pendingCli.delete(prefix);
-        pending.reject(err as Error);
-      }
-      throw err;
-    }
-    return wait;
+    return repeaterAdmin.repeaterSendCli(this.ctx, contactKey, command);
   }
 
-  /** CMD_SEND_TRACE_PATH — diagnostic trace along a known path. Reply lands
-   *  as PUSH_TRACE_DATA. */
+  /** CMD_SEND_TRACE_PATH — diagnostic trace along a known path. */
   async repeaterTracePath(opts: {
     tag: number;
     authCode: number;
     flags?: number;
     pathHex: string;
   }): Promise<TraceData> {
-    const path = Buffer.from(opts.pathHex, 'hex');
-    const tagHex = Buffer.alloc(4);
-    tagHex.writeUInt32LE(opts.tag >>> 0, 0);
-    const wait = adminSessions.awaitTag<TraceData>(tagHex.toString('hex'), ADMIN_REPLY_TIMEOUT_MS);
-    await this.writeFrame(
-      buildSendTracePath({ tag: opts.tag, authCode: opts.authCode, flags: opts.flags, path }),
-    );
-    return wait;
+    return repeaterAdmin.repeaterTracePath(this.ctx, opts);
   }
 
-  /** CMD_GET_STATS — local stats for the directly-connected device. Reply
-   *  arrives as RESP_CODE_STATS. */
+  /** CMD_GET_STATS — local stats for the directly-connected device. */
   async repeaterGetLocalStats(subtype: keyof typeof STATS_TYPE): Promise<LocalStats> {
-    if (this.pendingLocalStats) {
-      this.pendingLocalStats.reject(new Error('superseded by newer GET_STATS'));
-      clearTimeout(this.pendingLocalStats.timer);
-      this.pendingLocalStats = null;
-    }
-    const wait = new Promise<LocalStats>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pendingLocalStats = null;
-        reject(new Error('GET_STATS timed out'));
-      }, ADMIN_REPLY_TIMEOUT_MS);
-      this.pendingLocalStats = { resolve, reject, timer };
-    });
-    await this.writeFrame(buildGetStats(STATS_TYPE[subtype]));
-    return wait;
-  }
-
-  /** Generic mesh request (ACL / neighbours / owner). Issues CMD_SEND_BINARY_REQ,
-   *  parks an awaiter for the matching PUSH_BINARY_RESPONSE tag, returns the
-   *  body (which the caller decodes per req_type). */
-  private async sendBinaryReq(contactKey: string, reqData: Buffer): Promise<Buffer> {
-    const contact = this.lookupRepeaterContact(contactKey);
-    if (!contact.ok) throw new Error(contact.error);
-    const frame = buildSendBinaryReq(contact.publicKeyHex, reqData);
-    const tagHex = await this.writeAdminAndAwaitTag(frame);
-    return adminSessions.awaitTag<Buffer>(tagHex, ADMIN_REPLY_TIMEOUT_MS);
-  }
-
-  /** Issue an admin write and resolve the next RESP_SENT's tag. Serialises
-   *  through `adminSentQueue` so concurrent admin requests don't cross
-   *  responses. */
-  private writeAdminAndAwaitTag(frame: Buffer): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        const i = this.adminSentQueue.indexOf(entry);
-        if (i !== -1) this.adminSentQueue.splice(i, 1);
-        reject(new Error(`admin RESP_SENT timed out after ${ADMIN_SENT_TIMEOUT_MS}ms`));
-      }, ADMIN_SENT_TIMEOUT_MS);
-      const entry: PendingAdminSent = { resolve, reject, timer };
-      this.adminSentQueue.push(entry);
-      this.writeFrame(frame).catch((err) => {
-        const i = this.adminSentQueue.indexOf(entry);
-        if (i !== -1) this.adminSentQueue.splice(i, 1);
-        clearTimeout(timer);
-        reject(err);
-      });
-    });
-  }
-
-  private lookupRepeaterContact(
-    contactKey: string,
-  ): { ok: true; publicKeyHex: string } | { ok: false; error: string } {
-    const contact = stateHolder()
-      .getContacts()
-      .find((c) => c.key === contactKey);
-    if (!contact) return { ok: false, error: `unknown contact ${contactKey}` };
-    if (!contact.publicKeyHex || contact.publicKeyHex.length < 64) {
-      return { ok: false, error: `contact ${contactKey} has no full 32B public key` };
-    }
-    return { ok: true, publicKeyHex: contact.publicKeyHex };
+    return repeaterAdmin.repeaterGetLocalStats(this.ctx, subtype);
   }
 
   /** Send a self-advert. `flood=true` propagates many hops (so DM-able by
@@ -1107,24 +838,8 @@ export class ProtocolSession {
       // Any DM still awaiting RESP_SENT will never get one — fail them so the
       // UI doesn't leave 'sending' spinners forever.
       directMessages.resetDmState('transport disconnected');
-      // Fail any in-flight admin awaiters so callers don't hang past disconnect.
-      while (this.adminSentQueue.length > 0) {
-        const entry = this.adminSentQueue.shift();
-        if (entry) {
-          clearTimeout(entry.timer);
-          entry.reject(new Error('transport disconnected'));
-        }
-      }
-      for (const entry of this.pendingCli.values()) {
-        clearTimeout(entry.timer);
-        entry.reject(new Error('transport disconnected'));
-      }
-      this.pendingCli.clear();
-      if (this.pendingLocalStats) {
-        clearTimeout(this.pendingLocalStats.timer);
-        this.pendingLocalStats.reject(new Error('transport disconnected'));
-        this.pendingLocalStats = null;
-      }
+      // Fail in-flight admin awaiters + drop login sessions.
+      repeaterAdmin.resetAdmin('transport disconnected');
       // Fail any typed-reply awaiters (ctx.request with `expect`) so feature GETs
       // reject promptly on disconnect instead of waiting out their timeout.
       for (const queue of this.pendingTyped.values()) {
@@ -1134,7 +849,6 @@ export class ProtocolSession {
         }
       }
       this.pendingTyped.clear();
-      adminSessions.reset('transport disconnected');
     }
   };
 
@@ -1371,53 +1085,6 @@ export class ProtocolSession {
       return;
     }
 
-    if (code === PUSH.STATUS_RESPONSE) {
-      this.handleStatusResponse(frame);
-      return;
-    }
-    if (code === PUSH.TELEMETRY_RESPONSE) {
-      this.handleTelemetryResponse(frame);
-      return;
-    }
-    if (code === PUSH.LOGIN_SUCCESS) {
-      const parsed = parseLoginSuccess(frame);
-      if (parsed) adminSessions.resolveLogin(parsed.pubKeyPrefixHex, parsed);
-      return;
-    }
-    if (code === PUSH.LOGIN_FAIL) {
-      const parsed = parseLoginFail(frame);
-      if (parsed) {
-        const fail: LoginFail = parsed;
-        adminSessions.rejectLogin(fail.pubKeyPrefixHex, new Error('login rejected by repeater'));
-      }
-      return;
-    }
-    if (code === PUSH.BINARY_RESPONSE) {
-      const parsed = parseBinaryResponse(frame);
-      if (parsed) adminSessions.resolveTag(parsed.tagHex, parsed.payload);
-      return;
-    }
-    if (code === PUSH.TRACE_DATA) {
-      const parsed = parseTraceData(frame);
-      if (parsed) adminSessions.resolveTag(parsed.tagHex, parsed);
-      return;
-    }
-    if (code === PUSH.RAW_DATA) {
-      // Currently only useful for debugging; admin responses arrive via
-      // BINARY_RESPONSE / LOGIN_SUCCESS instead.
-      const parsed = parseRawData(frame);
-      if (parsed) log.trace(`raw_data snr=${parsed.snrDb} rssi=${parsed.rssi}`);
-      return;
-    }
-    if (code === RESP.STATS) {
-      const parsed = parseLocalStats(frame);
-      if (parsed && this.pendingLocalStats) {
-        clearTimeout(this.pendingLocalStats.timer);
-        this.pendingLocalStats.resolve(parsed);
-        this.pendingLocalStats = null;
-      }
-      return;
-    }
     if (code === RESP.OK || code === RESP.ERR) {
       // Device-write awaiters get first crack at any OK/ERR. A RESP_ERR carries
       // an error-code byte (frame[1]) — thread it through so callers like
@@ -1430,52 +1097,6 @@ export class ProtocolSession {
       return;
     }
   };
-
-  private handleStatusResponse(frame: Buffer): void {
-    const parsed = parseStatusResponse(frame);
-    if (!parsed) return;
-    const contact = stateHolder()
-      .getContacts()
-      .find((c) =>
-        c.publicKeyHex.toLowerCase().startsWith(parsed.senderPubKeyPrefixHex.toLowerCase()),
-      );
-    if (!contact) {
-      log.warn(`status response from unknown sender prefix=${parsed.senderPubKeyPrefixHex}`);
-      return;
-    }
-    emit.repeaterStatus({
-      contactKey: contact.key,
-      receivedAt: Date.now(),
-      payloadHex: parsed.payloadHex,
-      fields: parsed.fields,
-    });
-    log.debug(
-      `status response from "${contact.name}" payload=${parsed.payloadHex.length / 2}B fields=${parsed.fields.length}`,
-    );
-  }
-
-  private handleTelemetryResponse(frame: Buffer): void {
-    const parsed = parseTelemetryResponse(frame);
-    if (!parsed) return;
-    const contact = stateHolder()
-      .getContacts()
-      .find((c) =>
-        c.publicKeyHex.toLowerCase().startsWith(parsed.senderPubKeyPrefixHex.toLowerCase()),
-      );
-    if (!contact) {
-      log.warn(`telemetry response from unknown sender prefix=${parsed.senderPubKeyPrefixHex}`);
-      return;
-    }
-    emit.repeaterTelemetry({
-      contactKey: contact.key,
-      receivedAt: Date.now(),
-      payloadHex: parsed.payloadHex,
-      fields: parsed.fields,
-    });
-    log.debug(
-      `telemetry response from "${contact.name}" payload=${parsed.payloadHex.length / 2}B fields=${parsed.fields.length}`,
-    );
-  }
 }
 
 function sleep(ms: number): Promise<void> {
