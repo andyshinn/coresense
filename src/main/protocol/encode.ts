@@ -449,40 +449,6 @@ export function buildSetCustomVar(key: string, value: string | number | boolean)
   return out;
 }
 
-// CMD_SET_AUTO_ADD_CONFIG flags layout — see codes.ts.
-export interface AutoAddFlagsInput {
-  chat: boolean;
-  repeater: boolean;
-  room: boolean;
-  sensor: boolean;
-  overwriteOldest: boolean;
-}
-export function autoAddFlagsToByte(flags: AutoAddFlagsInput): number {
-  return (
-    (flags.overwriteOldest ? 0x01 : 0) |
-    (flags.chat ? 0x02 : 0) |
-    (flags.repeater ? 0x04 : 0) |
-    (flags.room ? 0x08 : 0) |
-    (flags.sensor ? 0x10 : 0)
-  );
-}
-export function autoAddByteToFlags(byte: number): AutoAddFlagsInput {
-  return {
-    overwriteOldest: (byte & 0x01) !== 0,
-    chat: (byte & 0x02) !== 0,
-    repeater: (byte & 0x04) !== 0,
-    room: (byte & 0x08) !== 0,
-    sensor: (byte & 0x10) !== 0,
-  };
-}
-export function buildSetAutoAddConfig(flags: AutoAddFlagsInput): Buffer {
-  return Buffer.from([CMD.SET_AUTO_ADD_CONFIG, autoAddFlagsToByte(flags) & 0xff]);
-}
-
-export function buildGetAutoAddConfig(): Buffer {
-  return Buffer.from([CMD.GET_AUTO_ADD_CONFIG]);
-}
-
 // Mesh-level admin request encoder. The connected radio wraps this for us via
 // CMD_SEND_BINARY_REQ (0x32) — `[0x32][32B pubkey][req_type byte + req_data]`.
 // The reply comes back as PUSH_BINARY_RESPONSE tagged with the same u32 the

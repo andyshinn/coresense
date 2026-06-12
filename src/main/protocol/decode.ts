@@ -540,9 +540,3 @@ export function parseCustomVars(frame: Buffer): Record<string, string> {
   }
   return out;
 }
-
-// RESP_AUTOADD_CONFIG [0x19][flags u8]
-export function parseAutoAddConfig(frame: Buffer): number | null {
-  if (frame.length < 2) return null;
-  return frame[1] & 0xff;
-}

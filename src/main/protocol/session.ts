@@ -22,7 +22,6 @@ import { transportManager } from '../transport/manager';
 import { ADV_TYPE, ERR_CODE, PUSH, REQ_TYPE, RESP, STATS_TYPE, TXT_TYPE } from './codes';
 import {
   type ContactRecord,
-  parseAutoAddConfig,
   parseChannelInfo,
   parseChannelMsgV1,
   parseChannelMsgV3,
@@ -41,13 +40,10 @@ import {
   parseTelemetryResponse,
 } from './decode';
 import {
-  type AutoAddFlagsInput,
-  autoAddByteToFlags,
   buildAddUpdateContact,
   buildAnonLogin,
   buildAppStart,
   buildDeviceQuery,
-  buildGetAutoAddConfig,
   buildGetChannel,
   buildGetContacts,
   buildGetCustomVar,
@@ -67,7 +63,6 @@ import {
   buildSendTracePath,
   buildSetAdvertLatLon,
   buildSetAdvertName,
-  buildSetAutoAddConfig,
   buildSetChannel,
   buildSetCustomVar,
   buildSetOtherParams,
@@ -85,6 +80,12 @@ import {
   UnknownContactError,
 } from './errors';
 import type { FeatureContext } from './feature';
+import {
+  type AutoAddFlagsInput,
+  autoAddFeature,
+  requestAutoAddConfig,
+  setAutoAddConfig,
+} from './features/autoAdd';
 import { battStorageFeature, encodeGetBattAndStorage } from './features/battStorage';
 import { contactsFullFeature } from './features/contactsFull';
 import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
@@ -271,7 +272,11 @@ export class ProtocolSession {
     request: (frame, opts) => this.request(frame, opts),
   };
   /** Inbound-frame handlers, keyed by wire code. Empty until features migrate. */
-  private readonly registry = new FeatureRegistry([contactsFullFeature, battStorageFeature]);
+  private readonly registry = new FeatureRegistry([
+    contactsFullFeature,
+    battStorageFeature,
+    autoAddFeature,
+  ]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
   start(): void {
@@ -892,28 +897,14 @@ export class ProtocolSession {
    *  `showPublicKeys` are stored locally and don't go on the wire. */
   async setAutoAddConfig(flags: AutoAddFlagsInput): Promise<boolean> {
     if (!this.connected) return false;
-    const ack = this.awaitAck();
-    try {
-      await this.writeFrame(buildSetAutoAddConfig(flags));
-    } catch (err) {
-      this.popPendingAck(ack.entry);
-      log.warn(`setAutoAddConfig write failed: ${(err as Error).message}`);
-      return false;
-    }
-    const ok = (await ack.promise).ok;
-    if (!ok) return false;
-    return true;
+    return setAutoAddConfig(this.ctx, flags);
   }
 
   /** Ask the radio for its current auto-add flags. RESP_AUTOADD_CONFIG lands in
-   *  onPacket → updates holder + emits. */
+   *  the feature handler → updates holder + emits. */
   async requestAutoAddConfig(): Promise<void> {
     if (!this.connected) return;
-    try {
-      await this.writeFrame(buildGetAutoAddConfig());
-    } catch (err) {
-      log.warn(`requestAutoAddConfig write failed: ${(err as Error).message}`);
-    }
+    await requestAutoAddConfig(this.ctx);
   }
 
   /** Toggle the GPS module / change interval via custom-var KV. The firmware
@@ -1774,25 +1765,6 @@ export class ProtocolSession {
         };
         holder.setGpsConfig(next);
         emit.gpsConfig(next);
-      }
-      return;
-    }
-    if (code === RESP.AUTOADD_CONFIG) {
-      const byte = parseAutoAddConfig(frame);
-      if (byte !== null) {
-        const flags = autoAddByteToFlags(byte);
-        const holder = stateHolder();
-        const current = holder.getAutoAddConfig();
-        const next = {
-          ...current,
-          chat: flags.chat,
-          repeater: flags.repeater,
-          room: flags.room,
-          sensor: flags.sensor,
-          overwriteOldest: flags.overwriteOldest,
-        };
-        holder.setAutoAddConfig(next);
-        emit.autoAddConfig(next);
       }
       return;
     }

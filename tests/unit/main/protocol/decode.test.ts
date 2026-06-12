@@ -1,7 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
 import {
-  parseAutoAddConfig,
   parseChannelInfo,
   parseChannelMsgV1,
   parseChannelMsgV3,
@@ -235,13 +234,6 @@ describe('parseSentAck / parseSendConfirmed', () => {
     const c = parseSendConfirmed(frame);
     expect(c?.ackHex).toBe('cafebabe');
     expect(c?.tripTimeMs).toBe(321);
-  });
-});
-
-describe('parseAutoAddConfig', () => {
-  it('parseAutoAddConfig returns the flags byte', () => {
-    expect(parseAutoAddConfig(Buffer.from([0x19, 0x1f]))).toBe(0x1f);
-    expect(parseAutoAddConfig(Buffer.from([0x19]))).toBeNull();
   });
 });
 

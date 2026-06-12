@@ -1,13 +1,10 @@
 import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
 import {
-  autoAddByteToFlags,
-  autoAddFlagsToByte,
   buildAddUpdateContact,
   buildAnonLogin,
   buildAppStart,
   buildDeviceQuery,
-  buildGetAutoAddConfig,
   buildGetChannel,
   buildGetContacts,
   buildGetCustomVar,
@@ -27,7 +24,6 @@ import {
   buildSendTracePath,
   buildSetAdvertLatLon,
   buildSetAdvertName,
-  buildSetAutoAddConfig,
   buildSetChannel,
   buildSetCustomVar,
   buildSetOtherParams,
@@ -53,10 +49,6 @@ describe('encode: bare-opcode commands', () => {
 
   it('buildGetNextMsg is a single opcode', () => {
     expect(hex(buildGetNextMsg())).toBe('0a');
-  });
-
-  it('buildGetAutoAddConfig is a single opcode', () => {
-    expect(hex(buildGetAutoAddConfig())).toBe('3b');
   });
 
   it('buildGetChannel appends the slot index', () => {
@@ -143,26 +135,6 @@ describe('encode: SET_PATH_HASH_MODE + size/mode conversions', () => {
   });
 });
 
-describe('encode: auto-add flag bit field round-trip', () => {
-  it('all flags set → 0x1f', () => {
-    expect(
-      autoAddFlagsToByte({
-        chat: true,
-        repeater: true,
-        room: true,
-        sensor: true,
-        overwriteOldest: true,
-      }),
-    ).toBe(0x1f);
-  });
-
-  it('byte → flags → byte is stable across 0..0x1f', () => {
-    for (let b = 0; b <= 0x1f; b++) {
-      expect(autoAddFlagsToByte(autoAddByteToFlags(b))).toBe(b);
-    }
-  });
-});
-
 describe('encode: DM text framing + validation', () => {
   it('lays out [cmd][txt_type][attempt][ts u32 LE][6B pubkey prefix][text]', () => {
     const out = buildSendDmText({
@@ -205,20 +177,6 @@ describe('encode: bare/simple builders (missing coverage)', () => {
 
   it('buildGetStats appends the subtype', () => {
     expect(hex(buildGetStats(0x00))).toBe('3800');
-  });
-
-  it('buildSetAutoAddConfig appends the packed flags byte', () => {
-    expect(
-      hex(
-        buildSetAutoAddConfig({
-          chat: true,
-          repeater: true,
-          room: true,
-          sensor: true,
-          overwriteOldest: true,
-        }),
-      ),
-    ).toBe('3a1f');
   });
 
   it('buildSendChannelText lays out [cmd][flags][idx][ts u32 LE][text]', () => {
