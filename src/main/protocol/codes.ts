@@ -154,7 +154,12 @@ export const RESP = {
 //   rejects CMD_ADD_UPDATE_CONTACT with 0x03 when its on-device contact store
 //   is full (overwrite-oldest off, or every slot is a favourite).
 export const ERR_CODE = {
+  UNSUPPORTED_CMD: 0x01,
+  NOT_FOUND: 0x02,
   TABLE_FULL: 0x03,
+  BAD_STATE: 0x04,
+  FILE_IO_ERROR: 0x05,
+  ILLEGAL_ARG: 0x06,
 } as const;
 
 // ADV_TYPE values from src/helpers/AdvertDataHelpers.h, used in RESP_CONTACT

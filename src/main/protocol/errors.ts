@@ -18,3 +18,25 @@ export class ContactTableFullError extends Error {
     this.name = 'ContactTableFullError';
   }
 }
+
+/** Thrown when a companion command is answered with RESP_ERR. `errorCode` is
+ *  the firmware error byte (ERR_CODE_*); undefined on a bare RESP_ERR. */
+export class ProtocolError extends Error {
+  constructor(public readonly errorCode?: number) {
+    super(
+      errorCode !== undefined
+        ? `radio returned error 0x${errorCode.toString(16).padStart(2, '0')}`
+        : 'radio returned an error',
+    );
+    this.name = 'ProtocolError';
+  }
+}
+
+/** Thrown when a build-flag-gated command (e.g. private-key export/import) is
+ *  answered with RESP_DISABLED on this firmware build. */
+export class FeatureDisabledError extends Error {
+  constructor() {
+    super('feature disabled on this firmware build');
+    this.name = 'FeatureDisabledError';
+  }
+}
