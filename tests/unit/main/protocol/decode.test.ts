@@ -9,7 +9,6 @@ import {
   parseContactMsgV3,
   parseContactsStart,
   parseCustomVars,
-  parseDeviceInfo,
   parseEndOfContacts,
   parseSelfInfo,
   parseSendConfirmed,
@@ -18,22 +17,6 @@ import {
   parseTelemetryResponse,
 } from '../../../../src/main/protocol/decode';
 import { frameBuf } from '../../../support/frames';
-
-describe('parseDeviceInfo (real fixture)', () => {
-  it('reads firmware version, doubled max-contacts, and max-channels', () => {
-    const info = parseDeviceInfo(frameBuf('deviceInfo'));
-    expect(info).not.toBeNull();
-    expect(info?.firmwareVerCode).toBe(0x0b); // 11
-    expect(info?.maxContacts).toBe(0xaf * 2); // firmware reports count/2 → 350
-    expect(info?.maxChannels).toBe(0x28); // 40
-    expect(info?.pathHashMode).toBe(1); // trailing byte
-    expect(info?.clientRepeat).toBe(false);
-  });
-
-  it('returns null for a frame shorter than 4 bytes', () => {
-    expect(parseDeviceInfo(Buffer.from([0x0d, 0x0b]))).toBeNull();
-  });
-});
 
 describe('parseSelfInfo (real fixture)', () => {
   it('extracts the 32-byte public key at offset 4', () => {

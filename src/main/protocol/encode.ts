@@ -1,13 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { APP_PROTOCOL_VERSION, CMD, type STATS_TYPE, TXT_TYPE } from './codes';
-
-// CMD_DEVICE_QUERY: [0x16][app_protocol_version u8]. Firmware reads byte [1]
-// into app_target_ver, which gates V3-style response frames. Reply is
-// RESP_DEVICE_INFO (0x0d) with firmware version + capacity counts.
-export function buildDeviceQuery(version = APP_PROTOCOL_VERSION): Buffer {
-  return Buffer.from([CMD.DEVICE_QUERY, version & 0xff]);
-}
+import { CMD, type STATS_TYPE, TXT_TYPE } from './codes';
 
 // CMD_APP_START payload (per src/main/bridge/identity.ts):
 //   [0x01][version u8][6 reserved bytes][app name UTF-8]

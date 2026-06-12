@@ -457,50 +457,6 @@ function splitSenderPrefix(body: string): { senderName: string | null; cleanBody
 
 // ---- Settings-parity decoders ------------------------------------------
 
-// RESP_DEVICE_INFO. The official client treats most of the payload as
-// firmware-version-specific metadata; we only need the few fields we surface
-// in the UI. Bytes past `firmware_ver_code` evolve across firmware revisions,
-// so optional readers fall back to 0 when the frame is too short.
-export interface DeviceInfo {
-  /** Firmware capability level: 1=v1.x, ..., 9 adds client_repeat,
-   *  10 adds path_hash_mode in the device info reply. */
-  firmwareVerCode: number;
-  /** Firmware reports max_contacts as count/2 (legacy encoding). */
-  maxContacts: number;
-  maxChannels: number;
-  /** Repeat mode echo when firmware ≥ 9; undefined otherwise. */
-  clientRepeat?: boolean;
-  /** Path hash mode echo (0|1|2 → 1|2|3 bytes per hop) when firmware ≥ 10. */
-  pathHashMode?: number;
-  /** Best-effort device model string scanned from the trailing printable bytes,
-   *  mirroring parseNodeNameFromSelfInfo. May be empty when the firmware doesn't
-   *  emit one. */
-  deviceModel: string;
-}
-export function parseDeviceInfo(frame: Buffer): DeviceInfo | null {
-  if (frame.length < 4) return null;
-  const firmwareVerCode = frame[1];
-  const maxContacts = frame[2] * 2;
-  const maxChannels = frame[3];
-  const clientRepeat = frame.length > 80 ? frame[80] !== 0 : undefined;
-  const pathHashMode = frame.length > 81 ? frame[81] : undefined;
-  let start = frame.length;
-  while (start > 4) {
-    const b = frame[start - 1];
-    if (b >= 0x20 && b < 0x7f) start -= 1;
-    else break;
-  }
-  const deviceModel = frame.subarray(start).toString('utf8').trim();
-  return {
-    firmwareVerCode,
-    maxContacts,
-    maxChannels,
-    clientRepeat,
-    pathHashMode,
-    deviceModel,
-  };
-}
-
 // RESP_SELF_INFO [0x05][adv_type u8][tx_power u8][max_tx_power u8]
 //   [public_key 32B][...adv lat/lon + radio params, firmware-version-specific...]
 //   [name, trailing printable ASCII]. We only surface the two fields the

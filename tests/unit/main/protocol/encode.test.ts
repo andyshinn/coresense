@@ -4,7 +4,6 @@ import {
   buildAddUpdateContact,
   buildAnonLogin,
   buildAppStart,
-  buildDeviceQuery,
   buildGetChannel,
   buildGetContacts,
   buildGetCustomVar,
@@ -38,15 +37,6 @@ import {
 const hex = (b: Buffer) => b.toString('hex');
 
 describe('encode: bare-opcode commands', () => {
-  it('buildDeviceQuery defaults to protocol version 4', () => {
-    expect(hex(buildDeviceQuery())).toBe('1604');
-  });
-
-  it('buildDeviceQuery(3) matches the byte sequence seen on the wire', () => {
-    // Cross-checked against coresense.log: PROXY_RX cmd=0x16 hex=1603
-    expect(hex(buildDeviceQuery(3))).toBe('1603');
-  });
-
   it('buildGetNextMsg is a single opcode', () => {
     expect(hex(buildGetNextMsg())).toBe('0a');
   });

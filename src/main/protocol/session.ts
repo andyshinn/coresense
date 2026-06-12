@@ -31,7 +31,6 @@ import {
   parseContactMsgV3,
   parseContactsStart,
   parseCustomVars,
-  parseDeviceInfo,
   parseEndOfContacts,
   parseSelfInfo,
   parseSendConfirmed,
@@ -43,7 +42,6 @@ import {
   buildAddUpdateContact,
   buildAnonLogin,
   buildAppStart,
-  buildDeviceQuery,
   buildGetChannel,
   buildGetContacts,
   buildGetCustomVar,
@@ -70,7 +68,6 @@ import {
   buildSetRadioParams,
   buildSetRadioTxPower,
   deriveChannelSecret,
-  pathHashModeToSize,
   pathHashSizeToMode,
 } from './encode';
 import {
@@ -88,6 +85,7 @@ import {
 } from './features/autoAdd';
 import { battStorageFeature, encodeGetBattAndStorage } from './features/battStorage';
 import { contactsFullFeature } from './features/contactsFull';
+import { deviceInfoFeature, encodeDeviceQuery } from './features/deviceInfo';
 import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
 import { consumeMatching as consumeMeshObs } from './meshObservations';
 import { buildPath, channelHashOf } from './paths';
@@ -276,6 +274,7 @@ export class ProtocolSession {
     contactsFullFeature,
     battStorageFeature,
     autoAddFeature,
+    deviceInfoFeature,
   ]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
@@ -979,7 +978,7 @@ export class ProtocolSession {
   async requestDeviceInfo(): Promise<void> {
     if (!this.connected) return;
     try {
-      await this.writeFrame(buildDeviceQuery());
+      await this.writeFrame(encodeDeviceQuery());
     } catch (err) {
       log.warn(`requestDeviceInfo write failed: ${(err as Error).message}`);
     }
@@ -1418,7 +1417,7 @@ export class ProtocolSession {
     this.stopLivenessPoll();
     this.livenessTimer = setInterval(() => {
       if (!this.connected) return;
-      this.writeFrame(buildDeviceQuery()).catch((err) => {
+      this.writeFrame(encodeDeviceQuery()).catch((err) => {
         log.debug(`liveness DEVICE_QUERY failed: ${(err as Error).message}`);
       });
       // Refresh battery/storage on the same cadence so the identity card's
@@ -1465,7 +1464,7 @@ export class ProtocolSession {
       // firmware reads into app_target_ver. Without this we'd get V1 message
       // frames (no SNR). APP_START's "version" byte is reserved on the device
       // side, so APP_START alone is not enough to negotiate V3.
-      await this.writeFrame(buildDeviceQuery());
+      await this.writeFrame(encodeDeviceQuery());
       await sleep(WRITE_GAP_MS);
       await this.writeFrame(buildAppStart(APP_NAME, APP_VERSION));
       await sleep(WRITE_GAP_MS);
@@ -1709,45 +1708,6 @@ export class ProtocolSession {
         stateHolder().setOwner(owner);
         emit.owner(owner);
         log.debug(`self-info: "${owner.name}" (${owner.publicKeyShort})`);
-      }
-      return;
-    }
-    if (code === RESP.DEVICE_INFO) {
-      const parsed = parseDeviceInfo(frame);
-      if (parsed) {
-        const holder = stateHolder();
-        const next = {
-          ...holder.getDeviceInfo(),
-          firmwareVerCode: parsed.firmwareVerCode,
-          maxContacts: parsed.maxContacts,
-          maxChannels: parsed.maxChannels,
-          deviceModel: parsed.deviceModel || holder.getDeviceInfo().deviceModel,
-        };
-        holder.setDeviceInfo(next);
-        emit.deviceInfo(next);
-        // Capabilities follow firmware version codes verbatim — see the
-        // meshcore_protocol.dart firmware-version gates. We treat ver ≥ 9 as
-        // unlocking the repeat-mode byte; ≥ 25 (anecdotal, fw 1.7.0) gates the
-        // CLI export/import private-key flow. We pick the conservative cutoff
-        // and refine when we learn the actual ver_code that fw 1.7.0 reports.
-        const caps = {
-          repeatMode: parsed.firmwareVerCode >= 9,
-          identityKeyIO: parsed.firmwareVerCode >= 25,
-        };
-        holder.setDeviceCapabilities(caps);
-        emit.deviceCapabilities(caps);
-        // Sync the radio's actual path-hash mode into RadioSettings. Firmware
-        // ≥ 10 echoes it in DEVICE_INFO; for older firmware leave whatever the
-        // app has stored. The radio is the source of truth when it answers.
-        if (parsed.pathHashMode !== undefined) {
-          const radioSize = pathHashModeToSize(parsed.pathHashMode);
-          const currentRadio = holder.getRadioSettings();
-          if (currentRadio.pathHashMode !== radioSize) {
-            const nextRadio = { ...currentRadio, pathHashMode: radioSize };
-            holder.setRadioSettings(nextRadio);
-            emit.radioSettings(nextRadio);
-          }
-        }
       }
       return;
     }
