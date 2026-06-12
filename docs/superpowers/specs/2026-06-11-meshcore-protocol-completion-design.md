@@ -357,6 +357,19 @@ Surfaced while building/hardening the foundation (Phase 1, commits on `feat/prot
   and the existing telemetry/status/trace/login flows still route through `adminSessions`) have
   no `FeatureContext` mechanism. Add `awaitTag` when group G lands, and decide then whether the
   migrated repeater-admin flows adopt it or keep `adminSessions`.
+  - **Phase 2e update (admin-hook seam — resolve in Phase 2f):** Phase 2e migrated the messaging
+    cluster (`drain`, `channels`, `channelMessages`, `directMessages`). `directMessages` now owns
+    `RESP_SENT` (0x06) and `RESP_CONTACT_MSG_RECV(_V3)` (0x07/0x10) — opcodes the **repeater-admin**
+    flows (Phase 2f) share: admin sends are ack'd ahead of DMs on `RESP_SENT`, and
+    `txt_type=CLI_DATA` replies route to a pending CLI awaiter. Those awaiter queues
+    (`adminSentQueue`, `pendingCli`) and the CLI/binary/trace/status/telemetry/login handlers
+    **still live in `ProtocolSession`** (Phase 2f). To keep them first-crack without splitting the
+    opcode, `directMessages` exposes `setAdminHooks({ onSentTag, onCliReply })` (+ `enqueueDmSend`/
+    `dequeueDmSend` for the CLI send path); the session registers the hooks in `start()`. **Phase 2f
+    obligation:** when repeater-admin migrates into its own feature module, that module re-registers
+    these hooks (owning `adminSentQueue`/`pendingCli`) and the session's `start()` registration +
+    residual queues are removed. Do NOT give repeater-admin its own `RESP_SENT`/`CONTACT_MSG_RECV`
+    registry entry — `directMessages` owns those codes; admin participates only via the hook seam.
 - **No real-device validation.** All Phase 1 tests use synthetic frames. The Appendix byte
   layouts were extracted from firmware C++ by subagents and cross-checked against `codes.ts`,
   but each group should be confirmed against **real captured frames** as it lands — especially
