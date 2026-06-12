@@ -1190,8 +1190,11 @@ export class ProtocolSession {
     opts?: { expect?: number; timeoutMs?: number },
   ): Promise<Buffer> {
     if (opts?.expect === undefined) {
-      // RESP_OK / RESP_ERR path — reuse the shared ack FIFO (resolveNextAck).
-      const { promise, entry } = this.awaitAck();
+      // RESP_OK / RESP_ERR path — reuse the shared, correlation-id-less ack FIFO
+      // (see the pendingAcks field comment): concurrent OK/ERR writers can
+      // cross-resolve, so callers must serialize. A timeout surfaces here as
+      // ProtocolError(undefined) — indistinguishable from a real bare RESP_ERR.
+      const { promise, entry } = this.awaitAck(opts?.timeoutMs ?? REQUEST_TIMEOUT_MS);
       try {
         await this.writeFrame(frame);
       } catch (err) {
@@ -1357,14 +1360,17 @@ export class ProtocolSession {
     return deriveChannelSecret(name);
   }
 
-  private awaitAck(): { promise: Promise<AckResult>; entry: PendingAck } {
+  private awaitAck(timeoutMs: number = SET_CHANNEL_TIMEOUT_MS): {
+    promise: Promise<AckResult>;
+    entry: PendingAck;
+  } {
     let entry!: PendingAck;
     const promise = new Promise<AckResult>((resolve) => {
       const timer = setTimeout(() => {
         const i = this.pendingAcks.indexOf(entry);
         if (i !== -1) this.pendingAcks.splice(i, 1);
         resolve({ ok: false });
-      }, SET_CHANNEL_TIMEOUT_MS);
+      }, timeoutMs);
       entry = { resolve, timer };
       this.pendingAcks.push(entry);
     });
