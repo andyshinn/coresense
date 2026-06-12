@@ -345,6 +345,14 @@ Surfaced while building/hardening the foundation (Phase 1, commits on `feat/prot
   (a) guard `GET_CONTACT_BY_KEY` so it can't overlap a sync; (b) give the contacts feature the
   `RESP_CONTACT` handler and let *it* disambiguate one-shot vs. iterator; (c) add a generation/
   sequence guard. Must be decided in the group-B design, not left to the generic mechanism.
+  - **Phase 2d update (resolved-pending-group-B):** Phase 2d migrated the `GET_CONTACTS` iterator
+    into `features/contacts.ts`'s `contactsFeature`, which owns `RESP_CONTACT` (0x03) via the
+    registry (code-dispatched, NOT via `pendingTyped`). So the hazard is currently **dormant** —
+    nothing routes `RESP_CONTACT` through `request()/pendingTyped`. This puts option (b) in reach:
+    Phase 3 group B's `getContactByKey` MUST correlate inside `contactsFeature` (e.g. a one-shot
+    keyed by the requested pubkey, set before writing `GET_CONTACT_BY_KEY` and consumed by the
+    `RESP_CONTACT` branch when no iteration is in flight) — it must NOT add `RESP_CONTACT` to the
+    `pendingTyped` FIFO, which would re-introduce the iterator-vs-one-shot collision.
 - **`ctx.awaitTag` is not implemented yet** — async push-by-tag flows (path discovery, group G;
   and the existing telemetry/status/trace/login flows still route through `adminSessions`) have
   no `FeatureContext` mechanism. Add `awaitTag` when group G lands, and decide then whether the
