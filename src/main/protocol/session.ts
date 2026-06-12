@@ -54,10 +54,7 @@ import {
   buildSendStatusReq,
   buildSendTelemetryReq,
   buildSendTracePath,
-  buildSetAdvertLatLon,
-  buildSetAdvertName,
   buildSetChannel,
-  buildSetOtherParams,
   deriveChannelSecret,
 } from './encode';
 import {
@@ -67,6 +64,11 @@ import {
   UnknownContactError,
 } from './errors';
 import type { FeatureContext } from './feature';
+import {
+  encodeSetAdvertLatLon,
+  encodeSetAdvertName,
+  encodeSetOtherParams,
+} from './features/advert';
 import {
   type AutoAddFlagsInput,
   autoAddFeature,
@@ -815,7 +817,7 @@ export class ProtocolSession {
     if (!this.connected) return false;
     const ack = this.awaitAck();
     try {
-      await this.writeFrame(buildSetAdvertName(name));
+      await this.writeFrame(encodeSetAdvertName(name));
     } catch (err) {
       this.popPendingAck(ack.entry);
       log.warn(`setAdvertName write failed: ${(err as Error).message}`);
@@ -840,7 +842,7 @@ export class ProtocolSession {
     if (!this.connected) return false;
     const ack = this.awaitAck();
     try {
-      await this.writeFrame(buildSetAdvertLatLon(lat, lon));
+      await this.writeFrame(encodeSetAdvertLatLon(lat, lon));
     } catch (err) {
       this.popPendingAck(ack.entry);
       log.warn(`setAdvertLatLon write failed: ${(err as Error).message}`);
@@ -865,7 +867,7 @@ export class ProtocolSession {
     const ack = this.awaitAck();
     try {
       await this.writeFrame(
-        buildSetOtherParams({
+        encodeSetOtherParams({
           telemetryBase: policy.base,
           telemetryLoc: policy.loc,
           telemetryEnv: policy.env,

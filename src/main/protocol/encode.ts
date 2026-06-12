@@ -307,29 +307,6 @@ export function buildGetStats(subtype: (typeof STATS_TYPE)[keyof typeof STATS_TY
   return Buffer.from([CMD.GET_STATS, subtype & 0xff]);
 }
 
-// ---- Settings-parity encoders ------------------------------------------
-// All payloads sourced from /Users/andy/GitHub/zjs81/meshcore-open
-// (lib/connector/meshcore_protocol.dart).
-
-// CMD_SET_ADVERT_NAME: [0x08][utf8 name]. Firmware truncates beyond 31B; we
-// truncate client-side too so the wire format matches the official client.
-export function buildSetAdvertName(name: string): Buffer {
-  const nameBuf = Buffer.from(name, 'utf8').subarray(0, 31);
-  const out = Buffer.alloc(1 + nameBuf.length);
-  out[0] = CMD.SET_ADVERT_NAME;
-  nameBuf.copy(out, 1);
-  return out;
-}
-
-// CMD_SET_ADVERT_LATLON: lat/lon as signed micro-degrees.
-export function buildSetAdvertLatLon(lat: number, lon: number): Buffer {
-  const out = Buffer.alloc(1 + 4 + 4);
-  out[0] = CMD.SET_ADVERT_LATLON;
-  out.writeInt32LE(Math.round(lat * 1_000_000) | 0, 1);
-  out.writeInt32LE(Math.round(lon * 1_000_000) | 0, 5);
-  return out;
-}
-
 // CMD_REBOOT: literal "reboot" payload after the opcode. Anything else and the
 // firmware ignores the write (safety against accidental opcode collisions).
 export function buildReboot(): Buffer {
@@ -337,30 +314,6 @@ export function buildReboot(): Buffer {
   const out = Buffer.alloc(1 + tag.length);
   out[0] = CMD.REBOOT;
   tag.copy(out, 1);
-  return out;
-}
-
-// CMD_SET_OTHER_PARAMS: telemetry policy + advert-location-policy + multi-acks.
-// Layout: [0x26][reserved 0][telemetry_flags u8][advert_loc_policy u8][multi_acks u8].
-export interface OtherParamsInput {
-  telemetryBase: 0 | 1 | 2;
-  telemetryLoc: 0 | 1 | 2;
-  telemetryEnv: 0 | 1 | 2;
-  /** 1 = share GPS in self-adverts, 0 = withhold. */
-  advertLocationPolicy: 0 | 1;
-  /** Number of duplicate ACKs to emit per inbound DM (0..2 typical). */
-  multiAcks: number;
-}
-export function buildSetOtherParams(input: OtherParamsInput): Buffer {
-  const out = Buffer.alloc(5);
-  out[0] = CMD.SET_OTHER_PARAMS;
-  out[1] = 0; // reserved
-  out[2] =
-    ((input.telemetryEnv & 0x03) << 4) |
-    ((input.telemetryLoc & 0x03) << 2) |
-    (input.telemetryBase & 0x03);
-  out[3] = input.advertLocationPolicy & 0x01;
-  out[4] = input.multiAcks & 0xff;
   return out;
 }
 

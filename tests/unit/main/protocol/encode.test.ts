@@ -19,10 +19,7 @@ import {
   buildSendStatusReq,
   buildSendTelemetryReq,
   buildSendTracePath,
-  buildSetAdvertLatLon,
-  buildSetAdvertName,
   buildSetChannel,
-  buildSetOtherParams,
   deriveChannelSecret,
 } from '../../../../src/main/protocol/encode';
 
@@ -55,26 +52,6 @@ describe('encode: GET_CONTACTS', () => {
 
   it('appends `since` as u32 LE', () => {
     expect(hex(buildGetContacts(0x100))).toBe('0400010000');
-  });
-});
-
-describe('encode: SET_OTHER_PARAMS bit packing', () => {
-  it('packs telemetry env<<4 | loc<<2 | base', () => {
-    const out = buildSetOtherParams({
-      telemetryBase: 1,
-      telemetryLoc: 2,
-      telemetryEnv: 0,
-      advertLocationPolicy: 1,
-      multiAcks: 2,
-    });
-    // [0x26][reserved 0][(0<<4)|(2<<2)|1 = 0x09][0x01][0x02]
-    expect(hex(out)).toBe('2600090102');
-  });
-});
-
-describe('encode: SET_ADVERT_NAME / SET_CUSTOM_VAR', () => {
-  it('buildSetAdvertName appends the UTF-8 name', () => {
-    expect(hex(buildSetAdvertName('Hand'))).toBe('0848616e64');
   });
 });
 
@@ -193,13 +170,6 @@ describe('encode: structured builders (missing coverage)', () => {
     expect(() => buildSendTracePath({ tag: 1, authCode: 2, path: Buffer.alloc(0) })).toThrow(
       /≥1 byte/,
     );
-  });
-
-  it('buildSetAdvertLatLon writes signed micro-degrees', () => {
-    const out = buildSetAdvertLatLon(37.5, -122.25);
-    expect(out[0]).toBe(0x0e);
-    expect(out.readInt32LE(1)).toBe(37_500_000);
-    expect(out.readInt32LE(5)).toBe(-122_250_000);
   });
 
   it('buildAddUpdateContact omits the GPS tail when not provided (136 bytes)', () => {
