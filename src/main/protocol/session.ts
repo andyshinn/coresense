@@ -82,6 +82,7 @@ import {
 } from './encode';
 import { ContactTableFullError, ProtocolError, UnknownContactError } from './errors';
 import type { FeatureContext } from './feature';
+import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
 import { consumeMatching as consumeMeshObs } from './meshObservations';
 import { buildPath, channelHashOf } from './paths';
 import { FeatureRegistry } from './registry';
@@ -949,6 +950,22 @@ export class ProtocolSession {
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }
+  }
+
+  /** Read the radio's RTC clock (unix seconds). */
+  getDeviceTime(): Promise<number> {
+    return getDeviceTime(this.ctx);
+  }
+
+  /** Set the radio's RTC clock (unix seconds). Rejects ProtocolError on a
+   *  firmware ILLEGAL_ARG (the radio refuses a clock earlier than its own). */
+  setDeviceTime(epochSecs: number): Promise<void> {
+    return setDeviceTime(this.ctx, epochSecs);
+  }
+
+  /** Push the host's current time to the radio. */
+  syncDeviceTime(): Promise<void> {
+    return syncDeviceTime(this.ctx);
   }
 
   /** Query battery + storage. Replies land in onPacket and update DeviceInfo. */
