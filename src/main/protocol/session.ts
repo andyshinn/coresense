@@ -52,6 +52,7 @@ import { customVarsFeature, encodeGetCustomVar, encodeSetCustomVar } from './fea
 import { deviceInfoFeature, encodeDeviceQuery } from './features/deviceInfo';
 import * as directMessages from './features/directMessages';
 import { drainFeature, resetDrain, scheduleDrain } from './features/drain';
+import * as floodScope from './features/floodScope';
 import { encodeSetPathHashMode, pathHashSizeToMode } from './features/pathHash';
 import { encodeSetRadioParams, encodeSetRadioTxPower } from './features/radioParams';
 import * as repeaterAdmin from './features/repeaterAdmin';
@@ -473,6 +474,26 @@ export class ProtocolSession {
   /** Write the radio airtime/backoff tuning params (CMD_SET_TUNING_PARAMS). */
   async setTuningParams(params: TuningParams): Promise<void> {
     return setTuningParams(this.ctx, params);
+  }
+
+  /** Override the send-scope key for outgoing flood packets (set / clear / unscoped). */
+  async setFloodScopeKey(input: floodScope.FloodScopeInput): Promise<void> {
+    return floodScope.setFloodScopeKey(this.ctx, input);
+  }
+
+  /** Persist the default flood scope (CMD_SET_DEFAULT_FLOOD_SCOPE). */
+  async setDefaultFloodScope(name: string, keyHex: string): Promise<void> {
+    return floodScope.setDefaultFloodScope(this.ctx, name, keyHex);
+  }
+
+  /** Clear the persisted default flood scope. */
+  async clearDefaultFloodScope(): Promise<void> {
+    return floodScope.clearDefaultFloodScope(this.ctx);
+  }
+
+  /** Read the persisted default flood scope, or null when none is set. */
+  async getDefaultFloodScope(): Promise<floodScope.DefaultFloodScope | null> {
+    return floodScope.getDefaultFloodScope(this.ctx);
   }
 
   async setRadioParams(opts: {

@@ -112,6 +112,17 @@ export const CMD = {
   SET_TUNING_PARAMS: 0x15,
   // CMD_GET_TUNING_PARAMS: [0x2b]. Replies RESP_TUNING_PARAMS.
   GET_TUNING_PARAMS: 0x2b,
+
+  // CMD_SET_FLOOD_SCOPE_KEY: override the send-scope key for outgoing floods.
+  //   [0x36][0x00][key 16B] set the override key; [0x36][0x00] (no key) zero it;
+  //   [0x36][0x01] send unscoped (firmware MyMesh.cpp:1909-1919). Replies RESP_OK.
+  SET_FLOOD_SCOPE_KEY: 0x36,
+  // CMD_SET_DEFAULT_FLOOD_SCOPE: [0x3f][name 31B null-padded][key 16B] (48B,
+  //   name 1-30 chars) persists the default scope; a short [0x3f] clears it.
+  //   Replies RESP_OK / RESP_ERR (ILLEGAL_ARG on a bad name length).
+  SET_DEFAULT_FLOOD_SCOPE: 0x3f,
+  // CMD_GET_DEFAULT_FLOOD_SCOPE: [0x40]. Replies RESP_DEFAULT_FLOOD_SCOPE.
+  GET_DEFAULT_FLOOD_SCOPE: 0x40,
 } as const;
 
 // Protocol version we negotiate with the firmware. 4 matches the official
@@ -166,6 +177,9 @@ export const RESP = {
   // RESP_TUNING_PARAMS [0x17][rx_delay_base×1000 u32 LE][airtime_factor×1000
   //   u32 LE] (9B) — reply to CMD_GET_TUNING_PARAMS.
   TUNING_PARAMS: 0x17,
+  // RESP_DEFAULT_FLOOD_SCOPE [0x1c][name 31B][key 16B] (48B) when a default
+  //   scope is set, else [0x1c] (1B) when null — reply to CMD_GET_DEFAULT_FLOOD_SCOPE.
+  DEFAULT_FLOOD_SCOPE: 0x1c,
 } as const;
 
 // Firmware error codes carried in a RESP_ERR frame as the byte after the code:
