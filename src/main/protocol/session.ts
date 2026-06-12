@@ -14,19 +14,7 @@ import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { transportManager } from '../transport/manager';
 import { ADV_TYPE, ERR_CODE, PUSH, REQ_TYPE, RESP, STATS_TYPE, TXT_TYPE } from './codes';
-import { parseStatusResponse, parseTelemetryResponse } from './decode';
-import {
-  buildAnonLogin,
-  buildGetStats,
-  buildLogout,
-  buildReboot,
-  buildSendBinaryReq,
-  buildSendLogin,
-  buildSendSelfAdvert,
-  buildSendStatusReq,
-  buildSendTelemetryReq,
-  buildSendTracePath,
-} from './encode';
+import { buildReboot, buildSendSelfAdvert } from './encode';
 import {
   ContactTableFullError,
   ProtocolError,
@@ -71,6 +59,14 @@ import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
 import { FeatureRegistry } from './registry';
 import {
   type AclEntry,
+  buildAnonLogin,
+  buildGetStats,
+  buildLogout,
+  buildSendBinaryReq,
+  buildSendLogin,
+  buildSendStatusReq,
+  buildSendTelemetryReq,
+  buildSendTracePath,
   type LocalStats,
   type LoginFail,
   type LoginSuccess,
@@ -84,6 +80,8 @@ import {
   parseNeighbours,
   parseOwnerInfo,
   parseRawData,
+  parseStatusResponse,
+  parseTelemetryResponse,
   parseTraceData,
   type TraceData,
 } from './repeater';
