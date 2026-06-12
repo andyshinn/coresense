@@ -457,21 +457,6 @@ function splitSenderPrefix(body: string): { senderName: string | null; cleanBody
 
 // ---- Settings-parity decoders ------------------------------------------
 
-// RESP_BATT_AND_STORAGE [0x0c][batt_mv u16 LE][used_kb u32 LE][total_kb u32 LE]
-export interface BattAndStorage {
-  batteryMv: number;
-  storageUsedKb: number;
-  storageTotalKb: number;
-}
-export function parseBattAndStorage(frame: Buffer): BattAndStorage | null {
-  if (frame.length < 11) return null;
-  return {
-    batteryMv: frame.readUInt16LE(1),
-    storageUsedKb: frame.readUInt32LE(3),
-    storageTotalKb: frame.readUInt32LE(7),
-  };
-}
-
 // RESP_DEVICE_INFO. The official client treats most of the payload as
 // firmware-version-specific metadata; we only need the few fields we surface
 // in the UI. Bytes past `firmware_ver_code` evolve across firmware revisions,

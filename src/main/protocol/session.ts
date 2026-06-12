@@ -23,7 +23,6 @@ import { ADV_TYPE, ERR_CODE, PUSH, REQ_TYPE, RESP, STATS_TYPE, TXT_TYPE } from '
 import {
   type ContactRecord,
   parseAutoAddConfig,
-  parseBattAndStorage,
   parseChannelInfo,
   parseChannelMsgV1,
   parseChannelMsgV3,
@@ -49,7 +48,6 @@ import {
   buildAppStart,
   buildDeviceQuery,
   buildGetAutoAddConfig,
-  buildGetBattAndStorage,
   buildGetChannel,
   buildGetContacts,
   buildGetCustomVar,
@@ -87,6 +85,7 @@ import {
   UnknownContactError,
 } from './errors';
 import type { FeatureContext } from './feature';
+import { battStorageFeature, encodeGetBattAndStorage } from './features/battStorage';
 import { contactsFullFeature } from './features/contactsFull';
 import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
 import { consumeMatching as consumeMeshObs } from './meshObservations';
@@ -272,7 +271,7 @@ export class ProtocolSession {
     request: (frame, opts) => this.request(frame, opts),
   };
   /** Inbound-frame handlers, keyed by wire code. Empty until features migrate. */
-  private readonly registry = new FeatureRegistry([contactsFullFeature]);
+  private readonly registry = new FeatureRegistry([contactsFullFeature, battStorageFeature]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
   start(): void {
@@ -979,7 +978,7 @@ export class ProtocolSession {
   async requestBattAndStorage(): Promise<void> {
     if (!this.connected) return;
     try {
-      await this.writeFrame(buildGetBattAndStorage());
+      await this.writeFrame(encodeGetBattAndStorage());
     } catch (err) {
       log.warn(`requestBattAndStorage write failed: ${(err as Error).message}`);
     }
@@ -1433,7 +1432,7 @@ export class ProtocolSession {
       });
       // Refresh battery/storage on the same cadence so the identity card's
       // battery readout stays current without a manual device refresh.
-      this.writeFrame(buildGetBattAndStorage()).catch((err) => {
+      this.writeFrame(encodeGetBattAndStorage()).catch((err) => {
         log.debug(`liveness GET_BATT_AND_STORAGE failed: ${(err as Error).message}`);
       });
     }, LIVENESS_POLL_MS);
@@ -1508,7 +1507,7 @@ export class ProtocolSession {
       });
       // Pull battery/storage once up front so the identity card has a reading
       // immediately on connect; the liveness poll keeps it fresh thereafter.
-      await this.writeFrame(buildGetBattAndStorage());
+      await this.writeFrame(encodeGetBattAndStorage());
       await sleep(WRITE_GAP_MS);
       // Drain any messages queued during the disconnect window. Self-advert
       // is user-initiated only (Cmd-Shift-A) — matching the official mobile
@@ -1719,21 +1718,6 @@ export class ProtocolSession {
         stateHolder().setOwner(owner);
         emit.owner(owner);
         log.debug(`self-info: "${owner.name}" (${owner.publicKeyShort})`);
-      }
-      return;
-    }
-    if (code === RESP.BATT_AND_STORAGE) {
-      const parsed = parseBattAndStorage(frame);
-      if (parsed) {
-        const holder = stateHolder();
-        const next = {
-          ...holder.getDeviceInfo(),
-          batteryMv: parsed.batteryMv,
-          storageUsedKb: parsed.storageUsedKb,
-          storageTotalKb: parsed.storageTotalKb,
-        };
-        holder.setDeviceInfo(next);
-        emit.deviceInfo(next);
       }
       return;
     }

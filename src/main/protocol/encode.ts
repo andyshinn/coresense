@@ -405,11 +405,6 @@ export function buildReboot(): Buffer {
   return out;
 }
 
-// CMD_GET_BATT_AND_STORAGE: bare opcode. Reply RESP_BATT_AND_STORAGE.
-export function buildGetBattAndStorage(): Buffer {
-  return Buffer.from([CMD.GET_BATT_AND_STORAGE]);
-}
-
 // CMD_SET_OTHER_PARAMS: telemetry policy + advert-location-policy + multi-acks.
 // Layout: [0x26][reserved 0][telemetry_flags u8][advert_loc_policy u8][multi_acks u8].
 export interface OtherParamsInput {

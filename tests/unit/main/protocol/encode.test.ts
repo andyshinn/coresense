@@ -8,7 +8,6 @@ import {
   buildAppStart,
   buildDeviceQuery,
   buildGetAutoAddConfig,
-  buildGetBattAndStorage,
   buildGetChannel,
   buildGetContacts,
   buildGetCustomVar,
@@ -54,10 +53,6 @@ describe('encode: bare-opcode commands', () => {
 
   it('buildGetNextMsg is a single opcode', () => {
     expect(hex(buildGetNextMsg())).toBe('0a');
-  });
-
-  it('buildGetBattAndStorage is a single opcode', () => {
-    expect(hex(buildGetBattAndStorage())).toBe('14');
   });
 
   it('buildGetAutoAddConfig is a single opcode', () => {

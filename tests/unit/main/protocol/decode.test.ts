@@ -2,7 +2,6 @@ import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
 import {
   parseAutoAddConfig,
-  parseBattAndStorage,
   parseChannelInfo,
   parseChannelMsgV1,
   parseChannelMsgV3,
@@ -239,19 +238,7 @@ describe('parseSentAck / parseSendConfirmed', () => {
   });
 });
 
-describe('parseBattAndStorage / parseAutoAddConfig', () => {
-  it('parseBattAndStorage reads batt mv (u16) and storage kb (u32 ×2)', () => {
-    const frame = Buffer.alloc(11);
-    frame[0] = 0x0c;
-    frame.writeUInt16LE(4020, 1);
-    frame.writeUInt32LE(128, 3);
-    frame.writeUInt32LE(4096, 7);
-    const b = parseBattAndStorage(frame);
-    expect(b?.batteryMv).toBe(4020);
-    expect(b?.storageUsedKb).toBe(128);
-    expect(b?.storageTotalKb).toBe(4096);
-  });
-
+describe('parseAutoAddConfig', () => {
   it('parseAutoAddConfig returns the flags byte', () => {
     expect(parseAutoAddConfig(Buffer.from([0x19, 0x1f]))).toBe(0x1f);
     expect(parseAutoAddConfig(Buffer.from([0x19]))).toBeNull();
