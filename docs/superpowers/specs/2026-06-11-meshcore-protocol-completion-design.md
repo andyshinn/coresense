@@ -332,6 +332,30 @@ stays green throughout:
   bespoke single-slot fields (`pendingLocalStats`): fold into `request()` during their
   feature's migration, or leave until the owning feature moves? (Leaning: fold during migration.)
 
+### Phase 1 findings — carry into later phases
+
+Surfaced while building/hardening the foundation (Phase 1, commits on `feat/protocol-completion`):
+
+- **`request({ expect })` correlation is FIFO-by-code, not tag-correlated** — it resolves the
+  *next* inbound frame with the expected code. This is the hazard to resolve **before Phase 3
+  group B**: `GET_CONTACT_BY_KEY` replies with `RESP_CONTACT` (0x03) — the *same* code the
+  `GET_CONTACTS` iterator emits. The `pendingTyped` interception runs *before* the registry, so
+  a one-shot `GET_CONTACT_BY_KEY` in flight during a contacts sync would **steal an iterator
+  `RESP_CONTACT`** (or an iterator frame would resolve the one-shot prematurely). Options:
+  (a) guard `GET_CONTACT_BY_KEY` so it can't overlap a sync; (b) give the contacts feature the
+  `RESP_CONTACT` handler and let *it* disambiguate one-shot vs. iterator; (c) add a generation/
+  sequence guard. Must be decided in the group-B design, not left to the generic mechanism.
+- **`ctx.awaitTag` is not implemented yet** — async push-by-tag flows (path discovery, group G;
+  and the existing telemetry/status/trace/login flows still route through `adminSessions`) have
+  no `FeatureContext` mechanism. Add `awaitTag` when group G lands, and decide then whether the
+  migrated repeater-admin flows adopt it or keep `adminSessions`.
+- **No real-device validation.** All Phase 1 tests use synthetic frames. The Appendix byte
+  layouts were extracted from firmware C++ by subagents and cross-checked against `codes.ts`,
+  but each group should be confirmed against **real captured frames** as it lands — especially
+  the signing state machine, flood-scope variants, and the path-discovery push layout.
+- **No direct registry-vs-legacy fallthrough test** — currently only implicitly covered by the
+  full suite passing. Worth a dedicated assertion once more features migrate.
+
 ## Key references
 
 - Firmware: `/Users/andy/GitHub/meshcore-dev/MeshCore/examples/companion_radio/MyMesh.cpp`
