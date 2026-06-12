@@ -12,6 +12,8 @@
 export const CMD = {
   APP_START: 0x01,
   SEND_TXT_MSG: 0x02,
+  GET_DEVICE_TIME: 0x05,
+  SET_DEVICE_TIME: 0x06,
   SEND_CHAN_TXT_MSG: 0x03,
   GET_CONTACTS: 0x04,
   SEND_SELF_ADVERT: 0x07,
@@ -125,6 +127,8 @@ export const RESP = {
   SENT: 0x06,
   CONTACT_MSG_RECV: 0x07,
   CHANNEL_MSG_RECV: 0x08,
+  // RESP_CURR_TIME [0x09][epoch u32 LE] — reply to CMD_GET_DEVICE_TIME.
+  CURR_TIME: 0x09,
   NO_MORE_MESSAGES: 0x0a,
   // RESP_EXPORT_CONTACT [0x0b][serialized contact blob]
   EXPORT_CONTACT: 0x0b,
