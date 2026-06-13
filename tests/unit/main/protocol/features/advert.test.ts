@@ -13,11 +13,18 @@ describe('advert encode', () => {
     expect(hex(encodeSetAdvertName('Hand'))).toBe('0848616e64');
   });
 
-  it('encodeSetAdvertLatLon writes signed micro-degrees', () => {
+  it('encodeSetAdvertLatLon writes signed micro-degrees (9-byte form)', () => {
     const out = encodeSetAdvertLatLon(37.5, -122.25);
+    expect(out.length).toBe(9);
     expect(out[0]).toBe(0x0e);
     expect(out.readInt32LE(1)).toBe(37_500_000);
     expect(out.readInt32LE(5)).toBe(-122_250_000);
+  });
+
+  it('encodeSetAdvertLatLon appends a signed altitude when given (13-byte form)', () => {
+    const out = encodeSetAdvertLatLon(37.5, -122.25, -55);
+    expect(out.length).toBe(13);
+    expect(out.readInt32LE(9)).toBe(-55);
   });
 
   it('encodeSetOtherParams packs telemetry env<<4 | loc<<2 | base', () => {

@@ -123,6 +123,11 @@ export const CMD = {
   SET_DEFAULT_FLOOD_SCOPE: 0x3f,
   // CMD_GET_DEFAULT_FLOOD_SCOPE: [0x40]. Replies RESP_DEFAULT_FLOOD_SCOPE.
   GET_DEFAULT_FLOOD_SCOPE: 0x40,
+  // CMD_HAS_CONNECTION: [0x1c][pubkey 32B]. Replies RESP_OK (an active
+  //   connection to that node exists) or RESP_ERR (NOT_FOUND).
+  HAS_CONNECTION: 0x1c,
+  // CMD_GET_ALLOWED_REPEAT_FREQ: [0x3c]. Replies RESP_ALLOWED_REPEAT_FREQ.
+  GET_ALLOWED_REPEAT_FREQ: 0x3c,
 } as const;
 
 // Protocol version we negotiate with the firmware. 4 matches the official
@@ -180,6 +185,9 @@ export const RESP = {
   // RESP_DEFAULT_FLOOD_SCOPE [0x1c][name 31B][key 16B] (48B) when a default
   //   scope is set, else [0x1c] (1B) when null — reply to CMD_GET_DEFAULT_FLOOD_SCOPE.
   DEFAULT_FLOOD_SCOPE: 0x1c,
+  // RESP_ALLOWED_REPEAT_FREQ [0x1a] then N×[lower_freq u32 LE][upper_freq u32 LE]
+  //   (8B per range, to the frame limit) — reply to CMD_GET_ALLOWED_REPEAT_FREQ.
+  ALLOWED_REPEAT_FREQ: 0x1a,
 } as const;
 
 // Firmware error codes carried in a RESP_ERR frame as the byte after the code:
@@ -205,6 +213,10 @@ export const ADV_TYPE = {
 } as const;
 
 export const PUSH = {
+  // PUSH_ADVERT [0x80][pubkey 32B] (33B) — a KNOWN contact re-advertised. The
+  //   firmware sends this (not the 148B PUSH_NEW_ADVERT) when the advertising
+  //   node is already in the contact store; we touch the contact's last-seen.
+  ADVERT: 0x80,
   SEND_CONFIRMED: 0x82,
   MSG_WAITING: 0x83,
   // PUSH_RAW_DATA wraps any raw-bytes payload received over the mesh, with a

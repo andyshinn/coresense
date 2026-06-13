@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
 import {
+  decodeAdvert,
   decodeContact,
   decodeContactDeleted,
   decodeContactsStart,
@@ -13,6 +14,14 @@ import {
 
 const hex = (b: Buffer) => b.toString('hex');
 const pk = 'aa'.repeat(32);
+
+describe('decodeAdvert (PUSH_ADVERT re-advert)', () => {
+  it('reads the 32-byte pubkey, or null when short', () => {
+    const frame = Buffer.concat([Buffer.from([0x80]), Buffer.from(pk, 'hex')]);
+    expect(decodeAdvert(frame)).toBe(pk);
+    expect(decodeAdvert(Buffer.from([0x80, 0x01]))).toBeNull();
+  });
+});
 
 describe('contacts encoders', () => {
   it('encodeGetContacts is a bare opcode with no `since`', () => {

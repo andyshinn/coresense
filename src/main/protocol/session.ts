@@ -53,6 +53,7 @@ import { deviceInfoFeature, encodeDeviceQuery } from './features/deviceInfo';
 import * as directMessages from './features/directMessages';
 import { drainFeature, resetDrain, scheduleDrain } from './features/drain';
 import * as floodScope from './features/floodScope';
+import * as misc from './features/misc';
 import { encodeSetPathHashMode, pathHashSizeToMode } from './features/pathHash';
 import { encodeSetRadioParams, encodeSetRadioTxPower } from './features/radioParams';
 import * as repeaterAdmin from './features/repeaterAdmin';
@@ -496,6 +497,16 @@ export class ProtocolSession {
     return floodScope.getDefaultFloodScope(this.ctx);
   }
 
+  /** Whether the radio reports an active connection to a node. */
+  async hasConnection(destPublicKeyHex: string): Promise<boolean> {
+    return misc.hasConnection(this.ctx, destPublicKeyHex);
+  }
+
+  /** The frequency ranges the radio is allowed to repeat on (region-dependent). */
+  async getAllowedRepeatFreq(): Promise<misc.RepeatFreqRange[]> {
+    return misc.getAllowedRepeatFreq(this.ctx);
+  }
+
   async setRadioParams(opts: {
     frequencyHz: number;
     bandwidthHz: number;
@@ -576,11 +587,11 @@ export class ProtocolSession {
   }
 
   /** Push device GPS coords used in self-adverts. */
-  async setAdvertLatLon(lat: number, lon: number): Promise<boolean> {
+  async setAdvertLatLon(lat: number, lon: number, alt?: number): Promise<boolean> {
     if (!this.connected) return false;
     const ack = this.awaitAck();
     try {
-      await this.writeFrame(encodeSetAdvertLatLon(lat, lon));
+      await this.writeFrame(encodeSetAdvertLatLon(lat, lon, alt));
     } catch (err) {
       this.popPendingAck(ack.entry);
       log.warn(`setAdvertLatLon write failed: ${(err as Error).message}`);

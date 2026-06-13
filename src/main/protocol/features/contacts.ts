@@ -170,6 +170,14 @@ export function decodeContactDeleted(frame: Buffer): string | null {
   return frame.subarray(1, 33).toString('hex');
 }
 
+// PUSH_ADVERT [0x80][pubkey 32B] — a KNOWN contact re-advertised (the firmware
+// sends the 148B PUSH_NEW_ADVERT only for newly-discovered contacts). Returns
+// the lowercase hex public key, or null if short.
+export function decodeAdvert(frame: Buffer): string | null {
+  if (frame.length < 1 + 32) return null;
+  return frame.subarray(1, 33).toString('hex');
+}
+
 // ---- Ingest / app-logic ------------------------------------------------
 
 let resyncTimer: NodeJS.Timeout | null = null;
@@ -341,6 +349,7 @@ export const contactsFeature: Feature = {
     RESP.CONTACT,
     RESP.END_OF_CONTACTS,
     PUSH.NEW_ADVERT,
+    PUSH.ADVERT,
     PUSH.CONTACT_DELETED,
   ],
   handle: (code, frame, ctx) => {
@@ -401,6 +410,22 @@ export const contactsFeature: Feature = {
       if (record) {
         ingestContact(ctx, record, 'advert');
         log.debug(`new advert: "${record.name}" (${record.publicKeyHex.slice(0, 12)})`);
+      }
+      return;
+    }
+    if (code === PUSH.ADVERT) {
+      // A known contact re-advertised — touch its last-seen so the UI reflects
+      // liveness. The bare push carries only the pubkey (no timestamp), so we
+      // record the moment we heard it.
+      const pubkeyHex = decodeAdvert(frame);
+      if (pubkeyHex) {
+        const holder = stateHolder();
+        const existing = holder.getContacts().find((c) => c.key === `c:${pubkeyHex}`);
+        if (existing) {
+          holder.upsertContact({ ...existing, lastSeenMs: Date.now() });
+          emit.contacts(holder.getContacts());
+          log.trace(`re-advert: touched ${pubkeyHex.slice(0, 12)}`);
+        }
       }
       return;
     }

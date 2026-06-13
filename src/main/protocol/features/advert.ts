@@ -11,12 +11,18 @@ export function encodeSetAdvertName(name: string): Buffer {
   return out;
 }
 
-// CMD_SET_ADVERT_LATLON: lat/lon as signed micro-degrees.
-export function encodeSetAdvertLatLon(lat: number, lon: number): Buffer {
-  const out = Buffer.alloc(1 + 4 + 4);
+// CMD_SET_ADVERT_LATLON: lat/lon as signed micro-degrees, with an optional
+// altitude (metres, signed i32) appended at bytes 9-12. The firmware reads
+// `alt` "for FUTURE support" (MyMesh.cpp:1205-1219) — it validates lat/lon
+// today and tolerates the extra 4 bytes. Omitting `alt` emits the 9-byte form
+// the firmware has always accepted.
+export function encodeSetAdvertLatLon(lat: number, lon: number, alt?: number): Buffer {
+  const hasAlt = alt !== undefined;
+  const out = Buffer.alloc(hasAlt ? 1 + 4 + 4 + 4 : 1 + 4 + 4);
   out[0] = CMD.SET_ADVERT_LATLON;
   out.writeInt32LE(Math.round(lat * 1_000_000) | 0, 1);
   out.writeInt32LE(Math.round(lon * 1_000_000) | 0, 5);
+  if (hasAlt) out.writeInt32LE(Math.round(alt) | 0, 9);
   return out;
 }
 
