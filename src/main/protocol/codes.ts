@@ -192,6 +192,17 @@ export const CMD = {
   // CMD_SEND_RAW_PACKET: [0x41][priority u8][raw packet bytes ≥2] (≥4B). Parses
   //   and transmits a fully-formed mesh packet. Replies RESP_OK / RESP_ERR.
   SEND_RAW_PACKET: 0x41,
+
+  // ---- Contact interop (group B) -----------------------------------------
+
+  // CMD_SHARE_CONTACT: [0x10][32B pubkey]. Re-broadcasts a known contact's
+  //   advert zero-hop so neighbours learn it. Replies RESP_OK / RESP_ERR.
+  SHARE_CONTACT: 0x10,
+  // CMD_GET_CONTACT_BY_KEY: [0x1e][32B pubkey]. Replies RESP_CONTACT (the full
+  //   148B contact frame) if the radio has it, else RESP_ERR (NOT_FOUND). NOTE:
+  //   RESP_CONTACT is the same opcode the bulk GET_CONTACTS stream uses, so the
+  //   reply MUST be correlated inside contactsFeature, not via pendingTyped.
+  GET_CONTACT_BY_KEY: 0x1e,
 } as const;
 
 // Protocol version we negotiate with the firmware. 4 matches the official

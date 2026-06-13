@@ -123,6 +123,19 @@ export function encodeRemoveContact(destPublicKeyHex: string): Buffer {
   return out;
 }
 
+// CMD_GET_CONTACT_BY_KEY: [0x1e][32B pubkey]. Replies RESP_CONTACT (the full
+// 148B contact frame) if the radio has it, else RESP_ERR (NOT_FOUND).
+export function encodeGetContactByKey(destPublicKeyHex: string): Buffer {
+  const pubkey = Buffer.from(destPublicKeyHex, 'hex');
+  if (pubkey.length < 32) {
+    throw new Error(`get contact needs full 32B public key, got ${pubkey.length}`);
+  }
+  const out = Buffer.alloc(1 + 32);
+  out[0] = CMD.GET_CONTACT_BY_KEY;
+  pubkey.copy(out, 1, 0, 32);
+  return out;
+}
+
 // ---- Decoders ----------------------------------------------------------
 
 const CONTACT_FRAME_LEN = 1 + 32 + 1 + 1 + 1 + 64 + 32 + 4 + 4 + 4 + 4; // 148
@@ -341,6 +354,82 @@ export function resetContactsIter(): void {
     clearTimeout(resyncTimer);
     resyncTimer = null;
   }
+  while (pendingContactByKey.length > 0) {
+    const entry = pendingContactByKey.shift();
+    if (entry) {
+      clearTimeout(entry.timer);
+      entry.resolve(null);
+    }
+  }
+}
+
+// ---- getContactByKey correlation ---------------------------------------
+
+const GET_CONTACT_BY_KEY_TIMEOUT_MS = 5_000;
+
+interface PendingContactByKey {
+  publicKeyHex: string;
+  resolve: (record: ContactRecord | null) => void;
+  timer: NodeJS.Timeout;
+}
+
+// FIFO of in-flight getContactByKey() calls. The reply is a RESP_CONTACT — the
+// same opcode the bulk GET_CONTACTS stream uses — matched here by pubkey, or a
+// RESP_ERR (NOT_FOUND) routed in by the session's onPacket tier-3.
+const pendingContactByKey: PendingContactByKey[] = [];
+
+function removePendingContactByKey(entry: PendingContactByKey): void {
+  const i = pendingContactByKey.indexOf(entry);
+  if (i !== -1) pendingContactByKey.splice(i, 1);
+}
+
+/** Resolve a pending getContactByKey whose pubkey matches this RESP_CONTACT
+ *  record, so a solicited reply isn't folded into the bulk-sync iterator.
+ *  Returns true when the frame was consumed as a getContactByKey reply. */
+function resolvePendingContactByKey(record: ContactRecord): boolean {
+  const i = pendingContactByKey.findIndex((e) => e.publicKeyHex === record.publicKeyHex);
+  if (i === -1) return false;
+  const [entry] = pendingContactByKey.splice(i, 1);
+  clearTimeout(entry.timer);
+  entry.resolve(record);
+  return true;
+}
+
+/** Resolve the oldest pending getContactByKey with null. A RESP_ERR (NOT_FOUND)
+ *  with no queued ack routes here from onPacket tier-3, before failOldestDmSend.
+ *  Returns true when a lookup was waiting. */
+export function failPendingContactByKey(): boolean {
+  const entry = pendingContactByKey.shift();
+  if (!entry) return false;
+  clearTimeout(entry.timer);
+  entry.resolve(null);
+  return true;
+}
+
+/** Look up a single contact on the radio by public key (CMD_GET_CONTACT_BY_KEY).
+ *  Resolves the contact record, or null when the radio doesn't have it. */
+export function getContactByKey(
+  ctx: FeatureContext,
+  destPublicKeyHex: string,
+): Promise<ContactRecord | null> {
+  const frame = encodeGetContactByKey(destPublicKeyHex);
+  const publicKeyHex = Buffer.from(destPublicKeyHex, 'hex').subarray(0, 32).toString('hex');
+  return new Promise<ContactRecord | null>((resolve, reject) => {
+    const entry: PendingContactByKey = {
+      publicKeyHex,
+      resolve,
+      timer: setTimeout(() => {
+        removePendingContactByKey(entry);
+        resolve(null);
+      }, GET_CONTACT_BY_KEY_TIMEOUT_MS),
+    };
+    pendingContactByKey.push(entry);
+    ctx.writeFrame(frame).catch((err) => {
+      removePendingContactByKey(entry);
+      clearTimeout(entry.timer);
+      reject(err as Error);
+    });
+  });
 }
 
 export const contactsFeature: Feature = {
@@ -366,6 +455,9 @@ export const contactsFeature: Feature = {
     }
     if (code === RESP.CONTACT) {
       const record = decodeContact(frame);
+      // A solicited getContactByKey reply is consumed here, not folded into the
+      // bulk-sync iterator (RESP_CONTACT is shared between the two).
+      if (record && resolvePendingContactByKey(record)) return;
       if (record) {
         syncSeen.push(record.publicKeyHex);
         ingestContact(ctx, record, 'sync');

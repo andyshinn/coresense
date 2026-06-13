@@ -36,13 +36,17 @@ import {
 import { battStorageFeature, encodeGetBattAndStorage } from './features/battStorage';
 import * as channelMessages from './features/channelMessages';
 import * as channels from './features/channels';
+import * as contactInterop from './features/contactInterop';
 import {
+  type ContactRecord,
   contactsFeature,
   emitDiscovered,
   encodeAddUpdateContact,
   encodeGetContacts,
   encodeRemoveContact,
   encodeResetPath,
+  failPendingContactByKey,
+  getContactByKey,
   resetContactsIter,
   scheduleContactsResync,
   upsertOnRadioContact,
@@ -588,6 +592,29 @@ export class ProtocolSession {
   /** Transmit a fully-formed mesh packet (CMD_SEND_RAW_PACKET). */
   async sendRawPacket(opts: { priority: number; packetHex: string }): Promise<void> {
     return rawData.sendRawPacket(this.ctx, opts);
+  }
+
+  // ---- Contact interop (group B) ----------------------------------------
+
+  /** Look up a single contact on the radio by public key, or null if absent. */
+  async getContactByKey(destPublicKeyHex: string): Promise<ContactRecord | null> {
+    return getContactByKey(this.ctx, destPublicKeyHex);
+  }
+
+  /** Re-broadcast a known contact's advert zero-hop (CMD_SHARE_CONTACT). */
+  async shareContact(destPublicKeyHex: string): Promise<void> {
+    return contactInterop.shareContact(this.ctx, destPublicKeyHex);
+  }
+
+  /** Export an advert blob for the device (no arg) or a known contact, or null
+   *  when the contact isn't found. */
+  async exportContact(destPublicKeyHex?: string): Promise<string | null> {
+    return contactInterop.exportContact(this.ctx, destPublicKeyHex);
+  }
+
+  /** Import a contact from a serialized advert blob (CMD_IMPORT_CONTACT). */
+  async importContact(blobHex: string): Promise<void> {
+    return contactInterop.importContact(this.ctx, blobHex);
   }
 
   async setRadioParams(opts: {
@@ -1308,7 +1335,12 @@ export class ProtocolSession {
     if (code === RESP.OK || code === RESP.ERR) {
       const errorCode = code === RESP.ERR ? frame[1] : undefined;
       if (this.resolveNextAck(code === RESP.OK, errorCode)) return;
-      if (code === RESP.ERR) directMessages.failOldestDmSend('radio rejected send');
+      if (code === RESP.ERR) {
+        // A getContactByKey miss (RESP_ERR NOT_FOUND) has no queued ack; resolve
+        // it null before treating an unclaimed RESP_ERR as a rejected DM send.
+        if (failPendingContactByKey()) return;
+        directMessages.failOldestDmSend('radio rejected send');
+      }
     }
   };
 }

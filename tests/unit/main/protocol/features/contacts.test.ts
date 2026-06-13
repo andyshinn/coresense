@@ -7,6 +7,7 @@ import {
   decodeContactsStart,
   decodeEndOfContacts,
   encodeAddUpdateContact,
+  encodeGetContactByKey,
   encodeGetContacts,
   encodeRemoveContact,
   encodeResetPath,
@@ -38,6 +39,14 @@ describe('contacts encoders', () => {
 
   it('encodeRemoveContact is [0x0f][32B pubkey]', () => {
     expect(hex(encodeRemoveContact(pk))).toBe(`0f${pk}`);
+  });
+
+  it('encodeGetContactByKey is [0x1e][32B pubkey]', () => {
+    expect(hex(encodeGetContactByKey(pk))).toBe(`1e${pk}`);
+  });
+
+  it('encodeGetContactByKey rejects a short pubkey', () => {
+    expect(() => encodeGetContactByKey('aabb')).toThrow(/32B/);
   });
 
   it('encodeResetPath / encodeRemoveContact reject short pubkeys', () => {
