@@ -59,6 +59,7 @@ import { encodeSetPathHashMode, pathHashSizeToMode } from './features/pathHash';
 import { encodeSetRadioParams, encodeSetRadioTxPower } from './features/radioParams';
 import * as repeaterAdmin from './features/repeaterAdmin';
 import { encodeAppStart, selfInfoFeature } from './features/selfInfo';
+import * as signing from './features/signing';
 import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
 import { getTuningParams, setTuningParams, type TuningParams } from './features/tuning';
 import { FeatureRegistry } from './registry';
@@ -533,6 +534,15 @@ export class ProtocolSession {
    *  reply to await (like reboot()). */
   async factoryReset(): Promise<void> {
     return deviceAdmin.factoryReset(this.ctx);
+  }
+
+  // ---- Message signing (group E) ----------------------------------------
+
+  /** Sign arbitrary bytes with the device's ed25519 identity. Drives the
+   *  CMD_SIGN_START → CMD_SIGN_DATA× → CMD_SIGN_FINISH state machine and
+   *  returns the 64-byte signature (hex). */
+  async signData(data: Buffer): Promise<string> {
+    return signing.signData(this.ctx, data);
   }
 
   async setRadioParams(opts: {

@@ -148,6 +148,20 @@ export const CMD = {
   //   firmware disables its serial interface BEFORE formatting the filesystem,
   //   so no RESP reaches us — the link drops (like CMD_REBOOT). Fire-and-forget.
   FACTORY_RESET: 0x33,
+
+  // ---- Message signing (group E) — START → DATA× → FINISH state machine ----
+
+  // CMD_SIGN_START: [0x21] (bare). Allocates the device's 8K sign buffer and
+  //   replies RESP_SIGN_START with the max signable length. Resets any prior
+  //   in-progress signing session.
+  SIGN_START: 0x21,
+  // CMD_SIGN_DATA: [0x22][chunk] (≥1 data byte). Appends to the device's sign
+  //   buffer. Replies RESP_OK, or RESP_ERR (BAD_STATE if no START first /
+  //   TABLE_FULL if the running total would exceed the max length).
+  SIGN_DATA: 0x22,
+  // CMD_SIGN_FINISH: [0x23] (bare). Signs the accumulated bytes and replies
+  //   RESP_SIGNATURE; frees the buffer. RESP_ERR (BAD_STATE) if no START.
+  SIGN_FINISH: 0x23,
 } as const;
 
 // Protocol version we negotiate with the firmware. 4 matches the official
@@ -212,6 +226,11 @@ export const RESP = {
   // RESP_ALLOWED_REPEAT_FREQ [0x1a] then N×[lower_freq u32 LE][upper_freq u32 LE]
   //   (8B per range, to the frame limit) — reply to CMD_GET_ALLOWED_REPEAT_FREQ.
   ALLOWED_REPEAT_FREQ: 0x1a,
+  // RESP_SIGN_START [0x13][reserved u8][max_len u32 LE] (6B) — reply to
+  //   CMD_SIGN_START. max_len is the device's MAX_SIGN_DATA_LEN (8192).
+  SIGN_START: 0x13,
+  // RESP_SIGNATURE [0x14][64B signature] (65B) — reply to CMD_SIGN_FINISH.
+  SIGNATURE: 0x14,
 } as const;
 
 // Firmware error codes carried in a RESP_ERR frame as the byte after the code:
