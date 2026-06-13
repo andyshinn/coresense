@@ -139,7 +139,10 @@ interface PendingDiscovery {
 // slot. A fresh request supersedes any prior one.
 let pendingDiscovery: PendingDiscovery | null = null;
 
-function armDiscovery(prefixHex: string): Promise<DiscoveredPath> {
+function armDiscovery(prefixHex: string): {
+  promise: Promise<DiscoveredPath>;
+  entry: PendingDiscovery;
+} {
   if (pendingDiscovery) {
     clearTimeout(pendingDiscovery.timer);
     pendingDiscovery.reject(new Error('superseded by a new path discovery'));
@@ -154,13 +157,16 @@ function armDiscovery(prefixHex: string): Promise<DiscoveredPath> {
     entry = { prefixHex, resolve, reject, timer };
   });
   pendingDiscovery = entry;
-  return promise;
+  return { promise, entry };
 }
 
-function disarmDiscovery(prefixHex: string, err: Error): void {
-  if (pendingDiscovery && pendingDiscovery.prefixHex === prefixHex) {
-    clearTimeout(pendingDiscovery.timer);
-    pendingDiscovery.reject(err);
+// Disarm only when `entry` is still the active discovery — a later request for
+// the same contact supersedes it (replacing pendingDiscovery), so a failed
+// dispatch from the older request must not reject the newer one's promise.
+function disarmDiscovery(entry: PendingDiscovery, err: Error): void {
+  if (pendingDiscovery === entry) {
+    clearTimeout(entry.timer);
+    entry.reject(err);
     pendingDiscovery = null;
   }
 }
@@ -234,18 +240,18 @@ export function sendPathDiscoveryReq(
   // return that single promise: it resolves on PUSH_PATH_DISCOVERY_RESPONSE and
   // rejects on dispatch error / timeout / disconnect. The dispatch runs detached
   // and only feeds the failure path back into the same promise via disarm.
-  const responsePromise = armDiscovery(prefixHex);
+  const { promise, entry } = armDiscovery(prefixHex);
   void (async () => {
     try {
       // RESP_SENT confirms dispatch (consumed here so it isn't mistaken for a
       // DM); RESP_ERR (NOT_FOUND / TABLE_FULL) comes back as null.
       const sent = await ctx.requestOrNull(encodeSendPathDiscoveryReq(pubkey), RESP.SENT);
-      if (sent === null) disarmDiscovery(prefixHex, new ProtocolError());
+      if (sent === null) disarmDiscovery(entry, new ProtocolError());
     } catch (err) {
-      disarmDiscovery(prefixHex, err as Error);
+      disarmDiscovery(entry, err as Error);
     }
   })();
-  return responsePromise;
+  return promise;
 }
 
 /** The device's cached advert path for a contact, or null when none is cached

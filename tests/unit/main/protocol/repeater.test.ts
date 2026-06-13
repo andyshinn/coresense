@@ -105,6 +105,12 @@ describe('repeater decoders: parseTelemetryResponse (CayenneLPP)', () => {
     expect(res?.fields[0]).toMatchObject({ channel: 0, name: 'Voltage', value: 4.2, unit: 'V' });
   });
 
+  it('decodes a negative current (type 117 is signed, per firmware LPPDataHelpers.h)', () => {
+    // -0.5 A → -500 = 0xFE0C as int16 BE
+    const res = parseTelemetryResponse(telemetryFrame(Buffer.from([0x00, 0x75, 0xfe, 0x0c])));
+    expect(res?.fields[0]).toMatchObject({ name: 'Current', value: -0.5, unit: 'A' });
+  });
+
   it('decodes a generic sensor (type 100, u32 BE)', () => {
     const payload = Buffer.from([0x01, 0x64, 0x00, 0x01, 0x86, 0xa0]); // 100000
     const res = parseTelemetryResponse(telemetryFrame(payload));

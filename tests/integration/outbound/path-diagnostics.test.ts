@@ -81,6 +81,44 @@ describe('outbound path diagnostics', () => {
     await expect(p).rejects.toBeInstanceOf(ProtocolError);
   });
 
+  it('a superseding discovery for the same contact survives the older one failing', async () => {
+    seedContact();
+    attach();
+    // Request A, then request B for the same contact: B supersedes A.
+    const pA = protocolSession()
+      .sendPathDiscoveryReq(`c:${PK}`)
+      .catch((e) => `A:${(e as Error).message}`);
+    await flush();
+    const pB = protocolSession().sendPathDiscoveryReq(`c:${PK}`);
+    expect(await pA).toMatch(/superseded/);
+
+    // A's dispatch now fails (RESP_ERR routes to A's older ack) — must NOT reject B.
+    let bSettled = false;
+    pB.then(
+      () => {
+        bSettled = true;
+      },
+      () => {
+        bSettled = true;
+      },
+    );
+    emit.packet(companionPacket(Buffer.from([0x01, 0x02]))); // RESP_ERR for A
+    await flush();
+    expect(bSettled).toBe(false);
+
+    // B completes normally: its dispatch confirms, then the discovery push lands.
+    emit.packet(companionPacket(respSent()));
+    await flush();
+    const push = Buffer.concat([
+      Buffer.from([0x8d, 0x00]),
+      Buffer.from(PREFIX, 'hex'),
+      Buffer.from([0x00]), // out_path_len 0
+      Buffer.from([0x00]), // in_path_len 0
+    ]);
+    emit.packet(companionPacket(push));
+    expect(await pB).toMatchObject({ pubKeyPrefixHex: PREFIX });
+  });
+
   it('getAdvertPath returns the cached path on RESP_ADVERT_PATH', async () => {
     seedContact();
     const fake = attach();

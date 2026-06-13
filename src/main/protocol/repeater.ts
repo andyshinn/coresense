@@ -560,7 +560,7 @@ const CAYENNE_TYPES: Record<number, CayenneDescriptor> = {
   }, // 0x71
   115: { name: 'Barometer', size: 2, decode: (b) => b.readUInt16BE(0) / 10, unit: 'hPa' }, // 0x73
   116: { name: 'Voltage', size: 2, decode: (b) => b.readUInt16BE(0) / 100, unit: 'V' }, // 0x74
-  117: { name: 'Current', size: 2, decode: (b) => b.readUInt16BE(0) / 1000, unit: 'A' }, // 0x75
+  117: { name: 'Current', size: 2, decode: (b) => b.readInt16BE(0) / 1000, unit: 'A' }, // 0x75 (signed)
   118: { name: 'Frequency', size: 4, decode: (b) => b.readUInt32BE(0), unit: 'Hz' }, // 0x76
   120: { name: 'Percentage', size: 1, decode: (b) => b.readUInt8(0), unit: '%' }, // 0x78
   121: { name: 'Altitude', size: 2, decode: (b) => b.readInt16BE(0), unit: 'm' }, // 0x79
