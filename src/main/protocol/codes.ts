@@ -128,6 +128,26 @@ export const CMD = {
   HAS_CONNECTION: 0x1c,
   // CMD_GET_ALLOWED_REPEAT_FREQ: [0x3c]. Replies RESP_ALLOWED_REPEAT_FREQ.
   GET_ALLOWED_REPEAT_FREQ: 0x3c,
+
+  // ---- Device admin (group C) — build-gated key import/export, PIN, reset ----
+
+  // CMD_EXPORT_PRIVATE_KEY: [0x17] (bare). On a build with
+  //   ENABLE_PRIVATE_KEY_EXPORT replies RESP_PRIVATE_KEY ([0x0e][64B prv_key]);
+  //   otherwise RESP_DISABLED ([0x0f]). The 64-byte blob is the ed25519
+  //   expanded private key (firmware PRV_KEY_SIZE=64; writeTo emits prv only).
+  EXPORT_PRIVATE_KEY: 0x17,
+  // CMD_IMPORT_PRIVATE_KEY: [0x18][64B prv_key] (65B; firmware requires len>=65).
+  //   Replies RESP_OK on save, RESP_ERR (ILLEGAL_ARG invalid key / FILE_IO_ERROR)
+  //   on failure, or RESP_DISABLED on a build without ENABLE_PRIVATE_KEY_IMPORT.
+  IMPORT_PRIVATE_KEY: 0x18,
+  // CMD_SET_DEVICE_PIN: [0x25][pin u32 LE] (5B). pin must be 0 (disable) or a
+  //   6-digit number (100000..999999); otherwise RESP_ERR (ILLEGAL_ARG). Sets
+  //   the BLE pairing PIN. Replies RESP_OK.
+  SET_DEVICE_PIN: 0x25,
+  // CMD_FACTORY_RESET: [0x33]"reset" (the literal 5 ASCII bytes; 6B total). The
+  //   firmware disables its serial interface BEFORE formatting the filesystem,
+  //   so no RESP reaches us — the link drops (like CMD_REBOOT). Fire-and-forget.
+  FACTORY_RESET: 0x33,
 } as const;
 
 // Protocol version we negotiate with the firmware. 4 matches the official
@@ -163,9 +183,13 @@ export const RESP = {
   //   [max_channels u8][...firmware/radio metadata...]
   //   v9+ adds client_repeat byte (~offset 80); v10+ adds path_hash_mode (~81).
   DEVICE_INFO: 0x0d,
-  // RESP_PRIVATE_KEY [0x0e][32B private key] — only emitted by fw ≥1.7.0 in
-  //   response to a CLI export request.
+  // RESP_PRIVATE_KEY [0x0e][64B prv_key] — reply to CMD_EXPORT_PRIVATE_KEY on a
+  //   build with ENABLE_PRIVATE_KEY_EXPORT. The 64-byte blob is the ed25519
+  //   expanded private key (firmware PRV_KEY_SIZE=64).
   PRIVATE_KEY: 0x0e,
+  // RESP_DISABLED [0x0f] (bare) — a build-gated command (private-key
+  //   export/import) is compiled out on this firmware build.
+  DISABLED: 0x0f,
   CONTACT_MSG_RECV_V3: 0x10,
   CHANNEL_MSG_RECV_V3: 0x11,
   CHANNEL_INFO: 0x12,

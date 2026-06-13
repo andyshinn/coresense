@@ -49,6 +49,7 @@ import {
 } from './features/contacts';
 import { contactsFullFeature } from './features/contactsFull';
 import { customVarsFeature, encodeGetCustomVar, encodeSetCustomVar } from './features/customVars';
+import * as deviceAdmin from './features/deviceAdmin';
 import { deviceInfoFeature, encodeDeviceQuery } from './features/deviceInfo';
 import * as directMessages from './features/directMessages';
 import { drainFeature, resetDrain, scheduleDrain } from './features/drain';
@@ -173,6 +174,7 @@ export class ProtocolSession {
     channelMessages.channelMessagesFeature,
     directMessages.directMessagesFeature,
     repeaterAdmin.repeaterAdminFeature,
+    deviceAdmin.deviceAdminFeature,
   ]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
@@ -215,6 +217,7 @@ export class ProtocolSession {
     resetDrain();
     directMessages.resetDmState('session stopped');
     repeaterAdmin.resetAdmin('session stopped');
+    deviceAdmin.resetDeviceAdmin('session stopped');
     this.stopLivenessPoll();
   }
 
@@ -505,6 +508,31 @@ export class ProtocolSession {
   /** The frequency ranges the radio is allowed to repeat on (region-dependent). */
   async getAllowedRepeatFreq(): Promise<misc.RepeatFreqRange[]> {
     return misc.getAllowedRepeatFreq(this.ctx);
+  }
+
+  // ---- Device admin (group C) -------------------------------------------
+
+  /** Export the device's 64-byte private key (hex). Rejects FeatureDisabledError
+   *  on a firmware build with private-key export compiled out. */
+  async exportPrivateKey(): Promise<string> {
+    return deviceAdmin.exportPrivateKey(this.ctx);
+  }
+
+  /** Import a 64-byte private key (hex), replacing the device identity. Rejects
+   *  ProtocolError on a bad key / FS error. */
+  async importPrivateKey(privKeyHex: string): Promise<void> {
+    return deviceAdmin.importPrivateKey(this.ctx, privKeyHex);
+  }
+
+  /** Set the BLE pairing PIN (0 disables it; otherwise a 6-digit number). */
+  async setDevicePin(pin: number): Promise<void> {
+    return deviceAdmin.setDevicePin(this.ctx, pin);
+  }
+
+  /** Wipe the device to factory state. The link drops mid-reset, so there is no
+   *  reply to await (like reboot()). */
+  async factoryReset(): Promise<void> {
+    return deviceAdmin.factoryReset(this.ctx);
   }
 
   async setRadioParams(opts: {
@@ -886,6 +914,8 @@ export class ProtocolSession {
       directMessages.resetDmState('transport disconnected');
       // Fail in-flight admin awaiters + drop login sessions.
       repeaterAdmin.resetAdmin('transport disconnected');
+      // Fail any in-flight private-key export awaiter.
+      deviceAdmin.resetDeviceAdmin('transport disconnected');
       // Fail any typed-reply awaiters (ctx.request with `expect`) so feature GETs
       // reject promptly on disconnect instead of waiting out their timeout.
       for (const queue of this.pendingTyped.values()) {
