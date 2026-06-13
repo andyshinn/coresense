@@ -30,9 +30,7 @@ export function QuickActions({ owner, client, idsOverride }: Props) {
   return (
     <div className="flex flex-col gap-2 group-data-[collapsible=icon]:hidden">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[9px] uppercase tracking-wide text-cs-text-dim">
-          Quick actions
-        </span>
+        <span className="font-mono text-[9px] uppercase tracking-wide text-cs-text-dim">Quick actions</span>
         <button
           type="button"
           title="Configure quick actions"
@@ -54,22 +52,11 @@ export function QuickActions({ owner, client, idsOverride }: Props) {
         </button>
       ) : (
         <div className="flex flex-col gap-1.5">
-          <QuickActionButton
-            def={defs[0]}
-            ctx={ctx}
-            variant="primary"
-            enabled={enabledOf(defs[0])}
-          />
+          <QuickActionButton def={defs[0]} ctx={ctx} variant="primary" enabled={enabledOf(defs[0])} />
           {defs.length > 1 && (
             <div className="flex gap-1.5">
               {defs.slice(1).map((d) => (
-                <QuickActionButton
-                  key={d.id}
-                  def={d}
-                  ctx={ctx}
-                  variant="secondary"
-                  enabled={enabledOf(d)}
-                />
+                <QuickActionButton key={d.id} def={d} ctx={ctx} variant="secondary" enabled={enabledOf(d)} />
               ))}
             </div>
           )}

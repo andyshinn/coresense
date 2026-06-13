@@ -36,13 +36,8 @@ export function formatLastSeen(ms: number): string {
 }
 
 /** First repeater whose pubkey hex starts with `prefix` (case-insensitive). */
-export function resolveRepeaterForPrefix(
-  prefix: string,
-  repeaters: Contact[],
-): Contact | undefined {
+export function resolveRepeaterForPrefix(prefix: string, repeaters: Contact[]): Contact | undefined {
   if (prefix.length === 0) return undefined;
   const lower = prefix.toLowerCase();
-  return repeaters.find(
-    (c) => c.kind === 'repeater' && c.publicKeyHex.toLowerCase().startsWith(lower),
-  );
+  return repeaters.find((c) => c.kind === 'repeater' && c.publicKeyHex.toLowerCase().startsWith(lower));
 }

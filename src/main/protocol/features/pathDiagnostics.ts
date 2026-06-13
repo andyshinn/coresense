@@ -230,10 +230,7 @@ function fullPubKey(contactKey: string, label: string): string {
 /** Discover the round-trip mesh path to a contact. Dispatches the request
  *  (rejecting ProtocolError if the radio can't send it) and resolves with the
  *  paths from PUSH_PATH_DISCOVERY_RESPONSE (or rejects on timeout/disconnect). */
-export function sendPathDiscoveryReq(
-  ctx: FeatureContext,
-  contactKey: string,
-): Promise<DiscoveredPath> {
+export function sendPathDiscoveryReq(ctx: FeatureContext, contactKey: string): Promise<DiscoveredPath> {
   const pubkey = fullPubKey(contactKey, 'path discovery');
   const prefixHex = pubkey.slice(0, 12);
   // Arm the response waiter before dispatch so a fast push can't be missed, then
@@ -256,10 +253,7 @@ export function sendPathDiscoveryReq(
 
 /** The device's cached advert path for a contact, or null when none is cached
  *  (the firmware answers RESP_ERR NOT_FOUND). */
-export async function getAdvertPath(
-  ctx: FeatureContext,
-  contactKey: string,
-): Promise<AdvertPath | null> {
+export async function getAdvertPath(ctx: FeatureContext, contactKey: string): Promise<AdvertPath | null> {
   const pubkey = fullPubKey(contactKey, 'get advert path');
   const frame = await ctx.requestOrNull(encodeGetAdvertPath(pubkey), RESP.ADVERT_PATH);
   return frame ? decodeAdvertPath(frame) : null;

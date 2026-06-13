@@ -3,11 +3,7 @@ import { sanitizeQuickActionIds } from '../../../../../src/renderer/features/qui
 
 describe('sanitizeQuickActionIds', () => {
   it('keeps known ids in order', () => {
-    expect(sanitizeQuickActionIds(['flood', 'gps', 'disconnect'])).toEqual([
-      'flood',
-      'gps',
-      'disconnect',
-    ]);
+    expect(sanitizeQuickActionIds(['flood', 'gps', 'disconnect'])).toEqual(['flood', 'gps', 'disconnect']);
   });
   it('drops unknown ids', () => {
     expect(sanitizeQuickActionIds(['flood', 'sendLoc', 'bogus', 'gps'])).toEqual(['flood', 'gps']);
@@ -16,9 +12,12 @@ describe('sanitizeQuickActionIds', () => {
     expect(sanitizeQuickActionIds(['gps', 'gps', 'flood'])).toEqual(['gps', 'flood']);
   });
   it('caps at 4', () => {
-    expect(
-      sanitizeQuickActionIds(['flood', 'direct', 'gps', 'shareLoc', 'copyKey', 'reboot']),
-    ).toEqual(['flood', 'direct', 'gps', 'shareLoc']);
+    expect(sanitizeQuickActionIds(['flood', 'direct', 'gps', 'shareLoc', 'copyKey', 'reboot'])).toEqual([
+      'flood',
+      'direct',
+      'gps',
+      'shareLoc',
+    ]);
   });
   it('returns an empty array for empty input', () => {
     expect(sanitizeQuickActionIds([])).toEqual([]);

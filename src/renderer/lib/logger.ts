@@ -59,9 +59,7 @@ log.attachTransport((logObj: unknown) => {
 
     const levelId = meta.logLevelId;
     const rawName = meta.logLevelName?.toLowerCase();
-    const level: LogLevel = VALID_LEVELS.has(rawName)
-      ? (rawName as LogLevel)
-      : (LEVEL_ID_TO_NAME[levelId] ?? 'info');
+    const level: LogLevel = VALID_LEVELS.has(rawName) ? (rawName as LogLevel) : (LEVEL_ID_TO_NAME[levelId] ?? 'info');
 
     // Build logger name: join parent names + own name
     const nameParts: string[] = [];

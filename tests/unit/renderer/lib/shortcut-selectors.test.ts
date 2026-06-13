@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  adjacentUnreadKey,
-  isTypingTarget,
-  nthChannelKey,
-} from '../../../../src/renderer/lib/shortcut-selectors';
+import { adjacentUnreadKey, isTypingTarget, nthChannelKey } from '../../../../src/renderer/lib/shortcut-selectors';
 import type { Channel } from '../../../../src/shared/types';
 
 function ch(key: string, name: string, order: number): Channel {

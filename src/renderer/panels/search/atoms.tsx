@@ -3,15 +3,7 @@ import { cn } from '../../lib/utils';
 
 const END_OF_DAY_MS = 86_399_999;
 
-export function SortPill({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
+export function SortPill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -74,9 +66,7 @@ export function DateInput({
 export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h3 className="mb-2 font-mono text-[10px] uppercase tracking-wider text-cs-text-muted">
-        {title}
-      </h3>
+      <h3 className="mb-2 font-mono text-[10px] uppercase tracking-wider text-cs-text-muted">{title}</h3>
       {children}
     </section>
   );

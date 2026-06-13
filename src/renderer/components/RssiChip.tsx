@@ -23,10 +23,7 @@ export function RssiChip({ rssi, hops, showHops = true, className }: Props) {
   const bars = barsFor(rssi);
   return (
     <span
-      className={cn(
-        'inline-flex items-center gap-1.5 font-mono text-[10px] text-cs-text-muted',
-        className,
-      )}
+      className={cn('inline-flex items-center gap-1.5 font-mono text-[10px] text-cs-text-muted', className)}
       title={`${rssi} dBm${showHops && hops != null ? ` · ${hops} hops` : ''}`}
     >
       <span className="flex items-end gap-px" aria-hidden="true">

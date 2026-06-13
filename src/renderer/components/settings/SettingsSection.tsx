@@ -35,19 +35,14 @@ export function SettingsSection({
   children,
 }: SettingsSectionProps) {
   return (
-    <section
-      data-section={id}
-      className="scroll-mt-4 border-b border-cs-border py-5 last:border-b-0"
-    >
+    <section data-section={id} className="scroll-mt-4 border-b border-cs-border py-5 last:border-b-0">
       <header className="mb-3 flex items-start gap-3">
         <div className="flex-1">
           <h2 className="flex items-center gap-2 text-[13px] font-semibold text-cs-text">
             <Icon className="size-3.5 shrink-0 text-cs-accent" aria-hidden />
             {title}
           </h2>
-          {description && (
-            <p className="mt-1 max-w-115 text-[11px] text-cs-text-muted">{description}</p>
-          )}
+          {description && <p className="mt-1 max-w-115 text-[11px] text-cs-text-muted">{description}</p>}
         </div>
         {onSave && (
           <div className="flex shrink-0 items-center gap-2">

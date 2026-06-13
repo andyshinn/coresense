@@ -19,10 +19,7 @@ describe('installStartupTransport', () => {
       },
     };
 
-    const result = await installStartupTransport(
-      { CORESENSE_FAKE_TRANSPORT: fixture } as NodeJS.ProcessEnv,
-      manager,
-    );
+    const result = await installStartupTransport({ CORESENSE_FAKE_TRANSPORT: fixture } as NodeJS.ProcessEnv, manager);
 
     expect(installed).toBeInstanceOf(FileReplayTransport);
     expect(result).toBe(installed);

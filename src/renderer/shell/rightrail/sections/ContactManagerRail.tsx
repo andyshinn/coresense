@@ -1,15 +1,4 @@
-import {
-  Ban,
-  ChevronLeft,
-  Download,
-  type LucideIcon,
-  Minus,
-  Plus,
-  Settings,
-  Star,
-  Trash2,
-  Upload,
-} from 'lucide-react';
+import { Ban, ChevronLeft, Download, type LucideIcon, Minus, Plus, Settings, Star, Trash2, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import {
@@ -44,12 +33,7 @@ function RailActionButton({
   tone?: Tone;
   disabled?: boolean;
 }) {
-  const iconTone =
-    tone === 'danger'
-      ? 'text-cs-danger'
-      : tone === 'accent'
-        ? 'text-cs-accent'
-        : 'text-cs-text-muted';
+  const iconTone = tone === 'danger' ? 'text-cs-danger' : tone === 'accent' ? 'text-cs-accent' : 'text-cs-text-muted';
   const labelTone = tone === 'danger' ? 'text-cs-danger' : 'text-cs-text';
   return (
     <button
@@ -68,11 +52,7 @@ function RailActionButton({
 }
 
 function SubHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">
-      {children}
-    </div>
-  );
+  return <div className="font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">{children}</div>;
 }
 
 function BulkActions({ client }: { client: ApiClient | null }) {
@@ -165,11 +145,7 @@ function BulkActions({ client }: { client: ApiClient | null }) {
           }
         />
       </div>
-      <button
-        type="button"
-        onClick={clearCmSelected}
-        className="text-[11px] text-cs-text-dim hover:text-cs-text"
-      >
+      <button type="button" onClick={clearCmSelected} className="text-[11px] text-cs-text-dim hover:text-cs-text">
         Clear selection
       </button>
     </div>
@@ -200,9 +176,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
     if (!client) return;
     try {
       await Promise.all(discoveredOnly.map((c) => api.addToRadio(client, c.publicKeyHex)));
-      notify.success(
-        `Added ${discoveredOnly.length} contact${discoveredOnly.length === 1 ? '' : 's'} to radio`,
-      );
+      notify.success(`Added ${discoveredOnly.length} contact${discoveredOnly.length === 1 ? '' : 's'} to radio`);
     } catch (err) {
       notify.error(`Action failed: ${(err as Error).message}`, err);
     }
@@ -212,9 +186,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
     if (!client) return;
     try {
       await Promise.all(onRadioRows.map((c) => api.removeFromRadio(client, c.publicKeyHex)));
-      notify.success(
-        `Removed ${onRadioRows.length} contact${onRadioRows.length === 1 ? '' : 's'} from radio`,
-      );
+      notify.success(`Removed ${onRadioRows.length} contact${onRadioRows.length === 1 ? '' : 's'} from radio`);
     } catch (err) {
       notify.error(`Action failed: ${(err as Error).message}`, err);
     }
@@ -224,8 +196,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
     if (!client) return;
     const now = Date.now();
     const stale = discovered.filter(
-      (d) =>
-        d.onRadio && !d.favourite && d.lastAdvertMs != null && now - d.lastAdvertMs > thresholdMs,
+      (d) => d.onRadio && !d.favourite && d.lastAdvertMs != null && now - d.lastAdvertMs > thresholdMs,
     );
     if (stale.length === 0) {
       notify.info(`No contacts older than ${label}`);
@@ -233,9 +204,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
     }
     try {
       await Promise.all(stale.map((d) => api.removeFromRadio(client, d.publicKeyHex)));
-      notify.success(
-        `Pruned ${stale.length} contact${stale.length === 1 ? '' : 's'} older than ${label}`,
-      );
+      notify.success(`Pruned ${stale.length} contact${stale.length === 1 ? '' : 's'} older than ${label}`);
     } catch (err) {
       notify.error(`Prune failed: ${(err as Error).message}`, err);
     }
@@ -258,9 +227,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <SubHeader>Quick actions</SubHeader>
-          <span className="font-mono text-[9.5px] text-cs-text-dim">
-            FILTERED · {rows.length} shown
-          </span>
+          <span className="font-mono text-[9.5px] text-cs-text-dim">FILTERED · {rows.length} shown</span>
         </div>
         <div className="space-y-1.5">
           <RailActionButton
@@ -271,12 +238,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
             disabled={!client}
             onClick={addAllFiltered}
           />
-          <RailActionButton
-            icon={Minus}
-            label="Remove all filtered"
-            disabled={!client}
-            onClick={removeAllFiltered}
-          />
+          <RailActionButton icon={Minus} label="Remove all filtered" disabled={!client} onClick={removeAllFiltered} />
         </div>
       </div>
 
@@ -300,16 +262,8 @@ function ListActions({ client }: { client: ApiClient | null }) {
 
       <div className="space-y-1.5 border-t border-cs-border pt-3">
         <div className="grid grid-cols-2 gap-1.5">
-          <RailActionButton
-            icon={Upload}
-            label="Import"
-            onClick={() => notify.info('Import JSON — coming soon')}
-          />
-          <RailActionButton
-            icon={Download}
-            label="Export"
-            onClick={() => notify.info('Export JSON — coming soon')}
-          />
+          <RailActionButton icon={Upload} label="Import" onClick={() => notify.info('Import JSON — coming soon')} />
+          <RailActionButton icon={Download} label="Export" onClick={() => notify.info('Export JSON — coming soon')} />
         </div>
         <RailActionButton
           icon={Trash2}
@@ -337,8 +291,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
           <DialogHeader>
             <DialogTitle>Clear discovered list</DialogTitle>
             <DialogDescription>
-              Delete {clearCount} discovered-only contact{clearCount === 1 ? '' : 's'}? On-radio
-              contacts are kept.
+              Delete {clearCount} discovered-only contact{clearCount === 1 ? '' : 's'}? On-radio contacts are kept.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -360,9 +313,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
         </DialogContent>
       </Dialog>
 
-      {showBlock && (
-        <BlockSenderDialog client={client} open prefill={{}} onClose={() => setShowBlock(false)} />
-      )}
+      {showBlock && <BlockSenderDialog client={client} open prefill={{}} onClose={() => setShowBlock(false)} />}
     </div>
   );
 }
@@ -421,11 +372,7 @@ export function DiscoverySettings() {
       <div className="space-y-1.5">
         <KeyValueRow label="Auto-add" value={autoAddLabel} />
         <KeyValueRow label="Overwrite oldest" value={cfg.overwriteOldest ? 'On' : 'Off'} />
-        <KeyValueRow
-          label="Max hops"
-          value={cfg.maxHops == null ? 'No limit' : String(cfg.maxHops)}
-          mono
-        />
+        <KeyValueRow label="Max hops" value={cfg.maxHops == null ? 'No limit' : String(cfg.maxHops)} mono />
       </div>
       <RailActionButton
         icon={Settings}

@@ -16,15 +16,7 @@ export interface MenuActionHandlerDeps {
 
 /** Factory for the menu/keyboard action dispatcher used by App.tsx. */
 export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: MenuAction) => void {
-  const {
-    baseUrl,
-    apiKey,
-    cycleThemePref,
-    toggleLeftNav,
-    toggleRightRail,
-    togglePin,
-    setActiveKey,
-  } = deps;
+  const { baseUrl, apiKey, cycleThemePref, toggleLeftNav, toggleRightRail, togglePin, setActiveKey } = deps;
   return (action: MenuAction) => {
     switch (action.kind) {
       case 'cycleTheme':

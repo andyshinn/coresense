@@ -28,9 +28,7 @@ export function SiteInfoCard({ site }: Props) {
           {site.members.length}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold leading-tight text-cs-text">
-            Co-located site
-          </div>
+          <div className="truncate text-sm font-semibold leading-tight text-cs-text">Co-located site</div>
           <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">
             {site.members.length} nodes · within {coLocationMeters} m
           </div>
@@ -55,13 +53,9 @@ export function SiteInfoCard({ site }: Props) {
             >
               <MarkerShape type={m.kind} size={16} />
               <span className="min-w-0 flex-1 truncate">{m.name}</span>
-              <span className="font-mono text-[10px] text-cs-text-dim">
-                {MARKER_TYPES[m.kind].label}
-              </span>
+              <span className="font-mono text-[10px] text-cs-text-dim">{MARKER_TYPES[m.kind].label}</span>
               {m.lastSeenMs ? (
-                <span className="font-mono text-[10px] text-cs-text-dim">
-                  {fmtRelative(m.lastSeenMs)}
-                </span>
+                <span className="font-mono text-[10px] text-cs-text-dim">{fmtRelative(m.lastSeenMs)}</span>
               ) : null}
             </button>
           </li>

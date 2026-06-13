@@ -80,13 +80,7 @@ export function buildGotoItems({
       id: `goto:${c.key}`,
       label: c.name,
       hint:
-        c.kind === 'repeater'
-          ? 'Repeater'
-          : c.kind === 'room'
-            ? 'Room'
-            : c.kind === 'sensor'
-              ? 'Sensor'
-              : 'Direct message',
+        c.kind === 'repeater' ? 'Repeater' : c.kind === 'room' ? 'Room' : c.kind === 'sensor' ? 'Sensor' : 'Direct message',
       group: 'goto',
       groupLabel: 'Go to',
       icon: c.kind === 'repeater' ? Radio : MessageCircle,

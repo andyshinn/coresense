@@ -113,9 +113,9 @@ export const messagesStore = {
 
   findById(id: string): Message | null {
     const db = openDb();
-    const row = db
-      .prepare(`SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages WHERE mid = ?`)
-      .get(id) as Row | undefined;
+    const row = db.prepare(`SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages WHERE mid = ?`).get(id) as
+      | Row
+      | undefined;
     return row ? rowToMessage(row) : null;
   },
 

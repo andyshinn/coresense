@@ -67,14 +67,10 @@ describe('matchesEvent', () => {
     expect(matchesEvent(ev({ key: '?', shiftKey: false }), help)).toBe(true);
   });
   it('matches Shift+Escape', () => {
-    expect(
-      matchesEvent(ev({ shiftKey: true, key: 'Escape' }), { mods: ['shift'], key: 'Escape' }),
-    ).toBe(true);
+    expect(matchesEvent(ev({ shiftKey: true, key: 'Escape' }), { mods: ['shift'], key: 'Escape' })).toBe(true);
     expect(matchesEvent(ev({ key: 'Escape' }), { mods: ['shift'], key: 'Escape' })).toBe(false);
   });
   it('matches Alt+ArrowUp', () => {
-    expect(
-      matchesEvent(ev({ altKey: true, key: 'ArrowUp' }), { mods: ['alt'], key: 'ArrowUp' }),
-    ).toBe(true);
+    expect(matchesEvent(ev({ altKey: true, key: 'ArrowUp' }), { mods: ['alt'], key: 'ArrowUp' })).toBe(true);
   });
 });

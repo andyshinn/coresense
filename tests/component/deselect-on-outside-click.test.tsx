@@ -25,9 +25,7 @@ function RailChevron() {
   const [open, setOpen] = useState(false);
   return (
     <button type="button" aria-expanded={open} onClick={() => flushSync(() => setOpen((v) => !v))}>
-      <span data-testid="chevron">
-        {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-      </span>
+      <span data-testid="chevron">{open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>
     </button>
   );
 }
@@ -48,11 +46,7 @@ function RowAndRail() {
   useDeselectOnOutsideClick();
   return (
     <div>
-      <button
-        type="button"
-        data-testid="message-row"
-        onClick={() => useStore.getState().setSelectedMessage('msg-2')}
-      >
+      <button type="button" data-testid="message-row" onClick={() => useStore.getState().setSelectedMessage('msg-2')}>
         a message
       </button>
       <button type="button" data-testid="outside">

@@ -75,12 +75,7 @@ export interface BuildStyleOptions {
   theme: 'light' | 'dark';
 }
 
-export function buildStyle({
-  baseUrl,
-  manifest,
-  settings,
-  theme,
-}: BuildStyleOptions): StyleSpecification {
+export function buildStyle({ baseUrl, manifest, settings, theme }: BuildStyleOptions): StyleSpecification {
   if (!manifest.basemap) {
     throw new Error('buildStyle requires a basemap in the manifest');
   }
@@ -158,11 +153,7 @@ export function maxZoomForSettings(manifest: TileManifest, settings: MapSettings
 // road colors and label haloes win when they coincide. Done with a single
 // search for the first id starting with `roads_` to keep the @protomaps/basemaps
 // schema as the source of truth.
-function insertHillshade(
-  style: StyleSpecification,
-  visible: boolean,
-  theme: 'light' | 'dark',
-): void {
+function insertHillshade(style: StyleSpecification, visible: boolean, theme: 'light' | 'dark'): void {
   const insertBefore = style.layers.findIndex((l) => l.id.startsWith('roads_'));
   const colors = hillshadeColors(theme);
   const layer = {

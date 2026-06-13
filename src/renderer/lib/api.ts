@@ -73,8 +73,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ deviceId }),
     }),
-  disconnect: (c: ApiClient) =>
-    request<{ ok: true }>(c, '/api/transport/disconnect', { method: 'POST' }),
+  disconnect: (c: ApiClient) => request<{ ok: true }>(c, '/api/transport/disconnect', { method: 'POST' }),
   putUiState: (c: ApiClient, state: UiState) =>
     request<{ ok: true }>(c, '/api/ui-state', {
       method: 'PUT',
@@ -95,11 +94,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ rules }),
     }).then((r) => r.rules),
-  updateBlockRule: (
-    c: ApiClient,
-    id: string,
-    patch: Partial<Omit<BlockRule, 'id' | 'createdAt'>>,
-  ) =>
+  updateBlockRule: (c: ApiClient, id: string, patch: Partial<Omit<BlockRule, 'id' | 'createdAt'>>) =>
     request<{ rule: BlockRule }>(c, `/api/blocks/${encodeURIComponent(id)}`, {
       method: 'PUT',
       body: JSON.stringify(patch),
@@ -128,10 +123,8 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(cfg),
     }),
-  refreshDevice: (c: ApiClient) =>
-    request<{ ok: true }>(c, '/api/device/refresh', { method: 'POST' }),
-  rebootDevice: (c: ApiClient) =>
-    request<{ ok: true }>(c, '/api/device/reboot', { method: 'POST' }),
+  refreshDevice: (c: ApiClient) => request<{ ok: true }>(c, '/api/device/refresh', { method: 'POST' }),
+  rebootDevice: (c: ApiClient) => request<{ ok: true }>(c, '/api/device/reboot', { method: 'POST' }),
   // Reply to a `requestQuit` broadcast — tells main it's safe to quit now.
   confirmQuit: (c: ApiClient) => request<{ ok: true }>(c, '/api/app/quit', { method: 'POST' }),
   // Restart the entire app — used after proxy settings (port/bind/enabled/mdns)
@@ -147,21 +140,17 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ key }),
     }),
-  clearProtomapsApiKey: (c: ApiClient) =>
-    request<{ ok: true; hasKey: false }>(c, '/api/map/api-key', { method: 'DELETE' }),
-  getMessages: (c: ApiClient, key: string) =>
-    request<Message[]>(c, `/api/messages/${encodeURIComponent(key)}`),
+  clearProtomapsApiKey: (c: ApiClient) => request<{ ok: true; hasKey: false }>(c, '/api/map/api-key', { method: 'DELETE' }),
+  getMessages: (c: ApiClient, key: string) => request<Message[]>(c, `/api/messages/${encodeURIComponent(key)}`),
   sendMessage: (c: ApiClient, key: string, body: string) =>
     request<{ ok: true; id: string }>(c, `/api/messages/${encodeURIComponent(key)}`, {
       method: 'POST',
       body: JSON.stringify({ body }),
     }),
   pushChannelToDevice: (c: ApiClient, key: string) =>
-    request<{ ok: true; idx: number }>(
-      c,
-      `/api/channels/${encodeURIComponent(key)}/push-to-device`,
-      { method: 'POST' },
-    ),
+    request<{ ok: true; idx: number }>(c, `/api/channels/${encodeURIComponent(key)}/push-to-device`, {
+      method: 'POST',
+    }),
   removeChannelFromDevice: (c: ApiClient, key: string) =>
     request<{ ok: true }>(c, `/api/channels/${encodeURIComponent(key)}/remove-from-device`, {
       method: 'POST',
@@ -199,10 +188,7 @@ export const api = {
       method: 'POST',
     }),
   repeaterSession: (c: ApiClient, key: string) =>
-    request<{ session: RepeaterAdminSession | null }>(
-      c,
-      `/api/repeater/${encodeURIComponent(key)}/session`,
-    ),
+    request<{ session: RepeaterAdminSession | null }>(c, `/api/repeater/${encodeURIComponent(key)}/session`),
   repeaterLogin: (c: ApiClient, key: string, password: string) =>
     request<{
       ok: true;
@@ -215,11 +201,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ password }),
     }),
-  setContactPath: (
-    c: ApiClient,
-    key: string,
-    body: { outPathHex: string; preferDirect?: boolean },
-  ) =>
+  setContactPath: (c: ApiClient, key: string, body: { outPathHex: string; preferDirect?: boolean }) =>
     request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/path`, {
       method: 'PUT',
       body: JSON.stringify(body),
@@ -242,8 +224,7 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ favourite }),
     }),
-  clearDiscovered: (c: ApiClient) =>
-    request<{ ok: true }>(c, `/api/discovered-contacts/clear`, { method: 'POST' }),
+  clearDiscovered: (c: ApiClient) => request<{ ok: true }>(c, `/api/discovered-contacts/clear`, { method: 'POST' }),
   setPathHashMode: (c: ApiClient, size: 1 | 2 | 4) =>
     request<{ ok: true }>(c, '/api/radio/path-hash-mode', {
       method: 'PUT',
@@ -254,42 +235,32 @@ export const api = {
       method: 'POST',
     }),
   repeaterAcl: (c: ApiClient, key: string) =>
-    request<{ ok: true; entries: RepeaterAclEntry[] }>(
-      c,
-      `/api/repeater/${encodeURIComponent(key)}/acl`,
-      { method: 'POST' },
-    ),
+    request<{ ok: true; entries: RepeaterAclEntry[] }>(c, `/api/repeater/${encodeURIComponent(key)}/acl`, {
+      method: 'POST',
+    }),
   repeaterNeighbours: (
     c: ApiClient,
     key: string,
     opts: { count?: number; offset?: number; orderBy?: number; prefixLen?: number } = {},
   ) =>
-    request<{ ok: true; page: RepeaterNeighboursPage }>(
-      c,
-      `/api/repeater/${encodeURIComponent(key)}/neighbours`,
-      { method: 'POST', body: JSON.stringify(opts) },
-    ),
+    request<{ ok: true; page: RepeaterNeighboursPage }>(c, `/api/repeater/${encodeURIComponent(key)}/neighbours`, {
+      method: 'POST',
+      body: JSON.stringify(opts),
+    }),
   repeaterOwner: (c: ApiClient, key: string) =>
-    request<{ ok: true; info: RepeaterOwnerInfo }>(
-      c,
-      `/api/repeater/${encodeURIComponent(key)}/owner`,
-      { method: 'POST' },
-    ),
+    request<{ ok: true; info: RepeaterOwnerInfo }>(c, `/api/repeater/${encodeURIComponent(key)}/owner`, {
+      method: 'POST',
+    }),
   repeaterCli: (c: ApiClient, key: string, command: string) =>
     request<{ ok: true; reply: string }>(c, `/api/repeater/${encodeURIComponent(key)}/cli`, {
       method: 'POST',
       body: JSON.stringify({ command }),
     }),
-  repeaterTrace: (
-    c: ApiClient,
-    key: string,
-    payload: { tag: number; authCode?: number; flags?: number; pathHex: string },
-  ) =>
-    request<{ ok: true; trace: RepeaterTrace }>(
-      c,
-      `/api/repeater/${encodeURIComponent(key)}/trace`,
-      { method: 'POST', body: JSON.stringify(payload) },
-    ),
+  repeaterTrace: (c: ApiClient, key: string, payload: { tag: number; authCode?: number; flags?: number; pathHex: string }) =>
+    request<{ ok: true; trace: RepeaterTrace }>(c, `/api/repeater/${encodeURIComponent(key)}/trace`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   repeaterLocalStats: (c: ApiClient, subtype: 'CORE' | 'RADIO' | 'PACKETS') =>
     request<{ ok: true; stats: RepeaterLocalStats }>(c, '/api/repeater/local/stats', {
       method: 'POST',

@@ -14,8 +14,7 @@ const TELEMETRY_MODE_OPTIONS = [
   { value: '2', label: 'Allow all' },
 ] as const;
 
-const eqTelemetry = (a: TelemetryPolicy, b: TelemetryPolicy) =>
-  a.base === b.base && a.loc === b.loc && a.env === b.env;
+const eqTelemetry = (a: TelemetryPolicy, b: TelemetryPolicy) => a.base === b.base && a.loc === b.loc && a.env === b.env;
 
 export function TelemetrySection({ client }: SectionProps) {
   const saved = useStore((s) => s.telemetryPolicy);
@@ -53,9 +52,7 @@ export function TelemetrySection({ client }: SectionProps) {
           <Select<string>
             value={String(draft.base)}
             options={TELEMETRY_MODE_OPTIONS}
-            onChange={(v) =>
-              setDraft((s) => ({ ...s, base: Number(v) as TelemetryPolicy['base'] }))
-            }
+            onChange={(v) => setDraft((s) => ({ ...s, base: Number(v) as TelemetryPolicy['base'] }))}
           />
         }
       />

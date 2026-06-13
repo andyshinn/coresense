@@ -2,11 +2,7 @@ import { MapPinOff } from 'lucide-react';
 import { MarkerShape } from '../../../components/map/markers/MarkerShape';
 import { fmtSnr, SignalBars, snrTokenVar } from '../../../components/path/SignalBars';
 import { Switch } from '../../../components/ui/switch';
-import {
-  NEIGHBOUR_SORTS,
-  type NeighbourSortKey,
-  type ResolvedNeighbour,
-} from '../../../lib/neighbours';
+import { NEIGHBOUR_SORTS, type NeighbourSortKey, type ResolvedNeighbour } from '../../../lib/neighbours';
 
 interface NeighbourListProps {
   neighbours: ResolvedNeighbour[]; // already resolved, sorted, and count-sliced
@@ -100,10 +96,7 @@ function NeighbourRow({
       </span>
       <span className="flex shrink-0 flex-col items-end gap-0.5">
         <SignalBars snr={n.snrDb} size={12} />
-        <span
-          className="font-mono text-[10.5px] tabular-nums"
-          style={{ color: `rgb(var(${snrTokenVar(n.snrDb)}))` }}
-        >
+        <span className="font-mono text-[10.5px] tabular-nums" style={{ color: `rgb(var(${snrTokenVar(n.snrDb)}))` }}>
           {fmtSnr(n.snrDb)}
         </span>
       </span>
@@ -146,12 +139,7 @@ export function NeighbourList({
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2 text-[11.5px] text-cs-text-muted">
           <span>Show names on map</span>
-          <Switch
-            size="sm"
-            checked={showNames}
-            onCheckedChange={onShowNames}
-            aria-label="Show names on map"
-          />
+          <Switch size="sm" checked={showNames} onCheckedChange={onShowNames} aria-label="Show names on map" />
         </div>
         <label className="flex flex-col gap-1 text-[11px] text-cs-text-muted">
           Order
@@ -203,9 +191,7 @@ export function NeighbourList({
 
       {/* Body */}
       {!hasFetched ? (
-        <p className="py-3 text-center text-[11px] text-cs-text-dim">
-          Press “Fetch neighbours” to query the repeater.
-        </p>
+        <p className="py-3 text-center text-[11px] text-cs-text-dim">Press “Fetch neighbours” to query the repeater.</p>
       ) : neighbours.length === 0 ? (
         <p className="py-3 text-center text-[11px] text-cs-text-dim">No neighbours reported.</p>
       ) : (

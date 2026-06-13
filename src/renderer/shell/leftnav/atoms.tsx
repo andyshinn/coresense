@@ -1,10 +1,6 @@
 import { MoreHorizontal } from 'lucide-react';
 import type { ReactNode } from 'react';
-import {
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-} from '../../components/ui/sidebar';
+import { SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '../../components/ui/sidebar';
 import { cn } from '../../lib/utils';
 
 /** Active styling that survives hover for top-level and sub buttons in the left nav. */
@@ -35,11 +31,7 @@ export function UnreadChip({ count }: { count: number }) {
 export function ShowMoreRow({ count, onClick }: { count: number; onClick: () => void }) {
   return (
     <SidebarMenuSubItem>
-      <SidebarMenuSubButton
-        onClick={onClick}
-        className="text-cs-text-muted hover:text-cs-text"
-        asChild
-      >
+      <SidebarMenuSubButton onClick={onClick} className="text-cs-text-muted hover:text-cs-text" asChild>
         <button type="button">
           <MoreHorizontal />
           <span>Show {count} more</span>

@@ -9,23 +9,12 @@ import {
 
 describe('slot operations', () => {
   it('availableToAdd returns catalog ids not already used', () => {
-    expect(availableToAdd(['flood', 'gps'])).toEqual([
-      'direct',
-      'shareLoc',
-      'copyKey',
-      'reboot',
-      'disconnect',
-    ]);
+    expect(availableToAdd(['flood', 'gps'])).toEqual(['direct', 'shareLoc', 'copyKey', 'reboot', 'disconnect']);
   });
   it('addSlot appends, ignoring duplicates and the 4-slot cap', () => {
     expect(addSlot(['flood'], 'gps')).toEqual(['flood', 'gps']);
     expect(addSlot(['flood'], 'flood')).toEqual(['flood']);
-    expect(addSlot(['flood', 'direct', 'gps', 'shareLoc'], 'copyKey')).toEqual([
-      'flood',
-      'direct',
-      'gps',
-      'shareLoc',
-    ]);
+    expect(addSlot(['flood', 'direct', 'gps', 'shareLoc'], 'copyKey')).toEqual(['flood', 'direct', 'gps', 'shareLoc']);
   });
   it('removeSlot removes by index', () => {
     expect(removeSlot(['flood', 'gps', 'disconnect'], 1)).toEqual(['flood', 'disconnect']);

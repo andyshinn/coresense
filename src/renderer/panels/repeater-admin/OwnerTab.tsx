@@ -28,9 +28,7 @@ export function OwnerTab({ contact, client }: Props) {
   return (
     <div className="flex h-full flex-col gap-3 overflow-auto p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">
-          Owner info
-        </h3>
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">Owner info</h3>
         <button
           type="button"
           onClick={load}

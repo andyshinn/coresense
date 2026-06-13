@@ -25,15 +25,12 @@ export function MapView({ client }: MapViewProps) {
             The bundled basemap and terrain extracts aren't present in this build. Drop{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">basemap.pmtiles</code> and{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">terrain.pmtiles</code> into{' '}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">resources/tiles/</code> and
-            relaunch — or run{' '}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">git lfs pull</code> if you cloned
-            without LFS.
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">resources/tiles/</code> and relaunch — or run{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">git lfs pull</code> if you cloned without LFS.
           </p>
           <p className="text-xs text-muted-foreground">
-            See <code className="rounded bg-muted px-1 py-0.5 text-xs">scripts/build-tiles.md</code>{' '}
-            for instructions on generating your own extracts with{' '}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">pmtiles extract</code>.
+            See <code className="rounded bg-muted px-1 py-0.5 text-xs">scripts/build-tiles.md</code> for instructions on
+            generating your own extracts with <code className="rounded bg-muted px-1 py-0.5 text-xs">pmtiles extract</code>.
           </p>
         </div>
       </div>
@@ -43,9 +40,7 @@ export function MapView({ client }: MapViewProps) {
   if (!manifest.basemap) {
     return (
       <div className="flex h-full w-full items-center justify-center p-8">
-        <p className="text-sm text-muted-foreground">
-          Basemap extract is missing; only terrain is loaded.
-        </p>
+        <p className="text-sm text-muted-foreground">Basemap extract is missing; only terrain is loaded.</p>
       </div>
     );
   }

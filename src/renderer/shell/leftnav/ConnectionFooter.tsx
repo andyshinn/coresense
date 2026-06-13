@@ -48,8 +48,7 @@ export function ConnectionFooter({
   const justFinished = state === 'connected' && sync.phase === 'done';
   const [reconnecting, setReconnecting] = useState(false);
   const lastDevice = loadLastDevice();
-  const canReconnect =
-    !!client && !!lastDevice && (state === 'idle' || state === 'error') && !reconnecting;
+  const canReconnect = !!client && !!lastDevice && (state === 'idle' || state === 'error') && !reconnecting;
 
   const handleReconnect = useCallback(
     async (e: MouseEvent) => {
@@ -92,28 +91,15 @@ export function ConnectionFooter({
           tooltip={label}
           isActive={active}
           onClick={onClick}
-          className={cn(
-            ACTIVE_BUTTON_CLASS,
-            'h-auto flex-col items-stretch gap-1.5 group-data-[collapsible=icon]:flex-row',
-          )}
+          className={cn(ACTIVE_BUTTON_CLASS, 'h-auto flex-col items-stretch gap-1.5 group-data-[collapsible=icon]:flex-row')}
         >
           <span className="flex w-full items-center gap-2">
-            <Bluetooth
-              aria-hidden="true"
-              className="shrink-0 group-data-[collapsible=icon]:hidden"
-            />
+            <Bluetooth aria-hidden="true" className="shrink-0 group-data-[collapsible=icon]:hidden" />
             {/* In icon mode this dot is the only visible element. Bumping it
                 from size-2 to size-2.5 there gives a more legible target inside
                 the 32px icon button. */}
-            <span
-              className={cn(
-                'size-2 shrink-0 rounded-full group-data-[collapsible=icon]:size-2.5',
-                dotClass,
-              )}
-            />
-            <span className="flex-1 truncate text-left group-data-[collapsible=icon]:hidden">
-              {label}
-            </span>
+            <span className={cn('size-2 shrink-0 rounded-full group-data-[collapsible=icon]:size-2.5', dotClass)} />
+            <span className="flex-1 truncate text-left group-data-[collapsible=icon]:hidden">{label}</span>
             {syncing && (
               <span className="tabular-nums text-[10px] text-cs-text-dim group-data-[collapsible=icon]:hidden">
                 {done}/{total}

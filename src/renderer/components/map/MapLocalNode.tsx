@@ -40,9 +40,7 @@ export function MapLocalNode({ map }: Props) {
           <text x="${(SIZE + 16) / 2}" y="${(SIZE + 16) / 2 + 3}" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="8" font-weight="700" fill="#0c0a06">YOU</text>
         </svg>
       `;
-      markerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([lon, lat])
-        .addTo(map);
+      markerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lon, lat]).addTo(map);
     } else {
       markerRef.current.setLngLat([lon, lat]);
     }

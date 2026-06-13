@@ -53,8 +53,7 @@ export function MapClusters({ map }: Props) {
   // every pan.
   const groupedItems = useMemo(() => {
     const now = Date.now();
-    const cutoff =
-      settings.lastHeardHours > 0 ? settings.lastHeardHours * HOUR_MS : Number.POSITIVE_INFINITY;
+    const cutoff = settings.lastHeardHours > 0 ? settings.lastHeardHours * HOUR_MS : Number.POSITIVE_INFINITY;
     const filtered = contacts.filter((c) => {
       if (!hasValidFix(c)) return false;
       if (!settings.kindFilters[c.kind]) return false;
@@ -85,7 +84,9 @@ export function MapClusters({ map }: Props) {
   // Render the markers. Wrapped in a ref so the map move handler can re-fire
   // it without taking React state as a dependency (which would force the
   // closure to capture stale settings/contacts on every move).
-  const renderRef = useRef<() => void>(() => {});
+  const renderRef = useRef<() => void>(() => {
+    /* assigned below */
+  });
 
   renderRef.current = () => {
     if (!map) return;
@@ -93,8 +94,7 @@ export function MapClusters({ map }: Props) {
     const wanted = new Set<string>();
 
     const now = Date.now();
-    const cutoffMs =
-      settings.lastHeardHours > 0 ? settings.lastHeardHours * HOUR_MS : Number.POSITIVE_INFINITY;
+    const cutoffMs = settings.lastHeardHours > 0 ? settings.lastHeardHours * HOUR_MS : Number.POSITIVE_INFINITY;
 
     const contactState = (c: Contact, selected: boolean) => {
       const stale = typeof c.lastSeenMs === 'number' && now - c.lastSeenMs > cutoffMs;
@@ -106,10 +106,7 @@ export function MapClusters({ map }: Props) {
       };
     };
 
-    const upsertContactMarker = (
-      item: Extract<GroupedItem, { kind: 'single' }>,
-      siteSelected = false,
-    ) => {
+    const upsertContactMarker = (item: Extract<GroupedItem, { kind: 'single' }>, siteSelected = false) => {
       const c = item.contact;
       upsertContactLikeMarker({
         map,
@@ -183,11 +180,7 @@ export function MapClusters({ map }: Props) {
     // the spread feels the same at every zoom; sits above other HTML markers
     // (z-index in CSS) so it visually scrims surrounding nodes — pointer-events
     // none so clicks pass through to the canvas (empty-map handler dismisses).
-    const upsertSpiderDisc = (
-      siteKey: string,
-      centroid: { lng: number; lat: number },
-      diameterPx: number,
-    ) => {
+    const upsertSpiderDisc = (siteKey: string, centroid: { lng: number; lat: number }, diameterPx: number) => {
       upsertDomMarker({
         map,
         cache,
@@ -268,9 +261,7 @@ export function MapClusters({ map }: Props) {
               duration: 350,
             });
           });
-          const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-            .setLngLat([lng, lat])
-            .addTo(map);
+          const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).addTo(map);
           cache.set(key, { marker, signature, kind: null });
         } else {
           const item = props.item;
@@ -286,8 +277,7 @@ export function MapClusters({ map }: Props) {
     const leaderFeatures: GeoJSON.Feature<GeoJSON.LineString>[] = [];
     if (selectedSiteKey) {
       const selected = groupedItems.find(
-        (it): it is Extract<GroupedItem, { kind: 'site' }> =>
-          it.kind === 'site' && it.site.key === selectedSiteKey,
+        (it): it is Extract<GroupedItem, { kind: 'site' }> => it.kind === 'site' && it.site.key === selectedSiteKey,
       );
       if (selected) {
         const { centroid, members } = selected.site;

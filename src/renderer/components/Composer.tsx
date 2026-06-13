@@ -33,15 +33,7 @@ interface Props {
 }
 
 export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
-  {
-    onSend,
-    disabled,
-    returnToSend,
-    radioSettings,
-    placeholder = 'Send a message…',
-    draftKey,
-    autoFocus,
-  },
+  { onSend, disabled, returnToSend, radioSettings, placeholder = 'Send a message…', draftKey, autoFocus },
   ref,
 ) {
   const draft = useStore((s) => (draftKey ? (s.ui.drafts[draftKey] ?? '') : ''));
@@ -91,10 +83,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   }, [autoFocus, disabled, draftKey]);
 
   const trimmed = value.trim();
-  const airtime = loraAirtimeMs(
-    byteLength(trimmed) + 32 /* rough wrapper overhead */,
-    radioSettings,
-  );
+  const airtime = loraAirtimeMs(byteLength(trimmed) + 32 /* rough wrapper overhead */, radioSettings);
 
   const count = trimmed.length;
   const atLimit = count >= MAX_MESSAGE_LENGTH;

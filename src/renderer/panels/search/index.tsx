@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type {
-  ConversationHit,
-  MessageHit,
-  SearchResults as SearchResultsPayload,
-  SearchSort,
-} from '../../../shared/types';
+import type { ConversationHit, MessageHit, SearchResults as SearchResultsPayload, SearchSort } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { useStore } from '../../lib/store';
 import { applyCategorySelection } from './categoryFilter';
@@ -151,16 +146,7 @@ export function SearchResults({ client }: Props) {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [
-    client,
-    searchQuery,
-    sort,
-    filters.categories,
-    filters.key,
-    filters.fromPk,
-    filters.tsFrom,
-    filters.tsTo,
-  ]);
+  }, [client, searchQuery, sort, filters.categories, filters.key, filters.fromPk, filters.tsFrom, filters.tsTo]);
 
   const onLoadMore = useCallback(async () => {
     if (!client || loadingMore || messages.length >= totalMessages) return;

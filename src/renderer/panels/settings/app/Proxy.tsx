@@ -11,9 +11,7 @@ import { saveApp } from './shared';
 const eqProxy = (a: AppSettingsType, b: AppSettingsType) => {
   const x = a.proxy;
   const y = b.proxy;
-  return (
-    x.enabled === y.enabled && x.bindAll === y.bindAll && x.port === y.port && x.mdns === y.mdns
-  );
+  return x.enabled === y.enabled && x.bindAll === y.bindAll && x.port === y.port && x.mdns === y.mdns;
 };
 
 export function ProxySection({ client }: SectionProps) {
@@ -27,8 +25,7 @@ export function ProxySection({ client }: SectionProps) {
   });
   const p = draft.proxy;
   const p0 = saved.proxy;
-  const setP = (patch: Partial<AppSettingsType['proxy']>) =>
-    setDraft((s) => ({ ...s, proxy: { ...s.proxy, ...patch } }));
+  const setP = (patch: Partial<AppSettingsType['proxy']>) => setDraft((s) => ({ ...s, proxy: { ...s.proxy, ...patch } }));
 
   // Listeners are bound at startup, so a saved change that doesn't match the
   // currently-running bridge means the user needs to restart. Compare against
@@ -83,39 +80,23 @@ export function ProxySection({ client }: SectionProps) {
       <Row
         label="Bind to all interfaces (0.0.0.0)"
         description="Off binds to 127.0.0.1 only; on allows LAN clients to connect."
-        warning={
-          p.bindAll ? 'Anyone on your network can connect to this radio without auth.' : undefined
-        }
+        warning={p.bindAll ? 'Anyone on your network can connect to this radio without auth.' : undefined}
         changed={p.bindAll !== p0.bindAll}
-        control={
-          <Toggle
-            checked={p.bindAll}
-            disabled={!p.enabled}
-            onChange={(v) => setP({ bindAll: v })}
-          />
-        }
+        control={<Toggle checked={p.bindAll} disabled={!p.enabled} onChange={(v) => setP({ bindAll: v })} />}
       />
       <Row
         label="TCP port"
         description="Port the bridge listens on for raw TCP proxy clients."
         changed={p.port !== p0.port}
         control={
-          <NumberInput
-            value={p.port}
-            min={1}
-            max={65535}
-            disabled={!p.enabled}
-            onChange={(v) => setP({ port: v })}
-          />
+          <NumberInput value={p.port} min={1} max={65535} disabled={!p.enabled} onChange={(v) => setP({ port: v })} />
         }
       />
       <Row
         label="Advertise via mDNS"
         description="So clients on the LAN can find this radio by name without hard-coding the IP."
         changed={p.mdns !== p0.mdns}
-        control={
-          <Toggle checked={p.mdns} disabled={!p.enabled} onChange={(v) => setP({ mdns: v })} />
-        }
+        control={<Toggle checked={p.mdns} disabled={!p.enabled} onChange={(v) => setP({ mdns: v })} />}
       />
     </SettingsSection>
   );

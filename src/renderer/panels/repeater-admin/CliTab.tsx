@@ -70,20 +70,13 @@ export function CliTab({ contact, client }: Props) {
           <div key={e.id} className="mb-3">
             <div className="text-cs-accent">$ {e.command}</div>
             {e.reply !== null && <pre className="whitespace-pre-wrap text-cs-text">{e.reply}</pre>}
-            {e.error !== null && (
-              <pre className="whitespace-pre-wrap text-cs-error">error: {e.error}</pre>
-            )}
-            {e.reply === null && e.error === null && (
-              <span className="text-cs-text-dim">waiting…</span>
-            )}
+            {e.error !== null && <pre className="whitespace-pre-wrap text-cs-error">error: {e.error}</pre>}
+            {e.reply === null && e.error === null && <span className="text-cs-text-dim">waiting…</span>}
           </div>
         ))}
       </div>
 
-      <form
-        onSubmit={onSubmit}
-        className="flex shrink-0 gap-2 border-t border-cs-border bg-cs-bg-2 p-2"
-      >
+      <form onSubmit={onSubmit} className="flex shrink-0 gap-2 border-t border-cs-border bg-cs-bg-2 p-2">
         <span className="self-center font-mono text-[12px] text-cs-text-muted">$</span>
         <input
           value={command}

@@ -83,9 +83,7 @@ export class InboxRouter {
     // session's backlog). Returning clients resume from their persisted cursor.
     const cursor = restored?.cursor ?? this.cache.oldestSeq();
     this.clients.set(client, { cursor, appName: null, inboxKey });
-    this.opts.log.debug(
-      `bind ${client.remoteAddr} key=${inboxKey} cursor=${cursor}/${this.cache.head()}`,
-    );
+    this.opts.log.debug(`bind ${client.remoteAddr} key=${inboxKey} cursor=${cursor}/${this.cache.head()}`);
     this.maybePromptDrain(client);
   }
 
@@ -253,18 +251,11 @@ export class InboxRouter {
     this.runPending();
   }
 
-  private emitLocalEcho(
-    channelIdx: number,
-    tsBytes: Buffer,
-    textBytes: Buffer,
-    client: BridgeClient,
-  ): void {
+  private emitLocalEcho(channelIdx: number, tsBytes: Buffer, textBytes: Buffer, client: BridgeClient): void {
     const holder = stateHolder();
     const channel = holder.getChannels().find((c) => c.idx === channelIdx);
     if (!channel) {
-      this.opts.log.debug(
-        `local echo skipped: no channel for idx=${channelIdx} (from ${client.remoteAddr})`,
-      );
+      this.opts.log.debug(`local echo skipped: no channel for idx=${channelIdx} (from ${client.remoteAddr})`);
       return;
     }
     const tsMs = tsBytes.readUInt32LE(0) * 1000;
@@ -305,9 +296,7 @@ export class InboxRouter {
     const restored = this.lookupKnown(newKey);
     if (restored) state.cursor = restored.cursor;
 
-    this.opts.log.debug(
-      `identity ${client.remoteAddr} key=${newKey} cursor=${state.cursor}/${this.cache.head()}`,
-    );
+    this.opts.log.debug(`identity ${client.remoteAddr} key=${newKey} cursor=${state.cursor}/${this.cache.head()}`);
     this.maybePromptDrain(client);
   }
 
@@ -316,9 +305,7 @@ export class InboxRouter {
     if (!state) return;
     if (state.cursor >= this.cache.head()) return;
     this.deliver(client, PUSH_MSG_WAITING_FRAME);
-    this.opts.log.trace(
-      `synthesized PUSH_MSG_WAITING → ${client.remoteAddr} (cursor=${state.cursor}/${this.cache.head()})`,
-    );
+    this.opts.log.trace(`synthesized PUSH_MSG_WAITING → ${client.remoteAddr} (cursor=${state.cursor}/${this.cache.head()})`);
   }
 
   private handleGetNext(client: BridgeClient): void {
@@ -333,9 +320,7 @@ export class InboxRouter {
     if (entry) {
       this.deliver(client, entry.bytes);
       state.cursor = entry.seq + 1;
-      this.opts.log.trace(
-        `cache hit → ${client.remoteAddr} seq=${entry.seq} (cursor=${state.cursor}/${this.cache.head()})`,
-      );
+      this.opts.log.trace(`cache hit → ${client.remoteAddr} seq=${entry.seq} (cursor=${state.cursor}/${this.cache.head()})`);
       return;
     }
 

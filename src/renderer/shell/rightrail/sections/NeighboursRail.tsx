@@ -23,13 +23,7 @@ const ORDER_BY_FOR_SORT: Record<NeighbourSortKey, number> = {
  *  slice so it stays in sync with the map in the main pane (hover/selection
  *  couple across both). The map (NeighboursTab) owns resetting the slice when
  *  the focal repeater changes; this body only reads + fetches. */
-export function NeighboursRailBody({
-  contact,
-  client,
-}: {
-  contact: Contact;
-  client: ApiClient | null;
-}) {
+export function NeighboursRailBody({ contact, client }: { contact: Contact; client: ApiClient | null }) {
   const contacts = useStore((s) => s.contacts);
   const discovered = useStore((s) => s.discovered);
   const manifest = useStore((s) => s.mapManifest);

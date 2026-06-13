@@ -39,11 +39,7 @@ describe('sortByPinned', () => {
   });
 
   it('sorts by label when nothing else differs', () => {
-    expect(sort([{ id: 'banana' }, { id: 'apple' }, { id: 'cherry' }])).toEqual([
-      'apple',
-      'banana',
-      'cherry',
-    ]);
+    expect(sort([{ id: 'banana' }, { id: 'apple' }, { id: 'cherry' }])).toEqual(['apple', 'banana', 'cherry']);
   });
 
   it('does not mutate the input array', () => {

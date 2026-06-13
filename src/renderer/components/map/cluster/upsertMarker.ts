@@ -18,18 +18,7 @@ export interface UpsertContactMarkerOpts {
 
 /** Upserts a contact-style marker into the cache, creating/syncing/positioning it on the map. */
 export function upsertContactLikeMarker(opts: UpsertContactMarkerOpts): void {
-  const {
-    map,
-    cache,
-    wanted,
-    cacheKey,
-    signaturePrefix,
-    contact,
-    position,
-    state,
-    elementClass,
-    onClick,
-  } = opts;
+  const { map, cache, wanted, cacheKey, signaturePrefix, contact, position, state, elementClass, onClick } = opts;
   const signature = markerSignature(signaturePrefix, contact, state);
   wanted.add(cacheKey);
 
@@ -46,8 +35,6 @@ export function upsertContactLikeMarker(opts: UpsertContactMarkerOpts): void {
   const el = buildContactMarker(contact, state);
   if (elementClass) el.classList.add(elementClass);
   el.addEventListener('click', onClick);
-  const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-    .setLngLat(position)
-    .addTo(map);
+  const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(position).addTo(map);
   cache.set(cacheKey, { marker, signature, kind: contact.kind });
 }

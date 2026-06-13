@@ -29,9 +29,7 @@ export function encodeSignStart(): Buffer {
 export function encodeSignData(chunk: Buffer): Buffer {
   if (chunk.length < 1) throw new Error('sign data chunk must not be empty');
   if (chunk.length > SIGN_DATA_MAX_CHUNK) {
-    throw new Error(
-      `sign data chunk is ${chunk.length}B, exceeds the ${SIGN_DATA_MAX_CHUNK}B frame limit`,
-    );
+    throw new Error(`sign data chunk is ${chunk.length}B, exceeds the ${SIGN_DATA_MAX_CHUNK}B frame limit`);
   }
   return Buffer.concat([Buffer.from([CMD.SIGN_DATA]), chunk]);
 }

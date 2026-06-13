@@ -6,13 +6,7 @@ export function SignalBars({ snr, size = 12 }: { snr: number; size?: number }) {
   const dim = 'rgb(var(--cs-border))';
   const heights = [0.4, 0.7, 1.0];
   return (
-    <svg
-      width={size + 4}
-      height={size}
-      viewBox={`0 0 ${size + 4} ${size}`}
-      role="img"
-      aria-label={`Signal ${fmtSnr(snr)}`}
-    >
+    <svg width={size + 4} height={size} viewBox={`0 0 ${size + 4} ${size}`} role="img" aria-label={`Signal ${fmtSnr(snr)}`}>
       {heights.map((h, i) => {
         const barW = 3;
         const gap = 2;

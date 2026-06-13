@@ -29,8 +29,7 @@ export function NotificationsSection({ client }: SectionProps) {
     id: 'app-notifications',
     saved,
     eq: eqNotifications,
-    onSave: (d) =>
-      saveApp(client, { notifications: d.notifications }, 'Notification settings saved'),
+    onSave: (d) => saveApp(client, { notifications: d.notifications }, 'Notification settings saved'),
   });
   const n = draft.notifications;
   const s0 = saved.notifications;
@@ -57,17 +56,13 @@ export function NotificationsSection({ client }: SectionProps) {
         label="Channel mentions"
         description="@name in a channel."
         changed={n.channelMention !== s0.channelMention}
-        control={
-          <Toggle checked={n.channelMention} onChange={(v) => setN({ channelMention: v })} />
-        }
+        control={<Toggle checked={n.channelMention} onChange={(v) => setN({ channelMention: v })} />}
       />
       <Row
         label="All channel messages"
         description="Noisy on busy channels — off by default."
         changed={n.channelMessage !== s0.channelMessage}
-        control={
-          <Toggle checked={n.channelMessage} onChange={(v) => setN({ channelMessage: v })} />
-        }
+        control={<Toggle checked={n.channelMessage} onChange={(v) => setN({ channelMessage: v })} />}
       />
       <Row
         label="Repeater alerts"
@@ -83,9 +78,7 @@ export function NotificationsSection({ client }: SectionProps) {
         label="Discovered contacts"
         description="When a never-before-seen node is first heard."
         changed={n.discoveredContact !== s0.discoveredContact}
-        control={
-          <Toggle checked={n.discoveredContact} onChange={(v) => setN({ discoveredContact: v })} />
-        }
+        control={<Toggle checked={n.discoveredContact} onChange={(v) => setN({ discoveredContact: v })} />}
       />
       <Row
         label="Play sound"
@@ -96,12 +89,7 @@ export function NotificationsSection({ client }: SectionProps) {
         label="Suppress while focused"
         description="Don't notify if the app window is in the foreground."
         changed={n.suppressWhenFocused !== s0.suppressWhenFocused}
-        control={
-          <Toggle
-            checked={n.suppressWhenFocused}
-            onChange={(v) => setN({ suppressWhenFocused: v })}
-          />
-        }
+        control={<Toggle checked={n.suppressWhenFocused} onChange={(v) => setN({ suppressWhenFocused: v })} />}
       />
       <Row
         label="Dock badge (macOS)"

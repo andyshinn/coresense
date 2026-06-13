@@ -60,11 +60,7 @@ function compare(a: DiscoveredContact, b: DiscoveredContact, field: CmSortField)
 
 /** Counts are computed over the search+type+heard+fav filtered set (NOT the
  *  state-tab), so each tab shows how many rows it would contain. */
-export function deriveContactView(
-  discovered: DiscoveredContact[],
-  cm: ContactManagerState,
-  nowMs: number,
-): CmView {
+export function deriveContactView(discovered: DiscoveredContact[], cm: ContactManagerState, nowMs: number): CmView {
   const q = cm.search.trim().toLowerCase();
   const base = discovered.filter((c) => {
     if (q && !c.name.toLowerCase().includes(q) && !c.publicKeyHex.includes(q)) return false;
@@ -82,9 +78,7 @@ export function deriveContactView(
   };
 
   const dir: number = cm.sortDir === 'asc' ? 1 : -1;
-  const rows = base
-    .filter((c) => matchesTab(c, cm.stateTab))
-    .sort((a, b) => compare(a, b, cm.sortField) * dir);
+  const rows = base.filter((c) => matchesTab(c, cm.stateTab)).sort((a, b) => compare(a, b, cm.sortField) * dir);
 
   return { rows, counts };
 }

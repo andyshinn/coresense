@@ -1,15 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 
 /** Compact icon+label button used inside the contact card action row. */
-export function CardActionButton({
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-}) {
+export function CardActionButton({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
   return (
     <button
       type="button"

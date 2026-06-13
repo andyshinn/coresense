@@ -24,8 +24,12 @@ export class FakeTransport implements ITransport {
   readonly type = 'ble' as const;
   readonly sent: Buffer[] = [];
 
-  async connect(): Promise<void> {}
-  async disconnect(): Promise<void> {}
+  async connect(): Promise<void> {
+    /* no-op: nothing to connect to */
+  }
+  async disconnect(): Promise<void> {
+    /* no-op: nothing to disconnect */
+  }
   async sendBytes(bytes: Buffer): Promise<void> {
     this.sent.push(Buffer.from(bytes));
   }

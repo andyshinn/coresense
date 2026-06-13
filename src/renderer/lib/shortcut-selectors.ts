@@ -14,12 +14,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 
 /** Key of the Nth channel (1-based) in left-nav sort order, or null. Unread
  *  ordering is intentionally ignored so ⌘1–9 stays positionally stable. */
-export function nthChannelKey(
-  channels: Channel[],
-  pinSet: Set<string>,
-  pinnedOrder: string[],
-  n: number,
-): string | null {
+export function nthChannelKey(channels: Channel[], pinSet: Set<string>, pinnedOrder: string[], n: number): string | null {
   const sorted = sortChannels(channels, pinSet, pinnedOrder, null);
   return sorted[n - 1]?.key ?? null;
 }
@@ -27,11 +22,7 @@ export function nthChannelKey(
 /** Given conversation keys in display order, return the next/previous one
  *  relative to `currentKey`, wrapping around. When `currentKey` is not in the
  *  list, returns the first (next) or last (prev) entry. Null if empty. */
-export function adjacentUnreadKey(
-  orderedKeys: string[],
-  currentKey: string,
-  dir: 'next' | 'prev',
-): string | null {
+export function adjacentUnreadKey(orderedKeys: string[], currentKey: string, dir: 'next' | 'prev'): string | null {
   if (orderedKeys.length === 0) return null;
   const i = orderedKeys.indexOf(currentKey);
   if (i === -1) return dir === 'next' ? orderedKeys[0] : orderedKeys[orderedKeys.length - 1];
@@ -41,11 +32,7 @@ export function adjacentUnreadKey(
 }
 
 function platformString(): string {
-  return (
-    (navigator as { userAgentData?: { platform?: string } }).userAgentData?.platform ??
-    navigator.platform ??
-    ''
-  );
+  return (navigator as { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform ?? '';
 }
 
 /** Coarse platform for display formatting (caps glyphs). */

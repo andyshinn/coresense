@@ -4,13 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Input } from '../../components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import type { CmCounts } from '../../lib/contactManagerView';
 import type { CmHeard, CmSortField, CmStateTab } from '../../lib/store';
 import { useStore } from '../../lib/store';
@@ -82,9 +76,7 @@ export function Toolbar({ counts }: { counts: CmCounts }) {
                 onClick={() => setCmFilter({ stateTab: tab })}
                 className={cn(
                   'flex items-center gap-1.5 border-b-2 px-2 py-1 transition-colors',
-                  active
-                    ? 'border-cs-accent text-cs-text'
-                    : 'border-transparent text-cs-text-muted hover:text-cs-text',
+                  active ? 'border-cs-accent text-cs-text' : 'border-transparent text-cs-text-muted hover:text-cs-text',
                 )}
               >
                 {label}
@@ -178,9 +170,7 @@ export function Toolbar({ counts }: { counts: CmCounts }) {
           onClick={() => setCmSort(cm.sortField)}
           title={`Sort ${cm.sortDir === 'asc' ? 'ascending' : 'descending'}`}
         >
-          <ArrowDownUp
-            className={cn('size-4 transition-transform', cm.sortDir === 'desc' && 'rotate-180')}
-          />
+          <ArrowDownUp className={cn('size-4 transition-transform', cm.sortDir === 'desc' && 'rotate-180')} />
         </Button>
 
         <div className="ml-1 flex items-center gap-0.5 rounded-md border border-cs-border p-0.5">

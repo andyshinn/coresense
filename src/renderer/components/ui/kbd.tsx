@@ -18,13 +18,7 @@ function Kbd({ className, ...props }: React.ComponentProps<'kbd'>) {
 
 // A row of caps forming one chord (e.g. ⌘ K), 3px gaps.
 function KbdGroup({ className, ...props }: React.ComponentProps<'span'>) {
-  return (
-    <span
-      data-slot="kbd-group"
-      className={cn('inline-flex items-center gap-[3px]', className)}
-      {...props}
-    />
-  );
+  return <span data-slot="kbd-group" className={cn('inline-flex items-center gap-[3px]', className)} {...props} />;
 }
 
 export { Kbd, KbdGroup };

@@ -52,10 +52,7 @@ export function ApiKeySection({ client }: Props) {
               {revealed ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
               {revealed ? 'Hide' : 'Reveal'}
             </button>
-            <CopyButton
-              value={apiKey ?? ''}
-              className={cn(BTN, !apiKey && 'pointer-events-none opacity-50')}
-            >
+            <CopyButton value={apiKey ?? ''} className={cn(BTN, !apiKey && 'pointer-events-none opacity-50')}>
               <Copy className="size-3" />
               Copy
             </CopyButton>
@@ -68,10 +65,7 @@ export function ApiKeySection({ client }: Props) {
             <code className="min-w-0 flex-1 truncate rounded border border-cs-border bg-cs-bg px-2 py-1 font-mono text-[11px] text-cs-text">
               {configPath ?? 'Unavailable'}
             </code>
-            <CopyButton
-              value={configPath ?? ''}
-              className={cn(BTN, !configPath && 'pointer-events-none opacity-50')}
-            >
+            <CopyButton value={configPath ?? ''} className={cn(BTN, !configPath && 'pointer-events-none opacity-50')}>
               <Copy className="size-3" />
               Copy
             </CopyButton>

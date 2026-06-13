@@ -37,9 +37,7 @@ export function AclTab({ contact, client, disabled }: Props) {
   return (
     <div className="flex h-full flex-col gap-3 overflow-auto p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">
-          Access control list
-        </h3>
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">Access control list</h3>
         <button
           type="button"
           onClick={load}
@@ -58,9 +56,7 @@ export function AclTab({ contact, client, disabled }: Props) {
         </p>
       )}
 
-      {entries && entries.length === 0 && (
-        <p className="text-[12px] text-cs-text-dim">ACL is empty.</p>
-      )}
+      {entries && entries.length === 0 && <p className="text-[12px] text-cs-text-dim">ACL is empty.</p>}
 
       {entries && entries.length > 0 && (
         <table className="w-full text-[12px]">
@@ -75,12 +71,8 @@ export function AclTab({ contact, client, disabled }: Props) {
             {entries.map((e) => (
               <tr key={e.pubKeyPrefixHex} className="border-b border-cs-border/40">
                 <td className="py-0.5 font-mono text-cs-text">{e.pubKeyPrefixHex}</td>
-                <td className="py-0.5 font-mono text-cs-text">
-                  0x{e.permissions.toString(16).padStart(2, '0')}
-                </td>
-                <td className="py-0.5 text-cs-text-muted">
-                  {e.isAdmin ? 'admin' : e.isGuest ? 'guest' : '—'}
-                </td>
+                <td className="py-0.5 font-mono text-cs-text">0x{e.permissions.toString(16).padStart(2, '0')}</td>
+                <td className="py-0.5 text-cs-text-muted">{e.isAdmin ? 'admin' : e.isGuest ? 'guest' : '—'}</td>
               </tr>
             ))}
           </tbody>

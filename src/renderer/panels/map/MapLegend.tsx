@@ -1,10 +1,6 @@
 import { useMemo } from 'react';
 import { hasValidFix } from '../../../shared/types';
-import {
-  MARKER_KIND_ORDER,
-  MARKER_TYPES,
-  MarkerShape,
-} from '../../components/map/markers/MarkerShape';
+import { MARKER_KIND_ORDER, MARKER_TYPES, MarkerShape } from '../../components/map/markers/MarkerShape';
 import { useStore } from '../../lib/store';
 
 // Sticky two-column legend at the bottom of the Map rail. Shows the four
@@ -18,9 +14,7 @@ export function MapLegend() {
   return (
     <div className="border-t border-cs-border bg-cs-bg px-3 py-2.5">
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="font-mono text-[9px] uppercase tracking-wider text-cs-text-dim">
-          Legend
-        </span>
+        <span className="font-mono text-[9px] uppercase tracking-wider text-cs-text-dim">Legend</span>
         <span className="font-mono text-[9px] text-cs-text-dim">{total} nodes</span>
       </div>
       <div className="grid grid-cols-2 gap-x-3 gap-y-1">

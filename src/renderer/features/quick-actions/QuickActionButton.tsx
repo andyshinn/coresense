@@ -40,10 +40,7 @@ export function QuickActionButton({ def, ctx, variant, enabled }: Props) {
       {isToggle && (
         <span
           aria-hidden
-          className={cn(
-            'absolute right-1 top-1 size-1.5 rounded-full',
-            on ? 'bg-cs-online' : 'bg-cs-text-dim',
-          )}
+          className={cn('absolute right-1 top-1 size-1.5 rounded-full', on ? 'bg-cs-online' : 'bg-cs-text-dim')}
         />
       )}
     </>
@@ -67,21 +64,13 @@ export function QuickActionButton({ def, ctx, variant, enabled }: Props) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          disabled={!enabled}
-          title={def.label}
-          aria-label={def.label}
-          className={className}
-        >
+        <button type="button" disabled={!enabled} title={def.label} aria-label={def.label} className={className}>
           {inner}
         </button>
       </PopoverTrigger>
       <PopoverContent side="top" align="center" className="w-56 p-3">
         <p className="text-[12px] font-medium text-cs-text">{def.confirm.title}</p>
-        {def.confirm.body && (
-          <p className="mt-1 text-[11px] text-cs-text-muted">{def.confirm.body}</p>
-        )}
+        {def.confirm.body && <p className="mt-1 text-[11px] text-cs-text-muted">{def.confirm.body}</p>}
         <div className="mt-3 flex justify-end gap-2">
           <button
             type="button"

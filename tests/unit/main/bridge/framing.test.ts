@@ -1,11 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
-import {
-  DIR_CLIENT_TO_RADIO,
-  encodeFrame,
-  FrameDecoder,
-  MAX_FRAME_LEN,
-} from '../../../../src/main/bridge/framing';
+import { DIR_CLIENT_TO_RADIO, encodeFrame, FrameDecoder, MAX_FRAME_LEN } from '../../../../src/main/bridge/framing';
 
 function collect(decoder: FrameDecoder, chunks: Buffer[]): string[] {
   const out: string[] = [];
@@ -65,7 +60,9 @@ describe('FrameDecoder', () => {
   it('reset() clears partial state', () => {
     const d = new FrameDecoder();
     const frame = encodeFrame(DIR_CLIENT_TO_RADIO, Buffer.from([0x01, 0x02]));
-    d.push(frame.subarray(0, 3), () => {}); // header only, payload pending
+    d.push(frame.subarray(0, 3), () => {
+      /* header only, no full frame to emit yet */
+    });
     d.reset();
     // After reset, a fresh whole frame decodes cleanly with no leftover bytes.
     expect(collect(d, [encodeFrame(DIR_CLIENT_TO_RADIO, Buffer.from([0x07]))])).toEqual(['07']);

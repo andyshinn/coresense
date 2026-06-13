@@ -55,11 +55,7 @@ export function advTypeToKind(type: number): ContactKind {
 /** Evaluate a contact's pubkey/name against the enabled block rules. Mirrors
  *  the message matcher's rule semantics (see shared/blocking/match.ts) but for
  *  a contact identity rather than a message. */
-export function contactMatchesAnyBlockRule(
-  publicKeyHex: string,
-  name: string,
-  rules: BlockRule[],
-): boolean {
+export function contactMatchesAnyBlockRule(publicKeyHex: string, name: string, rules: BlockRule[]): boolean {
   const pk = publicKeyHex.toLowerCase();
   for (const rule of rules) {
     if (!rule.enabled) continue;

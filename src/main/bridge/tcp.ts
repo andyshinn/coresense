@@ -12,11 +12,7 @@ export interface TcpListenerHandle {
   close(): Promise<void>;
 }
 
-export async function startTcpListener(
-  hub: BridgeHub,
-  bindAddress: string,
-  port: number,
-): Promise<TcpListenerHandle> {
+export async function startTcpListener(hub: BridgeHub, bindAddress: string, port: number): Promise<TcpListenerHandle> {
   const server = await listen(bindAddress, port);
   const boundPort = (server.address() as { port: number } | null)?.port ?? port;
   logger.info(`listening on ${bindAddress}:${boundPort}`);
@@ -59,9 +55,7 @@ export async function startTcpListener(
           hub.handleClientFrame(client, frame);
         });
       } catch (err) {
-        emit.error(
-          `Bridge TCP ${remoteAddr}: protocol error, dropping client: ${(err as Error).message}`,
-        );
+        emit.error(`Bridge TCP ${remoteAddr}: protocol error, dropping client: ${(err as Error).message}`);
         logger.warn(`protocol error from ${remoteAddr}: ${(err as Error).message}`);
         socket.destroy();
       }

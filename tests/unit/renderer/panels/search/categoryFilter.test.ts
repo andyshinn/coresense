@@ -15,10 +15,6 @@ describe('applyCategorySelection', () => {
 
   it('preserves the order and values of next', () => {
     const current: SearchCategory[] = ['channel'];
-    expect(applyCategorySelection(['contact', 'dm', 'channel'], current)).toEqual([
-      'contact',
-      'dm',
-      'channel',
-    ]);
+    expect(applyCategorySelection(['contact', 'dm', 'channel'], current)).toEqual(['contact', 'dm', 'channel']);
   });
 });

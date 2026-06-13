@@ -1,14 +1,4 @@
-import {
-  Ban,
-  ChevronDown,
-  DoorOpen,
-  Minus,
-  Plus,
-  RadioTower,
-  Star,
-  Thermometer,
-  User,
-} from 'lucide-react';
+import { Ban, ChevronDown, DoorOpen, Minus, Plus, RadioTower, Star, Thermometer, User } from 'lucide-react';
 import { useState } from 'react';
 import type { DiscoveredContact } from '../../../shared/contacts/discovered';
 import type { ContactKind } from '../../../shared/types';
@@ -152,15 +142,7 @@ export function RowActions({ c, client }: { c: DiscoveredContact; client: ApiCli
   );
 }
 
-function SortHeader({
-  field,
-  label,
-  className,
-}: {
-  field: CmSortField;
-  label: string;
-  className?: string;
-}) {
+function SortHeader({ field, label, className }: { field: CmSortField; label: string; className?: string }) {
   const sortField = useStore((s) => s.contactManager.sortField);
   const sortDir = useStore((s) => s.contactManager.sortDir);
   const setCmSort = useStore((s) => s.setCmSort);
@@ -173,22 +155,13 @@ function SortHeader({
     >
       {label}
       {active && (
-        <ChevronDown
-          className={cn('size-3 transition-transform', sortDir === 'desc' && 'rotate-180')}
-          aria-hidden="true"
-        />
+        <ChevronDown className={cn('size-3 transition-transform', sortDir === 'desc' && 'rotate-180')} aria-hidden="true" />
       )}
     </button>
   );
 }
 
-export function TableView({
-  rows,
-  client,
-}: {
-  rows: DiscoveredContact[];
-  client: ApiClient | null;
-}) {
+export function TableView({ rows, client }: { rows: DiscoveredContact[]; client: ApiClient | null }) {
   const selected = useStore((s) => s.contactManager.selected);
   const focusKey = useStore((s) => s.contactManager.focusKey);
   const showKeys = useStore((s) => s.contactManager.showKeys);
@@ -260,19 +233,11 @@ export function TableView({
               <td className={cn('px-2', pad)}>
                 <div className="flex min-w-0 items-center gap-1.5">
                   <span
-                    className={cn(
-                      'truncate text-[12.5px] font-medium text-cs-text',
-                      c.blocked && 'line-through opacity-60',
-                    )}
+                    className={cn('truncate text-[12.5px] font-medium text-cs-text', c.blocked && 'line-through opacity-60')}
                   >
                     {c.name}
                   </span>
-                  {c.favourite && (
-                    <Star
-                      className="size-3 shrink-0 fill-cs-warn text-cs-warn"
-                      aria-hidden="true"
-                    />
-                  )}
+                  {c.favourite && <Star className="size-3 shrink-0 fill-cs-warn text-cs-warn" aria-hidden="true" />}
                 </div>
                 {showKeys && (
                   <button
@@ -288,9 +253,7 @@ export function TableView({
                   </button>
                 )}
               </td>
-              <td className={cn('whitespace-nowrap px-2 text-[11.5px] text-cs-text-muted', pad)}>
-                {KIND_LABEL[c.kind]}
-              </td>
+              <td className={cn('whitespace-nowrap px-2 text-[11.5px] text-cs-text-muted', pad)}>{KIND_LABEL[c.kind]}</td>
               <td className={cn('px-2', pad)}>
                 <HopChip hops={c.hops} />
               </td>
@@ -357,17 +320,10 @@ export function ListRow({ c, client }: { c: DiscoveredContact; client: ApiClient
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span
-            className={cn(
-              'truncate text-[12.5px] font-medium text-cs-text',
-              c.blocked && 'line-through opacity-60',
-            )}
-          >
+          <span className={cn('truncate text-[12.5px] font-medium text-cs-text', c.blocked && 'line-through opacity-60')}>
             {c.name}
           </span>
-          {c.favourite && (
-            <Star className="size-3 shrink-0 fill-cs-warn text-cs-warn" aria-hidden="true" />
-          )}
+          {c.favourite && <Star className="size-3 shrink-0 fill-cs-warn text-cs-warn" aria-hidden="true" />}
         </div>
         <div className="truncate font-mono text-[10.5px] text-cs-text-dim">
           {KIND_LABEL[c.kind]} · {lastLabel} · {hopsLabel}
@@ -402,11 +358,7 @@ export function SelectAllBar({ rows }: { rows: DiscoveredContact[] }) {
       {selected.length > 0 ? (
         <>
           <span className="text-cs-text-muted">{selected.length} selected</span>
-          <button
-            type="button"
-            onClick={() => clearCmSelected()}
-            className="text-cs-accent hover:underline"
-          >
+          <button type="button" onClick={() => clearCmSelected()} className="text-cs-accent hover:underline">
             Clear
           </button>
         </>

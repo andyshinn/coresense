@@ -118,10 +118,7 @@ export function parseTraceData(frame: Buffer): TraceData | null {
   if (frame.length < snrsStart + hopCount + 1) return null;
   const hops: Array<{ hashHex: string; snrDb: number }> = [];
   for (let i = 0; i < hopCount; i += 1) {
-    const hash = frame.subarray(
-      hashesStart + i * pathHashSize,
-      hashesStart + (i + 1) * pathHashSize,
-    );
+    const hash = frame.subarray(hashesStart + i * pathHashSize, hashesStart + (i + 1) * pathHashSize);
     hops.push({ hashHex: hash.toString('hex'), snrDb: frame.readInt8(snrsStart + i) / 4 });
   }
   const finalSnrDb = frame.readInt8(snrsStart + hopCount) / 4;
@@ -368,12 +365,7 @@ export function buildAnonLogin(destPublicKeyHex: string, password: string): Buff
 // Firmware checks `len > 10`, so we always emit ≥1 path byte. flags bits 0..1
 // encode the per-hop hash size (path length must be multiple of 1<<size).
 // Firmware: MyMesh.cpp:1721-1746.
-export function buildSendTracePath(opts: {
-  tag: number;
-  authCode: number;
-  flags?: number;
-  path: Buffer;
-}): Buffer {
+export function buildSendTracePath(opts: { tag: number; authCode: number; flags?: number; path: Buffer }): Buffer {
   if (opts.path.length === 0) throw new Error('trace path must contain ≥1 byte');
   const flags = (opts.flags ?? 0) & 0xff;
   const out = Buffer.alloc(10 + opts.path.length);
@@ -464,8 +456,7 @@ export function parseStatusResponse(frame: Buffer): StatusResponse | null {
 
 function decodeStatusFields(b: Buffer): StatusField[] {
   const fields: StatusField[] = [];
-  const push = (name: string, value: number | string, unit?: string) =>
-    fields.push({ name, value, unit });
+  const push = (name: string, value: number | string, unit?: string) => fields.push({ name, value, unit });
 
   if (b.length >= 4) push('Battery', b.readUInt32LE(0) / 1000, 'V');
   if (b.length >= 8) push('TX queue', b.readUInt32LE(4));
@@ -554,8 +545,7 @@ const CAYENNE_TYPES: Record<number, CayenneDescriptor> = {
   113: {
     name: 'Accelerometer',
     size: 6,
-    decode: (b) =>
-      `${b.readInt16BE(0) / 1000},${b.readInt16BE(2) / 1000},${b.readInt16BE(4) / 1000}`,
+    decode: (b) => `${b.readInt16BE(0) / 1000},${b.readInt16BE(2) / 1000},${b.readInt16BE(4) / 1000}`,
     unit: 'G',
   }, // 0x71
   115: { name: 'Barometer', size: 2, decode: (b) => b.readUInt16BE(0) / 10, unit: 'hPa' }, // 0x73
@@ -584,8 +574,7 @@ const CAYENNE_TYPES: Record<number, CayenneDescriptor> = {
   136: {
     name: 'GPS',
     size: 9,
-    decode: (b) =>
-      `${b.readIntBE(0, 3) / 10000},${b.readIntBE(3, 3) / 10000},${b.readIntBE(6, 3) / 100}`,
+    decode: (b) => `${b.readIntBE(0, 3) / 10000},${b.readIntBE(3, 3) / 10000},${b.readIntBE(6, 3) / 100}`,
   }, // 0x88
   142: { name: 'Switch', size: 1, decode: (b) => b.readUInt8(0) }, // 0x8e
 };

@@ -68,9 +68,7 @@ describe('repeater encoders: structured', () => {
   });
 
   it('buildSendTracePath rejects an empty path', () => {
-    expect(() => buildSendTracePath({ tag: 1, authCode: 2, path: Buffer.alloc(0) })).toThrow(
-      /≥1 byte/,
-    );
+    expect(() => buildSendTracePath({ tag: 1, authCode: 2, path: Buffer.alloc(0) })).toThrow(/≥1 byte/);
   });
 });
 
@@ -79,11 +77,7 @@ describe('repeater decoders: parseStatusResponse', () => {
     const payload = Buffer.alloc(8); // battery(4) + tx queue(4)
     payload.writeUInt32LE(4020, 0); // 4.02 V
     payload.writeUInt32LE(2, 4); // TX queue = 2
-    const frame = Buffer.concat([
-      Buffer.from([0x87, 0x00]),
-      Buffer.from('aabbccddeeff', 'hex'),
-      payload,
-    ]);
+    const frame = Buffer.concat([Buffer.from([0x87, 0x00]), Buffer.from('aabbccddeeff', 'hex'), payload]);
     const res = parseStatusResponse(frame);
     expect(res?.senderPubKeyPrefixHex).toBe('aabbccddeeff');
     expect(res?.fields[0]).toEqual({ name: 'Battery', value: 4.02, unit: 'V' });

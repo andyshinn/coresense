@@ -1,9 +1,6 @@
 import type { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
-import {
-  encodeSetRadioParams,
-  encodeSetRadioTxPower,
-} from '../../../../../src/main/protocol/features/radioParams';
+import { encodeSetRadioParams, encodeSetRadioTxPower } from '../../../../../src/main/protocol/features/radioParams';
 
 const hex = (b: Buffer) => b.toString('hex');
 

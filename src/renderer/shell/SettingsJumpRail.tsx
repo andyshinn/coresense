@@ -33,9 +33,7 @@ export function SettingsJumpRail() {
             )}
           >
             <span className="flex-1 truncate">{s.title}</span>
-            {dirtyById[s.id] && (
-              <span className="size-1.5 shrink-0 rounded-full bg-cs-warn" aria-hidden />
-            )}
+            {dirtyById[s.id] && <span className="size-1.5 shrink-0 rounded-full bg-cs-warn" aria-hidden />}
           </button>
         );
       })}

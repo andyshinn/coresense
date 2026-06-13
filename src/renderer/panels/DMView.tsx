@@ -84,14 +84,10 @@ export function DMView({ contact, client }: Props) {
         <div className="flex flex-col">
           <h2 className="font-medium leading-tight text-cs-text">{contact.name}</h2>
           {contact.lastSeenMs != null && (
-            <span className="font-mono text-[10px] text-cs-text-dim">
-              last seen {fmtAgo(contact.lastSeenMs)}
-            </span>
+            <span className="font-mono text-[10px] text-cs-text-dim">last seen {fmtAgo(contact.lastSeenMs)}</span>
           )}
         </div>
-        {contact.rssi != null && (
-          <RssiChip rssi={contact.rssi} hops={contact.hops} className="ml-auto" />
-        )}
+        {contact.rssi != null && <RssiChip rssi={contact.rssi} hops={contact.hops} className="ml-auto" />}
       </header>
 
       <div className="flex-1 overflow-hidden">

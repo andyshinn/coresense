@@ -14,10 +14,7 @@ export function CapacityMeter() {
         </div>
       </div>
       <div className="h-1.5 w-14 overflow-hidden rounded-full border border-cs-border bg-cs-bg-3">
-        <div
-          className={`h-full ${warn ? 'bg-cs-warn' : 'bg-cs-accent'}`}
-          style={{ width: `${pct}%` }}
-        />
+        <div className={`h-full ${warn ? 'bg-cs-warn' : 'bg-cs-accent'}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   );

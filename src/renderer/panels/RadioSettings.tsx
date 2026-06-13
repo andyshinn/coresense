@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { RadioSettings as RadioSettingsType } from '../../shared/types';
-import {
-  NumberInput,
-  PanelShell,
-  Row,
-  Section,
-  Select,
-  Toggle,
-} from '../components/settings/Field';
+import { NumberInput, PanelShell, Row, Section, Select, Toggle } from '../components/settings/Field';
 import { type ApiClient, api } from '../lib/api';
 import { notify } from '../lib/notify';
 import { useStore } from '../lib/store';
@@ -148,8 +141,8 @@ export function RadioSettings({ client }: Props) {
       }
     >
       <div className="rounded border border-cs-border bg-cs-bg-2 px-3 py-2 text-[11px] text-cs-text-dim my-3">
-        Saved app-side only — pushing these to the radio over the wire (CMD_SET_RADIO_PARAMS) is not
-        yet implemented. Changes take effect on devices that read settings via the proxy.
+        Saved app-side only — pushing these to the radio over the wire (CMD_SET_RADIO_PARAMS) is not yet implemented. Changes
+        take effect on devices that read settings via the proxy.
       </div>
 
       <Section title="Region preset">
@@ -241,16 +234,9 @@ export function RadioSettings({ client }: Props) {
           label="Repeat mode"
           description="When on, this radio rebroadcasts floods it hears — turning it into a repeater."
           warning={
-            draft.repeatMode
-              ? 'Drains battery and increases airtime; only enable on a fixed power supply.'
-              : undefined
+            draft.repeatMode ? 'Drains battery and increases airtime; only enable on a fixed power supply.' : undefined
           }
-          control={
-            <Toggle
-              checked={draft.repeatMode}
-              onChange={(v) => setDraft((d) => ({ ...d, repeatMode: v }))}
-            />
-          }
+          control={<Toggle checked={draft.repeatMode} onChange={(v) => setDraft((d) => ({ ...d, repeatMode: v }))} />}
         />
       </Section>
     </PanelShell>

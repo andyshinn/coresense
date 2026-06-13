@@ -90,10 +90,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       channelPresence: protocolSession().getDevicePresence(),
       syncProgress: protocolSession().getSyncProgress(),
       contacts: holder.getContacts(),
-      discoveredContacts: discoveredStore.list(
-        holder.getRadioSettings().pathHashMode,
-        holder.getBlockRules(),
-      ),
+      discoveredContacts: discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
       messages: holder.getRecentMessages(),
       appSettings: holder.getAppSettings(),
       radioSettings: holder.getRadioSettings(),
@@ -199,9 +196,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // is connected, the values are stored app-side only — the next handshake
   // will reapply them.
   api.put('/api/settings/radio', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as
-      | (RadioSettings & { pushToDevice?: boolean })
-      | null;
+    const body = (await c.req.json().catch(() => null)) as (RadioSettings & { pushToDevice?: boolean }) | null;
     if (!body) return c.json({ error: 'invalid body' }, 400);
     const pushToDevice = body.pushToDevice !== false;
     const session = protocolSession();
@@ -277,10 +272,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
         const ok = await session.setAdvertLatLon(lat, lon);
         if (!ok) return c.json({ error: 'SET_ADVERT_LATLON rejected by radio' }, 503);
       }
-      if (
-        typeof body.sharePositionInAdvert === 'boolean' &&
-        body.sharePositionInAdvert !== current.sharePositionInAdvert
-      ) {
+      if (typeof body.sharePositionInAdvert === 'boolean' && body.sharePositionInAdvert !== current.sharePositionInAdvert) {
         // sharePositionInAdvert lives in SET_OTHER_PARAMS along with telemetry
         // policy — re-emit the full frame with current telemetry values.
         const policy = holder.getTelemetryPolicy();
@@ -527,9 +519,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // ---- Discovered-contacts pool ---------------------------------------
   api.get('/api/discovered-contacts', (c) => {
     const holder = stateHolder();
-    return c.json(
-      discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
-    );
+    return c.json(discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()));
   });
 
   // Commit a discovered contact to the radio's store.
@@ -581,9 +571,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   api.post('/api/discovered-contacts/clear', (c) => {
     discoveredStore.clearDiscoveredOnly();
     const holder = stateHolder();
-    emit.discovered(
-      discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
-    );
+    emit.discovered(discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()));
     return c.json({ ok: true });
   });
 
@@ -706,11 +694,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // even at 100k messages, FTS5 returns in single-digit ms.
   api.post('/api/search', async (c) => {
     const body = (await c.req.json().catch(() => null)) as SearchOptions | null;
-    if (
-      !body ||
-      typeof body.query !== 'string' ||
-      (body.sort !== 'relevance' && body.sort !== 'recency')
-    ) {
+    if (!body || typeof body.query !== 'string' || (body.sort !== 'relevance' && body.sort !== 'recency')) {
       return c.json({ error: 'query and sort are required' }, 400);
     }
     return c.json(searchMessages(body, stateHolder().getSearchBlockContext()));

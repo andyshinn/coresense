@@ -64,12 +64,7 @@ function maybeNotify(m: Message): void {
   if (m.state !== 'received') return;
   const rules = blockingStore().list();
   if (rules.length > 0) {
-    const { blocked } = isMessageBlocked(
-      m,
-      buildHintsForNotify(m),
-      rules,
-      blockingStore().regexCacheRef(),
-    );
+    const { blocked } = isMessageBlocked(m, buildHintsForNotify(m), rules, blockingStore().regexCacheRef());
     if (blocked) return;
   }
   if (notifiedIds.has(m.id)) return;

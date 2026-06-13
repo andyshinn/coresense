@@ -12,8 +12,7 @@ export function DeviceInfoSection({ client }: SectionProps) {
   const contacts = useStore((s) => s.contacts.length);
   const connected = useStore((s) => s.transportState === 'connected');
 
-  const storagePct =
-    info.storageTotalKb > 0 ? Math.round((info.storageUsedKb / info.storageTotalKb) * 100) : 0;
+  const storagePct = info.storageTotalKb > 0 ? Math.round((info.storageUsedKb / info.storageTotalKb) * 100) : 0;
 
   const refresh = async () => {
     if (!client) return;
@@ -35,19 +34,11 @@ export function DeviceInfoSection({ client }: SectionProps) {
     >
       <Row
         label="Device model"
-        control={
-          <span className="font-mono text-[12px] text-cs-text">
-            {info.deviceModel || '(unknown)'}
-          </span>
-        }
+        control={<span className="font-mono text-[12px] text-cs-text">{info.deviceModel || '(unknown)'}</span>}
       />
       <Row
         label="Firmware version code"
-        control={
-          <span className="font-mono text-[12px] text-cs-text">
-            {info.firmwareVerCode || '(unknown)'}
-          </span>
-        }
+        control={<span className="font-mono text-[12px] text-cs-text">{info.firmwareVerCode || '(unknown)'}</span>}
       />
       <Row
         label="Channels"

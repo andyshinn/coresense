@@ -21,8 +21,7 @@ export function MapDetailsRail({ client }: Props) {
   const selectedSiteKey = useStore((s) => s.ui.selectedSiteKey);
 
   const selectedContact = useMemo(
-    () =>
-      selectedContactKey ? (contacts.find((c) => c.key === selectedContactKey) ?? null) : null,
+    () => (selectedContactKey ? (contacts.find((c) => c.key === selectedContactKey) ?? null) : null),
     [contacts, selectedContactKey],
   );
 

@@ -2,34 +2,20 @@ import { ChevronDown, ChevronUp, Pencil, Plus, X, Zap } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '../../../components/ui/command';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../../../components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
 import { QUICK_ACTIONS_BY_ID, type QuickActionDef } from '../../../features/quick-actions/catalog';
 import { MAX_QUICK_ACTIONS, type QuickActionId } from '../../../features/quick-actions/ids';
 import { QuickActions } from '../../../features/quick-actions/QuickActions';
 import { sanitizeQuickActionIds } from '../../../features/quick-actions/sanitize';
-import {
-  addSlot,
-  availableToAdd,
-  moveSlot,
-  removeSlot,
-  setSlot,
-} from '../../../features/quick-actions/slots';
+import { addSlot, availableToAdd, moveSlot, removeSlot, setSlot } from '../../../features/quick-actions/slots';
 import { useStore } from '../../../lib/store';
 import { saveApp } from '../app/shared';
 import type { SectionProps } from '../radio/shared';
 import { useSettingsSection } from '../useSectionDraft';
 
 const eqQuickActions = (a: AppSettingsType, b: AppSettingsType) =>
-  a.quickActions.length === b.quickActions.length &&
-  a.quickActions.every((id, i) => id === b.quickActions[i]);
+  a.quickActions.length === b.quickActions.length && a.quickActions.every((id, i) => id === b.quickActions[i]);
 
 /** Searchable picker popover (reuses the command-palette cmdk primitives). */
 function ActionPicker({
@@ -104,14 +90,9 @@ export function QuickActionsTab({ client }: SectionProps) {
         {slots.map((id, i) => {
           const def = QUICK_ACTIONS_BY_ID[id];
           const Icon = def.icon;
-          const availableForSlot = availableToAdd(slots.filter((_, j) => j !== i)).map(
-            (sid) => QUICK_ACTIONS_BY_ID[sid],
-          );
+          const availableForSlot = availableToAdd(slots.filter((_, j) => j !== i)).map((sid) => QUICK_ACTIONS_BY_ID[sid]);
           return (
-            <div
-              key={id}
-              className="flex items-center gap-2 rounded-md border border-cs-border bg-cs-bg-2 px-2 py-1.5"
-            >
+            <div key={id} className="flex items-center gap-2 rounded-md border border-cs-border bg-cs-bg-2 px-2 py-1.5">
               <Icon className="size-4 shrink-0 text-cs-text-muted" aria-hidden />
               <span className="flex-1 text-[12px] text-cs-text">{def.label}</span>
               {i === 0 && (
@@ -120,14 +101,10 @@ export function QuickActionsTab({ client }: SectionProps) {
                 </span>
               )}
               {def.kind === 'toggle' && (
-                <span className="font-mono text-[9px] uppercase tracking-wide text-cs-text-dim">
-                  Toggle
-                </span>
+                <span className="font-mono text-[9px] uppercase tracking-wide text-cs-text-dim">Toggle</span>
               )}
               {def.kind === 'danger' && (
-                <span className="font-mono text-[9px] uppercase tracking-wide text-cs-danger">
-                  Danger
-                </span>
+                <span className="font-mono text-[9px] uppercase tracking-wide text-cs-danger">Danger</span>
               )}
               <div className="flex items-center gap-0.5">
                 <button
@@ -192,9 +169,7 @@ export function QuickActionsTab({ client }: SectionProps) {
       )}
 
       <div className="mt-4">
-        <span className="font-mono text-[9px] uppercase tracking-wide text-cs-text-dim">
-          Preview
-        </span>
+        <span className="font-mono text-[9px] uppercase tracking-wide text-cs-text-dim">Preview</span>
         <div className="mt-1.5 w-56 rounded-lg border border-cs-border bg-cs-bg-2 p-2">
           <div className="pointer-events-none">
             <QuickActions owner={owner} client={client} idsOverride={slots} />

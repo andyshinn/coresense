@@ -38,8 +38,7 @@ export function Unreads({ client: _client }: { client: ApiClient | null }) {
 
   const channelsAll = conversations.filter((c) => c.kind === 'channel');
   const directAll = conversations.filter((c) => c.kind === 'contact');
-  const filtered =
-    filter === 'channels' ? channelsAll : filter === 'direct' ? directAll : conversations;
+  const filtered = filter === 'channels' ? channelsAll : filter === 'direct' ? directAll : conversations;
 
   // Esc (while viewing Unreads) clears the topmost card shown on the page —
   // press repeatedly to triage from the top down. Shift+Esc (clear all) is a
@@ -82,11 +81,7 @@ export function Unreads({ client: _client }: { client: ApiClient | null }) {
   };
 
   const markAllLabel =
-    filter === 'all'
-      ? 'Mark all read'
-      : filter === 'channels'
-        ? 'Mark channels read'
-        : 'Mark direct read';
+    filter === 'all' ? 'Mark all read' : filter === 'channels' ? 'Mark channels read' : 'Mark direct read';
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -110,16 +105,11 @@ export function Unreads({ client: _client }: { client: ApiClient | null }) {
           </button>
         </div>
         <p className="mt-1 font-mono text-[10px] text-cs-text-dim">
-          Triage everything you missed · newest first · Esc clears the top card · ⇧Esc clears all ·
-          nothing is sent over the air
+          Triage everything you missed · newest first · Esc clears the top card · ⇧Esc clears all · nothing is sent over the
+          air
         </p>
         <div className="mt-3 flex items-center gap-1 text-xs">
-          <FilterTab
-            label="All"
-            count={conversations.length}
-            active={filter === 'all'}
-            onClick={() => setFilter('all')}
-          />
+          <FilterTab label="All" count={conversations.length} active={filter === 'all'} onClick={() => setFilter('all')} />
           <FilterTab
             label="Channels"
             count={channelsAll.length}
@@ -139,9 +129,7 @@ export function Unreads({ client: _client }: { client: ApiClient | null }) {
         {filtered.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
             <Inbox className="size-6 text-cs-text-dim" aria-hidden="true" />
-            <h2 className="font-mono text-[11px] uppercase tracking-wider text-cs-text-muted">
-              Nothing here
-            </h2>
+            <h2 className="font-mono text-[11px] uppercase tracking-wider text-cs-text-muted">Nothing here</h2>
             <p className="text-sm text-cs-text-dim">
               {conversations.length === 0
                 ? 'You are all caught up.'
@@ -182,9 +170,7 @@ function FilterTab({
       onClick={onClick}
       className={cn(
         'flex items-center gap-1.5 border-b-2 px-2 py-1 transition-colors',
-        active
-          ? 'border-cs-accent text-cs-text'
-          : 'border-transparent text-cs-text-muted hover:text-cs-text',
+        active ? 'border-cs-accent text-cs-text' : 'border-transparent text-cs-text-muted hover:text-cs-text',
       )}
     >
       {label}
@@ -202,10 +188,7 @@ function FilterTab({
 
 // Channels and rooms carry a per-message sender name (encoded as a `name:`
 // prefix); 1:1 conversations don't — every received message is from the peer.
-function previewSender(
-  conversation: UnreadConversation,
-  fromPublicKeyHex: string | undefined,
-): string {
+function previewSender(conversation: UnreadConversation, fromPublicKeyHex: string | undefined): string {
   if (conversation.kind === 'channel' || conversation.contactKind === 'room') {
     return deriveSenderName(fromPublicKeyHex) || 'unknown';
   }
@@ -247,12 +230,7 @@ function UnreadCard({
   return (
     <div className="rounded-md border border-cs-border bg-cs-bg-2">
       <div className="flex flex-wrap items-center gap-2 border-b border-cs-border px-3 py-2">
-        <button
-          type="button"
-          onClick={onOpen}
-          title={`Open ${conversation.name}`}
-          className="group flex items-center gap-2"
-        >
+        <button type="button" onClick={onOpen} title={`Open ${conversation.name}`} className="group flex items-center gap-2">
           <Icon className="size-3.5 text-cs-accent" aria-hidden="true" />
           <span className="text-sm font-semibold text-cs-text group-hover:text-cs-accent group-hover:underline">
             {conversation.name}
@@ -288,9 +266,7 @@ function UnreadCard({
             ) : (
               <ChevronDown className="size-3" aria-hidden="true" />
             )}
-            {expanded
-              ? 'Show fewer'
-              : `${hiddenCount} earlier unread message${hiddenCount === 1 ? '' : 's'}`}
+            {expanded ? 'Show fewer' : `${hiddenCount} earlier unread message${hiddenCount === 1 ? '' : 's'}`}
           </button>
         )}
         {/* When messages are still hidden above, a gradient veil over the

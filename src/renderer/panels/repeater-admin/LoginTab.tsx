@@ -61,15 +61,11 @@ export function LoginTab({ contact, client, session, onSession }: Props) {
             <dt className="text-cs-text-muted">Mode</dt>
             <dd className="font-mono text-cs-text">{session.mode}</dd>
             <dt className="text-cs-text-muted">Permissions</dt>
-            <dd className="font-mono text-cs-text">
-              0x{session.permissionsBits.toString(16).padStart(2, '0')}
-            </dd>
+            <dd className="font-mono text-cs-text">0x{session.permissionsBits.toString(16).padStart(2, '0')}</dd>
             {session.aclPermissionsBits !== null && (
               <>
                 <dt className="text-cs-text-muted">ACL perms</dt>
-                <dd className="font-mono text-cs-text">
-                  0x{session.aclPermissionsBits.toString(16).padStart(2, '0')}
-                </dd>
+                <dd className="font-mono text-cs-text">0x{session.aclPermissionsBits.toString(16).padStart(2, '0')}</dd>
               </>
             )}
             {session.firmwareVerLevel !== null && (
@@ -110,10 +106,9 @@ export function LoginTab({ contact, client, session, onSession }: Props) {
       </form>
 
       <p className="max-w-prose text-[11px] text-cs-text-dim">
-        The wire mode is derived from this contact's Path settings: Direct uses the companion-side
-        CMD_SEND_LOGIN (no mesh routing); Flood and N-hop both wrap the password in a
-        CMD_SEND_ANON_REQ that the radio routes per the contact's current out_path. Admin grants ACL
-        editing + setperm; guest grants status/telemetry/neighbours only.
+        The wire mode is derived from this contact's Path settings: Direct uses the companion-side CMD_SEND_LOGIN (no mesh
+        routing); Flood and N-hop both wrap the password in a CMD_SEND_ANON_REQ that the radio routes per the contact's
+        current out_path. Admin grants ACL editing + setperm; guest grants status/telemetry/neighbours only.
       </p>
     </div>
   );

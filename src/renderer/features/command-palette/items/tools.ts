@@ -1,15 +1,4 @@
-import {
-  Cog,
-  FileText,
-  Hash,
-  Inbox,
-  MapIcon,
-  MessageCircle,
-  Radio,
-  ScrollText,
-  Search,
-  Users,
-} from 'lucide-react';
+import { Cog, FileText, Hash, Inbox, MapIcon, MessageCircle, Radio, ScrollText, Search, Users } from 'lucide-react';
 import type { PaletteItem, ToolItem } from '../types';
 
 export const TOOL_ITEMS: ToolItem[] = [

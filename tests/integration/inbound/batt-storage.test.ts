@@ -18,11 +18,7 @@ describe('RESP_BATT_AND_STORAGE handled via the feature registry', () => {
     };
     bus.on('deviceInfo', onInfo);
 
-    emit.packet(
-      companionPacket(
-        Buffer.from([0x0c, 0x10, 0x0e, 0x00, 0x01, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00]),
-      ),
-    );
+    emit.packet(companionPacket(Buffer.from([0x0c, 0x10, 0x0e, 0x00, 0x01, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00])));
     await Promise.resolve();
     bus.off('deviceInfo', onInfo);
 

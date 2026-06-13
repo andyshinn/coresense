@@ -118,9 +118,7 @@ export function resetAdmin(reason: string): void {
 
 // ---- Private helpers ---------------------------------------------------
 
-function lookupRepeaterContact(
-  contactKey: string,
-): { ok: true; publicKeyHex: string } | { ok: false; error: string } {
+function lookupRepeaterContact(contactKey: string): { ok: true; publicKeyHex: string } | { ok: false; error: string } {
   const contact = stateHolder()
     .getContacts()
     .find((c) => c.key === contactKey);
@@ -155,11 +153,7 @@ function writeAdminAndAwaitTag(ctx: FeatureContext, frame: Buffer): Promise<stri
 /** Generic mesh request (ACL / neighbours / owner). Issues CMD_SEND_BINARY_REQ,
  *  parks an awaiter for the matching PUSH_BINARY_RESPONSE tag, returns the
  *  body (which the caller decodes per req_type). */
-async function sendBinaryReq(
-  ctx: FeatureContext,
-  contactKey: string,
-  reqData: Buffer,
-): Promise<Buffer> {
+async function sendBinaryReq(ctx: FeatureContext, contactKey: string, reqData: Buffer): Promise<Buffer> {
   const contact = lookupRepeaterContact(contactKey);
   if (!contact.ok) throw new Error(contact.error);
   const frame = buildSendBinaryReq(contact.publicKeyHex, reqData);
@@ -172,10 +166,7 @@ async function sendBinaryReq(
 /** Request a status snapshot from a repeater/room/contact. Returns ok on
  *  transport-level write; the actual `RepeaterStatusSnapshot` arrives later
  *  via PUSH_STATUS_RESPONSE → emit.repeaterStatus(). */
-export async function sendStatusReq(
-  ctx: FeatureContext,
-  contactKey: string,
-): Promise<{ ok: boolean; error?: string }> {
+export async function sendStatusReq(ctx: FeatureContext, contactKey: string): Promise<{ ok: boolean; error?: string }> {
   const contact = stateHolder()
     .getContacts()
     .find((c) => c.key === contactKey);
@@ -192,10 +183,7 @@ export async function sendStatusReq(
 }
 
 /** Request a CayenneLPP telemetry blob from a contact. See sendStatusReq. */
-export async function sendTelemetryReq(
-  ctx: FeatureContext,
-  contactKey: string,
-): Promise<{ ok: boolean; error?: string }> {
+export async function sendTelemetryReq(ctx: FeatureContext, contactKey: string): Promise<{ ok: boolean; error?: string }> {
   const contact = stateHolder()
     .getContacts()
     .find((c) => c.key === contactKey);
@@ -232,17 +220,11 @@ export async function repeaterLogin(
   const preferDirect = contact?.preferDirect === true;
   const hasPath = !!contact?.outPathHex && contact.outPathHex.length > 0;
   const mode: AdminMode = preferDirect ? 'local' : 'remote';
-  const effective: 'direct' | 'flood' | 'path' = preferDirect
-    ? 'direct'
-    : hasPath
-      ? 'path'
-      : 'flood';
+  const effective: 'direct' | 'flood' | 'path' = preferDirect ? 'direct' : hasPath ? 'path' : 'flood';
 
   const prefix = lookup.publicKeyHex.slice(0, 12);
   const wait = adminSessions.awaitLogin<LoginSuccess>(prefix, ADMIN_REPLY_TIMEOUT_MS);
-  const frame = preferDirect
-    ? buildSendLogin(lookup.publicKeyHex, password)
-    : buildAnonLogin(lookup.publicKeyHex, password);
+  const frame = preferDirect ? buildSendLogin(lookup.publicKeyHex, password) : buildAnonLogin(lookup.publicKeyHex, password);
   try {
     await ctx.writeFrame(frame);
   } catch (err) {
@@ -272,10 +254,7 @@ export async function repeaterLogout(ctx: FeatureContext, contactKey: string): P
 }
 
 /** Request the ACL list. Admin-only (firmware returns nothing if guest). */
-export async function repeaterRequestAcl(
-  ctx: FeatureContext,
-  contactKey: string,
-): Promise<AclEntry[]> {
+export async function repeaterRequestAcl(ctx: FeatureContext, contactKey: string): Promise<AclEntry[]> {
   const reqData = Buffer.from([REQ_TYPE.GET_ACCESS_LIST, 0, 0]);
   const payload = await sendBinaryReq(ctx, contactKey, reqData);
   return parseAclList(payload);
@@ -310,10 +289,7 @@ export async function repeaterRequestNeighbours(
   return parsed;
 }
 
-export async function repeaterRequestOwnerInfo(
-  ctx: FeatureContext,
-  contactKey: string,
-): Promise<OwnerInfo> {
+export async function repeaterRequestOwnerInfo(ctx: FeatureContext, contactKey: string): Promise<OwnerInfo> {
   const reqData = Buffer.from([REQ_TYPE.GET_OWNER_INFO]);
   const payload = await sendBinaryReq(ctx, contactKey, reqData);
   return parseOwnerInfo(payload);
@@ -323,11 +299,7 @@ export async function repeaterRequestOwnerInfo(
  *  as a text message with txt_type=CLI_DATA. The reply arrives as a normal
  *  RESP_CONTACT_MSG_RECV(_V3) with txt_type=CLI_DATA; the directMessages
  *  feature routes it back here (onCliReply) by sender prefix. */
-export async function repeaterSendCli(
-  ctx: FeatureContext,
-  contactKey: string,
-  command: string,
-): Promise<string> {
+export async function repeaterSendCli(ctx: FeatureContext, contactKey: string, command: string): Promise<string> {
   const contact = lookupRepeaterContact(contactKey);
   if (!contact.ok) throw new Error(contact.error);
   const prefix = contact.publicKeyHex.slice(0, 12);
@@ -383,18 +355,13 @@ export async function repeaterTracePath(
   const tagHex = Buffer.alloc(4);
   tagHex.writeUInt32LE(opts.tag >>> 0, 0);
   const wait = adminSessions.awaitTag<TraceData>(tagHex.toString('hex'), ADMIN_REPLY_TIMEOUT_MS);
-  await ctx.writeFrame(
-    buildSendTracePath({ tag: opts.tag, authCode: opts.authCode, flags: opts.flags, path }),
-  );
+  await ctx.writeFrame(buildSendTracePath({ tag: opts.tag, authCode: opts.authCode, flags: opts.flags, path }));
   return wait;
 }
 
 /** CMD_GET_STATS — local stats for the directly-connected device. Reply
  *  arrives as RESP_CODE_STATS. */
-export async function repeaterGetLocalStats(
-  ctx: FeatureContext,
-  subtype: keyof typeof STATS_TYPE,
-): Promise<LocalStats> {
+export async function repeaterGetLocalStats(ctx: FeatureContext, subtype: keyof typeof STATS_TYPE): Promise<LocalStats> {
   if (pendingLocalStats) {
     pendingLocalStats.reject(new Error('superseded by newer GET_STATS'));
     clearTimeout(pendingLocalStats.timer);
@@ -418,9 +385,7 @@ function handleStatusResponse(frame: Buffer): void {
   if (!parsed) return;
   const contact = stateHolder()
     .getContacts()
-    .find((c) =>
-      c.publicKeyHex.toLowerCase().startsWith(parsed.senderPubKeyPrefixHex.toLowerCase()),
-    );
+    .find((c) => c.publicKeyHex.toLowerCase().startsWith(parsed.senderPubKeyPrefixHex.toLowerCase()));
   if (!contact) {
     log.warn(`status response from unknown sender prefix=${parsed.senderPubKeyPrefixHex}`);
     return;
@@ -441,9 +406,7 @@ function handleTelemetryResponse(frame: Buffer): void {
   if (!parsed) return;
   const contact = stateHolder()
     .getContacts()
-    .find((c) =>
-      c.publicKeyHex.toLowerCase().startsWith(parsed.senderPubKeyPrefixHex.toLowerCase()),
-    );
+    .find((c) => c.publicKeyHex.toLowerCase().startsWith(parsed.senderPubKeyPrefixHex.toLowerCase()));
   if (!contact) {
     log.warn(`telemetry response from unknown sender prefix=${parsed.senderPubKeyPrefixHex}`);
     return;

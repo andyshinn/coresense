@@ -166,12 +166,7 @@ export function rebuildIndexes(): void {
 /** Write a channel slot (add / edit / delete). Delete = empty name + zero
  *  key, which our enumerator filters as `empty`. Returns true if the radio
  *  acked, false on RESP_ERR / timeout / disconnect. */
-export async function setChannel(
-  ctx: FeatureContext,
-  idx: number,
-  name: string,
-  secretHex: string,
-): Promise<boolean> {
+export async function setChannel(ctx: FeatureContext, idx: number, name: string, secretHex: string): Promise<boolean> {
   if (transportManager.getState().state !== 'connected') return false;
   try {
     // ctx.request (no `expect`) wraps the session's RESP_OK/ERR ack FIFO with

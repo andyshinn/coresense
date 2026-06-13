@@ -5,8 +5,7 @@ import type { Channel, Contact } from '../../../src/shared/types';
 const CTX = { contacts: [], blockRules: [], regexCache: new Map() };
 
 // Build a 64-hex-char pubkey with a controlled prefix and suffix.
-const pk = (prefix: string, suffix: string): string =>
-  prefix + '0'.repeat(64 - prefix.length - suffix.length) + suffix;
+const pk = (prefix: string, suffix: string): string => prefix + '0'.repeat(64 - prefix.length - suffix.length) + suffix;
 
 const channel = (over: Partial<Channel> = {}): Channel => ({
   key: 'ch:General',
@@ -70,9 +69,7 @@ describe('search — contacts by kind', () => {
       ],
     });
     const kindOf = (name: string) =>
-      searchMessages({ query: name, sort: 'relevance' }, CTX).conversations.find(
-        (c) => c.name === name,
-      )?.contactKind;
+      searchMessages({ query: name, sort: 'relevance' }, CTX).conversations.find((c) => c.name === name)?.contactKind;
     expect(kindOf('ChatPerson')).toBe('chat');
     expect(kindOf('RepeaterNode')).toBe('repeater');
     expect(kindOf('RoomServer')).toBe('room');
@@ -98,9 +95,7 @@ describe('search — contacts by kind', () => {
         contact({ key: 'c:chat', name: 'Alice', kind: 'chat', publicKeyHex: pk('a1ce', '0033') }),
       ],
     });
-    const names = searchMessages({ query: 'repeater', sort: 'relevance' }, CTX).conversations.map(
-      (c) => c.name,
-    );
+    const names = searchMessages({ query: 'repeater', sort: 'relevance' }, CTX).conversations.map((c) => c.name);
     expect(names).toContain('North Ridge');
     expect(names).toContain('South Peak');
     expect(names).not.toContain('Alice');
@@ -120,9 +115,7 @@ describe('search — contacts by kind', () => {
 
   it('returns channels with no contactKind', () => {
     rebuildConversationsIndex({ channels: [channel()], contacts: [] });
-    const hit = searchMessages({ query: 'General', sort: 'relevance' }, CTX).conversations.find(
-      (c) => c.name === 'General',
-    );
+    const hit = searchMessages({ query: 'General', sort: 'relevance' }, CTX).conversations.find((c) => c.name === 'General');
     expect(hit?.kind).toBe('channel');
     expect(hit?.contactKind).toBeUndefined();
   });
@@ -131,10 +124,9 @@ describe('search — contacts by kind', () => {
     // The 'General' channel stores '' for contact_kind, so a 'repeater'
     // keyword search must never pull it in (only the repeater contact).
     rebuildConversationsIndex({ channels: [channel()], contacts: [REPEATER] });
-    const channelHits = searchMessages(
-      { query: 'repeater', sort: 'relevance' },
-      CTX,
-    ).conversations.filter((c) => c.kind === 'channel');
+    const channelHits = searchMessages({ query: 'repeater', sort: 'relevance' }, CTX).conversations.filter(
+      (c) => c.kind === 'channel',
+    );
     expect(channelHits).toEqual([]);
   });
 });

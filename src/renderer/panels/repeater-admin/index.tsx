@@ -1,14 +1,4 @@
-import {
-  Activity,
-  ListTree,
-  LogIn,
-  LogOut,
-  Radio,
-  ShieldCheck,
-  Spline,
-  TerminalSquare,
-  Users,
-} from 'lucide-react';
+import { Activity, ListTree, LogIn, LogOut, Radio, ShieldCheck, Spline, TerminalSquare, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { RssiChip } from '../../components/RssiChip';
@@ -109,9 +99,7 @@ export function RepeaterAdmin({ contact, client }: Props) {
             {session ? ` · ${session.role} (${session.mode})` : ''}
           </span>
         </div>
-        {contact.rssi != null && (
-          <RssiChip rssi={contact.rssi} hops={contact.hops} className="ml-3" />
-        )}
+        {contact.rssi != null && <RssiChip rssi={contact.rssi} hops={contact.hops} className="ml-3" />}
         {session && (
           <button
             type="button"
@@ -138,9 +126,7 @@ export function RepeaterAdmin({ contact, client }: Props) {
               onClick={() => setTab(t.id)}
               title={disabled ? `${t.label} (admin login required)` : t.label}
               className={`flex items-center gap-1 px-2 py-1.5 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                active
-                  ? 'border-b border-cs-accent text-cs-text'
-                  : 'text-cs-text-muted hover:text-cs-text'
+                active ? 'border-b border-cs-accent text-cs-text' : 'text-cs-text-muted hover:text-cs-text'
               }`}
             >
               <Icon size={11} aria-hidden="true" />
@@ -151,9 +137,7 @@ export function RepeaterAdmin({ contact, client }: Props) {
       </nav>
 
       <div className="flex-1 overflow-hidden">
-        {tab === 'login' && (
-          <LoginTab contact={contact} client={client} session={session} onSession={setSession} />
-        )}
+        {tab === 'login' && <LoginTab contact={contact} client={client} session={session} onSession={setSession} />}
         {tab === 'path' && <PathTab contact={contact} client={client} />}
         {tab === 'status' && <StatusTab contact={contact} client={client} />}
         {tab === 'acl' && <AclTab contact={contact} client={client} disabled={!isAdmin} />}

@@ -63,9 +63,7 @@ export function AppShell({ title, children, showShell = true, client = null }: A
         className="flex-1 overflow-hidden"
       >
         <LeftNav client={client} />
-        <SidebarInset className="flex flex-1 flex-col overflow-hidden bg-cs-bg">
-          {children}
-        </SidebarInset>
+        <SidebarInset className="flex flex-1 flex-col overflow-hidden bg-cs-bg">{children}</SidebarInset>
         {rightOpen && <RightRail client={client} />}
       </SidebarProvider>
     </div>
@@ -91,9 +89,7 @@ function RailToggles({
           onClick={onToggleLeft}
           title="Show left nav (⌘\\)"
           aria-label="Show left nav"
-          className={cn(
-            'titlebar-no-drag rounded p-1 text-cs-text-dim hover:bg-cs-bg-3 hover:text-cs-text',
-          )}
+          className={cn('titlebar-no-drag rounded p-1 text-cs-text-dim hover:bg-cs-bg-3 hover:text-cs-text')}
         >
           <PanelLeftOpen size={12} />
         </button>

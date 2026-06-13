@@ -148,10 +148,7 @@ export interface SettingsSectionMeta {
 }
 
 // Where the user was trying to go when a dirty section blocked them.
-export type SettingsPendingTarget =
-  | { kind: 'nav'; key: string }
-  | { kind: 'tab'; tab: SettingsTab }
-  | { kind: 'quit' };
+export type SettingsPendingTarget = { kind: 'nav'; key: string } | { kind: 'tab'; tab: SettingsTab } | { kind: 'quit' };
 
 interface SettingsUiState {
   activeTab: SettingsTab;
@@ -488,9 +485,7 @@ const RECENT_KEYS_MAX = 10;
 
 export const useStore = create<CoreState>((set) => ({
   systemDark:
-    typeof window !== 'undefined' && window.matchMedia
-      ? window.matchMedia('(prefers-color-scheme: dark)').matches
-      : false,
+    typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : false,
   transportState: 'idle',
   connectedDeviceId: undefined,
   syncProgress: DEFAULT_SYNC_PROGRESS,
@@ -582,21 +577,18 @@ export const useStore = create<CoreState>((set) => ({
 
   applyPacket: (p) =>
     set((s) => {
-      const next =
-        s.packets.length >= MAX_PACKETS ? s.packets.slice(-(MAX_PACKETS - 1)) : s.packets;
+      const next = s.packets.length >= MAX_PACKETS ? s.packets.slice(-(MAX_PACKETS - 1)) : s.packets;
       return { packets: [...next, p] };
     }),
 
-  applyTransportState: (state, deviceId) =>
-    set(() => ({ transportState: state, connectedDeviceId: deviceId })),
+  applyTransportState: (state, deviceId) => set(() => ({ transportState: state, connectedDeviceId: deviceId })),
 
   applySyncProgress: (progress) => set(() => ({ syncProgress: progress })),
 
   applyDevices: (devices) => set(() => ({ devices })),
   applyBridge: (bridge) => set(() => ({ bridge })),
 
-  applyMessages: (key, messages) =>
-    set((s) => ({ messagesByKey: { ...s.messagesByKey, [key]: messages } })),
+  applyMessages: (key, messages) => set((s) => ({ messagesByKey: { ...s.messagesByKey, [key]: messages } })),
 
   applyMessageState: (id, state) =>
     set((s) => {
@@ -639,13 +631,10 @@ export const useStore = create<CoreState>((set) => ({
   toggleCmSelected: (key) =>
     set((s) => {
       const has = s.contactManager.selected.includes(key);
-      const selected = has
-        ? s.contactManager.selected.filter((k) => k !== key)
-        : [...s.contactManager.selected, key];
+      const selected = has ? s.contactManager.selected.filter((k) => k !== key) : [...s.contactManager.selected, key];
       return { contactManager: { ...s.contactManager, selected } };
     }),
-  setCmSelected: (keys) =>
-    set((s) => ({ contactManager: { ...s.contactManager, selected: keys } })),
+  setCmSelected: (keys) => set((s) => ({ contactManager: { ...s.contactManager, selected: keys } })),
   clearCmSelected: () => set((s) => ({ contactManager: { ...s.contactManager, selected: [] } })),
   setCmFocus: (key) => set((s) => ({ contactManager: { ...s.contactManager, focusKey: key } })),
   setRepeaterAdminTab: (tab) => set(() => ({ repeaterAdminTab: tab })),
@@ -678,8 +667,7 @@ export const useStore = create<CoreState>((set) => ({
   setNeighboursBusy: (busy) => set((s) => ({ neighbours: { ...s.neighbours, busy } })),
   setNeighbourSelected: (id) => set((s) => ({ neighbours: { ...s.neighbours, selectedId: id } })),
   setNeighbourHovered: (id) => set((s) => ({ neighbours: { ...s.neighbours, hoveredId: id } })),
-  setNeighboursShowNames: (showNames) =>
-    set((s) => ({ neighbours: { ...s.neighbours, showNames } })),
+  setNeighboursShowNames: (showNames) => set((s) => ({ neighbours: { ...s.neighbours, showNames } })),
   setCmSort: (field) =>
     set((s) => {
       const { sortField, sortDir } = s.contactManager;
@@ -755,8 +743,7 @@ export const useStore = create<CoreState>((set) => ({
       // changes, stash the target and let the panel raise the prompt instead
       // of navigating. recentKeys + nav stacks stay untouched until the move
       // commits via commitPendingTarget.
-      const leavingSettings =
-        s.ui.activeKey.startsWith('tool:settings') && !key.startsWith('tool:settings');
+      const leavingSettings = s.ui.activeKey.startsWith('tool:settings') && !key.startsWith('tool:settings');
       if (leavingSettings && anyDirty(s.settingsUi.dirtyById)) {
         return { settingsUi: { ...s.settingsUi, pendingTarget: { kind: 'nav', key } } };
       }
@@ -775,8 +762,7 @@ export const useStore = create<CoreState>((set) => ({
       // Same Settings unsaved-guard as forward nav — back through a dirty
       // Settings panel still needs the prompt. The deferred commit replays
       // the goBack by routing through navStateUpdate with swapped stacks.
-      const leavingSettings =
-        s.ui.activeKey.startsWith('tool:settings') && !target.startsWith('tool:settings');
+      const leavingSettings = s.ui.activeKey.startsWith('tool:settings') && !target.startsWith('tool:settings');
       if (leavingSettings && anyDirty(s.settingsUi.dirtyById)) {
         return { settingsUi: { ...s.settingsUi, pendingTarget: { kind: 'nav', key: target } } };
       }
@@ -789,8 +775,7 @@ export const useStore = create<CoreState>((set) => ({
     set((s) => {
       if (s.navFuture.length === 0) return {};
       const target = s.navFuture[s.navFuture.length - 1];
-      const leavingSettings =
-        s.ui.activeKey.startsWith('tool:settings') && !target.startsWith('tool:settings');
+      const leavingSettings = s.ui.activeKey.startsWith('tool:settings') && !target.startsWith('tool:settings');
       if (leavingSettings && anyDirty(s.settingsUi.dirtyById)) {
         return { settingsUi: { ...s.settingsUi, pendingTarget: { kind: 'nav', key: target } } };
       }
@@ -829,8 +814,7 @@ export const useStore = create<CoreState>((set) => ({
   setRightWidth: (w) => set((s) => ({ ui: { ...s.ui, rightWidth: w } })),
   setRailSection: (id, open) =>
     set((s) => ({ ui: { ...s.ui, openRailSections: { ...s.ui.openRailSections, [id]: open } } })),
-  setLeftNavGroup: (id, open) =>
-    set((s) => ({ ui: { ...s.ui, leftNavOpen: { ...s.ui.leftNavOpen, [id]: open } } })),
+  setLeftNavGroup: (id, open) => set((s) => ({ ui: { ...s.ui, leftNavOpen: { ...s.ui.leftNavOpen, [id]: open } } })),
   setDraft: (key, text) =>
     set((s) => {
       const next = { ...s.ui.drafts };
@@ -838,8 +822,7 @@ export const useStore = create<CoreState>((set) => ({
       else delete next[key];
       return { ui: { ...s.ui, drafts: next } };
     }),
-  setPacketLogFilter: (patch) =>
-    set((s) => ({ ui: { ...s.ui, packetLogFilter: { ...s.ui.packetLogFilter, ...patch } } })),
+  setPacketLogFilter: (patch) => set((s) => ({ ui: { ...s.ui, packetLogFilter: { ...s.ui.packetLogFilter, ...patch } } })),
   appendLog: (entry) =>
     set((s) => {
       // snapshot+live can overlap during ws connect, so dedupe by id
@@ -850,8 +833,7 @@ export const useStore = create<CoreState>((set) => ({
       return { logs: [...next, entry] };
     }),
   replaceLogs: (entries) => set(() => ({ logs: entries.slice(-MAX_LOGS) })),
-  setLogsFilter: (patch) =>
-    set((s) => ({ ui: { ...s.ui, logsFilter: { ...s.ui.logsFilter, ...patch } } })),
+  setLogsFilter: (patch) => set((s) => ({ ui: { ...s.ui, logsFilter: { ...s.ui.logsFilter, ...patch } } })),
   clearLogs: () => set(() => ({ logs: [] })),
   setThemePref: (mode) => set((s) => ({ ui: { ...s.ui, themePref: mode } })),
   togglePin: (key) =>
@@ -912,8 +894,7 @@ export const useStore = create<CoreState>((set) => ({
       }
       return { settingsUi: { ...s.settingsUi, activeTab: tab } };
     }),
-  registerSettingsSections: (sections) =>
-    set((s) => ({ settingsUi: { ...s.settingsUi, sections } })),
+  registerSettingsSections: (sections) => set((s) => ({ settingsUi: { ...s.settingsUi, sections } })),
   setSectionDirty: (id, dirty) =>
     set((s) => {
       if ((s.settingsUi.dirtyById[id] ?? false) === dirty) return {};
@@ -926,12 +907,9 @@ export const useStore = create<CoreState>((set) => ({
       if (s.settingsUi.activeSectionId === id) return {};
       return { settingsUi: { ...s.settingsUi, activeSectionId: id } };
     }),
-  requestScrollToSection: (id) =>
-    set((s) => ({ settingsUi: { ...s.settingsUi, pendingScrollSectionId: id } })),
-  clearScrollRequest: () =>
-    set((s) => ({ settingsUi: { ...s.settingsUi, pendingScrollSectionId: null } })),
-  setPendingTarget: (target) =>
-    set((s) => ({ settingsUi: { ...s.settingsUi, pendingTarget: target } })),
+  requestScrollToSection: (id) => set((s) => ({ settingsUi: { ...s.settingsUi, pendingScrollSectionId: id } })),
+  clearScrollRequest: () => set((s) => ({ settingsUi: { ...s.settingsUi, pendingScrollSectionId: null } })),
+  setPendingTarget: (target) => set((s) => ({ settingsUi: { ...s.settingsUi, pendingTarget: target } })),
   clearPendingTarget: () => set((s) => ({ settingsUi: { ...s.settingsUi, pendingTarget: null } })),
   commitPendingTarget: () =>
     set((s) => {

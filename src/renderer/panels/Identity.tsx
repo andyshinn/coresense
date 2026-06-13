@@ -14,8 +14,8 @@ export function Identity() {
     return (
       <PanelShell title="Identity" description="Connect a radio to see its identity.">
         <p className="px-2 py-6 text-[12px] text-cs-text-dim">
-          No identity yet — connect a radio. Its owner name and public key are populated from the
-          first RESP_SELF_INFO after CMD_APP_START.
+          No identity yet — connect a radio. Its owner name and public key are populated from the first RESP_SELF_INFO after
+          CMD_APP_START.
         </p>
       </PanelShell>
     );
@@ -24,35 +24,23 @@ export function Identity() {
   return (
     <PanelShell title="Identity" description="The connected radio's owner name and public key.">
       <Section title="Owner">
-        <Row
-          label="Display name"
-          control={<span className="text-[12px] text-cs-text">{owner.name}</span>}
-        />
+        <Row label="Display name" control={<span className="text-[12px] text-cs-text">{owner.name}</span>} />
         <Row
           label="Short ID"
           description="First six bytes of the public key — what other nodes see in @mentions."
-          control={
-            <CopyableValue value={owner.publicKeyShort} display={owner.publicKeyShort} mono />
-          }
+          control={<CopyableValue value={owner.publicKeyShort} display={owner.publicKeyShort} mono />}
         />
         <Row
           label="Public key"
           description="Full 32-byte Ed25519 public key. Share this with peers to add you as a contact."
-          control={
-            <CopyableValue
-              value={owner.publicKeyHex}
-              display={`${owner.publicKeyHex.slice(0, 16)}…`}
-              mono
-            />
-          }
+          control={<CopyableValue value={owner.publicKeyHex} display={`${owner.publicKeyHex.slice(0, 16)}…`} mono />}
         />
       </Section>
 
       <Section title="Danger zone">
         <p className="px-2 text-[11px] text-cs-text-dim">
-          Regenerating your private key, importing one, or exporting it will land in a later phase
-          behind a confirm dialog. The official mobile app's identity flow is the source of truth
-          until then.
+          Regenerating your private key, importing one, or exporting it will land in a later phase behind a confirm dialog.
+          The official mobile app's identity flow is the source of truth until then.
         </p>
       </Section>
     </PanelShell>

@@ -17,20 +17,12 @@ export function removeSlot(slots: readonly QuickActionId[], index: number): Quic
 }
 
 /** Replace the id at `index`. (Caller only offers unassigned ids, so no dedupe.) */
-export function setSlot(
-  slots: readonly QuickActionId[],
-  index: number,
-  id: QuickActionId,
-): QuickActionId[] {
+export function setSlot(slots: readonly QuickActionId[], index: number, id: QuickActionId): QuickActionId[] {
   return slots.map((cur, i) => (i === index ? id : cur));
 }
 
 /** Move the slot at `from` to `to`; out-of-range moves return the list unchanged. */
-export function moveSlot(
-  slots: readonly QuickActionId[],
-  from: number,
-  to: number,
-): QuickActionId[] {
+export function moveSlot(slots: readonly QuickActionId[], from: number, to: number): QuickActionId[] {
   if (from < 0 || from >= slots.length || to < 0 || to >= slots.length) return [...slots];
   const next = [...slots];
   const [moved] = next.splice(from, 1);

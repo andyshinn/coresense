@@ -9,9 +9,7 @@ export class FeatureRegistry {
     for (const feature of features) {
       for (const code of feature.handles) {
         if (this.byCode.has(code)) {
-          throw new Error(
-            `duplicate feature handler for code 0x${code.toString(16).padStart(2, '0')}`,
-          );
+          throw new Error(`duplicate feature handler for code 0x${code.toString(16).padStart(2, '0')}`);
         }
         this.byCode.set(code, feature);
       }

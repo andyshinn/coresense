@@ -37,10 +37,7 @@ export function decodeAllowedRepeatFreq(frame: Buffer): RepeatFreqRange[] {
 }
 
 /** True when the radio reports an active connection to the given node. */
-export async function hasConnection(
-  ctx: FeatureContext,
-  destPublicKeyHex: string,
-): Promise<boolean> {
+export async function hasConnection(ctx: FeatureContext, destPublicKeyHex: string): Promise<boolean> {
   try {
     await ctx.request(encodeHasConnection(destPublicKeyHex)); // RESP_OK → connected
     return true;

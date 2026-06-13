@@ -11,26 +11,20 @@ import type { ITransport } from './types';
 
 const logger = child('transport:ble');
 
+// Intentional no-op for swallowed rejections and required-but-unused callbacks.
+const noop = (): void => {
+  /* no-op */
+};
+
 // MeshCore BLE UUIDs and known device-name prefixes.
 // Source: https://github.com/zjs81/meshcore-open/blob/main/lib/connector/meshcore_uuids.dart
 // Naming follows the device's perspective: the device's "TX" characteristic is
 // where it transmits notifications to us; its "RX" is where we write commands.
-export const MESHCORE_SERVICE_UUID =
-  process.env.MESHCORE_SERVICE_UUID ?? '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
-export const MESHCORE_RX_CHAR_UUID =
-  process.env.MESHCORE_RX_CHAR_UUID ?? '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
-export const MESHCORE_TX_CHAR_UUID =
-  process.env.MESHCORE_TX_CHAR_UUID ?? '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+export const MESHCORE_SERVICE_UUID = process.env.MESHCORE_SERVICE_UUID ?? '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+export const MESHCORE_RX_CHAR_UUID = process.env.MESHCORE_RX_CHAR_UUID ?? '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+export const MESHCORE_TX_CHAR_UUID = process.env.MESHCORE_TX_CHAR_UUID ?? '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
-export const MESHCORE_NAME_PREFIXES = [
-  'MeshCore-',
-  'Whisper-',
-  'WisCore-',
-  'Seeed',
-  'Lilygo',
-  'HT-',
-  'LowMesh_MC_',
-];
+export const MESHCORE_NAME_PREFIXES = ['MeshCore-', 'Whisper-', 'WisCore-', 'Seeed', 'Lilygo', 'HT-', 'LowMesh_MC_'];
 
 const SCAN_TIMEOUT_MS = 10_000;
 const SCAN_RESULTS_DEBOUNCE_MS = 200;
@@ -114,9 +108,7 @@ export class BleTransport implements ITransport {
     // pre-filter results). We additionally filter in onDiscover by name prefix
     // for devices that don't advertise the service UUID in their packet.
     await new Promise<void>((resolve, reject) => {
-      noble.startScanning([normalizeUuid(MESHCORE_SERVICE_UUID)], false, (err) =>
-        err ? reject(err) : resolve(),
-      );
+      noble.startScanning([normalizeUuid(MESHCORE_SERVICE_UUID)], false, (err) => (err ? reject(err) : resolve()));
     });
     if (this.scanTimer) clearTimeout(this.scanTimer);
     this.scanTimer = setTimeout(() => void this.stopScan(), SCAN_TIMEOUT_MS);
@@ -170,9 +162,7 @@ export class BleTransport implements ITransport {
 
       tx.on('data', this.onData);
       await withTimeout(
-        new Promise<void>((resolve, reject) =>
-          tx.subscribe((err) => (err ? reject(err) : resolve())),
-        ),
+        new Promise<void>((resolve, reject) => tx.subscribe((err) => (err ? reject(err) : resolve()))),
         GATT_SUBSCRIBE_TIMEOUT_MS,
         'characteristic.subscribe',
       );
@@ -241,8 +231,8 @@ export class BleTransport implements ITransport {
     // not break the chain — we swallow the prior error here so the next
     // caller still runs; their own awaiter already saw the rejection.
     const prev = this.writeChain;
-    const run = prev.catch(() => {}).then(() => this.doWrite(bytes));
-    this.writeChain = run.catch(() => {});
+    const run = prev.catch(noop).then(() => this.doWrite(bytes));
+    this.writeChain = run.catch(noop);
     return run;
   }
 
@@ -283,9 +273,7 @@ export class BleTransport implements ITransport {
     // If we already saw this device in the most recent scan, use it directly.
     const existing = this.discovered.get(deviceId);
     if (existing) {
-      const peripheral = (
-        noble as unknown as { _peripherals?: Map<string, Peripheral> }
-      )._peripherals?.get(deviceId);
+      const peripheral = (noble as unknown as { _peripherals?: Map<string, Peripheral> })._peripherals?.get(deviceId);
       if (peripheral) return Promise.resolve(peripheral);
     }
     return new Promise((resolve, reject) => {
@@ -299,11 +287,7 @@ export class BleTransport implements ITransport {
       void waitForPoweredOn()
         .then(() => {
           noble.on('discover', onDiscover);
-          noble.startScanning(
-            [normalizeUuid(MESHCORE_SERVICE_UUID)],
-            false,
-            (err) => err && reject(err),
-          );
+          noble.startScanning([normalizeUuid(MESHCORE_SERVICE_UUID)], false, (err) => err && reject(err));
           setTimeout(() => {
             noble.removeListener('discover', onDiscover);
             reject(new Error(`Device ${deviceId} not found within scan window`));
@@ -354,10 +338,7 @@ export class BleTransport implements ITransport {
         if (mesh && mesh.payloadType === PAYLOAD_TYPE.GRP_TXT && mesh.payload.length >= 1) {
           const channelHash = mesh.payload[0];
           const encrypted = mesh.payload.subarray(1);
-          const payloadFingerprint = createHash('sha1')
-            .update(encrypted)
-            .digest('hex')
-            .slice(0, 16);
+          const payloadFingerprint = createHash('sha1').update(encrypted).digest('hex').slice(0, 16);
           const observation = {
             recordedAt: Date.now(),
             channelHash,
@@ -457,7 +438,7 @@ export class BleTransport implements ITransport {
     const deviceId = p.id;
     logger.warn(`forcing disconnect for ${deviceId} (${reason})`);
     try {
-      p.disconnect(() => {});
+      p.disconnect(noop);
     } catch (err) {
       logger.warn(`forced disconnect threw: ${(err as Error).message}`);
     }

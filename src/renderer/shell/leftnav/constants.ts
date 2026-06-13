@@ -1,14 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import {
-  Activity,
-  Cog,
-  DoorOpen,
-  Map as MapIcon,
-  Radio,
-  ScrollText,
-  Search,
-  Users,
-} from 'lucide-react';
+import { Activity, Cog, DoorOpen, Map as MapIcon, Radio, ScrollText, Search, Users } from 'lucide-react';
 import type { ContactKind } from '../../../shared/types';
 
 /** Icon used for each contact-kind group header in the nav tree. */

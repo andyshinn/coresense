@@ -11,9 +11,7 @@ export function Section({ title, description, children }: SectionProps) {
   return (
     <section className="border-b border-cs-border py-4 last:border-b-0">
       <header className="mb-2">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">
-          {title}
-        </h2>
+        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">{title}</h2>
         {description && <p className="mt-0.5 text-[11px] text-cs-text-dim">{description}</p>}
       </header>
       <div className="space-y-1">{children}</div>
@@ -104,16 +102,7 @@ interface NumberInputProps {
   suffix?: string;
 }
 
-export function NumberInput({
-  value,
-  onChange,
-  min,
-  max,
-  step,
-  disabled,
-  width = 'w-24',
-  suffix,
-}: NumberInputProps) {
+export function NumberInput({ value, onChange, min, max, step, disabled, width = 'w-24', suffix }: NumberInputProps) {
   return (
     <span className="flex items-baseline gap-1">
       <input
@@ -142,13 +131,7 @@ interface TextInputProps {
   width?: string;
 }
 
-export function TextInput({
-  value,
-  onChange,
-  disabled,
-  placeholder,
-  width = 'w-48',
-}: TextInputProps) {
+export function TextInput({ value, onChange, disabled, placeholder, width = 'w-48' }: TextInputProps) {
   return (
     <input
       type="text"
@@ -174,9 +157,7 @@ export function PanelShell({ title, description, actions, children }: PanelShell
       <header className="flex shrink-0 items-center gap-3 border-b border-cs-border bg-cs-bg-2 px-4 py-2.5">
         <div className="flex flex-col">
           <h1 className="font-medium leading-tight text-cs-text">{title}</h1>
-          {description && (
-            <span className="font-mono text-[10px] text-cs-text-dim">{description}</span>
-          )}
+          {description && <span className="font-mono text-[10px] text-cs-text-dim">{description}</span>}
         </div>
         {actions && <div className="ml-auto flex items-center gap-2">{actions}</div>}
       </header>

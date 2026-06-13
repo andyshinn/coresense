@@ -37,9 +37,7 @@ export function ContactSubItem({
           <span className="flex-1 truncate">{contact.name}</span>
           {showUnread && <UnreadChip count={unread} />}
           {contact.muted && <BellOff aria-label="muted" className="size-3 text-cs-text-dim/60" />}
-          {pinned && (
-            <Star aria-hidden="true" className="size-3 text-cs-accent" fill="currentColor" />
-          )}
+          {pinned && <Star aria-hidden="true" className="size-3 text-cs-accent" fill="currentColor" />}
         </button>
       </SidebarMenuSubButton>
     </SidebarMenuSubItem>

@@ -100,12 +100,7 @@ export function NeighboursTab({ contact, client }: Props) {
     return <MapPlaceholder icon="no-gps" text="Waiting for radio connection…" />;
   }
   if (!tilesOk) {
-    return (
-      <MapPlaceholder
-        icon="no-tiles"
-        text="Map tiles not installed — the neighbour list is in the right rail."
-      />
-    );
+    return <MapPlaceholder icon="no-tiles" text="Map tiles not installed — the neighbour list is in the right rail." />;
   }
   return (
     <MapPlaceholder

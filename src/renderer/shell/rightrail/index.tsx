@@ -35,19 +35,11 @@ export function RightRail({ client }: RightRailProps) {
   const neighbours = useStore((s) => s.neighbours);
 
   const data: RailData = useMemo(() => {
-    const channel = activeKey.startsWith('ch:')
-      ? (channels.find((c) => c.key === activeKey) ?? null)
-      : null;
-    const contact = activeKey.startsWith('c:')
-      ? (contacts.find((c) => c.key === activeKey) ?? null)
-      : null;
+    const channel = activeKey.startsWith('ch:') ? (channels.find((c) => c.key === activeKey) ?? null) : null;
+    const contact = activeKey.startsWith('c:') ? (contacts.find((c) => c.key === activeKey) ?? null) : null;
     const selectedMessage =
-      selectedMessageId != null
-        ? ((messagesByKey[activeKey] ?? []).find((m) => m.id === selectedMessageId) ?? null)
-        : null;
-    const mentionedContact = selectedContactKey
-      ? (contacts.find((c) => c.key === selectedContactKey) ?? null)
-      : null;
+      selectedMessageId != null ? ((messagesByKey[activeKey] ?? []).find((m) => m.id === selectedMessageId) ?? null) : null;
+    const mentionedContact = selectedContactKey ? (contacts.find((c) => c.key === selectedContactKey) ?? null) : null;
     const repeaters = contacts.filter((c) => c.kind === 'repeater');
     // On a repeater's Neighbours tab with a neighbour selected, the contact card
     // targets that neighbour's resolved contact; otherwise the focal contact.
@@ -58,8 +50,7 @@ export function RightRail({ client }: RightRailProps) {
       neighbours.selectedId
         ? resolveNeighbourPublicKey(neighbours.selectedId, contacts, discovered)
         : null;
-    const cardPublicKeyHex =
-      selectedNeighbourPk ?? (activeKey.startsWith('c:') ? activeKey.slice(2) : null);
+    const cardPublicKeyHex = selectedNeighbourPk ?? (activeKey.startsWith('c:') ? activeKey.slice(2) : null);
     return {
       channel,
       contact,
@@ -99,9 +90,7 @@ export function RightRail({ client }: RightRailProps) {
       <ResizeHandle width={rightWidth} onChange={setRightWidth} />
 
       <header className="flex items-center justify-between border-b border-cs-border px-3 py-2">
-        <h2 className="font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">
-          {railTitle(activeKey)}
-        </h2>
+        <h2 className="font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">{railTitle(activeKey)}</h2>
         <button
           type="button"
           onClick={toggleRightRail}

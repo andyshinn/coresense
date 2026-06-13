@@ -2,12 +2,7 @@ import { Bluetooth, Loader2, Radio, Wifi, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { BleDevice, TransportState } from '../../shared/types';
 import { RssiChip } from '../components/RssiChip';
-import {
-  clearLastDevice,
-  type LastDevice,
-  loadLastDevice,
-  saveLastDevice,
-} from '../lib/lastDevice';
+import { clearLastDevice, type LastDevice, loadLastDevice, saveLastDevice } from '../lib/lastDevice';
 import { cn } from '../lib/utils';
 
 type TransportKind = 'ble' | 'serial' | 'tcp';
@@ -28,29 +23,19 @@ export function BleConnect(props: Props) {
   return (
     <section className="flex h-full flex-col gap-4 overflow-hidden border-r border-cs-border bg-cs-bg-2 p-4 lg:w-96">
       <header>
-        <h2 className="font-mono text-[11px] uppercase tracking-wider text-cs-text-muted">
-          Radio connection
-        </h2>
+        <h2 className="font-mono text-[11px] uppercase tracking-wider text-cs-text-muted">Radio connection</h2>
       </header>
 
       <TransportTabs value={transport} onChange={setTransport} />
 
       {transport === 'ble' && <BleFlow {...props} />}
-      {transport === 'serial' && (
-        <ComingSoon label="USB serial transport will land in a follow-up." />
-      )}
+      {transport === 'serial' && <ComingSoon label="USB serial transport will land in a follow-up." />}
       {transport === 'tcp' && <ComingSoon label="WiFi / TCP transport will land in a follow-up." />}
     </section>
   );
 }
 
-function TransportTabs({
-  value,
-  onChange,
-}: {
-  value: TransportKind;
-  onChange: (v: TransportKind) => void;
-}) {
+function TransportTabs({ value, onChange }: { value: TransportKind; onChange: (v: TransportKind) => void }) {
   const tabs: { id: TransportKind; label: string; icon: typeof Bluetooth; disabled?: boolean }[] = [
     { id: 'ble', label: 'BLE', icon: Bluetooth },
     { id: 'serial', label: 'Serial', icon: Radio, disabled: true },
@@ -96,15 +81,7 @@ function ComingSoon({ label }: { label: string }) {
   );
 }
 
-function BleFlow({
-  state,
-  devices,
-  connectedDeviceId,
-  onScan,
-  onConnect,
-  onDisconnect,
-  busy,
-}: Props) {
+function BleFlow({ state, devices, connectedDeviceId, onScan, onConnect, onDisconnect, busy }: Props) {
   const [lastDevice, setLastDevice] = useState<LastDevice | null>(() => loadLastDevice());
 
   // When we transition into a connected state, remember the device for next time.
@@ -149,12 +126,7 @@ function BleFlow({
 
           <ScanButton state={state} busy={busy} onScan={onScan} />
 
-          <DeviceList
-            devices={sortedDevices}
-            state={state}
-            busy={busy}
-            onConnect={(id) => void onConnect(id)}
-          />
+          <DeviceList devices={sortedDevices} state={state} busy={busy} onConnect={(id) => void onConnect(id)} />
         </>
       )}
     </div>
@@ -186,15 +158,7 @@ function StatusLine({ state }: { state: TransportState }) {
   );
 }
 
-function ScanButton({
-  state,
-  busy,
-  onScan,
-}: {
-  state: TransportState;
-  busy: boolean;
-  onScan: () => void;
-}) {
+function ScanButton({ state, busy, onScan }: { state: TransportState; busy: boolean; onScan: () => void }) {
   const scanning = state === 'scanning';
   return (
     <button
@@ -294,11 +258,7 @@ function ConnectedCard({
         >
           Disconnect
         </button>
-        <button
-          type="button"
-          onClick={onForget}
-          className="rounded px-2 py-1 text-xs text-cs-text-dim hover:text-cs-text"
-        >
+        <button type="button" onClick={onForget} className="rounded px-2 py-1 text-xs text-cs-text-dim hover:text-cs-text">
           Forget this radio
         </button>
       </div>

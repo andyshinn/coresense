@@ -25,11 +25,7 @@ interface Row {
   favourite: number;
 }
 
-function rowToDiscovered(
-  row: Row,
-  hashSize: PathHashSize,
-  blockRules: BlockRule[],
-): DiscoveredContact {
+function rowToDiscovered(row: Row, hashSize: PathHashSize, blockRules: BlockRule[]): DiscoveredContact {
   const hasFix = row.gps_lat !== 0 || row.gps_lon !== 0;
   const hasPath = row.out_path_len !== 0xff && row.out_path_len > 0;
   return {
@@ -60,10 +56,7 @@ export const discoveredStore = {
    *  node) from a GET_CONTACTS resync (the device just listing what it stores).
    *  last_heard_ms is our-clock and only advances on a live advert, so it never
    *  moves on a resync — committing a contact to the radio can't bump it. */
-  upsert(
-    record: ContactRecord,
-    opts: { onRadio: boolean; nowMs: number; heardLive: boolean },
-  ): void {
+  upsert(record: ContactRecord, opts: { onRadio: boolean; nowMs: number; heardLive: boolean }): void {
     const db = openDb();
     const heardMs = opts.heardLive ? opts.nowMs : 0;
     db.prepare(
@@ -103,26 +96,19 @@ export const discoveredStore = {
 
   list(hashSize: PathHashSize, blockRules: BlockRule[]): DiscoveredContact[] {
     const db = openDb();
-    const rows = db
-      .prepare(`SELECT * FROM discovered_contacts ORDER BY last_advert_unix DESC`)
-      .all() as unknown as Row[];
+    const rows = db.prepare(`SELECT * FROM discovered_contacts ORDER BY last_advert_unix DESC`).all() as unknown as Row[];
     return rows.map((r) => rowToDiscovered(r, hashSize, blockRules));
   },
 
   get(pubkey: string): Row | null {
     const db = openDb();
-    const row = db.prepare(`SELECT * FROM discovered_contacts WHERE pubkey = ?`).get(pubkey) as
-      | Row
-      | undefined;
+    const row = db.prepare(`SELECT * FROM discovered_contacts WHERE pubkey = ?`).get(pubkey) as Row | undefined;
     return row ?? null;
   },
 
   setOnRadio(pubkey: string, onRadio: boolean): void {
     const db = openDb();
-    db.prepare(`UPDATE discovered_contacts SET on_radio = ? WHERE pubkey = ?`).run(
-      onRadio ? 1 : 0,
-      pubkey,
-    );
+    db.prepare(`UPDATE discovered_contacts SET on_radio = ? WHERE pubkey = ?`).run(onRadio ? 1 : 0, pubkey);
   },
 
   /** Mark on_radio for exactly the given set (used after a full GET_CONTACTS

@@ -13,10 +13,7 @@ interface TransportSink {
  * listeners. Both modules load via dynamic import so the unused path's native
  * deps (noble for BLE) never load.
  */
-export async function installStartupTransport(
-  env: NodeJS.ProcessEnv,
-  manager: TransportSink,
-): Promise<ITransport> {
+export async function installStartupTransport(env: NodeJS.ProcessEnv, manager: TransportSink): Promise<ITransport> {
   const fixture = env.CORESENSE_FAKE_TRANSPORT;
   if (fixture) {
     const { FileReplayTransport } = await import('./replay');

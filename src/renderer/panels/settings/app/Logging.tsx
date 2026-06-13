@@ -53,9 +53,7 @@ export function LoggingSection({ client }: SectionProps) {
           <Select
             value={draft.level}
             options={LEVEL_OPTIONS}
-            onChange={(v) =>
-              setDraft((s) => ({ ...s, level: v as AppSettingsType['logging']['level'] }))
-            }
+            onChange={(v) => setDraft((s) => ({ ...s, level: v as AppSettingsType['logging']['level'] }))}
           />
         }
       />
@@ -63,19 +61,10 @@ export function LoggingSection({ client }: SectionProps) {
         label="Write logs to file"
         description="When enabled, every log entry is also written to a daily-rotated file in your app data folder. Files older than 7 days are pruned automatically."
         changed={draft.fileEnabled !== saved.fileEnabled}
-        control={
-          <Toggle
-            checked={draft.fileEnabled}
-            onChange={(v) => setDraft((s) => ({ ...s, fileEnabled: v }))}
-          />
-        }
+        control={<Toggle checked={draft.fileEnabled} onChange={(v) => setDraft((s) => ({ ...s, fileEnabled: v }))} />}
       />
       <div className="px-2 py-1">
-        <button
-          type="button"
-          className={BTN}
-          onClick={() => useStore.getState().setActiveKey('tool:logs')}
-        >
+        <button type="button" className={BTN} onClick={() => useStore.getState().setActiveKey('tool:logs')}>
           <FileText className="size-3.5" />
           Open Logs panel
         </button>

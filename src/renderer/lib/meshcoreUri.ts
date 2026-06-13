@@ -1,10 +1,4 @@
-import {
-  type AdvertPayload,
-  type DeviceRole,
-  MeshCoreDecoder,
-  PayloadType,
-  Utils,
-} from '@michaelhart/meshcore-decoder';
+import { type AdvertPayload, type DeviceRole, MeshCoreDecoder, PayloadType, Utils } from '@michaelhart/meshcore-decoder';
 
 /**
  * A MeshCore node advertisement decoded from a `meshcore://` contact-share

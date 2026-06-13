@@ -125,9 +125,7 @@ export function MessageItem({
             <MessageBody body={message.body} />
           </div>
           <div className="flex flex-row items-center gap-2 font-mono text-[10px] text-cs-text-dim">
-            <span title={fmtDateTime(message.ts, timeFormat)}>
-              {fmtTime(message.ts, timeFormat)}
-            </span>
+            <span title={fmtDateTime(message.ts, timeFormat)}>{fmtTime(message.ts, timeFormat)}</span>
             <StateChip message={message} />
             {pathLabel && <span className="tabular-nums">{pathLabel}</span>}
             {message.meta?.rssi != null && <RssiChip rssi={message.meta.rssi} showHops={false} />}

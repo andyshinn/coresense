@@ -24,27 +24,17 @@ const typeColor: Record<string, string> = {
 };
 
 function MeshRow({ packet, timeFormat }: { packet: RawPacket; timeFormat: TimeFormatPref }) {
-  const summary: PacketSummary = useMemo(
-    () => summarizePacket(packet.payloadHex),
-    [packet.payloadHex],
-  );
+  const summary: PacketSummary = useMemo(() => summarizePacket(packet.payloadHex), [packet.payloadHex]);
   const color = typeColor[summary.typeName] ?? 'text-cs-text-muted';
-  const link =
-    packet.snr !== undefined && packet.rssi !== undefined
-      ? `${packet.rssi}dBm/${packet.snr.toFixed(1)}dB`
-      : null;
+  const link = packet.snr !== undefined && packet.rssi !== undefined ? `${packet.rssi}dBm/${packet.snr.toFixed(1)}dB` : null;
   return (
     <div className="flex gap-3 py-1">
-      <span className="inline-block shrink-0 text-cs-text-dim">
-        {fmtTimePrecise(packet.timestamp, timeFormat)}
-      </span>
+      <span className="inline-block shrink-0 text-cs-text-dim">{fmtTimePrecise(packet.timestamp, timeFormat)}</span>
       <span className="inline-block shrink-0 text-cs-text-dim">{packet.payloadBytes.length}B</span>
       <span className={`inline-block shrink-0 font-medium ${color}`}>{summary.typeName}</span>
       <span className="inline-block shrink-0 text-cs-text-dim">{summary.routeName}</span>
       {link && <span className="inline-block shrink-0 text-cs-text-dim">{link}</span>}
-      {summary.detail && (
-        <span className="inline-block shrink-0 text-cs-text-muted">{summary.detail}</span>
-      )}
+      {summary.detail && <span className="inline-block shrink-0 text-cs-text-muted">{summary.detail}</span>}
       <span className="inline-block break-all text-cs-text-dim/70">{packet.payloadHex}</span>
     </div>
   );
@@ -53,9 +43,7 @@ function MeshRow({ packet, timeFormat }: { packet: RawPacket; timeFormat: TimeFo
 function CompanionRow({ packet, timeFormat }: { packet: RawPacket; timeFormat: TimeFormatPref }) {
   return (
     <div className="flex gap-3 py-1">
-      <span className="inline-block shrink-0 text-cs-text-dim">
-        {fmtTimePrecise(packet.timestamp, timeFormat)}
-      </span>
+      <span className="inline-block shrink-0 text-cs-text-dim">{fmtTimePrecise(packet.timestamp, timeFormat)}</span>
       <span className="inline-block shrink-0 text-cs-text-dim">{packet.payloadBytes.length}B</span>
       <span className="inline-block shrink-0 font-medium text-cs-accent-soft">BLE</span>
       <span className="inline-block shrink-0 text-cs-text-muted">{packet.codeName ?? '?'}</span>
@@ -79,9 +67,7 @@ export function PacketLog({ packets }: Props) {
   return (
     <section className="flex min-h-0 flex-1 flex-col rounded border border-cs-border bg-cs-bg-2">
       <header className="flex items-center justify-between border-b border-cs-border px-4 py-2">
-        <h2 className="font-mono text-[10px] font-semibold uppercase tracking-wide text-cs-text-dim">
-          Raw packets
-        </h2>
+        <h2 className="font-mono text-[10px] font-semibold uppercase tracking-wide text-cs-text-dim">Raw packets</h2>
         <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-wide text-cs-text-dim">
           <label className="flex cursor-pointer items-center gap-1.5 select-none">
             <input

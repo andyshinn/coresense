@@ -32,8 +32,7 @@ describe('inbound contacts iterator via the feature registry + contactsSync brid
     session.start();
 
     const progress: Array<{ done: number; total: number }> = [];
-    const onProgress = (p: { contacts: { done: number; total: number } }) =>
-      progress.push({ ...p.contacts });
+    const onProgress = (p: { contacts: { done: number; total: number } }) => progress.push({ ...p.contacts });
     bus.on('syncProgress', onProgress);
     let lastContacts: Array<{ key: string }> = [];
     const onContacts = (c: Array<{ key: string }>) => {
@@ -70,8 +69,7 @@ describe('inbound contacts iterator via the feature registry + contactsSync brid
     session.start();
 
     const progress: Array<{ done: number; total: number }> = [];
-    const onProgress = (p: { contacts: { done: number; total: number } }) =>
-      progress.push({ ...p.contacts });
+    const onProgress = (p: { contacts: { done: number; total: number } }) => progress.push({ ...p.contacts });
     bus.on('syncProgress', onProgress);
 
     emit.packet(companionPacket(startFrame(1))); // radio promises 1

@@ -4,14 +4,7 @@ import { type ApiClient, api } from '../lib/api';
 import { notify } from '../lib/notify';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -48,9 +41,7 @@ export function BlockSenderDialog({ client, open, prefill, onClose }: Props) {
   const [prefixChecked, setPrefixChecked] = useState(prefill.pubkeyPrefix != null);
   const [nameChecked, setNameChecked] = useState(prefill.name != null);
   const [regexChecked, setRegexChecked] = useState(false);
-  const [regexSource, setRegexSource] = useState(
-    prefill.name ? `^${escapeRegex(prefill.name)}$` : '',
-  );
+  const [regexSource, setRegexSource] = useState(prefill.name ? `^${escapeRegex(prefill.name)}$` : '');
   const [retroChecked, setRetroChecked] = useState(true);
   const [windowMs, setWindowMs] = useState<number>(WINDOW_OPTIONS[1].ms);
   const [note, setNote] = useState('');
@@ -137,9 +128,7 @@ export function BlockSenderDialog({ client, open, prefill, onClose }: Props) {
 
         <div className="space-y-3 text-sm">
           <div className="space-y-2">
-            <Label className="text-xs uppercase text-cs-text-dim">
-              Identifiers from this message
-            </Label>
+            <Label className="text-xs uppercase text-cs-text-dim">Identifiers from this message</Label>
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={pubkeyChecked}
@@ -168,10 +157,7 @@ export function BlockSenderDialog({ client, open, prefill, onClose }: Props) {
               <code className="text-xs">{prefill.name ?? '—'}</code>
             </div>
             <div className="flex items-center gap-2">
-              <Checkbox
-                checked={regexChecked}
-                onCheckedChange={(v) => setRegexChecked(v === true)}
-              />
+              <Checkbox checked={regexChecked} onCheckedChange={(v) => setRegexChecked(v === true)} />
               <span className="w-24">Name regex</span>
               <Input
                 value={regexSource}
@@ -185,16 +171,9 @@ export function BlockSenderDialog({ client, open, prefill, onClose }: Props) {
 
           <div className="space-y-2 border-t pt-2">
             <div className="flex items-center gap-2">
-              <Checkbox
-                checked={retroChecked}
-                onCheckedChange={(v) => setRetroChecked(v === true)}
-              />
+              <Checkbox checked={retroChecked} onCheckedChange={(v) => setRetroChecked(v === true)} />
               <span className="flex-1">Also hide past messages from last</span>
-              <Select
-                value={String(windowMs)}
-                onValueChange={(v) => setWindowMs(Number(v))}
-                disabled={!retroChecked}
-              >
+              <Select value={String(windowMs)} onValueChange={(v) => setWindowMs(Number(v))} disabled={!retroChecked}>
                 <SelectTrigger className="w-28">
                   <SelectValue />
                 </SelectTrigger>

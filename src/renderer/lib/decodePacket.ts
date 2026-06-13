@@ -94,9 +94,7 @@ export function summarizePacket(hex: string): PacketSummary {
     const decoded = MeshCoreDecoder.decode(hex);
     return {
       routeName: Utils.getRouteTypeName(decoded.routeType as RouteType),
-      typeName: decoded.isValid
-        ? Utils.getPayloadTypeName(decoded.payloadType as PayloadType)
-        : 'invalid',
+      typeName: decoded.isValid ? Utils.getPayloadTypeName(decoded.payloadType as PayloadType) : 'invalid',
       detail: decoded.isValid ? detailFor(decoded) : (decoded.errors?.[0] ?? null),
       isValid: decoded.isValid,
       decoded,

@@ -338,8 +338,7 @@ export function resetDmState(reason: string): void {
 // ---- Inbound handlers --------------------------------------------------
 
 function handleContactMsg(code: number, frame: Buffer, ctx: FeatureContext): void {
-  const parsed =
-    code === RESP.CONTACT_MSG_RECV_V3 ? decodeContactMsgV3(frame) : decodeContactMsgV1(frame);
+  const parsed = code === RESP.CONTACT_MSG_RECV_V3 ? decodeContactMsgV3(frame) : decodeContactMsgV1(frame);
   if (!parsed) return;
   // CLI replies arrive on the same opcode as DMs; route them to the matching
   // admin awaiter (Phase 2f) and don't insert them into the message store.
@@ -352,9 +351,7 @@ function handleContactMsg(code: number, frame: Buffer, ctx: FeatureContext): voi
 
   const holder = stateHolder();
   const prefix = parsed.senderPubKeyPrefixHex;
-  let contact = holder
-    .getContacts()
-    .find((c) => c.publicKeyHex.toLowerCase().startsWith(prefix.toLowerCase()));
+  let contact = holder.getContacts().find((c) => c.publicKeyHex.toLowerCase().startsWith(prefix.toLowerCase()));
 
   if (!contact) {
     // Unknown sender — synth a placeholder contact keyed by the 6-byte
@@ -382,9 +379,7 @@ function handleContactMsg(code: number, frame: Buffer, ctx: FeatureContext): voi
   };
   holder.insertMessage(message);
   emit.messages(contact.key, holder.getMessagesForKey(contact.key));
-  log.debug(
-    `contact msg from=${prefix} → "${contact.name}" body=${JSON.stringify(parsed.body.slice(0, 60))}`,
-  );
+  log.debug(`contact msg from=${prefix} → "${contact.name}" body=${JSON.stringify(parsed.body.slice(0, 60))}`);
   // The radio only tickles PUSH_MSG_WAITING once per queue event; keep
   // pulling until NO_MORE_MESSAGES.
   if (isDraining()) pumpAfterRecv(ctx);
@@ -405,9 +400,7 @@ function handleSent(frame: Buffer): void {
   const holder = stateHolder();
   holder.setMessageState(messageId, 'sent');
   emit.messageState(messageId, 'sent');
-  log.debug(
-    `dm sent id=${messageId} flood=${sent.flood} ack=${sent.expectedAckHex} timeout=${sent.estTimeoutMs}ms`,
-  );
+  log.debug(`dm sent id=${messageId} flood=${sent.flood} ack=${sent.expectedAckHex} timeout=${sent.estTimeoutMs}ms`);
 
   if (sent.expectedAckHex !== '00000000') {
     const timer = setTimeout(() => {

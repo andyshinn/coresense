@@ -1,13 +1,4 @@
-import {
-  KeyRound,
-  LocateFixed,
-  type LucideIcon,
-  MapPin,
-  Megaphone,
-  PowerOff,
-  Radio,
-  RotateCcw,
-} from 'lucide-react';
+import { KeyRound, LocateFixed, type LucideIcon, MapPin, Megaphone, PowerOff, Radio, RotateCcw } from 'lucide-react';
 import type { Owner } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
@@ -39,8 +30,7 @@ export interface QuickActionDef {
 }
 
 const ok = (msg: string) => () => notify.success(msg);
-const fail = (label: string) => (err: unknown) =>
-  notify.error(`${label} failed: ${(err as Error).message}`, err);
+const fail = (label: string) => (err: unknown) => notify.error(`${label} failed: ${(err as Error).message}`, err);
 
 export const QUICK_ACTIONS: QuickActionDef[] = [
   {
@@ -96,10 +86,7 @@ export const QUICK_ACTIONS: QuickActionDef[] = [
       const cur = useStore.getState().deviceIdentity.sharePositionInAdvert;
       return api
         .putDeviceIdentity(client, { sharePositionInAdvert: !cur })
-        .then(
-          ok(cur ? 'Location no longer shared in advert' : 'Location shared in advert'),
-          fail('Update share-location'),
-        );
+        .then(ok(cur ? 'Location no longer shared in advert' : 'Location shared in advert'), fail('Update share-location'));
     },
   },
   {
@@ -111,9 +98,7 @@ export const QUICK_ACTIONS: QuickActionDef[] = [
     requiresConnection: false,
     run: ({ owner }) => {
       if (!owner) return;
-      return navigator.clipboard
-        .writeText(owner.publicKeyHex)
-        .then(ok('Public key copied'), fail('Copy'));
+      return navigator.clipboard.writeText(owner.publicKeyHex).then(ok('Public key copied'), fail('Copy'));
     },
   },
   {

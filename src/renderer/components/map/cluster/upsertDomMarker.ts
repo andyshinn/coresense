@@ -26,8 +26,6 @@ export function upsertDomMarker(opts: UpsertDomMarkerOpts): void {
     return;
   }
   const el = build();
-  const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-    .setLngLat(position)
-    .addTo(map);
+  const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(position).addTo(map);
   cache.set(cacheKey, { marker, signature, kind: null });
 }

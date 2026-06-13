@@ -19,10 +19,7 @@ describe('customVars encode/decode', () => {
   });
 
   it('decodeCustomVars parses newline-separated key:value pairs', () => {
-    const frame = Buffer.concat([
-      Buffer.from([0x15]),
-      Buffer.from('gps:1\ngps_interval:30', 'utf8'),
-    ]);
+    const frame = Buffer.concat([Buffer.from([0x15]), Buffer.from('gps:1\ngps_interval:30', 'utf8')]);
     expect(decodeCustomVars(frame)).toEqual({ gps: '1', gps_interval: '30' });
   });
 

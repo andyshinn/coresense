@@ -72,10 +72,7 @@ export function buildSpiderCenterElement(): HTMLDivElement {
 }
 
 /** Updates the leader-line GeoJSON source with the given line features (no-op if source missing). */
-export function setLeaderLines(
-  map: MapLibreMap,
-  features: GeoJSON.Feature<GeoJSON.LineString>[],
-): void {
+export function setLeaderLines(map: MapLibreMap, features: GeoJSON.Feature<GeoJSON.LineString>[]): void {
   const src = map.getSource(SPIDERFY_LEADER_SOURCE) as maplibregl.GeoJSONSource | undefined;
   if (!src) return;
   src.setData({ type: 'FeatureCollection', features });

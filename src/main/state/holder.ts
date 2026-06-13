@@ -93,10 +93,7 @@ class StateHolder {
   }
   upsertChannel(channel: Channel): void {
     const idx = this.channels.findIndex((c) => c.key === channel.key);
-    const next =
-      idx === -1
-        ? [...this.channels, channel]
-        : this.channels.map((c, i) => (i === idx ? channel : c));
+    const next = idx === -1 ? [...this.channels, channel] : this.channels.map((c, i) => (i === idx ? channel : c));
     this.setChannels(next);
   }
   removeChannel(key: string): void {
@@ -113,10 +110,7 @@ class StateHolder {
   }
   upsertContact(contact: Contact): void {
     const idx = this.contacts.findIndex((c) => c.key === contact.key);
-    const next =
-      idx === -1
-        ? [...this.contacts, contact]
-        : this.contacts.map((c, i) => (i === idx ? contact : c));
+    const next = idx === -1 ? [...this.contacts, contact] : this.contacts.map((c, i) => (i === idx ? contact : c));
     this.setContacts(next);
   }
   removeContact(key: string): void {
@@ -287,8 +281,7 @@ class StateHolder {
       ack: 3,
       failed: 0,
     };
-    const nextState =
-      stateRank[message.state] > stateRank[existing.state] ? message.state : existing.state;
+    const nextState = stateRank[message.state] > stateRank[existing.state] ? message.state : existing.state;
 
     const merged: Message = {
       ...existing,
@@ -371,10 +364,7 @@ class StateHolder {
     }
     return inserted;
   }
-  updateBlockRule(
-    id: string,
-    patch: Partial<Omit<BlockRule, 'id' | 'createdAt'>>,
-  ): BlockRule | null {
+  updateBlockRule(id: string, patch: Partial<Omit<BlockRule, 'id' | 'createdAt'>>): BlockRule | null {
     const updated = blockingStore().update(id, patch);
     if (updated) emit.blockRules(this.getBlockRules());
     return updated;

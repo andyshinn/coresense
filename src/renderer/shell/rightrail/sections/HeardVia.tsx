@@ -3,13 +3,7 @@ import { PathViewer } from '../../../components/path/PathViewer';
 import { Placeholder } from '../atoms';
 
 /** Path timeline showing how a message reached the local radio. */
-export function HeardViaSection({
-  message,
-  repeaters,
-}: {
-  message: Message;
-  repeaters: Contact[];
-}) {
+export function HeardViaSection({ message, repeaters }: { message: Message; repeaters: Contact[] }) {
   const paths = message.meta?.paths ?? [];
   const fallbackHops = message.meta?.hops;
 
@@ -25,21 +19,13 @@ export function HeardViaSection({
 
   if (effectivePaths.length === 0) return <Placeholder label="no path data" />;
 
-  return (
-    <PathViewer
-      paths={effectivePaths}
-      timesHeard={message.meta?.timesHeard ?? 1}
-      knownRepeaters={repeaters}
-    />
-  );
+  return <PathViewer paths={effectivePaths} timesHeard={message.meta?.timesHeard ?? 1} knownRepeaters={repeaters} />;
 }
 
 /** Build a placeholder path from a bare hop count when no observations exist. */
 function synthesizeUnnamedPath(message: Message, hopCount: number): MessagePath {
   const hops: MessageHop[] = [];
-  const senderName = message.fromPublicKeyHex?.startsWith('name:')
-    ? message.fromPublicKeyHex.slice(5)
-    : null;
+  const senderName = message.fromPublicKeyHex?.startsWith('name:') ? message.fromPublicKeyHex.slice(5) : null;
   hops.push({
     kind: 'origin',
     shortId: senderName ? senderName.slice(0, 2).toLowerCase() : '??',

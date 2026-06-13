@@ -20,14 +20,10 @@ describe('shouldFireDiscovered', () => {
   });
 
   it('suppresses while focused when suppressWhenFocused is on', () => {
-    expect(
-      shouldFireDiscovered({ ...base, discoveredContact: true, suppressWhenFocused: true }, true),
-    ).toBe(false);
+    expect(shouldFireDiscovered({ ...base, discoveredContact: true, suppressWhenFocused: true }, true)).toBe(false);
   });
 
   it('fires while focused when suppressWhenFocused is off', () => {
-    expect(
-      shouldFireDiscovered({ ...base, discoveredContact: true, suppressWhenFocused: false }, true),
-    ).toBe(true);
+    expect(shouldFireDiscovered({ ...base, discoveredContact: true, suppressWhenFocused: false }, true)).toBe(true);
   });
 });

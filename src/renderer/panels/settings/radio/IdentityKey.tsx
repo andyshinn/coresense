@@ -14,8 +14,8 @@ export function IdentityKeySection() {
       dirty={false}
     >
       <div className="mb-2 rounded border border-cs-warn/40 bg-cs-warn/10 px-3 py-2 text-[11px] text-cs-text">
-        WARNING: Your private identity key should be kept secret. It's used to encrypt and decrypt
-        the messages you send and receive.
+        WARNING: Your private identity key should be kept secret. It's used to encrypt and decrypt the messages you send and
+        receive.
       </div>
       <Row
         label="Export"
@@ -47,8 +47,8 @@ export function IdentityKeySection() {
       />
       {!caps.identityKeyIO && (
         <p className="px-2 pt-1 text-[11px] italic text-cs-text-dim">
-          Companion firmware v1.7.0+ is required to import and export your identity key. This radio
-          reports an older firmware.
+          Companion firmware v1.7.0+ is required to import and export your identity key. This radio reports an older
+          firmware.
         </p>
       )}
     </SettingsSection>

@@ -1,9 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
-import {
-  decodeBattAndStorage,
-  encodeGetBattAndStorage,
-} from '../../../../../src/main/protocol/features/battStorage';
+import { decodeBattAndStorage, encodeGetBattAndStorage } from '../../../../../src/main/protocol/features/battStorage';
 
 describe('battStorage encode/decode', () => {
   it('encodeGetBattAndStorage is the bare opcode', () => {

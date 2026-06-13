@@ -137,11 +137,7 @@ export function resolveNeighbourPublicKey(
   contacts: Contact[],
   discovered: DiscoveredContact[],
 ): string | null {
-  const [resolved] = resolveNeighbours(
-    [{ pubKeyPrefixHex: prefix, heardSecsAgo: 0, snrDb: 0 }],
-    contacts,
-    discovered,
-  );
+  const [resolved] = resolveNeighbours([{ pubKeyPrefixHex: prefix, heardSecsAgo: 0, snrDb: 0 }], contacts, discovered);
   // contactKey is `c:<publicKeyHex>`; strip the prefix for ContactDetail.
   return resolved?.contactKey ? resolved.contactKey.slice(2) : null;
 }
@@ -160,10 +156,7 @@ export const NEIGHBOUR_SORTS: Record<
   name: { label: 'Name (A–Z)', cmp: (a, b) => a.name.localeCompare(b.name) },
 };
 
-export function sortNeighbours(
-  list: ResolvedNeighbour[],
-  key: NeighbourSortKey,
-): ResolvedNeighbour[] {
+export function sortNeighbours(list: ResolvedNeighbour[], key: NeighbourSortKey): ResolvedNeighbour[] {
   const sort = NEIGHBOUR_SORTS[key] ?? NEIGHBOUR_SORTS['snr-desc'];
   return [...list].sort(sort.cmp);
 }

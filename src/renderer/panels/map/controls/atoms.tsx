@@ -1,11 +1,7 @@
 import { cn } from '../../../lib/utils';
 
 export function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="px-3 pb-1.5 pt-3 font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">
-      {children}
-    </div>
-  );
+  return <div className="px-3 pb-1.5 pt-3 font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">{children}</div>;
 }
 
 export function ToggleRow({

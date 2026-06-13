@@ -15,23 +15,13 @@ interface Props {
   sectionHeader?: boolean;
 }
 
-export function Collapsible({
-  label,
-  open,
-  onToggle,
-  trailing,
-  children,
-  className,
-  sectionHeader,
-}: Props) {
+export function Collapsible({ label, open, onToggle, trailing, children, className, sectionHeader }: Props) {
   return (
     <div className={cn('flex flex-col', className)}>
       <div
         className={cn(
           'group flex items-center gap-1.5 px-2 py-1',
-          sectionHeader
-            ? 'font-mono text-[10px] uppercase tracking-wider text-cs-text-dim'
-            : 'text-xs text-cs-text-muted',
+          sectionHeader ? 'font-mono text-[10px] uppercase tracking-wider text-cs-text-dim' : 'text-xs text-cs-text-muted',
         )}
       >
         <button
@@ -40,11 +30,7 @@ export function Collapsible({
           aria-expanded={open}
           className="flex flex-1 items-center gap-1 truncate text-left hover:text-cs-text"
         >
-          <ChevronRight
-            size={12}
-            aria-hidden="true"
-            className={cn('shrink-0 transition-transform', open && 'rotate-90')}
-          />
+          <ChevronRight size={12} aria-hidden="true" className={cn('shrink-0 transition-transform', open && 'rotate-90')} />
           <span className="truncate">{label}</span>
         </button>
         {trailing}

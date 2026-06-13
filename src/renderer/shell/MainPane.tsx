@@ -9,28 +9,16 @@ import { tabFromActiveKey } from '../panels/settings/routing';
 
 // Each panel is loaded on demand; only one is visible at a time, so eagerly
 // importing them all (~1.5k LOC of forms + tables) just bloats first paint.
-const SettingsPanel = lazy(() =>
-  import('../panels/settings/SettingsPanel').then((m) => ({ default: m.SettingsPanel })),
-);
-const BleConnect = lazy(() =>
-  import('../panels/BleConnect').then((m) => ({ default: m.BleConnect })),
-);
-const ChannelView = lazy(() =>
-  import('../panels/ChannelView').then((m) => ({ default: m.ChannelView })),
-);
+const SettingsPanel = lazy(() => import('../panels/settings/SettingsPanel').then((m) => ({ default: m.SettingsPanel })));
+const BleConnect = lazy(() => import('../panels/BleConnect').then((m) => ({ default: m.BleConnect })));
+const ChannelView = lazy(() => import('../panels/ChannelView').then((m) => ({ default: m.ChannelView })));
 const DMView = lazy(() => import('../panels/DMView').then((m) => ({ default: m.DMView })));
 const MapView = lazy(() => import('../panels/MapView').then((m) => ({ default: m.MapView })));
-const RepeaterAdmin = lazy(() =>
-  import('../panels/repeater-admin').then((m) => ({ default: m.RepeaterAdmin })),
-);
-const SearchResults = lazy(() =>
-  import('../panels/search').then((m) => ({ default: m.SearchResults })),
-);
+const RepeaterAdmin = lazy(() => import('../panels/repeater-admin').then((m) => ({ default: m.RepeaterAdmin })));
+const SearchResults = lazy(() => import('../panels/search').then((m) => ({ default: m.SearchResults })));
 const Unreads = lazy(() => import('../panels/Unreads').then((m) => ({ default: m.Unreads })));
 const LogsPanel = lazy(() => import('../panels/logs').then((m) => ({ default: m.LogsPanel })));
-const ContactManager = lazy(() =>
-  import('../panels/contacts/ContactManager').then((m) => ({ default: m.ContactManager })),
-);
+const ContactManager = lazy(() => import('../panels/contacts/ContactManager').then((m) => ({ default: m.ContactManager })));
 
 interface MainPaneProps {
   client: ApiClient | null;
@@ -45,11 +33,7 @@ export function MainPane(props: MainPaneProps) {
   // user navigates elsewhere — no stale fallback lingering on the next view.
   const activeKey = useStore((s) => s.ui.activeKey);
   return (
-    <ErrorBoundary
-      FallbackComponent={PanelErrorFallback}
-      resetKeys={[activeKey]}
-      onError={logError}
-    >
+    <ErrorBoundary FallbackComponent={PanelErrorFallback} resetKeys={[activeKey]} onError={logError}>
       <Suspense fallback={null}>
         <MainPaneInner {...props} />
       </Suspense>
@@ -57,13 +41,7 @@ export function MainPane(props: MainPaneProps) {
   );
 }
 
-function MainPaneInner({
-  client,
-  onScan,
-  onConnect,
-  onDisconnect,
-  renderPacketLog,
-}: MainPaneProps) {
+function MainPaneInner({ client, onScan, onConnect, onDisconnect, renderPacketLog }: MainPaneProps) {
   const activeKey = useStore((s) => s.ui.activeKey);
   const transportState = useStore((s) => s.transportState);
   const connectedDeviceId = useStore((s) => s.connectedDeviceId);
@@ -89,9 +67,7 @@ function MainPaneInner({
   }
 
   if (activeKey === 'tool:packetlog') {
-    return (
-      <div className="flex h-full w-full flex-col overflow-hidden p-4">{renderPacketLog()}</div>
-    );
+    return <div className="flex h-full w-full flex-col overflow-hidden p-4">{renderPacketLog()}</div>;
   }
 
   if (activeKey === 'tool:settings' || activeKey.startsWith('tool:settings:')) {
@@ -143,10 +119,5 @@ function MainPaneInner({
     return <DMView contact={contact} client={client} />;
   }
 
-  return (
-    <PlaceholderPanel
-      title="CoreSense"
-      description="Pick a channel, contact, or tool from the left to begin."
-    />
-  );
+  return <PlaceholderPanel title="CoreSense" description="Pick a channel, contact, or tool from the left to begin." />;
 }

@@ -114,10 +114,7 @@ export const settingsStore = {
   saveAppSettings: (v: AppSettings): void => writeJson(FILES.app, v),
 
   loadRadioSettings: (): RadioSettings => {
-    const merged = mergeDefaults(
-      readJson(FILES.radio, DEFAULT_RADIO_SETTINGS),
-      DEFAULT_RADIO_SETTINGS,
-    );
+    const merged = mergeDefaults(readJson(FILES.radio, DEFAULT_RADIO_SETTINGS), DEFAULT_RADIO_SETTINGS);
     // Legacy migration: PathHashSize used to allow 4, but firmware only
     // accepts 1/2/3 bytes per hop. Coerce anything else to the default.
     if (merged.pathHashMode !== 1 && merged.pathHashMode !== 2 && merged.pathHashMode !== 3) {
@@ -140,8 +137,7 @@ export const settingsStore = {
   loadUiState: (): UiState => mergeDefaults(readJson(FILES.ui, DEFAULT_UI_STATE), DEFAULT_UI_STATE),
   saveUiState: (v: UiState): void => writeJson(FILES.ui, v),
 
-  loadMapSettings: (): MapSettings =>
-    mergeDefaults(readJson(FILES.map, DEFAULT_MAP_SETTINGS), DEFAULT_MAP_SETTINGS),
+  loadMapSettings: (): MapSettings => mergeDefaults(readJson(FILES.map, DEFAULT_MAP_SETTINGS), DEFAULT_MAP_SETTINGS),
   saveMapSettings: (v: MapSettings): void => writeJson(FILES.map, v),
 
   loadDeviceIdentity: (): DeviceIdentity =>
@@ -153,18 +149,13 @@ export const settingsStore = {
   saveAutoAddConfig: (v: AutoAddConfig): void => writeJson(FILES.autoAdd, v),
 
   loadTelemetryPolicy: (): TelemetryPolicy =>
-    mergeDefaults(
-      readJson(FILES.telemetryPolicy, DEFAULT_TELEMETRY_POLICY),
-      DEFAULT_TELEMETRY_POLICY,
-    ),
+    mergeDefaults(readJson(FILES.telemetryPolicy, DEFAULT_TELEMETRY_POLICY), DEFAULT_TELEMETRY_POLICY),
   saveTelemetryPolicy: (v: TelemetryPolicy): void => writeJson(FILES.telemetryPolicy, v),
 
-  loadGpsConfig: (): GpsConfig =>
-    mergeDefaults(readJson(FILES.gps, DEFAULT_GPS_CONFIG), DEFAULT_GPS_CONFIG),
+  loadGpsConfig: (): GpsConfig => mergeDefaults(readJson(FILES.gps, DEFAULT_GPS_CONFIG), DEFAULT_GPS_CONFIG),
   saveGpsConfig: (v: GpsConfig): void => writeJson(FILES.gps, v),
 
-  loadDeviceInfo: (): DeviceInfo =>
-    mergeDefaults(readJson(FILES.deviceInfo, DEFAULT_DEVICE_INFO), DEFAULT_DEVICE_INFO),
+  loadDeviceInfo: (): DeviceInfo => mergeDefaults(readJson(FILES.deviceInfo, DEFAULT_DEVICE_INFO), DEFAULT_DEVICE_INFO),
   saveDeviceInfo: (v: DeviceInfo): void => writeJson(FILES.deviceInfo, v),
 
   loadBlockRules: (): BlockRule[] => readJson(FILES.blockRules, [] as BlockRule[]),

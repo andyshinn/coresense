@@ -47,18 +47,12 @@ export function encodeSendControlData(payload: Buffer): Buffer {
 // CMD_SEND_CHANNEL_DATA: [0x3e][channel_idx][0xff flood][data_type u16 LE][payload].
 // Only the flood form is exposed (group-channel datagrams broadcast); a
 // path-routed channel send is not surfaced.
-export function encodeSendChannelData(opts: {
-  channelIdx: number;
-  dataType: number;
-  payload: Buffer;
-}): Buffer {
+export function encodeSendChannelData(opts: { channelIdx: number; dataType: number; payload: Buffer }): Buffer {
   if (opts.dataType === DATA_TYPE_RESERVED) {
     throw new Error('channel data_type 0 is reserved');
   }
   if (opts.payload.length > MAX_CHANNEL_DATA_LENGTH) {
-    throw new Error(
-      `channel data payload is ${opts.payload.length}B, max ${MAX_CHANNEL_DATA_LENGTH}`,
-    );
+    throw new Error(`channel data payload is ${opts.payload.length}B, max ${MAX_CHANNEL_DATA_LENGTH}`);
   }
   const header = Buffer.alloc(5);
   header[0] = CMD.SEND_CHANNEL_DATA;
@@ -144,9 +138,7 @@ export const rawDataFeature: Feature = {
     // PUSH.CONTROL_DATA — a live datagram, not queued.
     const parsed = decodeControlData(frame);
     if (parsed) {
-      log.trace(
-        `control_data snr=${parsed.snrDb} rssi=${parsed.rssi} len=${parsed.payloadHex.length / 2}`,
-      );
+      log.trace(`control_data snr=${parsed.snrDb} rssi=${parsed.rssi} len=${parsed.payloadHex.length / 2}`);
     }
   },
 };
@@ -154,10 +146,7 @@ export const rawDataFeature: Feature = {
 // ---- Session-facing functions ------------------------------------------
 
 /** Send raw bytes DIRECT along a known path (CMD_SEND_RAW_DATA). */
-export async function sendRawData(
-  ctx: FeatureContext,
-  opts: { pathHex: string; payload: Buffer },
-): Promise<void> {
+export async function sendRawData(ctx: FeatureContext, opts: { pathHex: string; payload: Buffer }): Promise<void> {
   await ctx.request(encodeSendRawData(opts));
 }
 
@@ -175,9 +164,6 @@ export async function sendChannelData(
 }
 
 /** Transmit a fully-formed mesh packet (CMD_SEND_RAW_PACKET). */
-export async function sendRawPacket(
-  ctx: FeatureContext,
-  opts: { priority: number; packetHex: string },
-): Promise<void> {
+export async function sendRawPacket(ctx: FeatureContext, opts: { priority: number; packetHex: string }): Promise<void> {
   await ctx.request(encodeSendRawPacket(opts));
 }

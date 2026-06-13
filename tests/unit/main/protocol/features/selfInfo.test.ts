@@ -6,9 +6,7 @@ import { frameBuf } from '../../../../support/frames';
 describe('selfInfo encode/decode', () => {
   it('encodeAppStart matches the logged handshake frame', () => {
     // coresense.log: BLE_TX 24B cmd=0x01 hex=01010000000000006d657368636f72652d666c7574746572
-    expect(encodeAppStart('meshcore-flutter', 1).toString('hex')).toBe(
-      '01010000000000006d657368636f72652d666c7574746572',
-    );
+    expect(encodeAppStart('meshcore-flutter', 1).toString('hex')).toBe('01010000000000006d657368636f72652d666c7574746572');
   });
 
   it('encodeAppStart lays out [cmd][version][6 reserved zero bytes][name]', () => {
@@ -22,9 +20,7 @@ describe('selfInfo encode/decode', () => {
   it('decodeSelfInfo extracts the 32-byte public key at offset 4', () => {
     const self = decodeSelfInfo(frameBuf('selfInfo'));
     expect(self).not.toBeNull();
-    expect(self?.publicKeyHex).toBe(
-      '1a3d3c6a09f057457bcf0ae5403e5c60072919d193ed8caff58501b7590dd5d5',
-    );
+    expect(self?.publicKeyHex).toBe('1a3d3c6a09f057457bcf0ae5403e5c60072919d193ed8caff58501b7590dd5d5');
     expect(self?.name).toContain('Hand'); // trailing printable name region
   });
 

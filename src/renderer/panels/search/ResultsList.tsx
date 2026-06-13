@@ -66,11 +66,7 @@ export function ResultsList({
             <Section title={`Channels (${channels.length})`}>
               <ul className="divide-y divide-cs-border">
                 {channels.map((hit) => (
-                  <ConversationRow
-                    key={hit.key}
-                    hit={hit}
-                    onClick={() => onConversationClick(hit)}
-                  />
+                  <ConversationRow key={hit.key} hit={hit} onClick={() => onConversationClick(hit)} />
                 ))}
               </ul>
             </Section>
@@ -79,11 +75,7 @@ export function ResultsList({
             <Section title={`Contacts (${contacts.length})`}>
               <ul className="divide-y divide-cs-border">
                 {contacts.map((hit) => (
-                  <ConversationRow
-                    key={hit.key}
-                    hit={hit}
-                    onClick={() => onConversationClick(hit)}
-                  />
+                  <ConversationRow key={hit.key} hit={hit} onClick={() => onConversationClick(hit)} />
                 ))}
               </ul>
             </Section>

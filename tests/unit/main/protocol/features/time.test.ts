@@ -1,10 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
-import {
-  decodeCurrTime,
-  encodeGetDeviceTime,
-  encodeSetDeviceTime,
-} from '../../../../../src/main/protocol/features/time';
+import { decodeCurrTime, encodeGetDeviceTime, encodeSetDeviceTime } from '../../../../../src/main/protocol/features/time';
 
 describe('time feature encode/decode', () => {
   it('encodeGetDeviceTime is the bare opcode', () => {

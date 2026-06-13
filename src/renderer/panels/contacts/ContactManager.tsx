@@ -26,9 +26,7 @@ export function ContactManager({ client }: { client: ApiClient | null }) {
       <SelectAllBar rows={view.rows} />
       <div className="flex-1 overflow-y-auto">
         {view.rows.length === 0 ? (
-          <div className="px-5 py-12 text-center text-[13px] text-cs-text-dim">
-            No contacts match these filters.
-          </div>
+          <div className="px-5 py-12 text-center text-[13px] text-cs-text-dim">No contacts match these filters.</div>
         ) : cm.layout === 'table' ? (
           <TableView rows={view.rows} client={client} />
         ) : (

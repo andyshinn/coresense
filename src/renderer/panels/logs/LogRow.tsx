@@ -27,14 +27,10 @@ export const LogRow: VirtuosoMessageListProps<LogEntry, null>['ItemContent'] = (
   return (
     <div className="flex gap-2 px-4 py-0.5 font-mono text-xs hover:bg-cs-bg-3">
       <span className="inline-block shrink-0 text-cs-text-dim">{fmtLogTime(data.ts)}</span>
-      <span className={`inline-block w-14 shrink-0 font-bold uppercase ${LEVEL_COLOR[data.level]}`}>
-        {data.level}
-      </span>
+      <span className={`inline-block w-14 shrink-0 font-bold uppercase ${LEVEL_COLOR[data.level]}`}>{data.level}</span>
       <span className="inline-block shrink-0 text-cs-text-dim">{source}</span>
       <span className="inline-block shrink-0 font-bold text-cs-text">[{data.logger}]</span>
-      <span className="inline-block min-w-0 flex-1 whitespace-pre-wrap wrap-break-word text-cs-text">
-        {data.message}
-      </span>
+      <span className="inline-block min-w-0 flex-1 whitespace-pre-wrap wrap-break-word text-cs-text">{data.message}</span>
     </div>
   );
 };

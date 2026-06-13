@@ -41,10 +41,7 @@ export function encodeGetAutoAddConfig(): Buffer {
 
 // CMD_SET_AUTO_ADD_CONFIG: [0x3a][flags u8]. Replies RESP_OK/ERR.
 export function encodeSetAutoAddConfig(flags: AutoAddFlagsInput): Buffer {
-  return new BufferWriter()
-    .writeByte(CMD.SET_AUTO_ADD_CONFIG)
-    .writeByte(autoAddFlagsToByte(flags))
-    .toBuffer();
+  return new BufferWriter().writeByte(CMD.SET_AUTO_ADD_CONFIG).writeByte(autoAddFlagsToByte(flags)).toBuffer();
 }
 
 // RESP_AUTOADD_CONFIG: [0x19][flags u8].
@@ -83,10 +80,7 @@ export async function requestAutoAddConfig(ctx: FeatureContext): Promise<void> {
 }
 
 /** Push auto-add flags to the radio. Resolves true on RESP_OK, false on RESP_ERR/timeout. */
-export async function setAutoAddConfig(
-  ctx: FeatureContext,
-  flags: AutoAddFlagsInput,
-): Promise<boolean> {
+export async function setAutoAddConfig(ctx: FeatureContext, flags: AutoAddFlagsInput): Promise<boolean> {
   try {
     await ctx.request(encodeSetAutoAddConfig(flags));
     return true;

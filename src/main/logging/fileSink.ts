@@ -38,15 +38,15 @@ export function write(entry: LogEntry): void {
 
   const filePath = currentPath();
   const folder = folderPath();
-  const line =
-    JSON.stringify({
-      ts: entry.ts,
-      level: entry.level,
-      source: entry.source,
-      logger: entry.logger,
-      message: entry.message,
-      ...(entry.args !== undefined ? { args: entry.args } : {}),
-    }) + '\n';
+  const json = JSON.stringify({
+    ts: entry.ts,
+    level: entry.level,
+    source: entry.source,
+    logger: entry.logger,
+    message: entry.message,
+    ...(entry.args !== undefined ? { args: entry.args } : {}),
+  });
+  const line = `${json}\n`;
 
   // Serialize writes to preserve order; chain off the prior write.
   writeChain = writeChain.then(async () => {

@@ -68,23 +68,13 @@ export function BehaviorSection({ client }: SectionProps) {
         label="Pin unread to top"
         description="Sort unread channels and contacts above pinned items in the left nav."
         changed={draft.pinUnreadToTop !== saved.pinUnreadToTop}
-        control={
-          <Toggle
-            checked={draft.pinUnreadToTop}
-            onChange={(v) => setDraft((s) => ({ ...s, pinUnreadToTop: v }))}
-          />
-        }
+        control={<Toggle checked={draft.pinUnreadToTop} onChange={(v) => setDraft((s) => ({ ...s, pinUnreadToTop: v }))} />}
       />
       <Row
         label="Auto-reconnect on launch"
         description="Reconnect to the last device when the app starts."
         changed={draft.autoReconnect !== saved.autoReconnect}
-        control={
-          <Toggle
-            checked={draft.autoReconnect}
-            onChange={(v) => setDraft((s) => ({ ...s, autoReconnect: v }))}
-          />
-        }
+        control={<Toggle checked={draft.autoReconnect} onChange={(v) => setDraft((s) => ({ ...s, autoReconnect: v }))} />}
       />
       <Row
         label="Contact list grouping"
@@ -94,9 +84,7 @@ export function BehaviorSection({ client }: SectionProps) {
           <Select
             value={draft.contactGrouping}
             options={CONTACT_GROUPING_OPTIONS}
-            onChange={(grouping) =>
-              setDraft((s) => ({ ...s, contactGrouping: grouping as ContactGrouping }))
-            }
+            onChange={(grouping) => setDraft((s) => ({ ...s, contactGrouping: grouping as ContactGrouping }))}
           />
         }
       />
@@ -133,10 +121,7 @@ export function BehaviorSection({ client }: SectionProps) {
         description="Display a quick-filter field above Conversations. Cmd/Ctrl+F focuses it."
         changed={draft.showLeftNavSearch !== saved.showLeftNavSearch}
         control={
-          <Toggle
-            checked={draft.showLeftNavSearch}
-            onChange={(v) => setDraft((s) => ({ ...s, showLeftNavSearch: v }))}
-          />
+          <Toggle checked={draft.showLeftNavSearch} onChange={(v) => setDraft((s) => ({ ...s, showLeftNavSearch: v }))} />
         }
       />
       <Row

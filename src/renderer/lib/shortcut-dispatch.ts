@@ -20,17 +20,10 @@ function run(id: string, ev: ShortcutKeyEvent): void {
       break;
     case 'nextUnread':
     case 'prevUnread': {
-      const ordered = computeUnreadConversations(
-        s.messagesByKey,
-        s.ui.lastReadByKey,
-        s.channels,
-        s.contacts,
-      ).map((u) => u.key);
-      const target = adjacentUnreadKey(
-        ordered,
-        s.ui.activeKey,
-        id === 'nextUnread' ? 'next' : 'prev',
+      const ordered = computeUnreadConversations(s.messagesByKey, s.ui.lastReadByKey, s.channels, s.contacts).map(
+        (u) => u.key,
       );
+      const target = adjacentUnreadKey(ordered, s.ui.activeKey, id === 'nextUnread' ? 'next' : 'prev');
       if (target) s.setActiveKey(target);
       break;
     }

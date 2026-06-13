@@ -124,29 +124,11 @@ export function SearchHeader({
             </optgroup>
           )}
         </select>
-        <DateInput
-          value={filters.tsFrom}
-          onChange={(v) => setFilters({ tsFrom: v })}
-          placeholder="From"
-          endOfDay={false}
-        />
-        <DateInput
-          value={filters.tsTo}
-          onChange={(v) => setFilters({ tsTo: v })}
-          placeholder="To"
-          endOfDay
-        />
+        <DateInput value={filters.tsFrom} onChange={(v) => setFilters({ tsFrom: v })} placeholder="From" endOfDay={false} />
+        <DateInput value={filters.tsTo} onChange={(v) => setFilters({ tsTo: v })} placeholder="To" endOfDay />
         <div className="ml-auto flex items-center gap-1 rounded-md border border-cs-border bg-cs-bg-3 p-0.5">
-          <SortPill
-            label="Recency"
-            active={sort === 'recency'}
-            onClick={() => changeSort('recency')}
-          />
-          <SortPill
-            label="Relevance"
-            active={sort === 'relevance'}
-            onClick={() => changeSort('relevance')}
-          />
+          <SortPill label="Recency" active={sort === 'recency'} onClick={() => changeSort('recency')} />
+          <SortPill label="Relevance" active={sort === 'relevance'} onClick={() => changeSort('relevance')} />
         </div>
       </div>
     </header>

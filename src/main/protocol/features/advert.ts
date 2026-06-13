@@ -41,10 +41,7 @@ export function encodeSetOtherParams(input: OtherParamsInput): Buffer {
   const out = Buffer.alloc(5);
   out[0] = CMD.SET_OTHER_PARAMS;
   out[1] = 0; // reserved
-  out[2] =
-    ((input.telemetryEnv & 0x03) << 4) |
-    ((input.telemetryLoc & 0x03) << 2) |
-    (input.telemetryBase & 0x03);
+  out[2] = ((input.telemetryEnv & 0x03) << 4) | ((input.telemetryLoc & 0x03) << 2) | (input.telemetryBase & 0x03);
   out[3] = input.advertLocationPolicy & 0x01;
   out[4] = input.multiAcks & 0xff;
   return out;

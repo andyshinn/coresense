@@ -1,11 +1,7 @@
 import { Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { type ContactKind, hasValidFix, type MapSettings } from '../../../shared/types';
-import {
-  MARKER_KIND_ORDER,
-  MARKER_TYPES,
-  MarkerShape,
-} from '../../components/map/markers/MarkerShape';
+import { MARKER_KIND_ORDER, MARKER_TYPES, MarkerShape } from '../../components/map/markers/MarkerShape';
 import { Input } from '../../components/ui/input';
 import { type ApiClient, api } from '../../lib/api';
 import { useStore } from '../../lib/store';
@@ -99,9 +95,7 @@ export function ControlsCard({ client }: Props) {
               onClick={() => setKindFilter(kind, !on)}
               className={cn(
                 'flex w-full items-center gap-2.5 rounded border px-2 py-1.5 text-left text-xs transition-opacity',
-                on
-                  ? 'border-cs-border bg-cs-bg-3'
-                  : 'border-transparent bg-transparent opacity-60 hover:opacity-90',
+                on ? 'border-cs-border bg-cs-bg-3' : 'border-transparent bg-transparent opacity-60 hover:opacity-90',
               )}
               aria-pressed={on}
             >

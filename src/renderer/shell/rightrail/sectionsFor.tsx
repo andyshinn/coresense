@@ -147,9 +147,7 @@ export function sectionsFor(
           id: 'rail.mentioned.contact',
           label: `@${mentioned.name}`,
           defaultOpen: true,
-          body: () => (
-            <MentionedContactSection contact={mentioned} onClear={actions.clearMentionedContact} />
-          ),
+          body: () => <MentionedContactSection contact={mentioned} onClear={actions.clearMentionedContact} />,
         },
       ]
     : [];
@@ -163,9 +161,7 @@ export function sectionsFor(
             id: 'rail.repeater.neighbours',
             label: 'Neighbours',
             defaultOpen: true,
-            body: () => (
-              <NeighboursRailBody contact={data.contact as Contact} client={actions.client} />
-            ),
+            body: () => <NeighboursRailBody contact={data.contact as Contact} client={actions.client} />,
           },
         ]
       : [];
@@ -205,13 +201,7 @@ export function sectionsFor(
           id: 'rail.contact.card',
           label: 'Contact card',
           defaultOpen: baseDefaultOpen,
-          body: () => (
-            <ContactDetail
-              publicKeyHex={data.cardPublicKeyHex}
-              client={actions.client}
-              showPath={false}
-            />
-          ),
+          body: () => <ContactDetail publicKeyHex={data.cardPublicKeyHex} client={actions.client} showPath={false} />,
         },
         {
           id: 'rail.contact.path',

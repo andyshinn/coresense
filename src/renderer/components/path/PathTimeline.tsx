@@ -17,8 +17,7 @@ export function PathTimeline({
   return (
     <div className="px-2 pb-3 pt-1">
       {hops.map((hop, i) => {
-        const hopIndex =
-          hop.kind === 'hop' ? hops.slice(0, i).filter((h) => h.kind === 'hop').length + 1 : null;
+        const hopIndex = hop.kind === 'hop' ? hops.slice(0, i).filter((h) => h.kind === 'hop').length + 1 : null;
         return (
           <HopRow
             // biome-ignore lint/suspicious/noArrayIndexKey: hops can repeat shortId; index disambiguates

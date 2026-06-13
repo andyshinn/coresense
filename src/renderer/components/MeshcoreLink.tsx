@@ -113,9 +113,7 @@ function AdvertDetails({ advert, Icon }: { advert: MeshcoreAdvert; Icon: LucideI
 
       {advert.signatureValid != null && (
         <div
-          className={`inline-flex items-center gap-1 text-xs ${
-            advert.signatureValid ? 'text-cs-online' : 'text-cs-danger'
-          }`}
+          className={`inline-flex items-center gap-1 text-xs ${advert.signatureValid ? 'text-cs-online' : 'text-cs-danger'}`}
         >
           {advert.signatureValid ? (
             <ShieldCheck size={12} aria-hidden="true" />
@@ -132,9 +130,7 @@ function AdvertDetails({ advert, Icon }: { advert: MeshcoreAdvert; Icon: LucideI
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] font-medium tracking-wide text-cs-text-dim uppercase">
-        {label}
-      </span>
+      <span className="text-[10px] font-medium tracking-wide text-cs-text-dim uppercase">{label}</span>
       {children}
     </div>
   );

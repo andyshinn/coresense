@@ -37,9 +37,7 @@ export function encodeSetFloodScopeKey(input: FloodScopeInput): Buffer {
 export function encodeSetDefaultFloodScope(name: string, keyHex: string): Buffer {
   const nameBuf = Buffer.from(name, 'utf8');
   if (nameBuf.length < 1 || nameBuf.length > SCOPE_NAME_LEN - 1) {
-    throw new Error(
-      `flood scope name must be 1-${SCOPE_NAME_LEN - 1} bytes, got ${nameBuf.length}`,
-    );
+    throw new Error(`flood scope name must be 1-${SCOPE_NAME_LEN - 1} bytes, got ${nameBuf.length}`);
   }
   const key = Buffer.from(keyHex, 'hex');
   if (key.length !== SCOPE_KEY_LEN) {
@@ -77,11 +75,7 @@ export async function setFloodScopeKey(ctx: FeatureContext, input: FloodScopeInp
   await ctx.request(encodeSetFloodScopeKey(input));
 }
 
-export async function setDefaultFloodScope(
-  ctx: FeatureContext,
-  name: string,
-  keyHex: string,
-): Promise<void> {
+export async function setDefaultFloodScope(ctx: FeatureContext, name: string, keyHex: string): Promise<void> {
   await ctx.request(encodeSetDefaultFloodScope(name, keyHex));
 }
 

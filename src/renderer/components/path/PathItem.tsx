@@ -23,10 +23,8 @@ export function PathItem({
   onSelectCandidate?: (hop: MessageHop, contact: Contact) => void;
 }) {
   const lastRepeater = path.hops[path.hops.length - 2] ?? path.hops[path.hops.length - 1];
-  const lastRepeaterMatch =
-    lastRepeater.kind === 'hop' ? candidatesFor(lastRepeater, knownRepeaters)[0] : null;
-  const lastRepeaterLabel =
-    lastRepeaterMatch?.name ?? (lastRepeater.unnamed ? null : (lastRepeater.name ?? null));
+  const lastRepeaterMatch = lastRepeater.kind === 'hop' ? candidatesFor(lastRepeater, knownRepeaters)[0] : null;
+  const lastRepeaterLabel = lastRepeaterMatch?.name ?? (lastRepeater.unnamed ? null : (lastRepeater.name ?? null));
   const hopCount = path.hops.filter((h) => h.kind === 'hop').length;
   const conflictCount = useMemo(() => {
     return path.hops.reduce((n, h) => {
@@ -52,15 +50,11 @@ export function PathItem({
         </span>
         <HopAvatar hop={lastRepeater} size={24} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[12.5px] font-medium text-cs-text">
-            {lastRepeaterLabel ?? 'Unknown repeater'}
-          </div>
+          <div className="truncate text-[12.5px] font-medium text-cs-text">{lastRepeaterLabel ?? 'Unknown repeater'}</div>
           <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-cs-text-dim">
             <span>{hopCount} hops</span>
             <span aria-hidden>·</span>
-            <span title="Bytes of each hop's pubkey carried in the routing path">
-              {path.hashMode}-byte path
-            </span>
+            <span title="Bytes of each hop's pubkey carried in the routing path">{path.hashMode}-byte path</span>
             {conflictCount > 0 && (
               <>
                 <span aria-hidden>·</span>
@@ -74,10 +68,7 @@ export function PathItem({
         </div>
         <div className="flex shrink-0 flex-col items-end gap-0.5">
           <SignalBars snr={path.finalSnr} />
-          <span
-            className="font-mono text-[10px]"
-            style={{ color: `rgb(var(${snrTokenVar(path.finalSnr)}))` }}
-          >
+          <span className="font-mono text-[10px]" style={{ color: `rgb(var(${snrTokenVar(path.finalSnr)}))` }}>
             {fmtSnr(path.finalSnr)}
           </span>
         </div>

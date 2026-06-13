@@ -35,15 +35,7 @@ interface ShapeArgs {
 // by both the React component and the imperative HTML builder so the visual
 // stays identical regardless of mount path.
 export function shapeMarkup(args: ShapeArgs): string {
-  const {
-    type,
-    size = 18,
-    fill,
-    stroke = '#0c0a06',
-    strokeWidth = 1.5,
-    opacity = 1,
-    dashed,
-  } = args;
+  const { type, size = 18, fill, stroke = '#0c0a06', strokeWidth = 1.5, opacity = 1, dashed } = args;
   const meta = MARKER_TYPES[type];
   const c = fill ?? meta.color;
   const sw = strokeWidth;
@@ -87,15 +79,7 @@ interface MarkerShapeProps extends ShapeArgs {
 // node card; markers on the map use shapeMarkup() directly for the HTML
 // element path.
 export function MarkerShape({ className, ariaLabel, ...args }: MarkerShapeProps) {
-  const {
-    type,
-    size = 18,
-    fill,
-    stroke = '#0c0a06',
-    strokeWidth = 1.5,
-    opacity = 1,
-    dashed,
-  } = args;
+  const { type, size = 18, fill, stroke = '#0c0a06', strokeWidth = 1.5, opacity = 1, dashed } = args;
   const meta = MARKER_TYPES[type];
   const c = fill ?? meta.color;
   const sw = strokeWidth;
@@ -105,16 +89,7 @@ export function MarkerShape({ className, ariaLabel, ...args }: MarkerShapeProps)
   if (meta.shape === 'circle') {
     const r = size / 2 - sw;
     body = (
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill={c}
-        stroke={stroke}
-        strokeWidth={sw}
-        opacity={opacity}
-        {...dashAttr}
-      />
+      <circle cx={size / 2} cy={size / 2} r={r} fill={c} stroke={stroke} strokeWidth={sw} opacity={opacity} {...dashAttr} />
     );
   } else if (meta.shape === 'square') {
     const inset = sw;

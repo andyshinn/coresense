@@ -25,14 +25,7 @@ import { ContactAvatar } from '../ContactAvatar';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '../ui/command';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -176,9 +169,7 @@ export function SetPathEditor({ contact, client }: Props) {
     <div className="flex flex-col gap-2 p-3">
       <div className="flex items-center justify-between">
         <div className="flex flex-col">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">
-            Path
-          </span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">Path</span>
           <span className="font-mono text-[13px] text-cs-text">{pathSummary}</span>
         </div>
         <Badge variant="secondary" className="font-mono">
@@ -189,18 +180,12 @@ export function SetPathEditor({ contact, client }: Props) {
       <Separator />
 
       <div className="flex items-start gap-2">
-        <Checkbox
-          checked={preferDirect}
-          onCheckedChange={(v) => setPreferDirect(v === true)}
-          id="prefer-direct"
-        />
+        <Checkbox checked={preferDirect} onCheckedChange={(v) => setPreferDirect(v === true)} id="prefer-direct" />
         <div className="flex flex-col gap-0.5">
           <Label htmlFor="prefer-direct" className="cursor-pointer">
             Direct
           </Label>
-          <span className="text-[11px] text-cs-text-dim">
-            Connection to radio will prefer a direct path.
-          </span>
+          <span className="text-[11px] text-cs-text-dim">Connection to radio will prefer a direct path.</span>
         </div>
       </div>
 
@@ -208,9 +193,7 @@ export function SetPathEditor({ contact, client }: Props) {
 
       <div className={preferDirect ? 'pointer-events-none opacity-40' : undefined}>
         <div className="mb-2 flex items-center justify-between">
-          <Label className="text-[11px] uppercase tracking-wider text-cs-text-muted">
-            Hops (in order)
-          </Label>
+          <Label className="text-[11px] uppercase tracking-wider text-cs-text-muted">Hops (in order)</Label>
           <Popover open={addOpen} onOpenChange={setAddOpen}>
             <PopoverTrigger asChild>
               <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]">
@@ -236,9 +219,7 @@ export function SetPathEditor({ contact, client }: Props) {
                       >
                         <ContactAvatar name={r.name} size="sm" className="mr-2" />
                         <span className="flex-1 truncate">{r.name}</span>
-                        <span className="font-mono text-[10px] text-cs-text-dim">
-                          {r.prefixHex}
-                        </span>
+                        <span className="font-mono text-[10px] text-cs-text-dim">{r.prefixHex}</span>
                       </CommandItem>
                     ))}
                   </CommandGroup>
@@ -247,9 +228,7 @@ export function SetPathEditor({ contact, client }: Props) {
                       <CommandItem value={`custom:${addSearch}`} onSelect={onAddCustom}>
                         <Check size={12} className="mr-2" aria-hidden="true" />
                         <span className="flex-1">Use “{addSearch}”</span>
-                        <span className="font-mono text-[10px] text-cs-text-dim">
-                          {hashSize * 2} chars
-                        </span>
+                        <span className="font-mono text-[10px] text-cs-text-dim">{hashSize * 2} chars</span>
                       </CommandItem>
                     </CommandGroup>
                   )}
@@ -273,9 +252,7 @@ export function SetPathEditor({ contact, client }: Props) {
                     hop={hop}
                     index={i}
                     onRemove={() => onRemoveHop(hop.id)}
-                    knownName={
-                      repeaterChoices.find((r) => r.prefixHex === hop.prefixHex)?.name ?? null
-                    }
+                    knownName={repeaterChoices.find((r) => r.prefixHex === hop.prefixHex)?.name ?? null}
                   />
                 ))}
               </ul>
@@ -287,12 +264,7 @@ export function SetPathEditor({ contact, client }: Props) {
       <Separator />
 
       <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          onClick={onSave}
-          disabled={!client || busy || !dirty}
-          className="gap-1"
-        >
+        <Button type="button" onClick={onSave} disabled={!client || busy || !dirty} className="gap-1">
           <Save size={12} aria-hidden="true" />
           Save path
         </Button>
@@ -345,20 +317,8 @@ function HopRow({ hop, index, knownName, onRemove }: HopRowProps) {
       <span className="w-4 text-right font-mono text-[11px] text-cs-text-dim">{index + 1}</span>
       <ContactAvatar name={knownName ?? hop.prefixHex} size="sm" />
       <span className="flex-1 truncate text-[12px] text-cs-text">{knownName ?? '(unknown)'}</span>
-      <Input
-        value={hop.prefixHex}
-        readOnly
-        className="h-7 w-[100px] font-mono text-[11px]"
-        aria-label="Hop prefix"
-      />
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        className="h-7 w-7"
-        onClick={onRemove}
-        aria-label="Remove hop"
-      >
+      <Input value={hop.prefixHex} readOnly className="h-7 w-[100px] font-mono text-[11px]" aria-label="Hop prefix" />
+      <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={onRemove} aria-label="Remove hop">
         <X size={12} aria-hidden="true" />
       </Button>
     </li>

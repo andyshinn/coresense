@@ -157,14 +157,11 @@ export async function sendChannelText(
 export const channelMessagesFeature: Feature = {
   handles: [RESP.CHANNEL_MSG_RECV_V3, RESP.CHANNEL_MSG_RECV],
   handle: (code, frame, ctx) => {
-    const parsed =
-      code === RESP.CHANNEL_MSG_RECV_V3 ? decodeChannelMsgV3(frame) : decodeChannelMsgV1(frame);
+    const parsed = code === RESP.CHANNEL_MSG_RECV_V3 ? decodeChannelMsgV3(frame) : decodeChannelMsgV1(frame);
     if (!parsed) return;
     const channel = getChannelByIdx(parsed.channelIdx);
     if (!channel) {
-      log.warn(
-        `incoming channel msg idx=${parsed.channelIdx} doesn't match any known channel slot`,
-      );
+      log.warn(`incoming channel msg idx=${parsed.channelIdx} doesn't match any known channel slot`);
       return;
     }
 
@@ -183,9 +180,7 @@ export const channelMessagesFeature: Feature = {
       if (channelHashByte != null) {
         const observations = consumeMeshObs(channelHashByte, hashCount);
         for (const obs of observations) {
-          paths.push(
-            buildPath(obs.pathHex, obs.hashSize, obs.finalSnr, parsed.senderName, owner?.name),
-          );
+          paths.push(buildPath(obs.pathHex, obs.hashSize, obs.finalSnr, parsed.senderName, owner?.name));
         }
         // Prefer the SNR our radio measured on the LoRa frame (mesh side) over
         // the one the firmware quoted in 0x11 — they're the same value when the

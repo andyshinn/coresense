@@ -16,13 +16,7 @@ const LEVEL_OPTIONS = [
 export function LogsLevelSection() {
   const minLevel = useStore((s) => s.ui.logsFilter.minLevel);
   const setLogsFilter = useStore((s) => s.setLogsFilter);
-  return (
-    <Select
-      value={minLevel}
-      options={LEVEL_OPTIONS}
-      onChange={(v) => setLogsFilter({ minLevel: v as LogLevel })}
-    />
-  );
+  return <Select value={minLevel} options={LEVEL_OPTIONS} onChange={(v) => setLogsFilter({ minLevel: v as LogLevel })} />;
 }
 
 /** Source checkboxes (Main / Renderer) for the logs right-rail filter. */

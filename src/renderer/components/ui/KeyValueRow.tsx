@@ -16,16 +16,8 @@ export function KeyValueRow({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-xs">
-      <span className="shrink-0 text-[10px] uppercase tracking-wider text-cs-text-dim">
-        {label}
-      </span>
-      <span
-        title={title}
-        className={cn(
-          'truncate text-right text-cs-text',
-          mono && 'font-mono tabular-nums text-[11px]',
-        )}
-      >
+      <span className="shrink-0 text-[10px] uppercase tracking-wider text-cs-text-dim">{label}</span>
+      <span title={title} className={cn('truncate text-right text-cs-text', mono && 'font-mono tabular-nums text-[11px]')}>
         {value}
       </span>
     </div>
@@ -36,9 +28,7 @@ export function KeyValueRow({
 export function KeyValueGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="text-[10px] font-medium uppercase tracking-wider text-cs-text-dim">
-        {title}
-      </div>
+      <div className="text-[10px] font-medium uppercase tracking-wider text-cs-text-dim">{title}</div>
       <div className="flex flex-col gap-1">{children}</div>
     </div>
   );

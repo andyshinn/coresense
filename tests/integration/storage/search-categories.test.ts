@@ -4,8 +4,7 @@ import { rebuildConversationsIndex, searchMessages } from '../../../src/main/sto
 import type { Channel, Contact, Message, SearchCategory } from '../../../src/shared/types';
 
 const CTX = { contacts: [], blockRules: [], regexCache: new Map() };
-const pk = (prefix: string, suffix: string): string =>
-  prefix + '0'.repeat(64 - prefix.length - suffix.length) + suffix;
+const pk = (prefix: string, suffix: string): string => prefix + '0'.repeat(64 - prefix.length - suffix.length) + suffix;
 
 const ALICE_PK = pk('a1ce', 'face');
 const REPEATER_PK = pk('77aa', '0001');
@@ -43,8 +42,7 @@ function seed(): void {
   } as Message);
 }
 
-const run = (categories?: SearchCategory[]) =>
-  searchMessages({ query: 'alpha', sort: 'relevance', categories }, CTX);
+const run = (categories?: SearchCategory[]) => searchMessages({ query: 'alpha', sort: 'relevance', categories }, CTX);
 
 describe('search — category filters', () => {
   it('contact only → contact conversation hits, no channel hits, no messages', () => {

@@ -9,9 +9,7 @@ const TILE_SOURCES: readonly TileSource[] = ['basemap', 'terrain'];
 
 function resolvedPath(name: TileSource): string {
   const file = `${name}.pmtiles`;
-  return isPackaged()
-    ? join(process.resourcesPath, file)
-    : join(appPath(), 'resources', 'tiles', file);
+  return isPackaged() ? join(process.resourcesPath, file) : join(appPath(), 'resources', 'tiles', file);
 }
 
 export function tilePath(name: TileSource): string {

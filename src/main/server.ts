@@ -143,8 +143,7 @@ export async function startServer(
       if (c.readyState === c.OPEN) c.send(data);
     }
   };
-  const broadcastClientCount = () =>
-    broadcast({ type: 'wsClients', payload: { count: clients.size } });
+  const broadcastClientCount = () => broadcast({ type: 'wsClients', payload: { count: clients.size } });
 
   wss.on('connection', (ws: WebSocket, _req: IncomingMessage) => {
     clients.add(ws);
@@ -168,10 +167,7 @@ export async function startServer(
     ws.send(
       JSON.stringify({
         type: 'discovered',
-        payload: discoveredStore.list(
-          holder.getRadioSettings().pathHashMode,
-          holder.getBlockRules(),
-        ),
+        payload: discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
       }),
     );
     // Other clients should learn that the population just grew/shrank too.
@@ -188,53 +184,35 @@ export async function startServer(
     transportManager.setState(state, deviceId);
     broadcast({ type: 'transportState', payload: { state, deviceId } });
   };
-  const onScanResults = (devices: BleDevice[]) =>
-    broadcast({ type: 'scanResults', payload: devices });
+  const onScanResults = (devices: BleDevice[]) => broadcast({ type: 'scanResults', payload: devices });
   const onError = (message: string) => broadcast({ type: 'error', payload: { message } });
   const onBridgeStatus = () => broadcast({ type: 'bridgeStatus', payload: bridge.getStatus() });
   const onMenuAction = (action: MenuAction) => broadcast({ type: 'menuAction', payload: action });
   const onTheme = (push: ThemePush) => broadcast({ type: 'theme', payload: push });
   const onChannels = (channels: Channel[]) => broadcast({ type: 'channels', payload: channels });
-  const onChannelPresence = (keys: string[]) =>
-    broadcast({ type: 'channelPresence', payload: { keys } });
-  const onSyncProgress = (progress: SyncProgress) =>
-    broadcast({ type: 'syncProgress', payload: progress });
+  const onChannelPresence = (keys: string[]) => broadcast({ type: 'channelPresence', payload: { keys } });
+  const onSyncProgress = (progress: SyncProgress) => broadcast({ type: 'syncProgress', payload: progress });
   const onContacts = (contacts: Contact[]) => broadcast({ type: 'contacts', payload: contacts });
-  const onDiscovered = (rows: DiscoveredContact[]) =>
-    broadcast({ type: 'discovered', payload: rows });
-  const onContactEvicted = (name: string) =>
-    broadcast({ type: 'contactEvicted', payload: { name } });
-  const onMessages = (key: string, messages: Message[]) =>
-    broadcast({ type: 'messages', payload: { key, messages } });
-  const onMessageState = (id: string, state: MessageState) =>
-    broadcast({ type: 'messageState', payload: { id, state } });
+  const onDiscovered = (rows: DiscoveredContact[]) => broadcast({ type: 'discovered', payload: rows });
+  const onContactEvicted = (name: string) => broadcast({ type: 'contactEvicted', payload: { name } });
+  const onMessages = (key: string, messages: Message[]) => broadcast({ type: 'messages', payload: { key, messages } });
+  const onMessageState = (id: string, state: MessageState) => broadcast({ type: 'messageState', payload: { id, state } });
   const onMessagePathHeard = (payload: { id: string; path: MessagePath; state: MessageState }) =>
     broadcast({ type: 'messagePathHeard', payload });
   const onOwner = (owner: Owner | null) => broadcast({ type: 'owner', payload: owner });
-  const onAppSettings = (settings: AppSettings) =>
-    broadcast({ type: 'appSettings', payload: settings });
-  const onRadioSettings = (settings: RadioSettings) =>
-    broadcast({ type: 'radioSettings', payload: settings });
-  const onMapSettings = (settings: MapSettings) =>
-    broadcast({ type: 'mapSettings', payload: settings });
-  const onMapManifest = (manifest: TileManifest) =>
-    broadcast({ type: 'mapManifest', payload: manifest });
-  const onRepeaterStatus = (snap: RepeaterStatusSnapshot) =>
-    broadcast({ type: 'repeaterStatus', payload: snap });
-  const onRepeaterTelemetry = (snap: RepeaterTelemetrySnapshot) =>
-    broadcast({ type: 'repeaterTelemetry', payload: snap });
-  const onPathLearned = (event: PathLearnedEvent) =>
-    broadcast({ type: 'pathLearned', payload: event });
-  const onDeviceIdentity = (identity: DeviceIdentity) =>
-    broadcast({ type: 'deviceIdentity', payload: identity });
-  const onAutoAddConfig = (cfg: AutoAddConfig) =>
-    broadcast({ type: 'autoAddConfig', payload: cfg });
-  const onTelemetryPolicy = (policy: TelemetryPolicy) =>
-    broadcast({ type: 'telemetryPolicy', payload: policy });
+  const onAppSettings = (settings: AppSettings) => broadcast({ type: 'appSettings', payload: settings });
+  const onRadioSettings = (settings: RadioSettings) => broadcast({ type: 'radioSettings', payload: settings });
+  const onMapSettings = (settings: MapSettings) => broadcast({ type: 'mapSettings', payload: settings });
+  const onMapManifest = (manifest: TileManifest) => broadcast({ type: 'mapManifest', payload: manifest });
+  const onRepeaterStatus = (snap: RepeaterStatusSnapshot) => broadcast({ type: 'repeaterStatus', payload: snap });
+  const onRepeaterTelemetry = (snap: RepeaterTelemetrySnapshot) => broadcast({ type: 'repeaterTelemetry', payload: snap });
+  const onPathLearned = (event: PathLearnedEvent) => broadcast({ type: 'pathLearned', payload: event });
+  const onDeviceIdentity = (identity: DeviceIdentity) => broadcast({ type: 'deviceIdentity', payload: identity });
+  const onAutoAddConfig = (cfg: AutoAddConfig) => broadcast({ type: 'autoAddConfig', payload: cfg });
+  const onTelemetryPolicy = (policy: TelemetryPolicy) => broadcast({ type: 'telemetryPolicy', payload: policy });
   const onGpsConfig = (cfg: GpsConfig) => broadcast({ type: 'gpsConfig', payload: cfg });
   const onDeviceInfo = (info: DeviceInfo) => broadcast({ type: 'deviceInfo', payload: info });
-  const onDeviceCapabilities = (caps: DeviceCapabilities) =>
-    broadcast({ type: 'deviceCapabilities', payload: caps });
+  const onDeviceCapabilities = (caps: DeviceCapabilities) => broadcast({ type: 'deviceCapabilities', payload: caps });
   const onBlockRules = (rules: BlockRule[]) => broadcast({ type: 'blockRules', payload: rules });
   const onUiState = (state: UiState) => broadcast({ type: 'uiState', payload: state });
   const onLogEntry = (entry: LogEntry) => broadcast({ type: 'log', payload: entry });
@@ -354,11 +332,7 @@ function mimeFor(ext: string): string {
 
 type FetchHandler = Parameters<typeof serve>[0]['fetch'];
 
-function listenWithFallback(
-  fetch: FetchHandler,
-  startPort: number,
-  onBound: (port: number) => void,
-): Promise<ServerType> {
+function listenWithFallback(fetch: FetchHandler, startPort: number, onBound: (port: number) => void): Promise<ServerType> {
   return new Promise((resolve, reject) => {
     let attempt = 0;
     const tryPort = (port: number) => {

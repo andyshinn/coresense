@@ -41,23 +41,13 @@ interface ErrorFallbackBaseProps {
  * look of the existing "Map tiles not installed" state in MapView so a crashed
  * subtree still feels like part of the app.
  */
-function ErrorFallbackBase({
-  icon: Icon,
-  title,
-  description,
-  error,
-  actionLabel,
-  onAction,
-}: ErrorFallbackBaseProps) {
+function ErrorFallbackBase({ icon: Icon, title, description, error, actionLabel, onAction }: ErrorFallbackBaseProps) {
   const message = errorMessage(error);
   return (
     <div className="flex h-full w-full items-center justify-center p-8">
       <div className="max-w-lg space-y-4 text-center">
         <div
-          className={cn(
-            'mx-auto flex h-14 w-14 items-center justify-center rounded-full',
-            'bg-cs-danger/10 text-cs-danger',
-          )}
+          className={cn('mx-auto flex h-14 w-14 items-center justify-center rounded-full', 'bg-cs-danger/10 text-cs-danger')}
         >
           <Icon className="h-7 w-7" />
         </div>

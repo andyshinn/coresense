@@ -18,15 +18,11 @@ describe('rawData: encodeSendRawData', () => {
   });
 
   it('rejects a payload shorter than 4 bytes', () => {
-    expect(() => encodeSendRawData({ pathHex: '', payload: Buffer.from([1, 2, 3]) })).toThrow(
-      /4 bytes/,
-    );
+    expect(() => encodeSendRawData({ pathHex: '', payload: Buffer.from([1, 2, 3]) })).toThrow(/4 bytes/);
   });
 
   it('rejects a path longer than 127 bytes (flood not supported)', () => {
-    expect(() =>
-      encodeSendRawData({ pathHex: 'aa'.repeat(128), payload: Buffer.alloc(4) }),
-    ).toThrow(/127/);
+    expect(() => encodeSendRawData({ pathHex: 'aa'.repeat(128), payload: Buffer.alloc(4) })).toThrow(/127/);
   });
 });
 
@@ -55,15 +51,11 @@ describe('rawData: encodeSendChannelData', () => {
   });
 
   it('rejects the reserved data_type 0', () => {
-    expect(() =>
-      encodeSendChannelData({ channelIdx: 0, dataType: 0, payload: Buffer.alloc(1) }),
-    ).toThrow(/data_type/);
+    expect(() => encodeSendChannelData({ channelIdx: 0, dataType: 0, payload: Buffer.alloc(1) })).toThrow(/data_type/);
   });
 
   it('rejects a payload over the channel-data limit', () => {
-    expect(() =>
-      encodeSendChannelData({ channelIdx: 0, dataType: 1, payload: Buffer.alloc(168) }),
-    ).toThrow(/167/);
+    expect(() => encodeSendChannelData({ channelIdx: 0, dataType: 1, payload: Buffer.alloc(168) })).toThrow(/167/);
   });
 });
 

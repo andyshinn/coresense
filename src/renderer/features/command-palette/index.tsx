@@ -175,9 +175,7 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
                 >
                   <Icon aria-hidden="true" />
                   <span className="flex-1 truncate">{it.label}</span>
-                  {it.hint && (
-                    <span className="truncate text-[10px] text-cs-text-dim">{it.hint}</span>
-                  )}
+                  {it.hint && <span className="truncate text-[10px] text-cs-text-dim">{it.hint}</span>}
                 </CommandItem>
               );
             })}

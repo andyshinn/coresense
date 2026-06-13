@@ -35,11 +35,7 @@ export function ExperimentalSection({ client }: SectionProps) {
         pathHashMode: d.pathHashMode,
         pushToDevice: connected,
       });
-      notify.success(
-        connected
-          ? 'Experimental settings pushed to device'
-          : 'Experimental settings saved app-side',
-      );
+      notify.success(connected ? 'Experimental settings pushed to device' : 'Experimental settings saved app-side');
     },
   });
 

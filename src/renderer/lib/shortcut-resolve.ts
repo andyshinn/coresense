@@ -17,12 +17,7 @@ export function resolveShortcut(ev: ShortcutKeyEvent, isTyping: boolean): Shortc
       // 1–9 digit with the mod held (and no shift/alt).
       if (chord.key === '1-9') {
         const wantMod = chord.mods?.includes('mod') ?? false;
-        if (
-          (ev.metaKey || ev.ctrlKey) === wantMod &&
-          !ev.shiftKey &&
-          !ev.altKey &&
-          isDigit1to9(ev.key)
-        ) {
+        if ((ev.metaKey || ev.ctrlKey) === wantMod && !ev.shiftKey && !ev.altKey && isDigit1to9(ev.key)) {
           return s;
         }
         continue;

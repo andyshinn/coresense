@@ -17,15 +17,9 @@ export function ConversationRow({ hit, onClick }: { hit: ConversationHit; onClic
         <Icon size={14} className="text-cs-text-muted" aria-hidden="true" />
         <span className="truncate">{hit.name}</span>
         {hit.contactKind && (
-          <span className="rounded border border-cs-border px-1 text-[10px] text-cs-text-dim">
-            {hit.contactKind}
-          </span>
+          <span className="rounded border border-cs-border px-1 text-[10px] text-cs-text-dim">{hit.contactKind}</span>
         )}
-        {hit.publicKeyHex && (
-          <span className="font-mono text-[10px] text-cs-text-dim">
-            {shortPk(hit.publicKeyHex)}
-          </span>
-        )}
+        {hit.publicKeyHex && <span className="font-mono text-[10px] text-cs-text-dim">{shortPk(hit.publicKeyHex)}</span>}
         {hit.messageMatches > 0 && (
           <span className="ml-auto font-mono text-[10px] text-cs-text-dim">
             {hit.messageMatches} match{hit.messageMatches === 1 ? '' : 'es'}

@@ -37,12 +37,7 @@ export function applyMarkerState(el: HTMLElement, state: MarkerState): void {
   el.classList.toggle('has-label', state.showLabel);
 }
 
-export function syncMarkerVisual(
-  el: HTMLElement,
-  contact: Contact,
-  state: MarkerState,
-  prevKind: string | null,
-): void {
+export function syncMarkerVisual(el: HTMLElement, contact: Contact, state: MarkerState, prevKind: string | null): void {
   applyMarkerState(el, state);
   setLabelText(el, contact.name);
   // Re-render the inner SVG when shape/size or selection-driven size changes.

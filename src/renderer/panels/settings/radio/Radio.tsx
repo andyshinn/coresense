@@ -74,10 +74,7 @@ export function RadioSection({ client }: SectionProps) {
         control={
           <Select<string>
             value={matchedPreset?.id ?? 'custom'}
-            options={[
-              { value: 'custom', label: 'Custom' },
-              ...RADIO_PRESETS.map((p) => ({ value: p.id, label: p.label })),
-            ]}
+            options={[{ value: 'custom', label: 'Custom' }, ...RADIO_PRESETS.map((p) => ({ value: p.id, label: p.label }))]}
             onChange={choosePreset}
           />
         }
@@ -174,11 +171,7 @@ export function RadioSection({ client }: SectionProps) {
             ? 'When on, the radio rebroadcasts floods it hears.'
             : 'Repeat mode requires firmware ver_code ≥ 9. Disabled.'
         }
-        warning={
-          draft.repeatMode
-            ? 'Increases airtime and battery drain — only enable on a fixed power supply.'
-            : undefined
-        }
+        warning={draft.repeatMode ? 'Increases airtime and battery drain — only enable on a fixed power supply.' : undefined}
         changed={draft.repeatMode !== saved.repeatMode}
         control={
           <Toggle

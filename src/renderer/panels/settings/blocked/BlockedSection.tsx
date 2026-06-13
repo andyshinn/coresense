@@ -44,11 +44,7 @@ export function BlockedSection({ client }: Props) {
   const filtered =
     needle.length === 0
       ? rules
-      : rules.filter(
-          (r) =>
-            r.pattern.toLowerCase().includes(needle) ||
-            (r.note ?? '').toLowerCase().includes(needle),
-        );
+      : rules.filter((r) => r.pattern.toLowerCase().includes(needle) || (r.note ?? '').toLowerCase().includes(needle));
 
   const sorted = filtered.slice().sort((a, b) => b.createdAt - a.createdAt);
 
@@ -93,8 +89,7 @@ export function BlockedSection({ client }: Props) {
 
         {rules.length === 0 ? (
           <p className="text-sm text-cs-text-dim">
-            No block rules yet. Right-click any message and choose <em>Block sender…</em>, or click{' '}
-            <em>Add rule</em>.
+            No block rules yet. Right-click any message and choose <em>Block sender…</em>, or click <em>Add rule</em>.
           </p>
         ) : sorted.length === 0 ? (
           <p className="text-sm text-cs-text-dim">No rules match your filter.</p>
@@ -115,9 +110,7 @@ export function BlockedSection({ client }: Props) {
                 <tr key={r.id} className={r.enabled ? '' : 'opacity-50'}>
                   <td className="py-1 pr-2">{ruleTypeLabel(r.type)}</td>
                   <td className="py-1 pr-2 font-mono">{shortPattern(r)}</td>
-                  <td className="py-1 pr-2">
-                    {r.tsFrom === 0 ? 'all' : fmtDateTime(r.tsFrom, timeFormat)}
-                  </td>
+                  <td className="py-1 pr-2">{r.tsFrom === 0 ? 'all' : fmtDateTime(r.tsFrom, timeFormat)}</td>
                   <td className="py-1 pr-2 tabular-nums">{r.matchCount}</td>
                   <td className="py-1 pr-2">{r.note ?? ''}</td>
                   <td className="py-1 pr-2">
@@ -128,11 +121,7 @@ export function BlockedSection({ client }: Props) {
                         onClick={() => toggleEnabled(r)}
                         title={r.enabled ? 'Disable' : 'Enable'}
                       >
-                        {r.enabled ? (
-                          <ToggleRight className="h-4 w-4" />
-                        ) : (
-                          <ToggleLeft className="h-4 w-4" />
-                        )}
+                        {r.enabled ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
                       </Button>
                       <Button size="icon" variant="ghost" onClick={() => remove(r)} title="Unblock">
                         <Trash2 className="h-4 w-4" />
@@ -145,9 +134,7 @@ export function BlockedSection({ client }: Props) {
           </table>
         )}
 
-        {showAdd && (
-          <BlockSenderDialog client={client} open prefill={{}} onClose={() => setShowAdd(false)} />
-        )}
+        {showAdd && <BlockSenderDialog client={client} open prefill={{}} onClose={() => setShowAdd(false)} />}
       </div>
     </SettingsSection>
   );

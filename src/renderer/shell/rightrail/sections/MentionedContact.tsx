@@ -2,13 +2,7 @@ import type { Contact } from '../../../../shared/types';
 import { ContactDetail } from './ContactDetail';
 
 /** Contact card surfaced by clicking an @mention, with a Clear control. */
-export function MentionedContactSection({
-  contact,
-  onClear,
-}: {
-  contact: Contact;
-  onClear: () => void;
-}) {
+export function MentionedContactSection({ contact, onClear }: { contact: Contact; onClear: () => void }) {
   return (
     <div className="space-y-2">
       <ContactDetail publicKeyHex={contact.publicKeyHex} client={null} showPath={false} />

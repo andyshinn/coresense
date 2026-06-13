@@ -15,9 +15,7 @@ export function PlaceholderPanel({ title, description, icon }: Props) {
         <Icon size={20} aria-hidden="true" />
       </div>
       <h2 className="font-mono text-[11px] uppercase tracking-wider text-cs-text-muted">{title}</h2>
-      {description && (
-        <p className="max-w-md text-sm text-cs-text-dim leading-relaxed">{description}</p>
-      )}
+      {description && <p className="max-w-md text-sm text-cs-text-dim leading-relaxed">{description}</p>}
     </div>
   );
 }

@@ -1,11 +1,5 @@
 import { Buffer } from 'node:buffer';
-import type {
-  Channel,
-  ContactKind,
-  RawPacket,
-  SyncProgress,
-  TransportState,
-} from '../../shared/types';
+import type { Channel, ContactKind, RawPacket, SyncProgress, TransportState } from '../../shared/types';
 import { DEFAULT_SYNC_PROGRESS } from '../../shared/types';
 import type { AdminMode } from '../bridge/adminSession';
 import { bus, type ContactsSyncSignal, emit } from '../events/bus';
@@ -15,24 +9,10 @@ import { discoveredStore } from '../storage/discoveredContacts';
 import { transportManager } from '../transport/manager';
 import { ADV_TYPE, ERR_CODE, RESP, type STATS_TYPE } from './codes';
 import { buildReboot, buildSendSelfAdvert } from './encode';
-import {
-  ContactTableFullError,
-  ProtocolError,
-  ProtocolTimeoutError,
-  UnknownContactError,
-} from './errors';
+import { ContactTableFullError, ProtocolError, ProtocolTimeoutError, UnknownContactError } from './errors';
 import type { FeatureContext } from './feature';
-import {
-  encodeSetAdvertLatLon,
-  encodeSetAdvertName,
-  encodeSetOtherParams,
-} from './features/advert';
-import {
-  type AutoAddFlagsInput,
-  autoAddFeature,
-  requestAutoAddConfig,
-  setAutoAddConfig,
-} from './features/autoAdd';
+import { encodeSetAdvertLatLon, encodeSetAdvertName, encodeSetOtherParams } from './features/advert';
+import { type AutoAddFlagsInput, autoAddFeature, requestAutoAddConfig, setAutoAddConfig } from './features/autoAdd';
 import { battStorageFeature, encodeGetBattAndStorage } from './features/battStorage';
 import * as channelMessages from './features/channelMessages';
 import * as channels from './features/channels';
@@ -69,14 +49,7 @@ import * as signing from './features/signing';
 import { getDeviceTime, setDeviceTime, syncDeviceTime } from './features/time';
 import { getTuningParams, setTuningParams, type TuningParams } from './features/tuning';
 import { FeatureRegistry } from './registry';
-import type {
-  AclEntry,
-  LocalStats,
-  LoginSuccess,
-  NeighboursPage,
-  OwnerInfo,
-  TraceData,
-} from './repeater';
+import type { AclEntry, LocalStats, LoginSuccess, NeighboursPage, OwnerInfo, TraceData } from './repeater';
 
 const log = child('protocol');
 
@@ -211,9 +184,7 @@ export class ProtocolSession {
     const holder = stateHolder();
     const kept = holder.getChannels().filter((c) => /^[\x20-\x7e][\x20-\x7e\s]*$/.test(c.name));
     if (kept.length !== holder.getChannels().length) {
-      log.warn(
-        `purging ${holder.getChannels().length - kept.length} channel(s) with non-printable names`,
-      );
+      log.warn(`purging ${holder.getChannels().length - kept.length} channel(s) with non-printable names`);
       holder.setChannels(kept);
       emit.channels(kept);
     }
@@ -237,10 +208,7 @@ export class ProtocolSession {
    *  caller uses it to register a pending-send entry so subsequent
    *  PUSH_CODE_LOG_RX_DATA observations matching that byte can be attributed
    *  back to the outgoing message (repeater relays we hear over the air). */
-  async sendChannelText(
-    channelKey: string,
-    text: string,
-  ): Promise<{ ok: boolean; error?: string; channelHash?: number }> {
+  async sendChannelText(channelKey: string, text: string): Promise<{ ok: boolean; error?: string; channelHash?: number }> {
     return channelMessages.sendChannelText(this.ctx, channelKey, text);
   }
 
@@ -258,11 +226,7 @@ export class ProtocolSession {
 
   /** Send a DM with retry + flood fallback, mirroring the official client's
    *  behavior. */
-  async sendDmTextWithRetry(
-    contactKey: string,
-    text: string,
-    messageId: string,
-  ): Promise<{ ok: boolean; error?: string }> {
+  async sendDmTextWithRetry(contactKey: string, text: string, messageId: string): Promise<{ ok: boolean; error?: string }> {
     return directMessages.sendDmTextWithRetry(this.ctx, contactKey, text, messageId);
   }
 
@@ -311,9 +275,7 @@ export class ProtocolSession {
     }
     const pathBytes = outPathHex.length / 2;
     if (pathBytes % hashSize !== 0) {
-      throw new Error(
-        `outPathHex length ${pathBytes}B must be a multiple of pathHashMode ${hashSize}B`,
-      );
+      throw new Error(`outPathHex length ${pathBytes}B must be a multiple of pathHashMode ${hashSize}B`);
     }
     const frame = encodeAddUpdateContact({
       publicKeyHex: contact.publicKeyHex,
@@ -368,9 +330,7 @@ export class ProtocolSession {
       flags: row.flags,
       outPathHex: row.out_path_len === 0xff ? '' : row.out_path_hex,
       name: row.name,
-      ...(hasFix
-        ? { gpsLat: row.gps_lat, gpsLon: row.gps_lon, lastAdvertUnix: row.last_advert_unix }
-        : {}),
+      ...(hasFix ? { gpsLat: row.gps_lat, gpsLon: row.gps_lon, lastAdvertUnix: row.last_advert_unix } : {}),
     });
     // Await the radio's reply before claiming the contact is on-radio. RESP_ERR
     // with ERR_CODE_TABLE_FULL means the store is full — surface it and leave
@@ -436,9 +396,7 @@ export class ProtocolSession {
         flags,
         outPathHex: row.out_path_len === 0xff ? '' : row.out_path_hex,
         name: row.name,
-        ...(hasFix
-          ? { gpsLat: row.gps_lat, gpsLon: row.gps_lon, lastAdvertUnix: row.last_advert_unix }
-          : {}),
+        ...(hasFix ? { gpsLat: row.gps_lat, gpsLon: row.gps_lon, lastAdvertUnix: row.last_advert_unix } : {}),
       });
       await this.writeFrame(frame);
     }
@@ -581,11 +539,7 @@ export class ProtocolSession {
   }
 
   /** Broadcast a group-channel datagram (CMD_SEND_CHANNEL_DATA, flood). */
-  async sendChannelData(opts: {
-    channelIdx: number;
-    dataType: number;
-    payload: Buffer;
-  }): Promise<void> {
+  async sendChannelData(opts: { channelIdx: number; dataType: number; payload: Buffer }): Promise<void> {
     return rawData.sendChannelData(this.ctx, opts);
   }
 
@@ -887,12 +841,7 @@ export class ProtocolSession {
   }
 
   /** CMD_SEND_TRACE_PATH — diagnostic trace along a known path. */
-  async repeaterTracePath(opts: {
-    tag: number;
-    authCode: number;
-    flags?: number;
-    pathHex: string;
-  }): Promise<TraceData> {
+  async repeaterTracePath(opts: { tag: number; authCode: number; flags?: number; pathHex: string }): Promise<TraceData> {
     return repeaterAdmin.repeaterTracePath(this.ctx, opts);
   }
 
@@ -919,10 +868,7 @@ export class ProtocolSession {
   }
 
   /** Generic send→await for feature modules. See FeatureContext.request. */
-  private async request(
-    frame: Buffer,
-    opts?: { expect?: number; timeoutMs?: number },
-  ): Promise<Buffer> {
+  private async request(frame: Buffer, opts?: { expect?: number; timeoutMs?: number }): Promise<Buffer> {
     if (opts?.expect === undefined) {
       // RESP_OK / RESP_ERR path — reuse the shared, correlation-id-less ack FIFO
       // (see the pendingAcks field comment): concurrent OK/ERR writers can
@@ -977,15 +923,9 @@ export class ProtocolSession {
    *  to failOldestDmSend) rather than waiting out the typed-reply timeout. The
    *  two waiters share a timer and a settle guard; whichever fires first removes
    *  the other. See FeatureContext.requestOrNull. */
-  private requestOrNull(
-    frame: Buffer,
-    expect: number,
-    timeoutMs: number = REQUEST_TIMEOUT_MS,
-  ): Promise<Buffer | null> {
+  private requestOrNull(frame: Buffer, expect: number, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<Buffer | null> {
     if (expect === RESP.OK || expect === RESP.ERR) {
-      return Promise.reject(
-        new Error('requestOrNull cannot expect RESP_OK/RESP_ERR — they resolve to null'),
-      );
+      return Promise.reject(new Error('requestOrNull cannot expect RESP_OK/RESP_ERR — they resolve to null'));
     }
     return new Promise<Buffer | null>((resolve, reject) => {
       let settled = false;
@@ -1201,10 +1141,7 @@ export class ProtocolSession {
   /** Arm a one-shot waiter resolved by a future response handler (or a
    *  timeout). Returns the promise; stores the slot so the handler can find
    *  and resolve it. The slot is single-use — re-arming overwrites. */
-  private armWaiter(
-    slot: 'contactsStartWaiter' | 'contactsDoneWaiter',
-    timeoutMs: number,
-  ): Promise<void> {
+  private armWaiter(slot: 'contactsStartWaiter' | 'contactsDoneWaiter', timeoutMs: number): Promise<void> {
     return new Promise<void>((resolve) => {
       const timer = setTimeout(() => {
         if (this[slot]) {
@@ -1302,9 +1239,7 @@ export class ProtocolSession {
     const code = p.code;
     if (code === undefined) return;
     const frame = Buffer.from(p.bytes);
-    log.trace(
-      `rx code=0x${code.toString(16).padStart(2, '0')} (${p.codeName ?? '?'}) len=${frame.length}`,
-    );
+    log.trace(`rx code=0x${code.toString(16).padStart(2, '0')} (${p.codeName ?? '?'}) len=${frame.length}`);
 
     // (1) Solicited typed replies (ctx.request with `expect`) get first crack.
     const typedQueue = this.pendingTyped.get(code);

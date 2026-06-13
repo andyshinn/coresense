@@ -43,12 +43,7 @@ function stripMeta(s: string): string {
 }
 
 function htmlEscape(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // Split user input into a list of indexable tokens, then build the FTS5
@@ -120,9 +115,7 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
 
   const limit = Math.min(opts.limit ?? DEFAULT_LIMIT, HARD_LIMIT);
   const offset = Math.min(Math.max(opts.offset ?? 0, 0), HARD_OFFSET);
-  const categories = opts.categories?.length
-    ? opts.categories
-    : (['channel', 'dm', 'contact'] as SearchCategory[]);
+  const categories = opts.categories?.length ? opts.categories : (['channel', 'dm', 'contact'] as SearchCategory[]);
   const showChannels = categories.includes('channel');
   const showContacts = categories.includes('contact');
   // Message rows are gated by the message-kind subset of the selected
@@ -152,9 +145,7 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
   if (built.reversedHex.length > 0) {
     // Build a separate MATCH that only consults pk_suffix_rev so the prefix
     // wildcard hits the (already reversed) suffix bytes.
-    const revMatch = built.reversedHex
-      .map((t) => `pk_suffix_rev: ${escapePhrase(t)}*`)
-      .join(' OR ');
+    const revMatch = built.reversedHex.map((t) => `pk_suffix_rev: ${escapePhrase(t)}*`).join(' OR ');
     const revRows = db
       .prepare(
         `SELECT kind, key, name, pk_prefix, contact_kind, bm25(conversations_fts) AS score
@@ -263,9 +254,7 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
 
   // No message kinds selected (only 'contact') → skip the message query.
   const wantMessages = msgKinds.length > 0;
-  const messageRows = wantMessages
-    ? (db.prepare(unionSql).all(...unionParams) as unknown as MessageRow[])
-    : [];
+  const messageRows = wantMessages ? (db.prepare(unionSql).all(...unionParams) as unknown as MessageRow[]) : [];
 
   const messageHits: MessageHit[] = messageRows.map((r) => ({
     id: r.mid,
@@ -289,8 +278,7 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
   const rules = block.blockRules;
   if (rules.length > 0) {
     const regexCache = block.regexCache;
-    const contactNameByPk = (pk: string): string | undefined =>
-      block.contacts.find((c) => c.publicKeyHex === pk)?.name;
+    const contactNameByPk = (pk: string): string | undefined => block.contacts.find((c) => c.publicKeyHex === pk)?.name;
     for (const h of messageHits) {
       const synthetic = {
         id: h.id,
@@ -353,10 +341,7 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
 
 // Wipes and repopulates conversations_fts from the current channel/contact
 // set. Cheap: even hundreds of conversations are a single transaction.
-export function rebuildConversationsIndex(snapshot: {
-  channels: Channel[];
-  contacts: Contact[];
-}): void {
+export function rebuildConversationsIndex(snapshot: { channels: Channel[]; contacts: Contact[] }): void {
   const db = openDb();
   db.exec(`DELETE FROM conversations_fts`);
   const ins = db.prepare(

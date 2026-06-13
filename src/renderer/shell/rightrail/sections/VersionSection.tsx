@@ -23,9 +23,7 @@ export function VersionSection() {
     <div className="space-y-1.5 text-cs-text-muted">
       <KeyValueRow label="Version" value={capabilities.version} mono />
       <div className="flex items-baseline justify-between gap-3 text-xs">
-        <span className="shrink-0 text-[10px] uppercase tracking-wider text-cs-text-dim">
-          Commit
-        </span>
+        <span className="shrink-0 text-[10px] uppercase tracking-wider text-cs-text-dim">Commit</span>
         <button
           type="button"
           onClick={onCopySha}

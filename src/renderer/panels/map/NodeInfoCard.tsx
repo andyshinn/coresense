@@ -41,13 +41,8 @@ export function NodeInfoCard({ contact, client }: Props) {
       <div className="mb-2 flex items-start gap-2.5">
         <MarkerShape type={contact.kind} size={22} ariaLabel={meta.label} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold leading-tight text-cs-text">
-            {contact.name}
-          </div>
-          <div
-            className="mt-0.5 font-mono text-[10px] uppercase tracking-wider"
-            style={{ color: meta.color }}
-          >
+          <div className="truncate text-sm font-semibold leading-tight text-cs-text">{contact.name}</div>
+          <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wider" style={{ color: meta.color }}>
             {meta.label}
           </div>
         </div>
@@ -64,14 +59,7 @@ export function NodeInfoCard({ contact, client }: Props) {
       <dl className="space-y-1.5 font-mono text-[11px]">
         <Field k="pubkey" v={shortPk(contact.publicKeyHex)} />
         <Field k="last seen" v={contact.lastSeenMs ? fmtRelative(contact.lastSeenMs) : '—'} />
-        <Field
-          k="lat,lon"
-          v={
-            hasValidFix(contact)
-              ? `${contact.gpsLat.toFixed(5)}, ${contact.gpsLon.toFixed(5)}`
-              : '—'
-          }
-        />
+        <Field k="lat,lon" v={hasValidFix(contact) ? `${contact.gpsLat.toFixed(5)}, ${contact.gpsLon.toFixed(5)}` : '—'} />
       </dl>
 
       <div className="mt-3 flex gap-1.5">

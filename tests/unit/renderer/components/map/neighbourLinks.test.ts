@@ -34,11 +34,7 @@ describe('buildNeighbourLinkFeatures', () => {
   });
 
   it('skips neighbours without coordinates', () => {
-    const fc = buildNeighbourLinkFeatures(
-      focal,
-      [n({ pubKeyPrefixHex: 'a', located: true })],
-      null,
-    );
+    const fc = buildNeighbourLinkFeatures(focal, [n({ pubKeyPrefixHex: 'a', located: true })], null);
     expect(fc.features).toHaveLength(0);
   });
 

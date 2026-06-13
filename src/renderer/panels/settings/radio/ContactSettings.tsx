@@ -130,10 +130,7 @@ export function ContactSettingsSection({ client }: SectionProps) {
         label="Pull to refresh"
         changed={draft.pullToRefresh !== saved.pullToRefresh}
         control={
-          <Toggle
-            checked={draft.pullToRefresh}
-            onChange={(pullToRefresh) => setDraft((s) => ({ ...s, pullToRefresh }))}
-          />
+          <Toggle checked={draft.pullToRefresh} onChange={(pullToRefresh) => setDraft((s) => ({ ...s, pullToRefresh }))} />
         }
       />
       <Row

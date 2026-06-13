@@ -13,13 +13,7 @@ import { loadApiKey, saveApiKey } from './lib/apiKey';
 import { notify } from './lib/notify';
 import { dispatchShortcut } from './lib/shortcut-dispatch';
 import { useStore } from './lib/store';
-import {
-  applyTheme,
-  clearLegacyThemePref,
-  readLegacyThemePref,
-  resolveTheme,
-  type ThemePref,
-} from './lib/theme';
+import { applyTheme, clearLegacyThemePref, readLegacyThemePref, resolveTheme, type ThemePref } from './lib/theme';
 import { AppShell } from './shell/AppShell';
 
 // Lazy: MainPane drags in every panel module (~1.5k LOC of forms/tables that
@@ -33,9 +27,7 @@ export function App() {
   // The Electron preload injects `window.coresense.apiKey` — the first-party
   // window gets the key for free. A plain browser has no preload, so it falls
   // back to localStorage and, failing that, the ApiKeyGate.
-  const [apiKey, setApiKey] = useState<string | null>(
-    () => window.coresense?.apiKey ?? loadApiKey(),
-  );
+  const [apiKey, setApiKey] = useState<string | null>(() => window.coresense?.apiKey ?? loadApiKey());
   const [baseUrl, setBaseUrl] = useState<string | null>(null);
   const [port, setPort] = useState<number | null>(null);
   // config.json path, surfaced to the ApiKeyGate so a browser user knows
@@ -155,10 +147,7 @@ export function App() {
     })();
   }, []);
 
-  const client: ApiClient | null = useMemo(
-    () => (baseUrl && apiKey ? { baseUrl, apiKey } : null),
-    [baseUrl, apiKey],
-  );
+  const client: ApiClient | null = useMemo(() => (baseUrl && apiKey ? { baseUrl, apiKey } : null), [baseUrl, apiKey]);
 
   useEffect(() => {
     if (!client) return;

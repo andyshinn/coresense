@@ -54,10 +54,7 @@ export function LeftNav({ client }: LeftNavProps) {
 
   // Per-conversation unread counts, shared with the Unreads panel.
   const unreadByKey = useUnreadByKey();
-  const totalUnread = useMemo(
-    () => Object.values(unreadByKey).reduce((a, b) => a + b, 0),
-    [unreadByKey],
-  );
+  const totalUnread = useMemo(() => Object.values(unreadByKey).reduce((a, b) => a + b, 0), [unreadByKey]);
 
   const addChannelOpen = useStore((s) => s.addChannelOpen);
   const setAddChannelOpen = useStore((s) => s.setAddChannelOpen);
@@ -76,8 +73,7 @@ export function LeftNav({ client }: LeftNavProps) {
     return sortChannels(filtered, pinSet, pinned, pinUnreadToTop ? unreadByKey : null);
   }, [channels, channelPresence, hideUnsynced, pinSet, pinned, pinUnreadToTop, unreadByKey]);
   const sortedContacts = useMemo(
-    () =>
-      sortByPinned(contacts, pinSet, pinned, (c) => c.name, pinUnreadToTop ? unreadByKey : null),
+    () => sortByPinned(contacts, pinSet, pinned, (c) => c.name, pinUnreadToTop ? unreadByKey : null),
     [contacts, pinSet, pinned, pinUnreadToTop, unreadByKey],
   );
   // Bucket sorted contacts by kind. Empty groups are dropped at render time
@@ -166,11 +162,7 @@ export function LeftNav({ client }: LeftNavProps) {
     return out;
   }, [sortedContacts, unreadByKey]);
   const contactsUnreadTotal = useMemo(
-    () =>
-      contactUnreadByKind.chat +
-      contactUnreadByKind.repeater +
-      contactUnreadByKind.room +
-      contactUnreadByKind.sensor,
+    () => contactUnreadByKind.chat + contactUnreadByKind.repeater + contactUnreadByKind.room + contactUnreadByKind.sensor,
     [contactUnreadByKind],
   );
 
@@ -199,8 +191,7 @@ export function LeftNav({ client }: LeftNavProps) {
     (kind: ContactKind) => {
       const items = contactsByKind[kind];
       const key = `contact:${kind}`;
-      const shown =
-        collapseListsEnabled && !revealed[key] ? items.slice(0, collapseListsLimit) : items;
+      const shown = collapseListsEnabled && !revealed[key] ? items.slice(0, collapseListsLimit) : items;
       const hidden = items.length - shown.length;
       return (
         <SidebarMenuSub>
@@ -209,14 +200,7 @@ export function LeftNav({ client }: LeftNavProps) {
         </SidebarMenuSub>
       );
     },
-    [
-      contactsByKind,
-      collapseListsEnabled,
-      collapseListsLimit,
-      revealed,
-      revealList,
-      renderContactSubItem,
-    ],
+    [contactsByKind, collapseListsEnabled, collapseListsLimit, revealed, revealList, renderContactSubItem],
   );
 
   const onReorder = useCallback(

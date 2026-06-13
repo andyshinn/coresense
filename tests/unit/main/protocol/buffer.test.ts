@@ -31,9 +31,7 @@ describe('BufferWriter', () => {
 
 describe('BufferReader', () => {
   it('round-trips what BufferWriter produced', () => {
-    const r = new BufferReader(
-      new BufferWriter().writeByte(0x09).writeUInt32LE(0x01020304).toBuffer(),
-    );
+    const r = new BufferReader(new BufferWriter().writeByte(0x09).writeUInt32LE(0x01020304).toBuffer());
     expect(r.readByte()).toBe(0x09);
     expect(r.readUInt32LE()).toBe(0x01020304);
     expect(r.remaining).toBe(0);

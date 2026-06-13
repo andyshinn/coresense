@@ -99,24 +99,9 @@ export function MessagesTab({ contact, client }: Props) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center gap-1 border-b border-cs-border bg-cs-bg px-4 py-1.5">
-        <ActionButton
-          icon={RefreshCw}
-          label="Request Status"
-          disabled={!client}
-          onClick={requestStatus}
-        />
-        <ActionButton
-          icon={Activity}
-          label="Request Telemetry"
-          disabled={!client}
-          onClick={requestTelemetry}
-        />
-        <ActionButton
-          icon={Megaphone}
-          label="Send Advert"
-          disabled={!client}
-          onClick={sendAdvert}
-        />
+        <ActionButton icon={RefreshCw} label="Request Status" disabled={!client} onClick={requestStatus} />
+        <ActionButton icon={Activity} label="Request Telemetry" disabled={!client} onClick={requestTelemetry} />
+        <ActionButton icon={Megaphone} label="Send Advert" disabled={!client} onClick={sendAdvert} />
       </div>
 
       {(status || telemetry) && (
@@ -175,17 +160,11 @@ function ActionButton({ icon: Icon, label, disabled, onClick }: ActionButtonProp
   );
 }
 
-function StatusCard({
-  snap,
-}: {
-  snap: NonNullable<ReturnType<typeof useStore.getState>['repeaterStatusByKey'][string]>;
-}) {
+function StatusCard({ snap }: { snap: NonNullable<ReturnType<typeof useStore.getState>['repeaterStatusByKey'][string]> }) {
   return (
     <section className="rounded border border-cs-border bg-cs-bg-2 p-2">
       <header className="mb-1 flex items-baseline justify-between">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">
-          Status
-        </h3>
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">Status</h3>
         <span className="font-mono text-[10px] text-cs-text-dim">{fmtAgo(snap.receivedAt)}</span>
       </header>
       {snap.fields.length === 0 ? (
@@ -215,9 +194,7 @@ function TelemetryCard({
   return (
     <section className="rounded border border-cs-border bg-cs-bg-2 p-2">
       <header className="mb-1 flex items-baseline justify-between">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">
-          Telemetry
-        </h3>
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">Telemetry</h3>
         <span className="font-mono text-[10px] text-cs-text-dim">{fmtAgo(snap.receivedAt)}</span>
       </header>
       {snap.fields.length === 0 ? (

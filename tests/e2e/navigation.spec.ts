@@ -35,10 +35,7 @@ test('navigates between channels and pins one to the top', async () => {
     await expect(page.getByTestId('channel-view')).toHaveAttribute('data-channel-key', 'ch:Public');
 
     await privateItem.click();
-    await expect(page.getByTestId('channel-view')).toHaveAttribute(
-      'data-channel-key',
-      'ch:Private',
-    );
+    await expect(page.getByTestId('channel-view')).toHaveAttribute('data-channel-key', 'ch:Private');
 
     // Pin "Private" via its right-click context menu.
     await privateItem.click({ button: 'right' });

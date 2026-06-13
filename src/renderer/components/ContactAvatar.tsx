@@ -15,10 +15,7 @@ export function ContactAvatar({ name, size = 'sm', className }: Props) {
   return (
     <div
       aria-hidden="true"
-      className={cn(
-        'flex shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-medium',
-        className,
-      )}
+      className={cn('flex shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-medium', className)}
       style={{
         width: px,
         height: px,

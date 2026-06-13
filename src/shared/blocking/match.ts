@@ -39,12 +39,7 @@ function senderNameOf(msg: Message, hints: BlockMatchHints): string | undefined 
 }
 
 /** Per-rule predicate. Pure — no holder access, no I/O, no logging. */
-function ruleMatches(
-  msg: Message,
-  hints: BlockMatchHints,
-  rule: BlockRule,
-  regex: RegExp | undefined,
-): boolean {
+function ruleMatches(msg: Message, hints: BlockMatchHints, rule: BlockRule, regex: RegExp | undefined): boolean {
   if (!rule.enabled) return false;
   if (msg.ts < rule.tsFrom) return false;
 

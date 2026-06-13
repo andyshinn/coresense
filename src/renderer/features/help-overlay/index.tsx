@@ -2,13 +2,7 @@ import { Keyboard, X } from 'lucide-react';
 import { Fragment, useMemo } from 'react';
 import { SHORTCUTS, type ShortcutCategory } from '../../../shared/shortcuts';
 import { toAccelerator, toCaps } from '../../../shared/shortcuts-format';
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from '../../components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '../../components/ui/dialog';
 import { Kbd, KbdGroup } from '../../components/ui/kbd';
 import { osLabel, rendererPlatform } from '../../lib/shortcut-selectors';
 import { useStore } from '../../lib/store';
@@ -52,9 +46,7 @@ export function ShortcutsHelpDialog() {
                 Keyboard Shortcuts
               </DialogTitle>
             </div>
-            <div className="mt-1 font-mono text-[10px] tracking-[0.3px] text-cs-text-dim">
-              MeshCore Desktop · {OS_LABEL}
-            </div>
+            <div className="mt-1 font-mono text-[10px] tracking-[0.3px] text-cs-text-dim">MeshCore Desktop · {OS_LABEL}</div>
             <DialogDescription className="sr-only">
               A reference list of every keyboard shortcut, grouped by category.
             </DialogDescription>
@@ -83,17 +75,12 @@ export function ShortcutsHelpDialog() {
                 {group.category}
               </div>
               {group.items.map((s) => (
-                <div
-                  key={s.id}
-                  className={`${ROW_GRID} items-center border-b border-cs-bg-3 px-[18px] py-[7px]`}
-                >
+                <div key={s.id} className={`${ROW_GRID} items-center border-b border-cs-bg-3 px-[18px] py-[7px]`}>
                   <span className="text-[12px] font-medium text-cs-text">{s.name}</span>
                   <span className="flex flex-wrap items-center gap-1.5">
                     {s.chords.map((chord, ci) => (
                       <Fragment key={toAccelerator(chord)}>
-                        {ci > 0 && (
-                          <span className="font-mono text-[10px] text-cs-text-dim">or</span>
-                        )}
+                        {ci > 0 && <span className="font-mono text-[10px] text-cs-text-dim">or</span>}
                         <KbdGroup>
                           {toCaps(chord, PLATFORM).map((cap) => (
                             <Kbd key={cap}>{cap}</Kbd>

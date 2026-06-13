@@ -4,13 +4,7 @@ const MIN_WIDTH = 240;
 const MAX_WIDTH = 640;
 
 /** Drag handle on the rail's left edge; clamps width and cancels on Esc. */
-export function ResizeHandle({
-  width,
-  onChange,
-}: {
-  width: number;
-  onChange: (w: number) => void;
-}) {
+export function ResizeHandle({ width, onChange }: { width: number; onChange: (w: number) => void }) {
   const startRef = useRef<{ x: number; w: number } | null>(null);
 
   const onPointerDown = useCallback(

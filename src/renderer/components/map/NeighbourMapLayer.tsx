@@ -3,11 +3,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import type { Contact } from '../../../shared/types';
 import type { ResolvedNeighbour } from '../../lib/neighbours';
 import { buildContactMarker, type MarkerState, syncMarkerVisual } from './markers/markerHtml';
-import {
-  buildNeighbourLinkFeatures,
-  computeNeighbourBounds,
-  type FocalPoint,
-} from './neighbourLinks';
+import { buildNeighbourLinkFeatures, computeNeighbourBounds, type FocalPoint } from './neighbourLinks';
 
 const LINK_SOURCE = 'neighbour-links-src';
 const LINK_LAYER = 'neighbour-links';
@@ -87,10 +83,7 @@ export function NeighbourMapLayer({
   onHover,
   onSelect,
 }: NeighbourMapLayerProps) {
-  const located = useMemo(
-    () => neighbours.filter((n) => n.located && n.lat != null && n.lon != null),
-    [neighbours],
-  );
+  const located = useMemo(() => neighbours.filter((n) => n.located && n.lat != null && n.lon != null), [neighbours]);
   // Only a plotted (located) neighbour can be "active" on the map. Hovering or
   // selecting an off-map row must not dim every marker/link while highlighting
   // nothing.
@@ -105,7 +98,9 @@ export function NeighbourMapLayer({
   // capturing a stale value.
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
-  const renderRef = useRef<() => void>(() => {});
+  const renderRef = useRef<() => void>(() => {
+    /* assigned below */
+  });
 
   const stateFor = (id: string): MarkerState => ({
     selected: selectedId === id,
@@ -138,9 +133,7 @@ export function NeighbourMapLayer({
           e.stopPropagation();
           onSelect(selectedIdRef.current === id ? null : id);
         });
-        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-          .setLngLat(lngLat)
-          .addTo(map);
+        const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(lngLat).addTo(map);
         markers.set(id, marker);
       }
     }

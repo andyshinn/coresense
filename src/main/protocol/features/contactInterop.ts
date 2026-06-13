@@ -61,10 +61,7 @@ export async function shareContact(ctx: FeatureContext, destPublicKeyHex: string
 
 /** Export an advert blob for the device itself (no arg) or a known contact.
  *  Returns the blob hex, or null when the contact isn't found (RESP_ERR). */
-export async function exportContact(
-  ctx: FeatureContext,
-  destPublicKeyHex?: string,
-): Promise<string | null> {
+export async function exportContact(ctx: FeatureContext, destPublicKeyHex?: string): Promise<string | null> {
   // RESP_EXPORT_CONTACT (0x0b) is unshared, so requestOrNull is safe: it resolves
   // the blob frame, or null on RESP_ERR (consumed via the ack FIFO).
   const frame = await ctx.requestOrNull(encodeExportContact(destPublicKeyHex), RESP.EXPORT_CONTACT);

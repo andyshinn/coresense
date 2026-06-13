@@ -28,9 +28,7 @@ describe('inbound PUSH_NEW_ADVERT discovery', () => {
     transportManager.setTransport(new FakeTransport());
 
     const discovered: Array<{ key: string; name: string; kind: string }> = [];
-    bus.on('contactDiscovered', (c: { key: string; name: string; kind: string }) =>
-      discovered.push(c),
-    );
+    bus.on('contactDiscovered', (c: { key: string; name: string; kind: string }) => discovered.push(c));
 
     emit.packet(companionPacket(advertFrame(PUBKEY, 'Carol')));
 

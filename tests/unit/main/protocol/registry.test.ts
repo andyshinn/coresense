@@ -18,9 +18,7 @@ describe('FeatureRegistry', () => {
   });
 
   it('throws when two features claim the same code', () => {
-    expect(() => new FeatureRegistry([fakeFeature([0x80]), fakeFeature([0x80])])).toThrow(
-      /duplicate/i,
-    );
+    expect(() => new FeatureRegistry([fakeFeature([0x80]), fakeFeature([0x80])])).toThrow(/duplicate/i);
   });
 
   it('dispatches a frame to the right handler', () => {

@@ -74,10 +74,8 @@ const config: ForgeConfig = {
       return true;
     },
     extendInfo: {
-      NSBluetoothAlwaysUsageDescription:
-        'CoreSense uses Bluetooth to scan for and connect to MeshCore radios.',
-      NSBluetoothPeripheralUsageDescription:
-        'CoreSense uses Bluetooth to scan for and connect to MeshCore radios.',
+      NSBluetoothAlwaysUsageDescription: 'CoreSense uses Bluetooth to scan for and connect to MeshCore radios.',
+      NSBluetoothPeripheralUsageDescription: 'CoreSense uses Bluetooth to scan for and connect to MeshCore radios.',
       // macOS 26+ reads the app icon from Assets.car (shipped via extraResource)
       // by this name; older macOS falls back to CFBundleIconFile / build/icon.icns.
       // Must match the `actool --app-icon` value used to build build/Assets.car.

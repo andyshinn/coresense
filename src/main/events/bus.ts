@@ -58,8 +58,7 @@ export const emit = {
   contacts: (contacts: Contact[]) => bus.emit('contacts', contacts),
   discovered: (rows: DiscoveredContact[]) => bus.emit('discovered', rows),
   contactEvicted: (name: string) => bus.emit('contactEvicted', name),
-  contactDiscovered: (c: { key: string; name: string; kind: ContactKind }) =>
-    bus.emit('contactDiscovered', c),
+  contactDiscovered: (c: { key: string; name: string; kind: ContactKind }) => bus.emit('contactDiscovered', c),
   messages: (key: string, messages: Message[]) => bus.emit('messages', key, messages),
   messageState: (id: string, state: MessageState) => bus.emit('messageState', id, state),
   messagePathHeard: (payload: { id: string; path: MessagePath; state: MessageState }) =>

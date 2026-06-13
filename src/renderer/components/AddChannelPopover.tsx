@@ -133,9 +133,7 @@ export function AddChannelPopover({ client, onClose }: Props) {
   if (view.kind === 'pick') {
     return (
       <div className="flex flex-col gap-0.5">
-        <div className="px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-wider text-cs-text-dim">
-          Add channel
-        </div>
+        <div className="px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-wider text-cs-text-dim">Add channel</div>
         <PickerRow
           icon={<Plus className="size-3" />}
           title="Create private channel"
@@ -203,10 +201,7 @@ export function AddChannelPopover({ client, onClose }: Props) {
       : null;
 
   const canSubmit =
-    !view.submitting &&
-    trimmedName.length > 0 &&
-    nameError === null &&
-    (!showSecretField || HEX_32.test(normalizedSecret));
+    !view.submitting && trimmedName.length > 0 && nameError === null && (!showSecretField || HEX_32.test(normalizedSecret));
 
   async function onAdd(formView: Extract<ViewState, { kind: 'form' }>) {
     if (!canSubmit) return;
@@ -261,9 +256,7 @@ export function AddChannelPopover({ client, onClose }: Props) {
             autoFocus
             type="text"
             value={view.name}
-            onChange={(e) =>
-              setView((v) => (v.kind === 'form' ? { ...v, name: e.target.value, error: null } : v))
-            }
+            onChange={(e) => setView((v) => (v.kind === 'form' ? { ...v, name: e.target.value, error: null } : v))}
             maxLength={32}
             placeholder="my-channel"
             className="h-7 rounded-md border border-cs-border bg-cs-bg-3 px-2 text-xs text-cs-text outline-none focus:border-cs-accent"
@@ -274,17 +267,11 @@ export function AddChannelPopover({ client, onClose }: Props) {
 
       {showSecretField && (
         <label className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wider text-cs-text-dim">
-            Shared key (32 hex chars)
-          </span>
+          <span className="text-[10px] uppercase tracking-wider text-cs-text-dim">Shared key (32 hex chars)</span>
           <input
             type="text"
             value={view.secretHex}
-            onChange={(e) =>
-              setView((v) =>
-                v.kind === 'form' ? { ...v, secretHex: e.target.value, error: null } : v,
-              )
-            }
+            onChange={(e) => setView((v) => (v.kind === 'form' ? { ...v, secretHex: e.target.value, error: null } : v))}
             placeholder="0123456789abcdef0123456789abcdef"
             spellCheck={false}
             className="h-7 rounded-md border border-cs-border bg-cs-bg-3 px-2 font-mono text-[11px] text-cs-text outline-none focus:border-cs-accent"

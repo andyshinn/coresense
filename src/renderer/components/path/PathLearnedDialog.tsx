@@ -3,14 +3,7 @@ import type { Contact, PathLearnedEvent } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { Button } from '../ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Separator } from '../ui/separator';
 
 interface Props {
@@ -70,9 +63,8 @@ export function PathLearnedDialog({ event, contact, client, onClose }: Props) {
         <DialogHeader>
           <DialogTitle>Path auto-learned</DialogTitle>
           <DialogDescription>
-            A new path to <span className="font-medium text-cs-text">{name}</span> was discovered
-            while sending. The path you set manually has been replaced — keep yours or accept the
-            new one?
+            A new path to <span className="font-medium text-cs-text">{name}</span> was discovered while sending. The path you
+            set manually has been replaced — keep yours or accept the new one?
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2 rounded border border-cs-border bg-cs-bg-2 p-3 text-[12px]">

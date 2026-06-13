@@ -23,9 +23,7 @@ export function buildNeighbourLinkFeatures(
   activeId: string | null,
 ): GeoJSON.FeatureCollection<GeoJSON.LineString, LinkProps> {
   const features = located
-    .filter(
-      (n): n is ResolvedNeighbour & { lat: number; lon: number } => n.lat != null && n.lon != null,
-    )
+    .filter((n): n is ResolvedNeighbour & { lat: number; lon: number } => n.lat != null && n.lon != null)
     .map((n) => {
       const isActive = activeId === n.pubKeyPrefixHex;
       const dim = activeId != null && !isActive;

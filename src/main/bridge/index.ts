@@ -1,9 +1,5 @@
 import { hostname, networkInterfaces } from 'node:os';
-import {
-  BRIDGE_DEFAULT_TCP_PORT,
-  BRIDGE_DEFAULT_TCP_PORT_DEV,
-  type BridgeStatus,
-} from '../../shared/types';
+import { BRIDGE_DEFAULT_TCP_PORT, BRIDGE_DEFAULT_TCP_PORT_DEV, type BridgeStatus } from '../../shared/types';
 import { emit } from '../events/bus';
 import { BridgeHub } from './hub';
 import { type MdnsHandle, startMdns } from './mdns';
@@ -34,8 +30,7 @@ export async function startBridge(opts: BridgeOptions = {}): Promise<BridgeHandl
   const tcpPort = opts.tcpPort ?? readNumberEnv('BRIDGE_TCP_PORT', defaultTcp);
   const bindAddress = opts.bindAddress ?? process.env.BRIDGE_BIND ?? DEFAULT_BIND;
   const baseHost = hostname().replace(/\..*$/, '');
-  const serviceName =
-    opts.serviceName ?? process.env.BRIDGE_MDNS_NAME ?? (opts.dev ? `${baseHost}-dev` : baseHost);
+  const serviceName = opts.serviceName ?? process.env.BRIDGE_MDNS_NAME ?? (opts.dev ? `${baseHost}-dev` : baseHost);
   const enableTcp = opts.enableTcp ?? readBoolEnv('BRIDGE_TCP_ENABLED', true);
   const enableMdns = opts.enableMdns ?? readBoolEnv('BRIDGE_MDNS_ENABLED', true);
 
@@ -77,10 +72,7 @@ export async function startBridge(opts: BridgeOptions = {}): Promise<BridgeHandl
     on: (ev, fn) => hub.on(ev, fn),
     off: (ev, fn) => hub.off(ev, fn),
     close: async () => {
-      await Promise.allSettled([
-        mdns?.close() ?? Promise.resolve(),
-        tcp?.close() ?? Promise.resolve(),
-      ]);
+      await Promise.allSettled([mdns?.close() ?? Promise.resolve(), tcp?.close() ?? Promise.resolve()]);
       hub.close();
     },
   };

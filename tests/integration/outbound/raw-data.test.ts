@@ -61,9 +61,7 @@ describe('outbound raw / control / channel data', () => {
   it('routes inbound control/channel datagrams to their handler without error', () => {
     attach();
     // RESP_CHANNEL_DATA_RECV [0x1b][snr][rsv][rsv][ch][path][type LE][len][data]
-    const chanData = Buffer.from([
-      0x1b, 0x08, 0x00, 0x00, 0x03, 0xff, 0x34, 0x12, 0x02, 0xaa, 0xbb,
-    ]);
+    const chanData = Buffer.from([0x1b, 0x08, 0x00, 0x00, 0x03, 0xff, 0x34, 0x12, 0x02, 0xaa, 0xbb]);
     // PUSH_CONTROL_DATA [0x8e][snr][rssi][path_len][payload]
     const controlData = Buffer.from([0x8e, 0xfc, 0xce, 0x02, 0xaa, 0xbb]);
     expect(() => emit.packet(companionPacket(chanData))).not.toThrow();

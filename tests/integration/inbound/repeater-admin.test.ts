@@ -38,11 +38,7 @@ function respSent(tagHex: string): Buffer {
 }
 // PUSH_BINARY_RESPONSE: [0x8c][0][tag u32][payload].
 function binaryResponse(tagHex: string, body: string): Buffer {
-  return Buffer.concat([
-    Buffer.from([0x8c, 0x00]),
-    Buffer.from(tagHex, 'hex'),
-    Buffer.from(body, 'utf8'),
-  ]);
+  return Buffer.concat([Buffer.from([0x8c, 0x00]), Buffer.from(tagHex, 'hex'), Buffer.from(body, 'utf8')]);
 }
 // PUSH_STATUS_RESPONSE: [0x87][0][6B prefix][stats…].
 function statusResponse(prefixHex: string): Buffer {

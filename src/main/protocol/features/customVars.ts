@@ -52,9 +52,7 @@ export const customVarsFeature: Feature = {
     const next = {
       enabled: kv.gps !== undefined ? kv.gps === '1' || kv.gps === 'true' : current.enabled,
       intervalSec:
-        kv.gps_interval !== undefined
-          ? Number.parseInt(kv.gps_interval, 10) || current.intervalSec
-          : current.intervalSec,
+        kv.gps_interval !== undefined ? Number.parseInt(kv.gps_interval, 10) || current.intervalSec : current.intervalSec,
     };
     holder.setGpsConfig(next);
     emit.gpsConfig(next);

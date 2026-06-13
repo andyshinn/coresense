@@ -11,13 +11,7 @@ import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
 import { deriveSenderName } from '../lib/utils';
 import { BlockSenderDialog, type BlockSenderDialogPrefill } from './BlockSenderDialog';
-import {
-  ContextMenu,
-  type ContextMenuEntry,
-  copyToClipboard,
-  menuItem,
-  menuSeparator,
-} from './ContextMenu';
+import { ContextMenu, type ContextMenuEntry, copyToClipboard, menuItem, menuSeparator } from './ContextMenu';
 import { MessageRow } from './MessageRow';
 
 interface Props {
@@ -176,10 +170,7 @@ export function MessageList({
   // original `messages` so the last-read cursor stays aligned with what main
   // considers read — silently advancing past blocked rows is fine because they
   // are no longer visible anywhere.
-  const visibleMessages = useMemo(
-    () => messages.filter((m) => m.meta?.blocked !== true),
-    [messages],
-  );
+  const visibleMessages = useMemo(() => messages.filter((m) => m.meta?.blocked !== true), [messages]);
 
   // Seed the list on first mount. Subsequent renders ignore initialData /
   // initialLocation — updates go through the imperative ref.
@@ -254,10 +245,7 @@ export function MessageList({
     }
 
     // Same length + same id ordering — likely a state-only update.
-    if (
-      visibleMessages.length === prev.length &&
-      visibleMessages.every((m, i) => m.id === prev[i].id)
-    ) {
+    if (visibleMessages.length === prev.length && visibleMessages.every((m, i) => m.id === prev[i].id)) {
       const byId = new Map(visibleMessages.map((m) => [m.id, m]));
       ref.data.map((item) => {
         if (item.kind !== 'msg') return item;
@@ -349,9 +337,7 @@ export function MessageList({
       </VirtuosoMessageListLicense>
       {menu &&
         (() => {
-          const sender = menu.message.fromPublicKeyHex
-            ? contactByPk.get(menu.message.fromPublicKeyHex)
-            : undefined;
+          const sender = menu.message.fromPublicKeyHex ? contactByPk.get(menu.message.fromPublicKeyHex) : undefined;
           const senderName = sender?.name ?? deriveSenderName(menu.message.fromPublicKeyHex);
           return (
             <ContextMenu
@@ -369,12 +355,7 @@ export function MessageList({
           );
         })()}
       {blockPrefill && (
-        <BlockSenderDialog
-          client={client}
-          open
-          prefill={blockPrefill}
-          onClose={() => setBlockPrefill(null)}
-        />
+        <BlockSenderDialog client={client} open prefill={blockPrefill} onClose={() => setBlockPrefill(null)} />
       )}
     </div>
   );
@@ -395,9 +376,7 @@ function buildMessageMenuItems({
   onBlock,
   senderName,
 }: BuildMenuOpts): ContextMenuEntry[] {
-  const items: ContextMenuEntry[] = [
-    menuItem('Copy text', () => copyToClipboard(message.body), { icon: Copy }),
-  ];
+  const items: ContextMenuEntry[] = [menuItem('Copy text', () => copyToClipboard(message.body), { icon: Copy })];
 
   const pk = message.fromPublicKeyHex;
   if (pk && pk !== 'unknown' && !pk.startsWith('name:')) {

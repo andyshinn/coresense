@@ -73,10 +73,7 @@ export function HopRow({
         </span>
         <div className="relative z-10 min-w-0 flex-1 pt-0.5">
           <div
-            className={cn(
-              'truncate text-[12.5px]',
-              showAsUnnamed ? 'italic text-cs-text-dim' : 'font-medium text-cs-text',
-            )}
+            className={cn('truncate text-[12.5px]', showAsUnnamed ? 'italic text-cs-text-dim' : 'font-medium text-cs-text')}
           >
             {showAsUnnamed ? 'Unknown repeater' : (displayName ?? 'Unknown repeater')}
           </div>
@@ -112,11 +109,7 @@ export function HopRow({
             </div>
           )}
           {hop.kind === 'hop' && hasConflict && conflictOpen && (
-            <ConflictPanel
-              hop={hop}
-              candidates={candidates}
-              onSelectCandidate={onSelectCandidate}
-            />
+            <ConflictPanel hop={hop} candidates={candidates} onSelectCandidate={onSelectCandidate} />
           )}
         </div>
       </div>

@@ -13,5 +13,4 @@ export const APP_VERSION: string = packageVersion;
 // happened outside a git checkout, abbreviatedSha can be an empty string —
 // surface that as the literal "unknown" so downstream UI can render it
 // without a special case.
-export const GIT_SHA: string =
-  rawAbbrev && rawAbbrev.length > 0 ? rawAbbrev.slice(0, 7) : 'unknown';
+export const GIT_SHA: string = rawAbbrev && rawAbbrev.length > 0 ? rawAbbrev.slice(0, 7) : 'unknown';

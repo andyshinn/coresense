@@ -117,8 +117,7 @@ export function parseCompanionFrame(frame: Buffer): ParsedFrame | null {
     };
   }
 
-  const codeName =
-    PUSH_NAMES[code] ?? RESP_NAMES[code] ?? `frame 0x${code.toString(16).padStart(2, '0')}`;
+  const codeName = PUSH_NAMES[code] ?? RESP_NAMES[code] ?? `frame 0x${code.toString(16).padStart(2, '0')}`;
   const payload = frame.subarray(1);
   return {
     kind: 'companion',

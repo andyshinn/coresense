@@ -15,10 +15,7 @@ export function StatusPill({ tab }: { tab: SettingsTab }) {
 
   return (
     <span className="inline-flex items-center gap-1.5 text-[11px] text-cs-text-muted">
-      <span
-        aria-hidden
-        className={cn('size-1.5 rounded-full', online ? 'bg-cs-online' : 'bg-cs-text-dim')}
-      />
+      <span aria-hidden className={cn('size-1.5 rounded-full', online ? 'bg-cs-online' : 'bg-cs-text-dim')} />
       {label}
     </span>
   );

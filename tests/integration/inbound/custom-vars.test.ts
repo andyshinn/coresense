@@ -15,9 +15,7 @@ describe('RESP_CUSTOM_VARS handled via the feature registry', () => {
     const onGps = (c: { enabled?: boolean; intervalSec?: number }) => seen.push(c);
     bus.on('gpsConfig', onGps);
 
-    emit.packet(
-      companionPacket(Buffer.from([0x15, ...Buffer.from('gps:1\ngps_interval:45', 'utf8')])),
-    );
+    emit.packet(companionPacket(Buffer.from([0x15, ...Buffer.from('gps:1\ngps_interval:45', 'utf8')])));
     await Promise.resolve();
     bus.off('gpsConfig', onGps);
 

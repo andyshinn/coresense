@@ -20,11 +20,7 @@ function Ring({
   const c = 2 * Math.PI * r;
   const off = c * (1 - Math.min(100, Math.max(0, pct)) / 100);
   const stroke =
-    tone === 'online'
-      ? 'rgb(var(--cs-online))'
-      : tone === 'dim'
-        ? 'rgb(var(--cs-accent-soft))'
-        : 'rgb(var(--cs-accent))';
+    tone === 'online' ? 'rgb(var(--cs-online))' : tone === 'dim' ? 'rgb(var(--cs-accent-soft))' : 'rgb(var(--cs-accent))';
   return (
     <div className="flex flex-col items-center gap-1.5">
       <div className="relative size-11">
@@ -43,9 +39,7 @@ function Ring({
             transform="rotate(-90 22 22)"
           />
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center font-mono text-[11px] text-cs-text">
-          {label}
-        </div>
+        <div className="absolute inset-0 flex items-center justify-center font-mono text-[11px] text-cs-text">{label}</div>
       </div>
       <span className="font-mono text-[8.5px] uppercase tracking-wide text-cs-text-dim">{sub}</span>
     </div>
@@ -55,9 +49,7 @@ function Ring({
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <div className="mb-1.5 font-mono text-[9px] uppercase tracking-wide text-cs-text-dim">
-        {title}
-      </div>
+      <div className="mb-1.5 font-mono text-[9px] uppercase tracking-wide text-cs-text-dim">{title}</div>
       {children}
     </div>
   );
@@ -67,9 +59,7 @@ function KV({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
   return (
     <div className="flex items-center justify-between py-0.5">
       <span className="text-[11px] text-cs-text-muted">{k}</span>
-      <span className={cn('font-mono text-[11px]', accent ? 'text-cs-accent' : 'text-cs-text')}>
-        {v}
-      </span>
+      <span className={cn('font-mono text-[11px]', accent ? 'text-cs-accent' : 'text-cs-text')}>{v}</span>
     </div>
   );
 }
@@ -92,9 +82,7 @@ function MiniStat({ on, label }: { on: boolean; label: string }) {
     <span
       className={cn(
         'flex-1 rounded border px-1.5 py-1 text-center font-mono text-[9.5px]',
-        on
-          ? 'border-cs-accent/25 bg-cs-accent-soft/15 text-cs-text'
-          : 'border-cs-border bg-cs-bg-3 text-cs-text-dim',
+        on ? 'border-cs-accent/25 bg-cs-accent-soft/15 text-cs-text' : 'border-cs-border bg-cs-bg-3 text-cs-text-dim',
       )}
     >
       {label}
@@ -150,37 +138,20 @@ export function OwnerCardPopover() {
       </Group>
 
       <Group title="Capacity">
-        <CapBar
-          k="Contacts"
-          used={contactCount}
-          max={maxContacts}
-          value={`${contactCount} / ${maxContacts || '—'}`}
-        />
-        <CapBar
-          k="Channels"
-          used={channelCount}
-          max={maxChannels}
-          value={`${channelCount} / ${maxChannels || '—'}`}
-        />
+        <CapBar k="Contacts" used={contactCount} max={maxContacts} value={`${contactCount} / ${maxContacts || '—'}`} />
+        <CapBar k="Channels" used={channelCount} max={maxChannels} value={`${channelCount} / ${maxChannels || '—'}`} />
         <CapBar
           k="Storage"
           used={deviceInfo.storageUsedKb}
           max={storageTotal}
-          value={
-            storageTotal > 0
-              ? `${fmtStorageKb(deviceInfo.storageUsedKb)} / ${fmtStorageKb(storageTotal)}`
-              : '—'
-          }
+          value={storageTotal > 0 ? `${fmtStorageKb(deviceInfo.storageUsedKb)} / ${fmtStorageKb(storageTotal)}` : '—'}
         />
       </Group>
 
       <Group title="Position">
         <div className="flex items-center gap-2">
           <MapPin
-            className={cn(
-              'size-3.5',
-              identity.sharePositionInAdvert ? 'text-cs-accent' : 'text-cs-text-dim',
-            )}
+            className={cn('size-3.5', identity.sharePositionInAdvert ? 'text-cs-accent' : 'text-cs-text-dim')}
             aria-hidden
           />
           <span className="font-mono text-[11px] text-cs-text">
@@ -188,10 +159,7 @@ export function OwnerCardPopover() {
           </span>
         </div>
         <div className="mt-1.5 flex gap-1.5">
-          <MiniStat
-            on={gps.enabled}
-            label={gps.enabled ? `GPS ${fmtGpsInterval(gps.intervalSec)}` : 'GPS off'}
-          />
+          <MiniStat on={gps.enabled} label={gps.enabled ? `GPS ${fmtGpsInterval(gps.intervalSec)}` : 'GPS off'} />
           <MiniStat
             on={identity.sharePositionInAdvert}
             label={identity.sharePositionInAdvert ? 'shared in advert' : 'not shared'}

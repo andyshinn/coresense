@@ -1,11 +1,7 @@
 import { BellOff, Star } from 'lucide-react';
 import { type DragEvent, type MouseEvent, useRef, useState } from 'react';
 import type { Channel } from '../../../shared/types';
-import {
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-} from '../../components/ui/sidebar';
+import { SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '../../components/ui/sidebar';
 import { CHANNEL_ICON } from '../../lib/conversationIcons';
 import { cn } from '../../lib/utils';
 import { ACTIVE_BUTTON_CLASS, ShowMoreRow, UnreadChip } from './atoms';

@@ -54,8 +54,7 @@ export function PublicInfoSection({ client }: SectionProps) {
     },
   });
 
-  const pubKey =
-    identity.publicKeyHex || owner?.publicKeyHex || '(connect a radio to see public key)';
+  const pubKey = identity.publicKeyHex || owner?.publicKeyHex || '(connect a radio to see public key)';
 
   return (
     <SettingsSection
@@ -72,13 +71,7 @@ export function PublicInfoSection({ client }: SectionProps) {
         label="Name"
         description="Display name peers see in adverts and messages. ≤31 bytes UTF-8."
         changed={draft.name !== saved.name}
-        control={
-          <TextInput
-            value={draft.name}
-            disabled={!client}
-            onChange={(name) => setDraft((s) => ({ ...s, name }))}
-          />
-        }
+        control={<TextInput value={draft.name} disabled={!client} onChange={(name) => setDraft((s) => ({ ...s, name }))} />}
       />
       <Row
         label="Public key"
@@ -94,11 +87,7 @@ export function PublicInfoSection({ client }: SectionProps) {
         description="Decimal degrees, WGS84."
         changed={draft.latText !== saved.latText}
         control={
-          <TextInput
-            value={draft.latText}
-            disabled={!client}
-            onChange={(latText) => setDraft((s) => ({ ...s, latText }))}
-          />
+          <TextInput value={draft.latText} disabled={!client} onChange={(latText) => setDraft((s) => ({ ...s, latText }))} />
         }
       />
       <Row
@@ -106,11 +95,7 @@ export function PublicInfoSection({ client }: SectionProps) {
         description="Decimal degrees, WGS84."
         changed={draft.lonText !== saved.lonText}
         control={
-          <TextInput
-            value={draft.lonText}
-            disabled={!client}
-            onChange={(lonText) => setDraft((s) => ({ ...s, lonText }))}
-          />
+          <TextInput value={draft.lonText} disabled={!client} onChange={(lonText) => setDraft((s) => ({ ...s, lonText }))} />
         }
       />
       <Row
@@ -118,11 +103,7 @@ export function PublicInfoSection({ client }: SectionProps) {
         description="Include lat/lon in self-adverts so other nodes can place you on the map."
         changed={draft.share !== saved.share}
         control={
-          <Toggle
-            checked={draft.share}
-            disabled={!client}
-            onChange={(share) => setDraft((s) => ({ ...s, share }))}
-          />
+          <Toggle checked={draft.share} disabled={!client} onChange={(share) => setDraft((s) => ({ ...s, share }))} />
         }
       />
     </SettingsSection>

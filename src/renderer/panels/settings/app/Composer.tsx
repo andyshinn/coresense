@@ -8,8 +8,7 @@ import { useSettingsSection } from '../useSectionDraft';
 import { saveApp } from './shared';
 
 const eqComposer = (a: AppSettingsType, b: AppSettingsType) =>
-  a.composer.returnToSend === b.composer.returnToSend &&
-  a.composer.autoFocus === b.composer.autoFocus;
+  a.composer.returnToSend === b.composer.returnToSend && a.composer.autoFocus === b.composer.autoFocus;
 
 export function ComposerSection({ client }: SectionProps) {
   const saved = useStore((s) => s.appSettings);
@@ -37,9 +36,7 @@ export function ComposerSection({ client }: SectionProps) {
         control={
           <Toggle
             checked={draft.composer.returnToSend}
-            onChange={(v) =>
-              setDraft((s) => ({ ...s, composer: { ...s.composer, returnToSend: v } }))
-            }
+            onChange={(v) => setDraft((s) => ({ ...s, composer: { ...s.composer, returnToSend: v } }))}
           />
         }
       />

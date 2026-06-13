@@ -14,9 +14,7 @@ export interface SiteGroup {
   members: Contact[];
 }
 
-export type GroupedItem =
-  | { kind: 'single'; contact: Contact; lng: number; lat: number }
-  | { kind: 'site'; site: SiteGroup };
+export type GroupedItem = { kind: 'single'; contact: Contact; lng: number; lat: number } | { kind: 'site'; site: SiteGroup };
 
 export interface ClusterFeatureProps {
   cluster: true;
@@ -64,10 +62,7 @@ export function groupByColocation(contacts: Contact[], meters: number): GroupedI
     if (meters > 0) {
       for (const other of sources) {
         if (assigned.has(other.key)) continue;
-        const d = haversineMeters(
-          { lat: c.gpsLat, lng: c.gpsLon },
-          { lat: other.gpsLat, lng: other.gpsLon },
-        );
+        const d = haversineMeters({ lat: c.gpsLat, lng: c.gpsLon }, { lat: other.gpsLat, lng: other.gpsLon });
         if (d <= meters) {
           members.push(other);
           assigned.add(other.key);
@@ -95,9 +90,7 @@ function emptyBreakdown(): TypeBreakdown {
 // Build a Supercluster index from grouped items. Each grouped item becomes one
 // point in the index; the per-point breakdown counts every member contact so a
 // cluster's aggregate breakdown matches a flat enumeration of contacts.
-export function buildClusterIndex(
-  items: GroupedItem[],
-): Supercluster<PointFeatureProps, ClusterFeatureProps> {
+export function buildClusterIndex(items: GroupedItem[]): Supercluster<PointFeatureProps, ClusterFeatureProps> {
   const features: GeoJSON.Feature<GeoJSON.Point, PointFeatureProps>[] = items.map((item) => {
     const breakdown = emptyBreakdown();
     if (item.kind === 'single') {

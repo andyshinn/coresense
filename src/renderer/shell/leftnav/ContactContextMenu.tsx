@@ -50,11 +50,9 @@ export function ContactContextMenu({
       { icon: BellOff, disabled: !client },
     ),
     menuSeparator,
-    menuItem(
-      'Copy public key',
-      () => copyToClipboard(contact.publicKeyHex, () => notify.success('Public key copied')),
-      { icon: Copy },
-    ),
+    menuItem('Copy public key', () => copyToClipboard(contact.publicKeyHex, () => notify.success('Public key copied')), {
+      icon: Copy,
+    }),
     menuItem(
       'Send self-advert',
       async () => {

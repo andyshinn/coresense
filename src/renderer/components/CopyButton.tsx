@@ -23,13 +23,7 @@ interface CopyButtonProps {
  *  the button itself, rather than a toast. Use for any inline copyable value.
  *  The popover is purely controlled (PopoverAnchor, not PopoverTrigger) so the
  *  click only copies — it never toggles the confirmation off. */
-export function CopyButton({
-  value,
-  children,
-  copiedLabel = 'Copied!',
-  title,
-  className,
-}: CopyButtonProps) {
+export function CopyButton({ value, children, copiedLabel = 'Copied!', title, className }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 

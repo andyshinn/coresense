@@ -35,9 +35,7 @@ import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 // Ordered section metadata per tab — drives section registration (for the
 // RightRail jump list) and the IntersectionObserver scroll-spy.
 const TAB_SECTIONS: Record<SettingsTab, SettingsSectionMeta[]> = {
-  quickActions: [
-    { id: 'quickActions-actions', title: 'Owner Card Quick Actions', tab: 'quickActions' },
-  ],
+  quickActions: [{ id: 'quickActions-actions', title: 'Owner Card Quick Actions', tab: 'quickActions' }],
   app: [
     { id: 'app-appearance', title: 'Appearance', tab: 'app' },
     { id: 'app-composer', title: 'Composer', tab: 'app' },
@@ -134,8 +132,7 @@ export function SettingsPanel({ client, initialTab, initialSection }: Props) {
     clearScrollRequest();
   }, [pendingScrollSectionId, clearScrollRequest]);
 
-  const tabDirty = (tab: SettingsTab) =>
-    Object.entries(dirtyById).some(([id, v]) => v && id.startsWith(`${tab}-`));
+  const tabDirty = (tab: SettingsTab) => Object.entries(dirtyById).some(([id, v]) => v && id.startsWith(`${tab}-`));
 
   const pillTabs: PillTab<SettingsTab>[] = [
     { id: 'app', label: 'Application Settings', icon: Cog, dirty: tabDirty('app') },

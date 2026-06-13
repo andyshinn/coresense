@@ -6,12 +6,7 @@ import { type ApiClient, api } from '../../lib/api';
 import { log } from '../../lib/logger';
 import { subscribe as subscribeMapBus } from '../../lib/map/bus';
 import { ensurePmtilesProtocol } from '../../lib/map/pmtiles-protocol';
-import {
-  buildStyle,
-  LAYER_HILLSHADE,
-  maxZoomForSettings,
-  SOURCE_TERRAIN,
-} from '../../lib/map/style-builder';
+import { buildStyle, LAYER_HILLSHADE, maxZoomForSettings, SOURCE_TERRAIN } from '../../lib/map/style-builder';
 import { useStore } from '../../lib/store';
 import { resolveTheme } from '../../lib/theme';
 import { MapClusters } from './MapClusters';
@@ -67,9 +62,7 @@ export function MapCanvas({
   // `settings.lightBasemap` is an explicit user override that wins over the
   // theme-derived flavor — useful when reading the map outdoors with a dark
   // app theme.
-  const theme: 'light' | 'dark' = settings.lightBasemap
-    ? 'light'
-    : resolveTheme(themePref, systemDark);
+  const theme: 'light' | 'dark' = settings.lightBasemap ? 'light' : resolveTheme(themePref, systemDark);
 
   // Mount-once on purpose. Style/source/layer updates in later phases will
   // happen via map.setStyle / map.addSource on the existing instance rather
@@ -147,11 +140,7 @@ export function MapCanvas({
     if (!map || !manifest.terrain) return;
     const apply = () => {
       if (!map.getLayer(LAYER_HILLSHADE)) return;
-      map.setLayoutProperty(
-        LAYER_HILLSHADE,
-        'visibility',
-        settings.terrainHillshadeEnabled ? 'visible' : 'none',
-      );
+      map.setLayoutProperty(LAYER_HILLSHADE, 'visibility', settings.terrainHillshadeEnabled ? 'visible' : 'none');
     };
     if (map.isStyleLoaded()) apply();
     else map.once('styledata', apply);
@@ -200,11 +189,7 @@ export function MapCanvas({
       map.setStyle(buildStyle({ baseUrl: client.baseUrl, manifest, settings, theme }));
       map.once('style.load', () => {
         if (map.getLayer(LAYER_HILLSHADE)) {
-          map.setLayoutProperty(
-            LAYER_HILLSHADE,
-            'visibility',
-            settings.terrainHillshadeEnabled ? 'visible' : 'none',
-          );
+          map.setLayoutProperty(LAYER_HILLSHADE, 'visibility', settings.terrainHillshadeEnabled ? 'visible' : 'none');
         }
         if (settings.terrain3DEnabled && map.getSource(SOURCE_TERRAIN)) {
           map.setTerrain({ source: SOURCE_TERRAIN, exaggeration: 1.2 });
@@ -343,9 +328,7 @@ function pickInitialView(manifest: TileManifest, settings: MapSettings): Initial
   if (freshest) {
     return { center: [freshest.lng, freshest.lat], zoom: 12, bearing: 0, pitch: 0 };
   }
-  const center: [number, number] = manifest.basemap
-    ? [manifest.basemap.center.lng, manifest.basemap.center.lat]
-    : [0, 0];
+  const center: [number, number] = manifest.basemap ? [manifest.basemap.center.lng, manifest.basemap.center.lat] : [0, 0];
   const zoom = manifest.basemap?.center.zoom ?? manifest.basemap?.minZoom ?? 2;
   return {
     center,

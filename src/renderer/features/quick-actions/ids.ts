@@ -1,15 +1,7 @@
 // Canonical catalog of assignable owner-card quick actions. Kept import-free
 // (no store/api/react) so it stays pure and unit-testable, and so the persisted
 // settings type can reference QuickActionId without a dependency cycle.
-export const QUICK_ACTION_IDS = [
-  'flood',
-  'direct',
-  'gps',
-  'shareLoc',
-  'copyKey',
-  'reboot',
-  'disconnect',
-] as const;
+export const QUICK_ACTION_IDS = ['flood', 'direct', 'gps', 'shareLoc', 'copyKey', 'reboot', 'disconnect'] as const;
 
 export type QuickActionId = (typeof QUICK_ACTION_IDS)[number];
 

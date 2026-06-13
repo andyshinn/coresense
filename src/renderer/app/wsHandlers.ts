@@ -122,10 +122,7 @@ export function createWsMessageHandler(deps: WsMessageHandlerDeps): (msg: WsMess
         s.applyPathLearned(msg.payload);
         if (!msg.payload.previousManual) {
           const contact = s.contacts.find((c) => c.key === msg.payload.contactKey);
-          const hops = Math.max(
-            1,
-            Math.floor(msg.payload.newOutPathHex.length / 2 / msg.payload.newOutPathHashSize),
-          );
+          const hops = Math.max(1, Math.floor(msg.payload.newOutPathHex.length / 2 / msg.payload.newOutPathHashSize));
           notify.success(
             msg.payload.newOutPathHex
               ? `Path learned: ${contact?.name ?? msg.payload.contactKey} · ${hops} hop${hops === 1 ? '' : 's'}`

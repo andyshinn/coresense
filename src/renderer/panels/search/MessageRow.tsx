@@ -22,11 +22,7 @@ export function MessageRow({
         className="flex w-full flex-col gap-1 rounded-md border border-transparent px-2 py-1.5 text-left transition-colors hover:border-cs-border hover:bg-cs-bg-2"
       >
         <div className="flex items-center gap-2 font-mono text-[10px] text-cs-text-dim">
-          {isChannel ? (
-            <Hash size={11} aria-hidden="true" />
-          ) : (
-            <User size={11} aria-hidden="true" />
-          )}
+          {isChannel ? <Hash size={11} aria-hidden="true" /> : <User size={11} aria-hidden="true" />}
           <span>{isChannel ? (channelName ?? hit.key) : (senderName ?? hit.key)}</span>
           <span>·</span>
           <RelativeTime ts={hit.ts} />

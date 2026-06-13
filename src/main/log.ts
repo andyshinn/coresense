@@ -91,9 +91,7 @@ export function toLogEntry(logObj: TslogObj): LogEntry {
 
   const levelId = meta.logLevelId;
   const rawName = meta.logLevelName?.toLowerCase();
-  const level: LogLevel = VALID_LEVELS.has(rawName)
-    ? (rawName as LogLevel)
-    : (LEVEL_ID_TO_NAME[levelId] ?? 'info');
+  const level: LogLevel = VALID_LEVELS.has(rawName) ? (rawName as LogLevel) : (LEVEL_ID_TO_NAME[levelId] ?? 'info');
 
   // Build logger name: join parent names + own name (mirrors tslog's template {{name}})
   const parts: string[] = [];
@@ -113,9 +111,7 @@ export function toLogEntry(logObj: TslogObj): LogEntry {
   }
 
   // Stringify to a single message
-  const parts2 = args.map((arg) =>
-    typeof arg === 'string' ? arg : util.inspect(arg, { depth: 3, breakLength: 200 }),
-  );
+  const parts2 = args.map((arg) => (typeof arg === 'string' ? arg : util.inspect(arg, { depth: 3, breakLength: 200 })));
   const message = parts2.join(' ');
 
   // Only include args if at least one was non-string

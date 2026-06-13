@@ -36,10 +36,7 @@ class FileSource implements Source {
 }
 
 async function readManifestEntry(source: TileSource, path: string): Promise<TileManifestEntry> {
-  const [stats, header] = await Promise.all([
-    stat(path),
-    new PMTiles(new FileSource(path)).getHeader(),
-  ]);
+  const [stats, header] = await Promise.all([stat(path), new PMTiles(new FileSource(path)).getHeader()]);
   return {
     source,
     bytes: stats.size,
@@ -106,13 +103,7 @@ async function serveRange(c: Context, filePath: string) {
   }
   const start = Number(match[1]);
   const end = match[2] ? Number(match[2]) : total - 1;
-  if (
-    !Number.isFinite(start) ||
-    !Number.isFinite(end) ||
-    start < 0 ||
-    end < start ||
-    start >= total
-  ) {
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start || start >= total) {
     return c.body(null, 416, { 'Content-Range': `bytes */${total}` });
   }
   const clampedEnd = Math.min(end, total - 1);

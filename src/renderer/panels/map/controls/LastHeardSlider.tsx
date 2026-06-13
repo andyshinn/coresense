@@ -5,13 +5,7 @@ import { Slider } from '../../../components/ui/slider';
 // gives finer control at the recent end, where it matters most for triage.
 const HOUR_STOPS = [1, 3, 6, 12, 24, 48, 168, 720];
 
-export function LastHeardSlider({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (hours: number) => void;
-}) {
+export function LastHeardSlider({ value, onChange }: { value: number; onChange: (hours: number) => void }) {
   // Slider drives an index into the discrete hour stops above. Snapping to the
   // canonical stops keeps the labels honest and matches the design's three
   // tick marks (1h · ≤24h · 30d).

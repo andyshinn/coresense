@@ -26,10 +26,9 @@ export function ApiKeyGate({ configPath, onSubmit }: Props) {
         <div>
           <h1 className="text-lg font-semibold text-cs-text">CoreSense</h1>
           <p className="mt-1 text-xs text-cs-text-muted">
-            CoreSense is protected by an API key. On the computer running CoreSense, open the
-            CoreSense desktop app and go to{' '}
-            <span className="font-medium text-cs-text">Settings → API Access</span> to view and copy
-            the key — or read the <code className="font-mono text-cs-text">apiKey</code> value from:
+            CoreSense is protected by an API key. On the computer running CoreSense, open the CoreSense desktop app and go to{' '}
+            <span className="font-medium text-cs-text">Settings → API Access</span> to view and copy the key — or read the{' '}
+            <code className="font-mono text-cs-text">apiKey</code> value from:
           </p>
           <code className="mt-2 block break-all rounded border border-cs-border bg-cs-bg px-2 py-1.5 font-mono text-[11px] text-cs-text">
             {configPath ?? 'userData/config.json'}

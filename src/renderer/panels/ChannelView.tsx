@@ -101,9 +101,7 @@ export function ChannelView({ channel, client }: Props) {
       <header className="flex shrink-0 items-center gap-2 border-b border-cs-border bg-cs-bg-2 px-4 py-2.5">
         <Icon size={14} aria-hidden="true" className="text-cs-text-muted" />
         <h2 className="font-medium text-cs-text">{channel.name}</h2>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">
-          {channel.kind}
-        </span>
+        <span className="font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">{channel.kind}</span>
         {!onDevice && (
           <>
             <span className="rounded bg-cs-bg-3 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">
@@ -113,11 +111,7 @@ export function ChannelView({ channel, client }: Props) {
               type="button"
               onClick={onAddToDevice}
               disabled={!connected || pushing || !client}
-              title={
-                !connected
-                  ? 'Connect a radio to add this channel'
-                  : `Add "${channel.name}" to the connected device`
-              }
+              title={!connected ? 'Connect a radio to add this channel' : `Add "${channel.name}" to the connected device`}
               className="ml-auto flex items-center gap-1 rounded border border-cs-border bg-cs-bg-3 px-2 py-0.5 text-[11px] text-cs-text-muted transition-colors hover:bg-cs-accent-soft/30 hover:text-cs-text disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus size={11} aria-hidden="true" />
@@ -148,8 +142,7 @@ export function ChannelView({ channel, client }: Props) {
 
       {!onDevice && (
         <div className="border-t border-cs-border bg-cs-bg-2 px-4 py-2 text-[11px] italic text-cs-text-dim">
-          This channel isn't on the connected device. Add it to send messages — history is preserved
-          either way.
+          This channel isn't on the connected device. Add it to send messages — history is preserved either way.
         </div>
       )}
 

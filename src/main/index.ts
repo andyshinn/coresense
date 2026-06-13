@@ -124,9 +124,7 @@ async function bootstrap() {
     bindAddress: proxy.bindAll ? '0.0.0.0' : '127.0.0.1',
     tcpPort: proxy.port,
   });
-  log.info(
-    `bridge: TCP=${bridgeHandle.tcpPort ?? 'off'} mDNS=${bridgeHandle.serviceName ?? 'off'}`,
-  );
+  log.info(`bridge: TCP=${bridgeHandle.tcpPort ?? 'off'} mDNS=${bridgeHandle.serviceName ?? 'off'}`);
 
   const rendererDir = isDev ? null : path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`);
 
@@ -335,8 +333,7 @@ function createWindow() {
   // button 3/4 instead.
   mainWindow.on('app-command', (_event, command) => {
     if (command === 'browser-backward') emit.menuAction({ kind: 'navigate', direction: 'back' });
-    else if (command === 'browser-forward')
-      emit.menuAction({ kind: 'navigate', direction: 'forward' });
+    else if (command === 'browser-forward') emit.menuAction({ kind: 'navigate', direction: 'forward' });
   });
 
   // macOS 3-finger trackpad swipe. Requires the user to have enabled
@@ -384,9 +381,7 @@ function createWindow() {
   // this is just IPC + log overhead on every console.log from chatty UI code.
   if (isDev) {
     mainWindow.webContents.on('console-message', (event) => {
-      rendererLog.debug(
-        `[${event.level}] ${event.message} (${event.sourceId}:${event.lineNumber})`,
-      );
+      rendererLog.debug(`[${event.level}] ${event.message} (${event.sourceId}:${event.lineNumber})`);
     });
   }
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
@@ -472,16 +467,12 @@ async function shutdown() {
   if (serverHandle) {
     const handle = serverHandle;
     serverHandle = null;
-    tasks.push(
-      handle.close().catch((err) => log.warn(`server close failed: ${(err as Error).message}`)),
-    );
+    tasks.push(handle.close().catch((err) => log.warn(`server close failed: ${(err as Error).message}`)));
   }
   if (bridgeHandle) {
     const handle = bridgeHandle;
     bridgeHandle = null;
-    tasks.push(
-      handle.close().catch((err) => log.warn(`bridge close failed: ${(err as Error).message}`)),
-    );
+    tasks.push(handle.close().catch((err) => log.warn(`bridge close failed: ${(err as Error).message}`)));
   }
 
   // Transport shutdown releases noble's native CBCentralManager so the
@@ -490,9 +481,7 @@ async function shutdown() {
   tasks.push(
     Promise.race([
       transportManager.shutdown().then(() => 'ok' as const),
-      new Promise<'timeout'>((resolve) =>
-        setTimeout(() => resolve('timeout'), SHUTDOWN_BLE_TIMEOUT_MS),
-      ),
+      new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), SHUTDOWN_BLE_TIMEOUT_MS)),
     ])
       .then((result) => {
         if (result === 'timeout') {
@@ -510,9 +499,7 @@ async function shutdown() {
   // user's last UI tweaks survive a quit.
   await Promise.allSettled([
     flushSettings().catch((err) => log.warn(`settings flush failed: ${(err as Error).message}`)),
-    flushWindowState().catch((err) =>
-      log.warn(`window state flush failed: ${(err as Error).message}`),
-    ),
+    flushWindowState().catch((err) => log.warn(`window state flush failed: ${(err as Error).message}`)),
   ]);
   // Compact the FTS5 index before closing the DB. Cheap on small indexes,
   // worth doing periodically on larger ones to keep query latency low.

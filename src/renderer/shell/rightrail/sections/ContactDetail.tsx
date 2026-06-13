@@ -1,15 +1,4 @@
-import {
-  Ban,
-  MapPin,
-  MessageSquare,
-  Minus,
-  Plus,
-  Radio,
-  Share2,
-  ShieldCheck,
-  Star,
-  TerminalSquare,
-} from 'lucide-react';
+import { Ban, MapPin, MessageSquare, Minus, Plus, Radio, Share2, ShieldCheck, Star, TerminalSquare } from 'lucide-react';
 import { useState } from 'react';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import { copyToClipboard } from '../../../components/ContextMenu';
@@ -24,12 +13,7 @@ import {
 } from '../../../components/ui/dialog';
 import { KeyValueRow } from '../../../components/ui/KeyValueRow';
 import { type ApiClient, api } from '../../../lib/api';
-import {
-  distanceKm,
-  fmtDistance,
-  type ResolvedContact,
-  resolveContact,
-} from '../../../lib/contactDetail';
+import { distanceKm, fmtDistance, type ResolvedContact, resolveContact } from '../../../lib/contactDetail';
 import { publish as publishMapBus } from '../../../lib/map/bus';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
@@ -110,17 +94,10 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
   const shortKey = `${rc.publicKeyHex.slice(0, 6)}…${rc.publicKeyHex.slice(-4)}`;
   const hasFix = rcHasFix(rc);
   const selfHasFix =
-    typeof identity.lat === 'number' &&
-    typeof identity.lon === 'number' &&
-    (identity.lat !== 0 || identity.lon !== 0);
+    typeof identity.lat === 'number' && typeof identity.lon === 'number' && (identity.lat !== 0 || identity.lon !== 0);
   const distance =
     hasFix && selfHasFix
-      ? distanceKm(
-          identity.lat as number,
-          identity.lon as number,
-          rc.gpsLat as number,
-          rc.gpsLon as number,
-        )
+      ? distanceKm(identity.lat as number, identity.lon as number, rc.gpsLat as number, rc.gpsLon as number)
       : null;
 
   return (
@@ -131,17 +108,13 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span
-              className={`truncate text-sm font-semibold text-cs-text ${rc.blocked ? 'line-through opacity-60' : ''}`}
-            >
+            <span className={`truncate text-sm font-semibold text-cs-text ${rc.blocked ? 'line-through opacity-60' : ''}`}>
               {rc.name || '(unnamed)'}
             </span>
           </div>
           <button
             type="button"
-            onClick={() =>
-              copyToClipboard(rc.publicKeyHex, () => notify.success('Public key copied'))
-            }
+            onClick={() => copyToClipboard(rc.publicKeyHex, () => notify.success('Public key copied'))}
             title={`${rc.publicKeyHex} — click to copy`}
             className="font-mono text-[10px] text-cs-text-dim hover:text-cs-text-muted"
           >
@@ -156,18 +129,10 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
           <CardActionButton
             icon={Plus}
             label="Add to radio"
-            onClick={() =>
-              act((c) => api.addToRadio(c, rc.publicKeyHex), `Added ${rc.name} to radio`)
-            }
+            onClick={() => act((c) => api.addToRadio(c, rc.publicKeyHex), `Added ${rc.name} to radio`)}
           />
         )}
-        {canMessage && (
-          <CardActionButton
-            icon={MessageSquare}
-            label="Message"
-            onClick={() => setActiveKey(rc.key)}
-          />
-        )}
+        {canMessage && <CardActionButton icon={MessageSquare} label="Message" onClick={() => setActiveKey(rc.key)} />}
         <CardActionButton
           icon={Star}
           label={rc.favourite ? 'Unfavourite' : 'Favourite'}
@@ -178,41 +143,19 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
             )
           }
         />
-        {hasFix && (
-          <CardActionButton icon={MapPin} label="View on map" onClick={() => flyToContact(rc)} />
-        )}
+        {hasFix && <CardActionButton icon={MapPin} label="View on map" onClick={() => flyToContact(rc)} />}
         {canAdminister && (
           <>
-            <CardActionButton
-              icon={Radio}
-              label="Telemetry"
-              onClick={() => openRepeaterTab('status')}
-            />
+            <CardActionButton icon={Radio} label="Telemetry" onClick={() => openRepeaterTab('status')} />
             {rc.kind === 'repeater' && (
-              <CardActionButton
-                icon={ShieldCheck}
-                label="Permissions"
-                onClick={() => openRepeaterTab('acl')}
-              />
+              <CardActionButton icon={ShieldCheck} label="Permissions" onClick={() => openRepeaterTab('acl')} />
             )}
-            <CardActionButton
-              icon={TerminalSquare}
-              label="Remote mgmt"
-              onClick={() => openRepeaterTab('cli')}
-            />
+            <CardActionButton icon={TerminalSquare} label="Remote mgmt" onClick={() => openRepeaterTab('cli')} />
           </>
         )}
-        {!rc.blocked && (
-          <CardActionButton icon={Ban} label="Block" onClick={() => setBlockOpen(true)} />
-        )}
-        {rc.onRadio && (
-          <CardActionButton icon={Minus} label="Remove" onClick={() => setRemoveOpen(true)} />
-        )}
-        <CardActionButton
-          icon={Share2}
-          label="Share"
-          onClick={() => notify.info('Share — coming soon')}
-        />
+        {!rc.blocked && <CardActionButton icon={Ban} label="Block" onClick={() => setBlockOpen(true)} />}
+        {rc.onRadio && <CardActionButton icon={Minus} label="Remove" onClick={() => setRemoveOpen(true)} />}
+        <CardActionButton icon={Share2} label="Share" onClick={() => notify.info('Share — coming soon')} />
       </div>
 
       {blockOpen && (
@@ -229,8 +172,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
           <DialogHeader>
             <DialogTitle>Remove from radio</DialogTitle>
             <DialogDescription>
-              Remove {rc.name} from the radio's contact store? It stays in your discovered list and
-              can be re-added later.
+              Remove {rc.name} from the radio's contact store? It stays in your discovered list and can be re-added later.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -245,10 +187,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
               type="button"
               onClick={() => {
                 setRemoveOpen(false);
-                void act(
-                  (c) => api.removeFromRadio(c, rc.publicKeyHex),
-                  `Removed ${rc.name} from radio`,
-                );
+                void act((c) => api.removeFromRadio(c, rc.publicKeyHex), `Removed ${rc.name} from radio`);
               }}
               className="rounded-md border border-cs-danger bg-cs-danger/10 px-3 py-1.5 text-xs text-cs-danger hover:bg-cs-danger/20"
             >
@@ -266,9 +205,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
           value={
             <button
               type="button"
-              onClick={() =>
-                copyToClipboard(rc.publicKeyHex, () => notify.success('Public key copied'))
-              }
+              onClick={() => copyToClipboard(rc.publicKeyHex, () => notify.success('Public key copied'))}
               className="truncate font-mono hover:text-cs-text"
             >
               {shortKey}
@@ -281,20 +218,13 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
             label="Position"
             mono
             value={
-              <button
-                type="button"
-                onClick={() => flyToContact(rc)}
-                title="View on map"
-                className="hover:text-cs-text"
-              >
+              <button type="button" onClick={() => flyToContact(rc)} title="View on map" className="hover:text-cs-text">
                 {(rc.gpsLat as number).toFixed(5)}, {(rc.gpsLon as number).toFixed(5)}
               </button>
             }
           />
         )}
-        {distance != null && (
-          <KeyValueRow label="Distance away" value={fmtDistance(distance)} mono />
-        )}
+        {distance != null && <KeyValueRow label="Distance away" value={fmtDistance(distance)} mono />}
         <KeyValueRow
           label="Last heard"
           value={rc.lastHeardMs == null ? 'not heard yet' : fmtRelative(rc.lastHeardMs)}
@@ -303,11 +233,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
         <KeyValueRow
           label="Advertised"
           value={rc.lastAdvertMs == null ? '—' : fmtRelative(rc.lastAdvertMs)}
-          title={
-            rc.lastAdvertMs == null
-              ? undefined
-              : `Node's own clock — ${fmtDateTime(rc.lastAdvertMs, timeFormat)}`
-          }
+          title={rc.lastAdvertMs == null ? undefined : `Node's own clock — ${fmtDateTime(rc.lastAdvertMs, timeFormat)}`}
         />
         <KeyValueRow
           label="First heard"
@@ -319,17 +245,13 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
           value={rc.hops == null ? 'Flood' : `${rc.hops} hop${rc.hops === 1 ? '' : 's'}`}
           mono
         />
-        {rc.outPathHashSize != null && (
-          <KeyValueRow label="Path hash size" value={`${rc.outPathHashSize}-byte`} mono />
-        )}
+        {rc.outPathHashSize != null && <KeyValueRow label="Path hash size" value={`${rc.outPathHashSize}-byte`} mono />}
         {rc.rssi != null && <KeyValueRow label="RSSI" value={`${rc.rssi} dBm`} mono />}
       </div>
 
       {showPath && (
         <div className="border-t border-cs-border pt-2">
-          <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">
-            Path
-          </div>
+          <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">Path</div>
           {rc.contact && rc.publicKeyHex.length >= 64 ? (
             <SetPathEditor contact={rc.contact} client={client} />
           ) : (

@@ -77,8 +77,7 @@ export function encodeAddUpdateContact(input: UpdateContactInput): Buffer {
   }
   const name = Buffer.from(input.name, 'utf8').subarray(0, 31);
 
-  const hasTail =
-    input.gpsLat !== undefined && input.gpsLon !== undefined && input.lastAdvertUnix !== undefined;
+  const hasTail = input.gpsLat !== undefined && input.gpsLon !== undefined && input.lastAdvertUnix !== undefined;
   const total = hasTail ? 148 : 136;
   const out = Buffer.alloc(total);
   out[0] = CMD.ADD_UPDATE_CONTACT;
@@ -198,9 +197,7 @@ let resyncTimer: NodeJS.Timeout | null = null;
 /** Push the full discovered pool to the renderer. */
 export function emitDiscovered(): void {
   const holder = stateHolder();
-  emit.discovered(
-    discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
-  );
+  emit.discovered(discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()));
 }
 
 /** Whether the firmware would auto-store an advert of this ADV_TYPE, given the
@@ -252,9 +249,7 @@ export function upsertOnRadioContact(record: ContactRecord): void {
   // carries a non-empty path, OR when the existing entry wasn't manually
   // set. Auto-learned paths (pathManual=false) still defer to firmware.
   const newOutPathHex =
-    advertOutPathHex.length === 0 && existing?.pathManual === true
-      ? (existing.outPathHex ?? '')
-      : advertOutPathHex;
+    advertOutPathHex.length === 0 && existing?.pathManual === true ? (existing.outPathHex ?? '') : advertOutPathHex;
   const pathChanged = (existing?.outPathHex ?? '') !== newOutPathHex;
 
   const contact: Contact = {
@@ -296,11 +291,7 @@ export function upsertOnRadioContact(record: ContactRecord): void {
 /** Upsert a contact heard from RESP_CONTACT (sync, on-radio) or
  *  PUSH_NEW_ADVERT (live advert — on-radio only if already in the store).
  *  Always records into the discovered pool with an app-tracked first-heard. */
-export function ingestContact(
-  ctx: FeatureContext,
-  record: ContactRecord,
-  source: 'sync' | 'advert',
-): void {
+export function ingestContact(ctx: FeatureContext, record: ContactRecord, source: 'sync' | 'advert'): void {
   const holder = stateHolder();
   const fullKey = `c:${record.publicKeyHex}`;
   const alreadyOnRadio = holder.getContacts().some((c) => c.key === fullKey);
@@ -408,10 +399,7 @@ export function failPendingContactByKey(): boolean {
 
 /** Look up a single contact on the radio by public key (CMD_GET_CONTACT_BY_KEY).
  *  Resolves the contact record, or null when the radio doesn't have it. */
-export function getContactByKey(
-  ctx: FeatureContext,
-  destPublicKeyHex: string,
-): Promise<ContactRecord | null> {
+export function getContactByKey(ctx: FeatureContext, destPublicKeyHex: string): Promise<ContactRecord | null> {
   const frame = encodeGetContactByKey(destPublicKeyHex);
   const publicKeyHex = Buffer.from(destPublicKeyHex, 'hex').subarray(0, 32).toString('hex');
   return new Promise<ContactRecord | null>((resolve, reject) => {
@@ -433,14 +421,7 @@ export function getContactByKey(
 }
 
 export const contactsFeature: Feature = {
-  handles: [
-    RESP.CONTACTS_START,
-    RESP.CONTACT,
-    RESP.END_OF_CONTACTS,
-    PUSH.NEW_ADVERT,
-    PUSH.ADVERT,
-    PUSH.CONTACT_DELETED,
-  ],
+  handles: [RESP.CONTACTS_START, RESP.CONTACT, RESP.END_OF_CONTACTS, PUSH.NEW_ADVERT, PUSH.ADVERT, PUSH.CONTACT_DELETED],
   handle: (code, frame, ctx) => {
     if (code === RESP.CONTACTS_START) {
       const total = decodeContactsStart(frame);
@@ -474,9 +455,7 @@ export const contactsFeature: Feature = {
     }
     if (code === RESP.END_OF_CONTACTS) {
       const mostRecent = decodeEndOfContacts(frame);
-      log.debug(
-        `contacts iterator done: ${iterCount}/${iterTotal} most_recent_lastmod=${mostRecent}`,
-      );
+      log.debug(`contacts iterator done: ${iterCount}/${iterTotal} most_recent_lastmod=${mostRecent}`);
       const seen = syncSeen;
       discoveredStore.reconcileOnRadio(seen);
       const holder = stateHolder();
