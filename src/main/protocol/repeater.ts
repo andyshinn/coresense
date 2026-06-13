@@ -499,10 +499,9 @@ function formatUptime(secs: number): string {
 
 // PUSH_TELEMETRY_RESPONSE (firmware: companion_radio/MyMesh.cpp):
 //   [0x8b][1B reserved][6B sender pub_key_prefix][CayenneLPP-encoded fields...]
-// CayenneLPP encoding: each field is [channel u8][type u8][data...]. The
-// firmware uses a small subset (voltage, current, illumination, temperature,
-// barometer); we decode those plus a fallback hex view for unknown types so
-// new firmware additions surface without code changes.
+// CayenneLPP encoding: each field is [channel u8][type u8][data...]. We decode
+// the full standard type table (CAYENNE_TYPES below) plus a fallback hex view
+// for unknown types so new firmware additions surface without code changes.
 export interface TelemetryResponse {
   senderPubKeyPrefixHex: string;
   payloadHex: string;
@@ -537,19 +536,58 @@ interface CayenneDescriptor {
 
 // CayenneLPP type id → { name, payload size in bytes, decoder, unit }.
 // Keys are decimal because biome's useSimpleNumberKeys disallows hex literals
-// as object keys; the trailing comment preserves the spec id.
+// as object keys; the trailing comment preserves the spec id. Multi-axis types
+// (GPS, accelerometer, gyrometer, colour) decode to a comma-separated string so
+// `value` stays number|string. POLYLINE (240) is variable-length and omitted —
+// it surfaces via the abort-on-unknown fallback. Sizes/scaling match the
+// MeshCore reference (meshcore.js/src/cayenne_lpp.js).
 const CAYENNE_TYPES: Record<number, CayenneDescriptor> = {
   0: { name: 'Digital input', size: 1, decode: (b) => b.readUInt8(0) }, // 0x00
   1: { name: 'Digital output', size: 1, decode: (b) => b.readUInt8(0) }, // 0x01
   2: { name: 'Analog input', size: 2, decode: (b) => b.readInt16BE(0) / 100 }, // 0x02
   3: { name: 'Analog output', size: 2, decode: (b) => b.readInt16BE(0) / 100 }, // 0x03
+  100: { name: 'Generic sensor', size: 4, decode: (b) => b.readUInt32BE(0) }, // 0x64
   101: { name: 'Illuminance', size: 2, decode: (b) => b.readUInt16BE(0), unit: 'lx' }, // 0x65
   102: { name: 'Presence', size: 1, decode: (b) => b.readUInt8(0) }, // 0x66
   103: { name: 'Temperature', size: 2, decode: (b) => b.readInt16BE(0) / 10, unit: '°C' }, // 0x67
   104: { name: 'Humidity', size: 1, decode: (b) => b.readUInt8(0) / 2, unit: '%' }, // 0x68
+  113: {
+    name: 'Accelerometer',
+    size: 6,
+    decode: (b) =>
+      `${b.readInt16BE(0) / 1000},${b.readInt16BE(2) / 1000},${b.readInt16BE(4) / 1000}`,
+    unit: 'G',
+  }, // 0x71
   115: { name: 'Barometer', size: 2, decode: (b) => b.readUInt16BE(0) / 10, unit: 'hPa' }, // 0x73
   116: { name: 'Voltage', size: 2, decode: (b) => b.readUInt16BE(0) / 100, unit: 'V' }, // 0x74
   117: { name: 'Current', size: 2, decode: (b) => b.readUInt16BE(0) / 1000, unit: 'A' }, // 0x75
+  118: { name: 'Frequency', size: 4, decode: (b) => b.readUInt32BE(0), unit: 'Hz' }, // 0x76
+  120: { name: 'Percentage', size: 1, decode: (b) => b.readUInt8(0), unit: '%' }, // 0x78
+  121: { name: 'Altitude', size: 2, decode: (b) => b.readInt16BE(0), unit: 'm' }, // 0x79
+  125: { name: 'Concentration', size: 2, decode: (b) => b.readUInt16BE(0), unit: 'ppm' }, // 0x7d
+  128: { name: 'Power', size: 2, decode: (b) => b.readUInt16BE(0), unit: 'W' }, // 0x80
+  130: { name: 'Distance', size: 4, decode: (b) => b.readUInt32BE(0) / 1000, unit: 'm' }, // 0x82
+  131: { name: 'Energy', size: 4, decode: (b) => b.readUInt32BE(0) / 1000, unit: 'kWh' }, // 0x83
+  132: { name: 'Direction', size: 2, decode: (b) => b.readUInt16BE(0), unit: '°' }, // 0x84
+  133: { name: 'Unixtime', size: 4, decode: (b) => b.readUInt32BE(0), unit: 's' }, // 0x85
+  134: {
+    name: 'Gyrometer',
+    size: 6,
+    decode: (b) => `${b.readInt16BE(0) / 100},${b.readInt16BE(2) / 100},${b.readInt16BE(4) / 100}`,
+    unit: '°/s',
+  }, // 0x86
+  135: {
+    name: 'Colour',
+    size: 3,
+    decode: (b) => `${b.readUInt8(0)},${b.readUInt8(1)},${b.readUInt8(2)}`,
+  }, // 0x87
+  136: {
+    name: 'GPS',
+    size: 9,
+    decode: (b) =>
+      `${b.readIntBE(0, 3) / 10000},${b.readIntBE(3, 3) / 10000},${b.readIntBE(6, 3) / 100}`,
+  }, // 0x88
+  142: { name: 'Switch', size: 1, decode: (b) => b.readUInt8(0) }, // 0x8e
 };
 
 function decodeCayenneLPP(b: Buffer): TelemetryField[] {

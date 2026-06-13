@@ -96,15 +96,48 @@ describe('repeater decoders: parseStatusResponse', () => {
 });
 
 describe('repeater decoders: parseTelemetryResponse (CayenneLPP)', () => {
+  const telemetryFrame = (payload: Buffer): Buffer =>
+    Buffer.concat([Buffer.from([0x8b, 0x00]), Buffer.from('aabbccddeeff', 'hex'), payload]);
+
   it('decodes a voltage field', () => {
     // channel 0, type 0x74 (Voltage, u16 BE /100), value 4.20 V → 420 = 0x01a4
-    const payload = Buffer.from([0x00, 0x74, 0x01, 0xa4]);
-    const frame = Buffer.concat([
-      Buffer.from([0x8b, 0x00]),
-      Buffer.from('aabbccddeeff', 'hex'),
-      payload,
-    ]);
-    const res = parseTelemetryResponse(frame);
+    const res = parseTelemetryResponse(telemetryFrame(Buffer.from([0x00, 0x74, 0x01, 0xa4])));
     expect(res?.fields[0]).toMatchObject({ channel: 0, name: 'Voltage', value: 4.2, unit: 'V' });
+  });
+
+  it('decodes a generic sensor (type 100, u32 BE)', () => {
+    const payload = Buffer.from([0x01, 0x64, 0x00, 0x01, 0x86, 0xa0]); // 100000
+    const res = parseTelemetryResponse(telemetryFrame(payload));
+    expect(res?.fields[0]).toMatchObject({ channel: 1, name: 'Generic sensor', value: 100000 });
+  });
+
+  it('decodes a percentage and an altitude across two fields', () => {
+    // ch2 type 0x78 (%) = 55; ch3 type 0x79 (altitude i16) = -12
+    const payload = Buffer.from([0x02, 0x78, 0x37, 0x03, 0x79, 0xff, 0xf4]);
+    const res = parseTelemetryResponse(telemetryFrame(payload));
+    expect(res?.fields[0]).toMatchObject({ name: 'Percentage', value: 55, unit: '%' });
+    expect(res?.fields[1]).toMatchObject({ name: 'Altitude', value: -12, unit: 'm' });
+  });
+
+  it('decodes a GPS field (type 136, int24 lat/lon/alt) as a string', () => {
+    // lat 12.3456 → 123456, lon -7.8901 → -78901, alt 100.5 → 10050
+    const payload = Buffer.alloc(2 + 9);
+    payload[0] = 0x05; // channel
+    payload[1] = 0x88; // GPS
+    payload.writeIntBE(123456, 2, 3);
+    payload.writeIntBE(-78901, 5, 3);
+    payload.writeIntBE(10050, 8, 3);
+    const res = parseTelemetryResponse(telemetryFrame(payload));
+    expect(res?.fields[0]).toMatchObject({
+      channel: 5,
+      name: 'GPS',
+      value: '12.3456,-7.8901,100.5',
+    });
+  });
+
+  it('decodes a colour field (type 135, 3×u8) as r,g,b', () => {
+    const payload = Buffer.from([0x06, 0x87, 0xff, 0x80, 0x00]);
+    const res = parseTelemetryResponse(telemetryFrame(payload));
+    expect(res?.fields[0]).toMatchObject({ name: 'Colour', value: '255,128,0' });
   });
 });
