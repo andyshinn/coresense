@@ -58,6 +58,7 @@ import * as misc from './features/misc';
 import * as pathDiagnostics from './features/pathDiagnostics';
 import { encodeSetPathHashMode, pathHashSizeToMode } from './features/pathHash';
 import { encodeSetRadioParams, encodeSetRadioTxPower } from './features/radioParams';
+import * as rawData from './features/rawData';
 import * as repeaterAdmin from './features/repeaterAdmin';
 import { encodeAppStart, selfInfoFeature } from './features/selfInfo';
 import * as signing from './features/signing';
@@ -179,6 +180,7 @@ export class ProtocolSession {
     repeaterAdmin.repeaterAdminFeature,
     deviceAdmin.deviceAdminFeature,
     pathDiagnostics.pathDiagnosticsFeature,
+    rawData.rawDataFeature,
   ]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
@@ -560,6 +562,32 @@ export class ProtocolSession {
   /** The device's cached advert path for a contact, or null when none is cached. */
   async getAdvertPath(contactKey: string): Promise<pathDiagnostics.AdvertPath | null> {
     return pathDiagnostics.getAdvertPath(this.ctx, contactKey);
+  }
+
+  // ---- Raw / control / channel data (group H) ---------------------------
+
+  /** Send raw bytes DIRECT along a known path (CMD_SEND_RAW_DATA). */
+  async sendRawData(opts: { pathHex: string; payload: Buffer }): Promise<void> {
+    return rawData.sendRawData(this.ctx, opts);
+  }
+
+  /** Send a zero-hop control datagram (CMD_SEND_CONTROL_DATA). */
+  async sendControlData(payload: Buffer): Promise<void> {
+    return rawData.sendControlData(this.ctx, payload);
+  }
+
+  /** Broadcast a group-channel datagram (CMD_SEND_CHANNEL_DATA, flood). */
+  async sendChannelData(opts: {
+    channelIdx: number;
+    dataType: number;
+    payload: Buffer;
+  }): Promise<void> {
+    return rawData.sendChannelData(this.ctx, opts);
+  }
+
+  /** Transmit a fully-formed mesh packet (CMD_SEND_RAW_PACKET). */
+  async sendRawPacket(opts: { priority: number; packetHex: string }): Promise<void> {
+    return rawData.sendRawPacket(this.ctx, opts);
   }
 
   async setRadioParams(opts: {

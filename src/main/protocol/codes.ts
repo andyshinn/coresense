@@ -175,6 +175,23 @@ export const CMD = {
   //   dispatch, or RESP_ERR (NOT_FOUND / TABLE_FULL). The discovered paths
   //   arrive later as PUSH_PATH_DISCOVERY_RESPONSE.
   SEND_PATH_DISCOVERY_REQ: 0x34,
+
+  // ---- Raw / control / channel data (group H) ----------------------------
+
+  // CMD_SEND_RAW_DATA: [0x19][path_len u8 (0..127, raw byte count)][path bytes]
+  //   [payload ≥4B] (≥6B). Sends raw bytes DIRECT along the given path (flood,
+  //   i.e. path_len ≥ 0x80, is not supported → RESP_ERR). Replies RESP_OK / RESP_ERR.
+  SEND_RAW_DATA: 0x19,
+  // CMD_SEND_CONTROL_DATA: [0x37][control_data...] (≥2B; the first data byte's
+  //   high bit MUST be set). Sends a zero-hop control datagram. Replies RESP_OK / ERR.
+  SEND_CONTROL_DATA: 0x37,
+  // CMD_SEND_CHANNEL_DATA: [0x3e][channel_idx u8][path_len u8][path bytes?]
+  //   [data_type u16 LE][payload ≤167B]. path_len 0xFF = flood (no path bytes),
+  //   else a compound mesh path. data_type 0 is reserved. Replies RESP_OK / RESP_ERR.
+  SEND_CHANNEL_DATA: 0x3e,
+  // CMD_SEND_RAW_PACKET: [0x41][priority u8][raw packet bytes ≥2] (≥4B). Parses
+  //   and transmits a fully-formed mesh packet. Replies RESP_OK / RESP_ERR.
+  SEND_RAW_PACKET: 0x41,
 } as const;
 
 // Protocol version we negotiate with the firmware. 4 matches the official
@@ -248,6 +265,10 @@ export const RESP = {
   //   reply to CMD_GET_ADVERT_PATH. path_len is the compound mesh path byte
   //   (low 6 bits = hop count, top 2 bits + 1 = bytes-per-hop).
   ADVERT_PATH: 0x16,
+  // RESP_CHANNEL_DATA_RECV [0x1b][snr×4 i8][rsv u8][rsv u8][channel_idx u8]
+  //   [path_len u8][data_type u16 LE][data_len u8][data bytes] — an inbound
+  //   group-channel datagram. Queued offline + tickled via PUSH_MSG_WAITING.
+  CHANNEL_DATA_RECV: 0x1b,
 } as const;
 
 // Firmware error codes carried in a RESP_ERR frame as the byte after the code:
@@ -294,6 +315,9 @@ export const PUSH = {
   // PUSH_BINARY_RESPONSE delivers a tag-matched binary reply to a prior
   // SEND_ANON_REQ / SEND_BINARY_REQ. Layout: [0x8c][0][tag u32 LE][bytes...].
   BINARY_RESPONSE: 0x8c,
+  // PUSH_CONTROL_DATA [0x8e][snr×4 i8][rssi i8][path_len u8][payload bytes] — a
+  //   live inbound zero-hop control datagram (sent immediately, not queued).
+  CONTROL_DATA: 0x8e,
   // PUSH_PATH_DISCOVERY_RESPONSE [0x8d][reserved u8][6B pubkey_prefix]
   //   [out_path_len u8][out_path bytes][in_path_len u8][in_path bytes] — the
   //   round-trip path discovered by CMD_SEND_PATH_DISCOVERY_REQ. Carries NO tag;
