@@ -26,7 +26,7 @@ describe('FeatureRegistry', () => {
   it('dispatches a frame to the right handler', () => {
     const handle = vi.fn();
     const reg = new FeatureRegistry([fakeFeature([0x90], handle)]);
-    const ctx = { writeFrame: vi.fn(), request: vi.fn() };
+    const ctx = { writeFrame: vi.fn(), request: vi.fn(), requestOrNull: vi.fn() };
     reg.get(0x90)?.handle(0x90, Buffer.from([0x90, 0x01]), ctx);
     expect(handle).toHaveBeenCalledWith(0x90, Buffer.from([0x90, 0x01]), ctx);
   });

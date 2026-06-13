@@ -55,6 +55,7 @@ import * as directMessages from './features/directMessages';
 import { drainFeature, resetDrain, scheduleDrain } from './features/drain';
 import * as floodScope from './features/floodScope';
 import * as misc from './features/misc';
+import * as pathDiagnostics from './features/pathDiagnostics';
 import { encodeSetPathHashMode, pathHashSizeToMode } from './features/pathHash';
 import { encodeSetRadioParams, encodeSetRadioTxPower } from './features/radioParams';
 import * as repeaterAdmin from './features/repeaterAdmin';
@@ -157,6 +158,7 @@ export class ProtocolSession {
   private readonly ctx: FeatureContext = {
     writeFrame: (frame) => this.writeFrame(frame),
     request: (frame, opts) => this.request(frame, opts),
+    requestOrNull: (frame, expect, timeoutMs) => this.requestOrNull(frame, expect, timeoutMs),
   };
   /** Inbound-frame dispatch: every code-owned RESP/PUSH frame is handled by
    *  exactly one of these feature modules. The only frames NOT routed here are
@@ -176,6 +178,7 @@ export class ProtocolSession {
     directMessages.directMessagesFeature,
     repeaterAdmin.repeaterAdminFeature,
     deviceAdmin.deviceAdminFeature,
+    pathDiagnostics.pathDiagnosticsFeature,
   ]);
   private livenessTimer: NodeJS.Timeout | null = null;
 
@@ -219,6 +222,7 @@ export class ProtocolSession {
     directMessages.resetDmState('session stopped');
     repeaterAdmin.resetAdmin('session stopped');
     deviceAdmin.resetDeviceAdmin('session stopped');
+    pathDiagnostics.resetPathDiagnostics('session stopped');
     this.stopLivenessPoll();
   }
 
@@ -543,6 +547,19 @@ export class ProtocolSession {
    *  returns the 64-byte signature (hex). */
   async signData(data: Buffer): Promise<string> {
     return signing.signData(this.ctx, data);
+  }
+
+  // ---- Path diagnostics (group G) ---------------------------------------
+
+  /** Discover the round-trip mesh path to a contact (floods a request, then
+   *  awaits PUSH_PATH_DISCOVERY_RESPONSE). Rejects on dispatch error/timeout. */
+  async sendPathDiscoveryReq(contactKey: string): Promise<pathDiagnostics.DiscoveredPath> {
+    return pathDiagnostics.sendPathDiscoveryReq(this.ctx, contactKey);
+  }
+
+  /** The device's cached advert path for a contact, or null when none is cached. */
+  async getAdvertPath(contactKey: string): Promise<pathDiagnostics.AdvertPath | null> {
+    return pathDiagnostics.getAdvertPath(this.ctx, contactKey);
   }
 
   async setRadioParams(opts: {
@@ -899,6 +916,86 @@ export class ProtocolSession {
     });
   }
 
+  /** Send a frame and resolve EITHER its typed reply (code === expect) OR null
+   *  on a RESP_ERR. Arms a typed-reply waiter and an ack waiter against one
+   *  write so a "not found" RESP_ERR is consumed via the ack FIFO (never leaking
+   *  to failOldestDmSend) rather than waiting out the typed-reply timeout. The
+   *  two waiters share a timer and a settle guard; whichever fires first removes
+   *  the other. See FeatureContext.requestOrNull. */
+  private requestOrNull(
+    frame: Buffer,
+    expect: number,
+    timeoutMs: number = REQUEST_TIMEOUT_MS,
+  ): Promise<Buffer | null> {
+    if (expect === RESP.OK || expect === RESP.ERR) {
+      return Promise.reject(
+        new Error('requestOrNull cannot expect RESP_OK/RESP_ERR — they resolve to null'),
+      );
+    }
+    return new Promise<Buffer | null>((resolve, reject) => {
+      let settled = false;
+      const removeTyped = () => {
+        const q = this.pendingTyped.get(expect);
+        if (!q) return;
+        const i = q.indexOf(typedEntry);
+        if (i !== -1) q.splice(i, 1);
+        if (q.length === 0) this.pendingTyped.delete(expect);
+      };
+      const removeAck = () => {
+        const i = this.pendingAcks.indexOf(ackEntry);
+        if (i !== -1) this.pendingAcks.splice(i, 1);
+      };
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        removeTyped();
+        removeAck();
+        reject(new ProtocolTimeoutError(expect));
+      }, timeoutMs);
+      // RESP_OK / RESP_ERR routes here via the ack FIFO → resolve null.
+      const ackEntry: PendingAck = {
+        resolve: () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          removeTyped();
+          resolve(null);
+        },
+        timer,
+      };
+      // The typed reply (the success case) routes here via pendingTyped.
+      const typedEntry: PendingTyped = {
+        resolve: (f: Buffer) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          removeAck();
+          resolve(f);
+        },
+        reject: (err: Error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          removeAck();
+          reject(err);
+        },
+        timer,
+      };
+      this.pendingAcks.push(ackEntry);
+      const queue = this.pendingTyped.get(expect) ?? [];
+      queue.push(typedEntry);
+      this.pendingTyped.set(expect, queue);
+      this.writeFrame(frame).catch((err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        removeTyped();
+        removeAck();
+        reject(err as Error);
+      });
+    });
+  }
+
   private onTransportState = (state: TransportState) => {
     const wasConnected = this.connected;
     this.connected = state === 'connected';
@@ -926,6 +1023,8 @@ export class ProtocolSession {
       repeaterAdmin.resetAdmin('transport disconnected');
       // Fail any in-flight private-key export awaiter.
       deviceAdmin.resetDeviceAdmin('transport disconnected');
+      // Fail any in-flight path-discovery awaiter.
+      pathDiagnostics.resetPathDiagnostics('transport disconnected');
       // Fail any typed-reply awaiters (ctx.request with `expect`) so feature GETs
       // reject promptly on disconnect instead of waiting out their timeout.
       for (const queue of this.pendingTyped.values()) {

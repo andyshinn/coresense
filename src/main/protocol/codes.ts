@@ -162,6 +162,19 @@ export const CMD = {
   // CMD_SIGN_FINISH: [0x23] (bare). Signs the accumulated bytes and replies
   //   RESP_SIGNATURE; frees the buffer. RESP_ERR (BAD_STATE) if no START.
   SIGN_FINISH: 0x23,
+
+  // ---- Path diagnostics (group G) ----------------------------------------
+
+  // CMD_GET_ADVERT_PATH: [0x2a][reserved u8][32B pubkey] (34B). Looks up the
+  //   device's cached advert path for a contact (matched by 6-byte prefix).
+  //   Replies RESP_ADVERT_PATH if cached, else RESP_ERR (NOT_FOUND).
+  GET_ADVERT_PATH: 0x2a,
+  // CMD_SEND_PATH_DISCOVERY_REQ: [0x34][0x00 reserved][32B pubkey] (34B; byte 1
+  //   MUST be 0). Floods a special telemetry request to discover the round-trip
+  //   path. Replies RESP_SENT (carrying a tag the firmware tracks internally) on
+  //   dispatch, or RESP_ERR (NOT_FOUND / TABLE_FULL). The discovered paths
+  //   arrive later as PUSH_PATH_DISCOVERY_RESPONSE.
+  SEND_PATH_DISCOVERY_REQ: 0x34,
 } as const;
 
 // Protocol version we negotiate with the firmware. 4 matches the official
@@ -231,6 +244,10 @@ export const RESP = {
   SIGN_START: 0x13,
   // RESP_SIGNATURE [0x14][64B signature] (65B) — reply to CMD_SIGN_FINISH.
   SIGNATURE: 0x14,
+  // RESP_ADVERT_PATH [0x16][recv_timestamp u32 LE][path_len u8][path bytes] —
+  //   reply to CMD_GET_ADVERT_PATH. path_len is the compound mesh path byte
+  //   (low 6 bits = hop count, top 2 bits + 1 = bytes-per-hop).
+  ADVERT_PATH: 0x16,
 } as const;
 
 // Firmware error codes carried in a RESP_ERR frame as the byte after the code:
@@ -260,6 +277,9 @@ export const PUSH = {
   //   firmware sends this (not the 148B PUSH_NEW_ADVERT) when the advertising
   //   node is already in the contact store; we touch the contact's last-seen.
   ADVERT: 0x80,
+  // PUSH_PATH_UPDATED [0x81][pubkey 32B] (33B) — the radio updated its routing
+  //   path for a contact (no path bytes inline). We touch the contact's last-seen.
+  PATH_UPDATED: 0x81,
   SEND_CONFIRMED: 0x82,
   MSG_WAITING: 0x83,
   // PUSH_RAW_DATA wraps any raw-bytes payload received over the mesh, with a
@@ -274,6 +294,11 @@ export const PUSH = {
   // PUSH_BINARY_RESPONSE delivers a tag-matched binary reply to a prior
   // SEND_ANON_REQ / SEND_BINARY_REQ. Layout: [0x8c][0][tag u32 LE][bytes...].
   BINARY_RESPONSE: 0x8c,
+  // PUSH_PATH_DISCOVERY_RESPONSE [0x8d][reserved u8][6B pubkey_prefix]
+  //   [out_path_len u8][out_path bytes][in_path_len u8][in_path bytes] — the
+  //   round-trip path discovered by CMD_SEND_PATH_DISCOVERY_REQ. Carries NO tag;
+  //   the device tracks a single pending discovery and we correlate by prefix.
+  PATH_DISCOVERY_RESPONSE: 0x8d,
   CONTACT_DELETED: 0x8f,
   // PUSH_CODE_CONTACTS_FULL: emitted when the contact store is full and a new
   //   advert could not be auto-added (overwrite-oldest off / all favourites).
