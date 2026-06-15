@@ -1,4 +1,4 @@
-import { Hash, Inbox, Plus, Search, Users, X } from 'lucide-react';
+import { Hash, Plus, Search, Users, X } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { Contact, ContactKind } from '../../../shared/types';
 import { AddChannelPopover } from '../../components/AddChannelPopover';
@@ -33,6 +33,7 @@ import { KindBranch } from './KindBranch';
 import { OwnerCard } from './OwnerCard';
 import { ParentBranch } from './ParentBranch';
 import { sortByPinned, sortChannels } from './sorting';
+import { UnreadsNavItem } from './UnreadsNavItem';
 
 interface LeftNavProps {
   client: ApiClient | null;
@@ -50,6 +51,7 @@ export function LeftNav({ client }: LeftNavProps) {
   const syncProgress = useStore((s) => s.syncProgress);
   const hideUnsynced = useStore((s) => s.appSettings.hideUnsyncedChannels);
   const pinUnreadToTop = useStore((s) => s.appSettings.pinUnreadToTop);
+  const showLeftNavUnreads = useStore((s) => s.appSettings.showLeftNavUnreads);
   const setActiveKey = useStore((s) => s.setActiveKey);
 
   // Per-conversation unread counts, shared with the Unreads panel.
@@ -257,36 +259,16 @@ export function LeftNav({ client }: LeftNavProps) {
             </div>
           </div>
         )}
-        {totalUnread > 0 && (
-          <SidebarGroup className="pb-0">
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  tooltip="Unreads"
-                  isActive={activeKey === 'tool:unreads'}
-                  onClick={() => setActiveKey('tool:unreads')}
-                  className={ACTIVE_BUTTON_CLASS}
-                >
-                  <span className="relative flex shrink-0 items-center">
-                    <Inbox className="size-4" />
-                    <span className="absolute -right-1 -top-1 size-1.5 animate-pulse rounded-full bg-cs-accent" />
-                  </span>
-                  <span>Unreads</span>
-                  <span
-                    role="status"
-                    aria-label={`${totalUnread} unread`}
-                    className="ml-auto rounded-full bg-cs-accent px-1.5 py-px font-mono text-[10px] leading-none text-cs-bg tabular-nums"
-                  >
-                    {totalUnread > 99 ? '99+' : totalUnread}
-                  </span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroup>
-        )}
         <SidebarGroup>
           <SidebarGroupLabel>Conversations</SidebarGroupLabel>
           <SidebarMenu>
+            {showLeftNavUnreads && (
+              <UnreadsNavItem
+                totalUnread={totalUnread}
+                isActive={activeKey === 'tool:unreads'}
+                onSelect={() => setActiveKey('tool:unreads')}
+              />
+            )}
             <Popover open={addChannelOpen} onOpenChange={setAddChannelOpen}>
               <ParentBranch
                 label="Channels"
