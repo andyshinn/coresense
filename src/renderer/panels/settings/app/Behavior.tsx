@@ -24,6 +24,7 @@ const eqBehavior = (a: AppSettingsType, b: AppSettingsType) =>
   a.hideUnsyncedChannels === b.hideUnsyncedChannels &&
   a.search.defaultSort === b.search.defaultSort &&
   a.showLeftNavSearch === b.showLeftNavSearch &&
+  a.showLeftNavUnreads === b.showLeftNavUnreads &&
   a.leftNavCollapseLists.enabled === b.leftNavCollapseLists.enabled &&
   a.leftNavCollapseLists.limit === b.leftNavCollapseLists.limit &&
   a.unreadsPreview.enabled === b.unreadsPreview.enabled &&
@@ -46,6 +47,7 @@ export function BehaviorSection({ client }: SectionProps) {
           hideUnsyncedChannels: d.hideUnsyncedChannels,
           search: d.search,
           showLeftNavSearch: d.showLeftNavSearch,
+          showLeftNavUnreads: d.showLeftNavUnreads,
           leftNavCollapseLists: d.leftNavCollapseLists,
           unreadsPreview: d.unreadsPreview,
           commandPalette: d.commandPalette,
@@ -122,6 +124,14 @@ export function BehaviorSection({ client }: SectionProps) {
         changed={draft.showLeftNavSearch !== saved.showLeftNavSearch}
         control={
           <Toggle checked={draft.showLeftNavSearch} onChange={(v) => setDraft((s) => ({ ...s, showLeftNavSearch: v }))} />
+        }
+      />
+      <Row
+        label="Show Unreads link"
+        description="Show the Unreads link at the top of Conversations. When hidden, it's still reachable from the command palette."
+        changed={draft.showLeftNavUnreads !== saved.showLeftNavUnreads}
+        control={
+          <Toggle checked={draft.showLeftNavUnreads} onChange={(v) => setDraft((s) => ({ ...s, showLeftNavUnreads: v }))} />
         }
       />
       <Row
