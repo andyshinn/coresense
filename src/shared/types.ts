@@ -376,6 +376,10 @@ export interface AppSettings {
   /** Show the quick-filter input above the Conversations section in the LeftNav.
    *  Cmd/Ctrl+F focuses it. Independent of the command palette. */
   showLeftNavSearch: boolean;
+  /** Show the Unreads shortcut at the top of the Conversations section in the
+   *  LeftNav. When off, the pane is still reachable from the command palette.
+   *  Rendered independently of the unread count so the list never shifts. */
+  showLeftNavUnreads: boolean;
   /** Persistent search defaults. The Search Results panel still toggles
    *  sort in-session, but writes back to AppSettings so the preference
    *  sticks across launches. */
@@ -440,6 +444,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   contactGrouping: 'nested',
   leftNavCollapseLists: { enabled: true, limit: 10 },
   showLeftNavSearch: true,
+  showLeftNavUnreads: true,
   search: { defaultSort: 'recency' },
   commandPalette: { hintWeightPct: 50 },
   unreadsPreview: { enabled: true, limit: 25 },
