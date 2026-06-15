@@ -14,13 +14,18 @@ export const ACTIVE_BUTTON_CLASS = cn(
   'data-[active=true]:hover:bg-cs-accent-soft/30 data-[active=true]:hover:text-cs-text',
 );
 
-/** Small unread-count pill rendered next to sub-list rows. */
-export function UnreadChip({ count }: { count: number }) {
+/** Small unread-count pill rendered next to sub-list rows. `muted` renders the
+ *  dimmed zero-state used by the always-present Unreads link. */
+export function UnreadChip({ count, muted, className }: { count: number; muted?: boolean; className?: string }) {
   return (
     <span
       role="status"
       aria-label={`${count} unread`}
-      className="rounded-full bg-cs-accent px-1.5 py-px font-mono text-[10px] leading-none text-cs-bg tabular-nums"
+      className={cn(
+        'rounded-full px-1.5 py-px font-mono text-[10px] leading-none tabular-nums',
+        muted ? 'bg-cs-bg-2 text-cs-text-dim' : 'bg-cs-accent text-cs-bg',
+        className,
+      )}
     >
       {count > 99 ? '99+' : count}
     </span>

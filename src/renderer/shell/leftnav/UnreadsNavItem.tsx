@@ -1,6 +1,6 @@
 import { Inbox } from 'lucide-react';
 import { SidebarMenuButton, SidebarMenuItem } from '../../components/ui/sidebar';
-import { ACTIVE_BUTTON_CLASS } from './atoms';
+import { ACTIVE_BUTTON_CLASS, UnreadChip } from './atoms';
 
 interface UnreadsNavItemProps {
   totalUnread: number;
@@ -20,22 +20,10 @@ export function UnreadsNavItem({ totalUnread, isActive, onSelect }: UnreadsNavIt
       <SidebarMenuButton tooltip="Unreads" isActive={isActive} onClick={onSelect} className={ACTIVE_BUTTON_CLASS}>
         <span className="relative flex shrink-0 items-center">
           <Inbox className="size-4" />
-          {hasUnread && (
-            <span className="absolute -right-1 -top-1 size-1.5 animate-pulse rounded-full bg-cs-accent" />
-          )}
+          {hasUnread && <span className="absolute -right-1 -top-1 size-1.5 animate-pulse rounded-full bg-cs-accent" />}
         </span>
         <span>Unreads</span>
-        <span
-          role="status"
-          aria-label={`${totalUnread} unread`}
-          className={
-            hasUnread
-              ? 'ml-auto rounded-full bg-cs-accent px-1.5 py-px font-mono text-[10px] leading-none text-cs-bg tabular-nums'
-              : 'ml-auto rounded-full bg-cs-bg-2 px-1.5 py-px font-mono text-[10px] leading-none text-cs-text-dim tabular-nums'
-          }
-        >
-          {totalUnread > 99 ? '99+' : totalUnread}
-        </span>
+        <UnreadChip count={totalUnread} muted={!hasUnread} className="ml-auto" />
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
