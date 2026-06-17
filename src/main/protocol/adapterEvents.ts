@@ -76,9 +76,16 @@ function wireContacts(session: MeshCoreSession): void {
   const ev = session.events;
   ev.on('contactObserved', (record, source) => ingestObservedContact(record, source));
   ev.on('contacts', (contacts) => applyLibContacts(contacts));
-  ev.on('discovered', () => {
-    // The lib also emits cooked 'discovered'; coresense's sqlite pool is the
-    // authority (fed by contactObserved), so re-emit from the store for blocking.
+  ev.on('discovered', (libRows) => {
+    // The lib owns the authoritative discovered pool. Write its on_radio/favourite
+    // through to coresense's sqlite mirror — remove/favourite commands emit
+    // `discovered` but never `contactObserved`, so re-reading our own store would
+    // miss them. Per-row setX (not reconcileOnRadio) so contacts the lib hasn't
+    // re-synced this session keep their persisted flags.
+    for (const r of libRows) {
+      discoveredStore.setOnRadio(r.publicKeyHex, r.onRadio);
+      discoveredStore.setFavourite(r.publicKeyHex, r.favourite);
+    }
     const holder = stateHolder();
     emit.discovered(discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()));
   });

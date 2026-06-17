@@ -42,6 +42,16 @@ function advertFrame(pubkeyHex: string, name: string): Buffer {
   return frame;
 }
 
+// RESP_CONTACT (0x03) — same 148-byte record layout as PUSH_NEW_ADVERT, but
+// arrives during a GET_CONTACTS sync so the lib ingests it with source='sync',
+// which marks the contact on-radio in both the lib's discovered store AND
+// coresense's sqlite mirror (via contactObserved('sync')).
+function contactSyncFrame(pubkeyHex: string, name: string): Buffer {
+  const frame = advertFrame(pubkeyHex, name);
+  frame[0] = 0x03;
+  return frame;
+}
+
 // RESP_CHANNEL_MSG_RECV_V3 (0x11): [0x11][snr*4 int8][2B rsv][idx][path_len]
 // [txt_type][ts u32 LE][body]. path_len 0xFF = direct (no mesh observation).
 function channelMsgV3(idx: number, ts: number, body: string): Buffer {
@@ -93,6 +103,31 @@ describe('SessionAdapter read-path (inject frame → persist + bus)', () => {
     expect(row?.name).toBe('Carol');
     // A freshly-heard advert is not on the radio until explicitly added.
     expect(row?.on_radio).toBe(0);
+  });
+
+  it('writes the lib discovered on_radio/favourite through to the sqlite mirror', async () => {
+    const { adapter, receive } = makeTestSession();
+    const pk = 'ab'.repeat(32);
+
+    // Establish an on-radio contact in coresense's mirror via the sync path:
+    // RESP_CONTACT → contactObserved('sync') → discoveredStore on_radio=1. This
+    // also seeds the lib's own discovered store (needed by the commands below).
+    receive(contactSyncFrame(pk, 'Dave'));
+    await Promise.resolve();
+    expect(discoveredStore.get(pk)?.on_radio).toBe(1);
+
+    // Removing from the radio goes through the lib, which emits a cooked
+    // `discovered` (onRadio:false) but NO contactObserved. The handler must
+    // write that through, flipping coresense's mirror to off-radio.
+    await adapter.removeContactFromRadio(pk);
+    await Promise.resolve();
+    expect(discoveredStore.get(pk)?.on_radio).toBe(0);
+
+    // Same shape for favourite: setContactFavourite emits `discovered`
+    // (favourite:true) with no contactObserved, and must reach the mirror.
+    await adapter.setContactFavourite(pk, true);
+    await Promise.resolve();
+    expect(discoveredStore.get(pk)?.favourite).toBe(1);
   });
 
   it('routes a channel-message frame to storage and re-emits messages', async () => {
