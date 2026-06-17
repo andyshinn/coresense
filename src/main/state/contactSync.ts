@@ -10,7 +10,10 @@ import { stateHolder } from './holder';
  *  discovery path. `source` is 'sync' (on-radio handshake) or 'advert' (heard live). */
 export function ingestObservedContact(record: ContactRecord, source: ContactSource): void {
   const holder = stateHolder();
-  const onRadio = source === 'sync' ? true : discoveredStore.get(record.publicKeyHex)?.on_radio !== 0;
+  // A brand-new advert (no existing row) is heard-live but NOT on the radio yet,
+  // so default to false when get() is null — only an existing row with on_radio=1
+  // counts as on-radio. (`?.on_radio !== 0` would wrongly treat null as on-radio.)
+  const onRadio = source === 'sync' ? true : discoveredStore.get(record.publicKeyHex)?.on_radio === 1;
   const isNewDiscovery = source === 'advert' && discoveredStore.get(record.publicKeyHex) === null;
 
   discoveredStore.upsert(record, { onRadio, nowMs: Date.now(), heardLive: source === 'advert' });

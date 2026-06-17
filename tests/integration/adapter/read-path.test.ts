@@ -91,6 +91,8 @@ describe('SessionAdapter read-path (inject frame → persist + bus)', () => {
     const row = discoveredStore.get(PUBKEY);
     expect(row).not.toBeNull();
     expect(row?.name).toBe('Carol');
+    // A freshly-heard advert is not on the radio until explicitly added.
+    expect(row?.on_radio).toBe(0);
   });
 
   it('routes a channel-message frame to storage and re-emits messages', async () => {
