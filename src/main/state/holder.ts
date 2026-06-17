@@ -296,6 +296,25 @@ class StateHolder {
     };
     messagesStore.insert(merged);
   }
+  /** Persist a message the library already merged (idempotent by id). Bumps a
+   *  block-rule match counter on genuinely-new ids, but does NOT re-run the
+   *  path/timesHeard merge that upsertMessage does (the lib owns that). */
+  recordLibMessage(message: Message): void {
+    const isNew = !messagesStore.findById(message.id);
+    if (isNew) {
+      const rules = blockingStore().list();
+      if (rules.length > 0) {
+        const { blocked, ruleId } = isMessageBlocked(
+          message,
+          this.buildBlockHints(message),
+          rules,
+          blockingStore().regexCacheRef(),
+        );
+        if (blocked && ruleId) blockingStore().bumpMatchCount(ruleId);
+      }
+    }
+    messagesStore.insert(message);
+  }
   setMessageState(id: string, state: Message['state']): void {
     messagesStore.markState(id, state);
   }

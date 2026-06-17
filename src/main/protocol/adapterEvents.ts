@@ -89,5 +89,22 @@ function wireContacts(session: MeshCoreSession): void {
   ev.on('contactEvicted', (name) => emit.contactEvicted(name));
 }
 
-// --- Task C3 (messages) fills this in. ---
-function wireMessages(_session: MeshCoreSession): void {}
+function wireMessages(session: MeshCoreSession): void {
+  const ev = session.events;
+  const holder = stateHolder();
+  ev.on('messageUpserted', (m) => {
+    holder.recordLibMessage(m);
+    emit.messages(m.key, holder.getMessagesForKey(m.key));
+  });
+  ev.on('messageState', (id, state) => {
+    holder.setMessageState(id, state);
+    emit.messageState(id, state);
+  });
+  ev.on('messagePathHeard', ({ id, path }) => {
+    const state = holder.appendMessagePath(id, path);
+    if (state) emit.messagePathHeard({ id, path, state });
+  });
+  // Note: the lib also emits the full-list `messages` event; coresense relies on
+  // `messageUpserted` for surgical persistence + emits the holder-annotated full
+  // list, so we deliberately do NOT subscribe to `messages` (would double-emit).
+}
