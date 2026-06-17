@@ -18,3 +18,10 @@ export function fmtStorageKb(kb: number): string {
 export function fmtGpsInterval(sec: number): string {
   return sec % 60 === 0 ? `${sec / 60} min` : `${sec}s`;
 }
+/** Firmware line for the device card: version string plus the numeric
+ *  capability code, e.g. "v1.15.0 (ver 11)". Falls back to just the code when
+ *  the version string is unknown, or an em dash before the first DEVICE_INFO. */
+export function fmtFirmware(version: string, verCode: number): string {
+  if (!version) return verCode > 0 ? `ver ${verCode}` : '—';
+  return `${version} (ver ${verCode})`;
+}

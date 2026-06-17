@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   fmtBandwidth,
+  fmtFirmware,
   fmtFreq,
   fmtFreqMhz,
   fmtGpsInterval,
@@ -22,5 +23,14 @@ describe('ownerFormat', () => {
   it('formats gps interval as minutes on even minutes', () => {
     expect(fmtGpsInterval(300)).toBe('5 min');
     expect(fmtGpsInterval(45)).toBe('45s');
+  });
+  it('formats firmware version with its capability code', () => {
+    expect(fmtFirmware('v1.15.0', 11)).toBe('v1.15.0 (ver 11)');
+  });
+  it('falls back to just the code when no version string is known', () => {
+    expect(fmtFirmware('', 11)).toBe('ver 11');
+  });
+  it('shows an em dash before the first DEVICE_INFO', () => {
+    expect(fmtFirmware('', 0)).toBe('—');
   });
 });
