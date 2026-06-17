@@ -67,6 +67,7 @@ export function wireSessionEvents(session: MeshCoreSession): void {
   ev.on('pathLearned', (e) => emit.pathLearned(e));
   ev.on('repeaterStatus', (s) => emit.repeaterStatus(s));
   ev.on('repeaterTelemetry', (s) => emit.repeaterTelemetry(s));
+  ev.on('contactsFull', () => emit.error('radio contact store is full — remove or favourite contacts to make room'));
 
   wireContacts(session); // Task C2
   wireMessages(session); // Task C3
