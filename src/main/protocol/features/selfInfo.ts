@@ -12,8 +12,8 @@ const log = child('protocol');
 //   [public_key 32B][...adv lat/lon + radio params, firmware-version-specific...]
 //   [name, trailing printable ASCII]. We only surface the two fields the
 //   identity card needs — the 32B pubkey at a fixed offset and the name via the
-//   same trailing-printable scan parseNodeNameFromSelfInfo / decodeDeviceInfo use,
-//   which is firmware-version tolerant.
+//   same trailing-printable scan parseNodeNameFromSelfInfo uses, which is
+//   firmware-version tolerant.
 export interface SelfInfo {
   name: string;
   publicKeyHex: string;
