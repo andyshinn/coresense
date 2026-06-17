@@ -1,10 +1,13 @@
-import { ProtocolSession } from './session';
+import { transportManager } from '../transport/manager';
+import { SessionAdapter } from './sessionAdapter';
 
-let _session: ProtocolSession | null = null;
+let _session: SessionAdapter | null = null;
 
-export function protocolSession(): ProtocolSession {
-  if (!_session) _session = new ProtocolSession();
+export function protocolSession(): SessionAdapter {
+  if (!_session) {
+    _session = new SessionAdapter(transportManager.getLibTransport());
+  }
   return _session;
 }
 
-export { ProtocolSession } from './session';
+export { SessionAdapter } from './sessionAdapter';

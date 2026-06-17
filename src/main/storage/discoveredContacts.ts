@@ -1,3 +1,4 @@
+import type { ContactRecord } from '@andyshinn/meshcore-ts';
 import {
   advTypeToKind,
   contactMatchesAnyBlockRule,
@@ -5,7 +6,6 @@ import {
   hopsFromOutPathLen,
 } from '../../shared/contacts/discovered';
 import type { BlockRule, PathHashSize } from '../../shared/types';
-import type { ContactRecord } from '../protocol/features/contacts';
 import { openDb } from './db';
 
 interface Row {

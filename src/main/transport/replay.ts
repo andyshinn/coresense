@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { readFileSync } from 'node:fs';
+import { LoopbackTransport, type Transport } from '@andyshinn/meshcore-ts';
 import { emit } from '../events/bus';
 import { child } from '../log';
 import { parseCompanionFrame } from './companionFrame';
@@ -42,6 +43,9 @@ function loadFrames(path: string): Buffer[] {
 export class FileReplayTransport implements ITransport {
   readonly type = 'ble' as const;
   readonly sent: Buffer[] = [];
+  // Placeholder lib Transport satisfying ITransport. Phase G3 wires it to feed
+  // replayed frames into the session; for now it is a plain LoopbackTransport.
+  readonly libTransport: Transport = new LoopbackTransport();
   private readonly fixturePath: string;
 
   constructor(fixturePath: string) {

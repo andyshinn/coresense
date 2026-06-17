@@ -1,5 +1,8 @@
 export interface ITransport {
   readonly type: 'ble' | 'serial';
+  // The lib Transport the MeshCoreSession consumes. Every transport exposes the
+  // lib Transport the session is built over.
+  readonly libTransport: import('@andyshinn/meshcore-ts').Transport;
   connect(deviceId: string): Promise<void>;
   disconnect(): Promise<void>;
   scan?(): Promise<void>;
