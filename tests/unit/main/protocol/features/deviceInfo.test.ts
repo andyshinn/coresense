@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
+import { decodeDeviceInfo } from '@andyshinn/meshcore-ts';
 import { describe, expect, it } from 'vitest';
-import { decodeDeviceInfo, encodeDeviceQuery } from '../../../../../src/main/protocol/features/deviceInfo';
+import { encodeDeviceQuery } from '../../../../../src/main/protocol/features/deviceInfo';
 import { frameBuf } from '../../../../support/frames';
 
 describe('deviceInfo encode/decode', () => {
