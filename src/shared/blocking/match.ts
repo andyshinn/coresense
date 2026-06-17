@@ -27,7 +27,8 @@ function isChannelMessage(msg: Message): boolean {
 /** Sender display name for matching purposes.
  *  - Channel messages: parsed from the `name:` sentinel in fromPublicKeyHex
  *    (the protocol decoder strips the "name: " prefix from the body and
- *    encodes the sender into fromPublicKeyHex; see protocol/session.ts).
+ *    encodes the sender into fromPublicKeyHex; see the channel-message
+ *    decode path in @andyshinn/meshcore-ts, bridged via protocol/adapterEvents.ts).
  *  - DMs: resolved through the caller-provided contactNameByPk lookup. */
 function senderNameOf(msg: Message, hints: BlockMatchHints): string | undefined {
   if (isChannelMessage(msg)) {

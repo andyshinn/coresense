@@ -10,8 +10,6 @@
 
 import { Buffer } from 'node:buffer';
 import { emit } from '../events/bus';
-import { channelHashOf } from '../protocol/paths';
-import { register as registerPendingChannelSend } from '../protocol/pendingChannelSends';
 import { stateHolder } from '../state/holder';
 import type { BridgeClient } from './hub';
 import { inboxKeyFor, parseAppStartName, parseNodeNameFromSelfInfo } from './identity';
@@ -270,15 +268,6 @@ export class InboxRouter {
       state: 'sent',
     });
     emit.messages(channel.key, holder.getMessagesForKey(channel.key));
-
-    // Track this send for repeat attribution, same as our own channel sends
-    // (routes.ts). Repeater relays of the proxy client's message arrive as
-    // 0x88 frames at our radio; without a pending registration they can't be
-    // matched back and the UI stays stuck at "sent" instead of showing hops.
-    const channelHash = channelHashOf(channel);
-    if (channelHash != null) {
-      registerPendingChannelSend({ messageId: id, channelHash, sentAt: Date.now() });
-    }
   }
 
   private rebindIdentity(client: BridgeClient, appName: string): void {

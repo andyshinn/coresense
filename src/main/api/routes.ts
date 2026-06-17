@@ -25,7 +25,6 @@ import { currentPath, folderPath } from '../logging/fileSink';
 import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
 import { protocolSession } from '../protocol';
 import { ContactTableFullError, UnknownContactError } from '../protocol/errors';
-import { register as registerPendingChannelSend } from '../protocol/pendingChannelSends';
 import { appLifecycle } from '../runtime/appLifecycle';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
@@ -611,13 +610,6 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       const nextState = result.ok ? 'sent' : 'failed';
       holder.setMessageState(id, nextState);
       emit.messageState(id, nextState);
-      if (result.ok && result.channelHash != null) {
-        registerPendingChannelSend({
-          messageId: id,
-          channelHash: result.channelHash,
-          sentAt: Date.now(),
-        });
-      }
       return result.ok ? c.json({ ok: true, id }) : c.json({ error: result.error }, 503);
     }
 
