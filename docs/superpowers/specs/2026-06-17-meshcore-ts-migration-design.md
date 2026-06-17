@@ -1,8 +1,38 @@
 # Design: Migrate coresense onto the `@andyshinn/meshcore-ts` package
 
 **Date:** 2026-06-17
-**Status:** Approved (pending spec review)
+**Status:** Approved; scope narrowed during planning (see §0)
 **Author:** Andy Shinn (with Claude)
+
+## 0. Scope update (2026-06-17, during planning)
+
+A planning-time discovery overrides parts of this spec:
+
+**meshcore-ts is a Node library** — `decodeOnAirPacket`/`parseAdvert`/`verifyAdvert`
+pull in `node:crypto` + `node:buffer` (see meshcore-ts `src/advert.ts`). coresense's
+renderer is a sandboxed browser context (`nodeIntegration: false`) with no
+Buffer/crypto polyfills, so it **cannot import meshcore-ts decoders**.
+
+Decision (user): **keep `@michaelhart/meshcore-decoder` in the renderer**; use
+meshcore-ts **only in the main process**. Therefore:
+
+- **OUT OF SCOPE:** the renderer decode swap (§4.4) and removing
+  `@michaelhart/meshcore-decoder`. [decodePacket.ts](../../../src/renderer/lib/decodePacket.ts),
+  [meshcoreUri.ts](../../../src/renderer/lib/meshcoreUri.ts), and
+  [MeshcoreLink.tsx](../../../src/renderer/components/MeshcoreLink.tsx) are
+  **untouched**. `decodeOnAirPacket` / the `rawPacket` event are **not used** by
+  coresense in this plan.
+- The packet **inspector** keeps working exactly as today: ble.ts retains its
+  `parseCompanionFrame` → `emit.packet` tap (both `mesh` and `companion` rows),
+  and the renderer keeps decoding via meshcore-decoder. The §5 "rawPacket →
+  emit.packet" row does **not** apply.
+- **Dependencies:** add `@andyshinn/meshcore-ts`; **keep**
+  `@michaelhart/meshcore-decoder`; keep `@stoprocent/noble`.
+
+Everything else (main-process protocol/transport swap, StateHolder
+reconciliation, DeviceInfo extension + hover-card "Device" group, delete
+internal protocol tests / keep flow tests, hardware smoke) stands. The
+implementation plan derives from this narrowed scope.
 
 ## 1. Goal
 
