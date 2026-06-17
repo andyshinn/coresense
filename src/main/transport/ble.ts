@@ -1,11 +1,10 @@
-import { createHash } from 'node:crypto';
+import { Buffer } from 'node:buffer';
+import type { TransportState as LibTransportState, Transport } from '@andyshinn/meshcore-ts';
+import { createBleTransport } from '@andyshinn/meshcore-ts/transports';
 import noble, { type Characteristic, type Peripheral } from '@stoprocent/noble';
 import type { BleDevice } from '../../shared/types';
 import { emit } from '../events/bus';
 import { child } from '../log';
-import { record as recordMeshObservation } from '../protocol/meshObservations';
-import { PAYLOAD_TYPE, parseMeshPacket } from '../protocol/meshPacket';
-import { attributeObservation as attributeOutgoingChannelRelay } from '../protocol/pendingChannelSends';
 import { parseCompanionFrame } from './companionFrame';
 import type { ITransport } from './types';
 
@@ -95,6 +94,21 @@ export class BleTransport implements ITransport {
   // 'disconnect' event and our forceLinkDead() invoke it for the same session.
   private disconnectHandled = false;
 
+  private libStateCb: ((s: LibTransportState) => void) | null = null;
+  private libDataCb: ((bytes: Uint8Array) => void) | null = null;
+
+  /** The lib Transport the MeshCoreSession consumes. Bridges noble I/O:
+   *  write→rxChar, TX notifications→onBytes, connect/disconnect→state. */
+  readonly libTransport: Transport = createBleTransport({
+    write: (bytes) => this.sendBytes(Buffer.from(bytes)),
+    subscribe: (onBytes) => {
+      this.libDataCb = onBytes;
+    },
+    watchState: (onState) => {
+      this.libStateCb = onState;
+    },
+  });
+
   constructor() {
     noble.on('discover', this.onDiscover);
   }
@@ -171,6 +185,7 @@ export class BleTransport implements ITransport {
       this.reconnectAttempts = 0;
       logger.info(`connected ${deviceId}; notifications subscribed`);
       emit.transportState('connected', deviceId);
+      this.libStateCb?.('connected');
     } catch (err) {
       // Connect failed mid-way: tear down any partial state and release the
       // 'connecting' UI state so the user can pick a device and try again.
@@ -211,6 +226,7 @@ export class BleTransport implements ITransport {
       await new Promise<void>((resolve) => p.disconnect(() => resolve()));
     }
     emit.transportState('idle');
+    this.libStateCb?.('idle');
   }
 
   // Releases noble's native CBCentralManager so the Electron process can exit
@@ -329,32 +345,6 @@ export class BleTransport implements ITransport {
     }
     const fullBytes = [...data];
     if (parsed.kind === 'mesh') {
-      // PUSH_CODE_LOG_RX_DATA (0x88) carries the raw on-air mesh packet,
-      // including the per-hop path bytes our PathViewer renders. Decode it
-      // here and tee the observation into the side-channel buffer so the
-      // later RESP_CHANNEL_MSG_RECV_V3 can correlate.
-      if (parsed.source === 'log_rx') {
-        const mesh = parseMeshPacket(parsed.meshBytes);
-        if (mesh && mesh.payloadType === PAYLOAD_TYPE.GRP_TXT && mesh.payload.length >= 1) {
-          const channelHash = mesh.payload[0];
-          const encrypted = mesh.payload.subarray(1);
-          const payloadFingerprint = createHash('sha1').update(encrypted).digest('hex').slice(0, 16);
-          const observation = {
-            recordedAt: Date.now(),
-            channelHash,
-            hashSize: mesh.hashSize,
-            hashCount: mesh.hashCount,
-            pathHex: mesh.pathHex,
-            finalSnr: parsed.snr,
-            payloadFingerprint,
-          };
-          recordMeshObservation(observation);
-          // If this observation is a repeater relaying one of our recent
-          // outgoing channel sends, attribute it back to that message — the
-          // helper appends a MessagePath and broadcasts messagePathHeard.
-          attributeOutgoingChannelRelay(observation);
-        }
-      }
       emit.packet({
         timestamp: Date.now(),
         transportType: 'ble',
@@ -379,6 +369,7 @@ export class BleTransport implements ITransport {
         codeName: parsed.codeName,
       });
     }
+    this.libDataCb?.(Uint8Array.from(data));
   };
 
   private onPeripheralDisconnect = (deviceId: string) => {
@@ -395,6 +386,7 @@ export class BleTransport implements ITransport {
     }
     this.peripheral = null;
     emit.transportState('idle', deviceId);
+    this.libStateCb?.('idle');
     if (this.userDisconnected) return;
     this.scheduleReconnect(deviceId);
   };
