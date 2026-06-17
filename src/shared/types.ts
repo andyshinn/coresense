@@ -644,6 +644,10 @@ export const DEFAULT_GPS_CONFIG: GpsConfig = {
 export interface DeviceInfo {
   firmwareVerCode: number;
   deviceModel: string;
+  /** Human-readable firmware version, e.g. "v1.15.0". Empty until DEVICE_INFO. */
+  firmwareVersion: string;
+  /** Firmware build date, e.g. "19 Apr 2026". Empty until DEVICE_INFO. */
+  firmwareBuildDate: string;
   maxContacts: number;
   maxChannels: number;
   channelsUsed: number;
@@ -655,6 +659,8 @@ export interface DeviceInfo {
 export const DEFAULT_DEVICE_INFO: DeviceInfo = {
   firmwareVerCode: 0,
   deviceModel: '',
+  firmwareVersion: '',
+  firmwareBuildDate: '',
   maxContacts: 0,
   maxChannels: 0,
   channelsUsed: 0,
