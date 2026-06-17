@@ -1,17 +1,13 @@
 import { Buffer } from 'node:buffer';
-import { afterEach, describe, expect, it } from 'vitest';
-import { bus, emit } from '../../../src/main/events/bus';
-import { protocolSession } from '../../../src/main/protocol';
+import { describe, expect, it } from 'vitest';
+import { bus } from '../../../src/main/events/bus';
 import { stateHolder } from '../../../src/main/state/holder';
-import { companionPacket } from '../../support/fake-transport';
 import { frameBuf } from '../../support/frames';
+import { makeTestSession } from '../../support/session-harness';
 
 describe('RESP_DEVICE_INFO handled via the feature registry', () => {
-  afterEach(() => protocolSession().stop());
-
   it('folds firmware info into device state and emits deviceInfo + deviceCapabilities', async () => {
-    const session = protocolSession();
-    session.start();
+    const { receive } = makeTestSession();
 
     const info: { firmwareVerCode?: number }[] = [];
     const caps: { repeatMode?: boolean; identityKeyIO?: boolean }[] = [];
@@ -20,7 +16,7 @@ describe('RESP_DEVICE_INFO handled via the feature registry', () => {
     bus.on('deviceInfo', onInfo);
     bus.on('deviceCapabilities', onCaps);
 
-    emit.packet(companionPacket(frameBuf('deviceInfo')));
+    receive(frameBuf('deviceInfo'));
     await Promise.resolve();
     bus.off('deviceInfo', onInfo);
     bus.off('deviceCapabilities', onCaps);
@@ -32,8 +28,7 @@ describe('RESP_DEVICE_INFO handled via the feature registry', () => {
   });
 
   it('parses firmware version + build date from a full DEVICE_INFO frame', async () => {
-    const session = protocolSession();
-    session.start();
+    const { receive } = makeTestSession();
 
     const info: Array<{ firmwareVersion?: string; firmwareBuildDate?: string }> = [];
     const onInfo = (d: { firmwareVersion?: string; firmwareBuildDate?: string }) => info.push(d);
@@ -54,7 +49,7 @@ describe('RESP_DEVICE_INFO handled via the feature registry', () => {
     frame.write('v1.15.0', 60, 'ascii');
     frame[80] = 1;
 
-    emit.packet(companionPacket(frame));
+    receive(frame);
     await Promise.resolve();
     bus.off('deviceInfo', onInfo);
 

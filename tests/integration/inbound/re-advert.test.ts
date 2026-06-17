@@ -1,10 +1,9 @@
 import { Buffer } from 'node:buffer';
-import { afterEach, describe, expect, it } from 'vitest';
-import { bus, emit } from '../../../src/main/events/bus';
-import { protocolSession } from '../../../src/main/protocol';
+import { describe, expect, it } from 'vitest';
+import { bus } from '../../../src/main/events/bus';
 import { stateHolder } from '../../../src/main/state/holder';
 import type { Contact } from '../../../src/shared/types';
-import { companionPacket } from '../../support/fake-transport';
+import { makeTestSession } from '../../support/session-harness';
 
 const PK = 'aa'.repeat(32);
 
@@ -22,18 +21,17 @@ const contact = (pk: string, lastSeenMs: number): Contact => ({
 });
 
 describe('inbound PUSH_ADVERT (known contact re-advert)', () => {
-  afterEach(() => protocolSession().stop());
-
   it('touches a known contact last-seen and re-emits contacts', () => {
-    stateHolder().upsertContact(contact(PK, 1_000));
-    const session = protocolSession();
-    session.start();
+    const { adapter, receive } = makeTestSession();
+    // Seed the lib's contact store so the PUSH_ADVERT handler resolves a known
+    // contact; the lib's `contacts` event then flows into coresense's holder.
+    adapter.session.state.upsertContact(contact(PK, 1_000));
 
     const emitted: Array<Array<{ key: string }>> = [];
     const onContacts = (c: Array<{ key: string }>) => emitted.push(c);
     bus.on('contacts', onContacts);
     try {
-      emit.packet(companionPacket(advert(PK)));
+      receive(advert(PK));
       const updated = stateHolder()
         .getContacts()
         .find((c) => c.key === `c:${PK}`);
@@ -45,14 +43,13 @@ describe('inbound PUSH_ADVERT (known contact re-advert)', () => {
   });
 
   it('ignores a re-advert for an unknown contact', () => {
-    const session = protocolSession();
-    session.start();
+    const { receive } = makeTestSession();
 
     const emitted: unknown[] = [];
     const onContacts = (c: unknown) => emitted.push(c);
     bus.on('contacts', onContacts);
     try {
-      expect(() => emit.packet(companionPacket(advert('bb'.repeat(32))))).not.toThrow();
+      expect(() => receive(advert('bb'.repeat(32)))).not.toThrow();
       expect(emitted).toHaveLength(0);
     } finally {
       bus.off('contacts', onContacts);

@@ -1,22 +1,18 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { bus, emit } from '../../../src/main/events/bus';
-import { protocolSession } from '../../../src/main/protocol';
+import { describe, expect, it } from 'vitest';
+import { bus } from '../../../src/main/events/bus';
 import { stateHolder } from '../../../src/main/state/holder';
-import { companionPacket } from '../../support/fake-transport';
 import { frameBuf } from '../../support/frames';
+import { makeTestSession } from '../../support/session-harness';
 
 describe('RESP_SELF_INFO handled via the feature registry', () => {
-  afterEach(() => protocolSession().stop());
-
   it('surfaces the radio identity as the app Owner and emits owner', async () => {
-    const session = protocolSession();
-    session.start();
+    const { receive } = makeTestSession();
 
     const owners: { name?: string; publicKeyHex?: string; publicKeyShort?: string }[] = [];
     const onOwner = (o: { name?: string; publicKeyHex?: string; publicKeyShort?: string }) => owners.push(o);
     bus.on('owner', onOwner);
 
-    emit.packet(companionPacket(frameBuf('selfInfo')));
+    receive(frameBuf('selfInfo'));
     await Promise.resolve();
     bus.off('owner', onOwner);
 

@@ -1,8 +1,7 @@
 import { Buffer } from 'node:buffer';
-import { afterEach, describe, expect, it } from 'vitest';
-import { bus, emit } from '../../../src/main/events/bus';
-import { protocolSession } from '../../../src/main/protocol';
-import { companionPacket } from '../../support/fake-transport';
+import { describe, expect, it } from 'vitest';
+import { bus } from '../../../src/main/events/bus';
+import { makeTestSession } from '../../support/session-harness';
 
 // RESP_CONTACT (0x03) carries a full 148-byte record (same layout as
 // PUSH_NEW_ADVERT, only the code byte differs).
@@ -25,11 +24,8 @@ const startFrame = (total: number) => {
 const endFrame = Buffer.from([0x04, 0x00, 0x00, 0x00, 0x00]); // RESP_END_OF_CONTACTS
 
 describe('inbound contacts iterator via the feature registry + contactsSync bridge', () => {
-  afterEach(() => protocolSession().stop());
-
   it('drives syncProgress 0/2 → 1/2 → 2/2 → 2/2 and surfaces both contacts', () => {
-    const session = protocolSession();
-    session.start();
+    const { receive } = makeTestSession();
 
     const progress: Array<{ done: number; total: number }> = [];
     const onProgress = (p: { contacts: { done: number; total: number } }) => progress.push({ ...p.contacts });
@@ -43,10 +39,10 @@ describe('inbound contacts iterator via the feature registry + contactsSync brid
     const pkA = 'a1'.repeat(32);
     const pkB = 'b2'.repeat(32);
 
-    emit.packet(companionPacket(startFrame(2)));
-    emit.packet(companionPacket(contactFrame(pkA, 'Alice')));
-    emit.packet(companionPacket(contactFrame(pkB, 'Bob')));
-    emit.packet(companionPacket(endFrame));
+    receive(startFrame(2));
+    receive(contactFrame(pkA, 'Alice'));
+    receive(contactFrame(pkB, 'Bob'));
+    receive(endFrame);
 
     bus.off('syncProgress', onProgress);
     bus.off('contacts', onContacts);
@@ -65,17 +61,16 @@ describe('inbound contacts iterator via the feature registry + contactsSync brid
   });
 
   it('self-heals when more contacts arrive than CONTACTS_START promised', () => {
-    const session = protocolSession();
-    session.start();
+    const { receive } = makeTestSession();
 
     const progress: Array<{ done: number; total: number }> = [];
     const onProgress = (p: { contacts: { done: number; total: number } }) => progress.push({ ...p.contacts });
     bus.on('syncProgress', onProgress);
 
-    emit.packet(companionPacket(startFrame(1))); // radio promises 1
-    emit.packet(companionPacket(contactFrame('a1'.repeat(32), 'Alice')));
-    emit.packet(companionPacket(contactFrame('b2'.repeat(32), 'Bob'))); // but sends 2
-    emit.packet(companionPacket(endFrame));
+    receive(startFrame(1)); // radio promises 1
+    receive(contactFrame('a1'.repeat(32), 'Alice'));
+    receive(contactFrame('b2'.repeat(32), 'Bob')); // but sends 2
+    receive(endFrame);
 
     bus.off('syncProgress', onProgress);
 

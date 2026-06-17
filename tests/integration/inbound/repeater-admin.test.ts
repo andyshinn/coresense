@@ -1,12 +1,9 @@
 import { Buffer } from 'node:buffer';
 import { afterEach, describe, expect, it } from 'vitest';
 import { adminSessions } from '../../../src/main/bridge/adminSession';
-import { bus, emit } from '../../../src/main/events/bus';
-import { protocolSession } from '../../../src/main/protocol';
-import { stateHolder } from '../../../src/main/state/holder';
-import { transportManager } from '../../../src/main/transport/manager';
+import { bus } from '../../../src/main/events/bus';
 import type { Contact } from '../../../src/shared/types';
-import { companionPacket, FakeTransport } from '../../support/fake-transport';
+import { makeTestSession } from '../../support/session-harness';
 
 const PK = 'aa'.repeat(32);
 const PREFIX = 'aaaaaaaaaaaa'; // first 6 bytes of PK
@@ -79,20 +76,16 @@ function cliReply(prefixHex: string, body: string): Buffer {
 
 describe('repeater administration', () => {
   afterEach(() => {
-    protocolSession().stop();
     adminSessions.reset('test cleanup');
   });
 
   it('logs in (mesh mode) and records the admin session on PUSH_LOGIN_SUCCESS', async () => {
-    stateHolder().upsertContact(repeater());
-    const fake = new FakeTransport();
-    transportManager.setTransport(fake);
-    const session = protocolSession();
-    session.start();
+    const { adapter, transport, receive } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
 
-    const p = session.repeaterLogin(`c:${PK}`, 'pw');
-    expect(fake.sent[0][0]).toBe(0x39); // CMD_SEND_ANON_REQ (mesh login)
-    emit.packet(companionPacket(loginSuccess(PREFIX)));
+    const p = adapter.repeaterLogin(`c:${PK}`, 'pw');
+    expect(transport.sent[0][0]).toBe(0x39); // CMD_SEND_ANON_REQ (mesh login)
+    receive(loginSuccess(PREFIX));
     const result = await p;
 
     expect(result.isAdmin).toBe(true);
@@ -102,19 +95,17 @@ describe('repeater administration', () => {
   });
 
   it('round-trips owner-info via the admin tag seam (RESP_SENT → BINARY_RESPONSE)', async () => {
-    stateHolder().upsertContact(repeater());
-    transportManager.setTransport(new FakeTransport());
-    const session = protocolSession();
-    session.start();
+    const { adapter, receive } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
 
-    const p = session.repeaterRequestOwnerInfo(`c:${PK}`);
+    const p = adapter.repeaterRequestOwnerInfo(`c:${PK}`);
     await tick();
     // RESP_SENT hands back the tag — consumed by the admin queue (onSentTag),
     // NOT the DM FIFO.
-    emit.packet(companionPacket(respSent('deadbeef')));
+    receive(respSent('deadbeef'));
     await tick();
     // The tagged response wakes the awaiter.
-    emit.packet(companionPacket(binaryResponse('deadbeef', 'fw-1.2\nNode A\nowner notes')));
+    receive(binaryResponse('deadbeef', 'fw-1.2\nNode A\nowner notes'));
     const owner = await p;
 
     expect(owner).toEqual({
@@ -125,17 +116,15 @@ describe('repeater administration', () => {
   });
 
   it('emits repeaterStatus on PUSH_STATUS_RESPONSE for a known sender', async () => {
-    stateHolder().upsertContact(repeater());
-    transportManager.setTransport(new FakeTransport());
-    const session = protocolSession();
-    session.start();
+    const { adapter, receive } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
 
     const events: Array<{ contactKey: string }> = [];
     const on = (s: { contactKey: string }) => events.push(s);
     bus.on('repeaterStatus', on);
     try {
-      await session.sendStatusReq(`c:${PK}`);
-      emit.packet(companionPacket(statusResponse(PREFIX)));
+      await adapter.sendStatusReq(`c:${PK}`);
+      receive(statusResponse(PREFIX));
       expect(events.at(-1)?.contactKey).toBe(`c:${PK}`);
     } finally {
       bus.off('repeaterStatus', on);
@@ -143,17 +132,15 @@ describe('repeater administration', () => {
   });
 
   it('emits repeaterTelemetry on PUSH_TELEMETRY_RESPONSE for a known sender', async () => {
-    stateHolder().upsertContact(repeater());
-    transportManager.setTransport(new FakeTransport());
-    const session = protocolSession();
-    session.start();
+    const { adapter, receive } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
 
     const events: Array<{ contactKey: string; fields: unknown[] }> = [];
     const on = (s: { contactKey: string; fields: unknown[] }) => events.push(s);
     bus.on('repeaterTelemetry', on);
     try {
-      await session.sendTelemetryReq(`c:${PK}`);
-      emit.packet(companionPacket(telemetryResponse(PREFIX)));
+      await adapter.sendTelemetryReq(`c:${PK}`);
+      receive(telemetryResponse(PREFIX));
       expect(events.at(-1)?.contactKey).toBe(`c:${PK}`);
       expect(events.at(-1)?.fields.length).toBeGreaterThan(0);
     } finally {
@@ -162,25 +149,21 @@ describe('repeater administration', () => {
   });
 
   it('resolves local stats from RESP_STATS', async () => {
-    transportManager.setTransport(new FakeTransport());
-    const session = protocolSession();
-    session.start();
+    const { adapter, receive } = makeTestSession();
 
-    const p = session.repeaterGetLocalStats('CORE');
-    emit.packet(companionPacket(localStatsCore()));
+    const p = adapter.repeaterGetLocalStats('CORE');
+    receive(localStatsCore());
     const stats = await p;
     expect(stats).toMatchObject({ kind: 'core', battMv: 3700, uptimeSecs: 123, queueLen: 1 });
   });
 
   it('resolves a CLI command reply routed by sender prefix', async () => {
-    stateHolder().upsertContact(repeater());
-    transportManager.setTransport(new FakeTransport());
-    const session = protocolSession();
-    session.start();
+    const { adapter, receive } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
 
-    const p = session.repeaterSendCli(`c:${PK}`, 'reboot now');
+    const p = adapter.repeaterSendCli(`c:${PK}`, 'reboot now');
     await tick();
-    emit.packet(companionPacket(cliReply(PREFIX, 'OK rebooting')));
+    receive(cliReply(PREFIX, 'OK rebooting'));
     const reply = await p;
     expect(reply).toBe('OK rebooting');
   });

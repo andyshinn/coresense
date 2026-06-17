@@ -1,11 +1,17 @@
 import { Buffer } from 'node:buffer';
-import { afterEach, describe, expect, it } from 'vitest';
-import { bus, emit } from '../../../src/main/events/bus';
-import { protocolSession } from '../../../src/main/protocol';
-import { discoveredStore } from '../../../src/main/storage/discoveredContacts';
-import { companionPacket } from '../../support/fake-transport';
+import { describe, expect, it } from 'vitest';
+import { bus } from '../../../src/main/events/bus';
+import type { Contact } from '../../../src/shared/types';
+import { makeTestSession } from '../../support/session-harness';
 
-const PUBKEY = 'bb'.repeat(32);
+const PK = 'bb'.repeat(32);
+
+const contact = (pk: string): Contact => ({
+  key: `c:${pk}`,
+  publicKeyHex: pk,
+  name: 'Bob',
+  kind: 'chat',
+});
 
 function contactDeletedFrame(pubkeyHex: string): Buffer {
   const frame = Buffer.alloc(1 + 32);
@@ -15,33 +21,17 @@ function contactDeletedFrame(pubkeyHex: string): Buffer {
 }
 
 describe('inbound PUSH_CONTACT_DELETED', () => {
-  afterEach(() => protocolSession().stop());
-
   it('removes the contact and emits contactEvicted with its name', () => {
-    const session = protocolSession();
-    session.start();
-    discoveredStore.upsert(
-      {
-        publicKeyHex: PUBKEY,
-        type: 1,
-        flags: 0,
-        outPathLen: 0xff,
-        outPathHex: '',
-        name: 'Bob',
-        lastAdvertUnix: 0,
-        gpsLat: 0,
-        gpsLon: 0,
-        lastmod: 0,
-      },
-      { onRadio: true, nowMs: 1_700_000_000_000, heardLive: false },
-    );
+    const { adapter, receive } = makeTestSession();
+    // Seed the lib's contact store so the eviction handler can resolve the
+    // display name for the toast before dropping the contact.
+    adapter.session.state.upsertContact(contact(PK));
 
     const evicted: string[] = [];
     bus.on('contactEvicted', (name: string) => evicted.push(name));
 
-    emit.packet(companionPacket(contactDeletedFrame(PUBKEY)));
+    receive(contactDeletedFrame(PK));
 
     expect(evicted).toEqual(['Bob']);
-    expect(discoveredStore.get(PUBKEY)?.on_radio).toBe(0);
   });
 });

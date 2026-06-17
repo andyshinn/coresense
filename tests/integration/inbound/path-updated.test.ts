@@ -1,10 +1,9 @@
 import { Buffer } from 'node:buffer';
-import { afterEach, describe, expect, it } from 'vitest';
-import { bus, emit } from '../../../src/main/events/bus';
-import { protocolSession } from '../../../src/main/protocol';
+import { describe, expect, it } from 'vitest';
+import { bus } from '../../../src/main/events/bus';
 import { stateHolder } from '../../../src/main/state/holder';
 import type { Contact } from '../../../src/shared/types';
-import { companionPacket } from '../../support/fake-transport';
+import { makeTestSession } from '../../support/session-harness';
 
 const PK = 'cc'.repeat(32);
 
@@ -22,17 +21,17 @@ const contact = (pk: string, lastSeenMs: number): Contact => ({
 });
 
 describe('inbound PUSH_PATH_UPDATED', () => {
-  afterEach(() => protocolSession().stop());
-
   it('touches a known contact last-seen and re-emits contacts', () => {
-    stateHolder().upsertContact(contact(PK, 1_000));
-    protocolSession().start();
+    const { adapter, receive } = makeTestSession();
+    // Seed the lib's contact store so the PUSH_PATH_UPDATED handler resolves a
+    // known contact; the lib's `contacts` event then flows into coresense's holder.
+    adapter.session.state.upsertContact(contact(PK, 1_000));
 
     const emitted: unknown[] = [];
     const onContacts = (c: unknown) => emitted.push(c);
     bus.on('contacts', onContacts);
     try {
-      emit.packet(companionPacket(pathUpdated(PK)));
+      receive(pathUpdated(PK));
       const updated = stateHolder()
         .getContacts()
         .find((c) => c.key === `c:${PK}`);
@@ -44,12 +43,12 @@ describe('inbound PUSH_PATH_UPDATED', () => {
   });
 
   it('ignores PUSH_PATH_UPDATED for an unknown contact', () => {
-    protocolSession().start();
+    const { receive } = makeTestSession();
     const emitted: unknown[] = [];
     const onContacts = (c: unknown) => emitted.push(c);
     bus.on('contacts', onContacts);
     try {
-      expect(() => emit.packet(companionPacket(pathUpdated('dd'.repeat(32))))).not.toThrow();
+      expect(() => receive(pathUpdated('dd'.repeat(32)))).not.toThrow();
       expect(emitted).toHaveLength(0);
     } finally {
       bus.off('contacts', onContacts);

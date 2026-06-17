@@ -1,15 +1,11 @@
 import { Buffer } from 'node:buffer';
-import { afterEach, describe, expect, it } from 'vitest';
-import { bus, emit } from '../../../src/main/events/bus';
-import { protocolSession } from '../../../src/main/protocol';
-import { companionPacket } from '../../support/fake-transport';
+import { describe, expect, it } from 'vitest';
+import { bus } from '../../../src/main/events/bus';
+import { makeTestSession } from '../../support/session-harness';
 
 describe('RESP_AUTOADD_CONFIG folds the flags byte into auto-add config', () => {
-  afterEach(() => protocolSession().stop());
-
   it('maps the flags byte into auto-add config and emits autoAddConfig', async () => {
-    const session = protocolSession();
-    session.start();
+    const { receive } = makeTestSession();
 
     const seen: Array<{ chat: boolean; repeater: boolean; overwriteOldest: boolean }> = [];
     const onCfg = (c: { chat: boolean; repeater: boolean; overwriteOldest: boolean }) => {
@@ -17,7 +13,7 @@ describe('RESP_AUTOADD_CONFIG folds the flags byte into auto-add config', () => 
     };
     bus.on('autoAddConfig', onCfg);
 
-    emit.packet(companionPacket(Buffer.from([0x19, 0x06]))); // chat(0x02)|repeater(0x04)
+    receive(Buffer.from([0x19, 0x06])); // chat(0x02)|repeater(0x04)
     await Promise.resolve();
     bus.off('autoAddConfig', onCfg);
 

@@ -1,16 +1,12 @@
 import { Buffer } from 'node:buffer';
-import { afterEach, describe, expect, it } from 'vitest';
-import { bus, emit } from '../../../src/main/events/bus';
-import { protocolSession } from '../../../src/main/protocol';
+import { describe, expect, it } from 'vitest';
+import { bus } from '../../../src/main/events/bus';
 import { stateHolder } from '../../../src/main/state/holder';
-import { companionPacket } from '../../support/fake-transport';
+import { makeTestSession } from '../../support/session-harness';
 
 describe('RESP_BATT_AND_STORAGE handled via the feature registry', () => {
-  afterEach(() => protocolSession().stop());
-
   it('folds battery + storage into device info and emits deviceInfo', async () => {
-    const session = protocolSession();
-    session.start();
+    const { receive } = makeTestSession();
 
     const emitted: { batteryMv?: number; storageUsedKb?: number }[] = [];
     const onInfo = (info: { batteryMv?: number; storageUsedKb?: number }) => {
@@ -18,7 +14,7 @@ describe('RESP_BATT_AND_STORAGE handled via the feature registry', () => {
     };
     bus.on('deviceInfo', onInfo);
 
-    emit.packet(companionPacket(Buffer.from([0x0c, 0x10, 0x0e, 0x00, 0x01, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00])));
+    receive(Buffer.from([0x0c, 0x10, 0x0e, 0x00, 0x01, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00]));
     await Promise.resolve();
     bus.off('deviceInfo', onInfo);
 
