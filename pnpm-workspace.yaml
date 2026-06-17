@@ -25,5 +25,6 @@ allowedDeprecatedVersions:
 blockExoticSubdeps: false
 nodeLinker: hoisted
 overrides:
+  '@andyshinn/meshcore-ts': link:../meshcore-ts
   "@types/parse-path": "npm:parse-path@7.1.0"
   extract-zip: npm:@electron-internal/extract-zip@1.0.3

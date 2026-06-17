@@ -7,11 +7,15 @@ settings:
 overrides:
   '@types/parse-path': npm:parse-path@7.1.0
   extract-zip: npm:@electron-internal/extract-zip@1.0.3
+  '@andyshinn/meshcore-ts': link:../meshcore-ts
 
 importers:
 
   .:
     dependencies:
+      '@andyshinn/meshcore-ts':
+        specifier: link:../meshcore-ts
+        version: link:../meshcore-ts
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
