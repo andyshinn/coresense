@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { lipoPercent } from '../../lib/battery';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
-import { fmtBandwidth, fmtFreqMhz, fmtGpsInterval, fmtStorageKb } from './ownerFormat';
+import { fmtBandwidth, fmtFirmware, fmtFreqMhz, fmtGpsInterval, fmtStorageKb } from './ownerFormat';
 
 function Ring({
   pct,
@@ -109,6 +109,14 @@ export function OwnerCardPopover() {
 
   return (
     <div className="flex flex-col gap-3">
+      <Group title="Device">
+        <div className="grid grid-cols-1 gap-y-0.5">
+          <KV k="Model" v={deviceInfo.deviceModel || '—'} />
+          <KV k="Firmware" v={fmtFirmware(deviceInfo.firmwareVersion, deviceInfo.firmwareVerCode)} accent />
+          <KV k="Build" v={deviceInfo.firmwareBuildDate || '—'} />
+        </div>
+      </Group>
+
       {/* Gauges */}
       <div className="flex justify-around">
         <Ring pct={battPct} label={`${battPct}`} sub="Battery %" />
