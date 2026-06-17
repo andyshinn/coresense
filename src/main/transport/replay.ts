@@ -43,9 +43,11 @@ function loadFrames(path: string): Buffer[] {
 export class FileReplayTransport implements ITransport {
   readonly type = 'ble' as const;
   readonly sent: Buffer[] = [];
-  // Placeholder lib Transport satisfying ITransport. Phase G3 wires it to feed
-  // replayed frames into the session; for now it is a plain LoopbackTransport.
-  readonly libTransport: Transport = new LoopbackTransport();
+  // The lib Transport the SessionAdapter's MeshCoreSession ingests. A
+  // LoopbackTransport lets us push state transitions (drives the handshake) and
+  // deliver each recorded frame into the session via receive().
+  private readonly loopback = new LoopbackTransport();
+  readonly libTransport: Transport = this.loopback;
   private readonly fixturePath: string;
 
   constructor(fixturePath: string) {
@@ -53,10 +55,13 @@ export class FileReplayTransport implements ITransport {
   }
 
   async connect(deviceId: string): Promise<void> {
-    // Intentional for the test double: emit connected BEFORE loading the fixture
-    // (unlike BleTransport, which only emits connected once the link is up), so
+    // Intentional for the test double: signal connected BEFORE loading the
+    // fixture (unlike BleTransport, which only connects once the link is up), so
     // replay reports connected even when the fixture is empty or missing.
+    // emit.transportState feeds the renderer's connection UI; loopback.setState
+    // drives the MeshCoreSession's post-connect handshake.
     emit.transportState('connected', deviceId);
+    this.loopback.setState('connected');
     let frames: Buffer[];
     try {
       frames = loadFrames(this.fixturePath);
@@ -64,12 +69,18 @@ export class FileReplayTransport implements ITransport {
       log.error(`failed to load replay fixture: ${(err as Error).message}`);
       return;
     }
-    for (const frame of frames) this.dispatch(frame);
+    for (const frame of frames) {
+      // Tap the packet bus (kept for any inspector/observation consumers) AND
+      // feed the session through its lib Transport so the adapter ingests it.
+      this.dispatch(frame);
+      this.loopback.receive(Uint8Array.from(frame));
+    }
     log.info(`replayed ${frames.length} frame(s) from ${this.fixturePath}`);
   }
 
   async disconnect(): Promise<void> {
     emit.transportState('idle');
+    this.loopback.setState('idle');
   }
 
   async sendBytes(bytes: Buffer): Promise<void> {
