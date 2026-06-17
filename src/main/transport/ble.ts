@@ -111,6 +111,15 @@ export class BleTransport implements ITransport {
 
   constructor() {
     noble.on('discover', this.onDiscover);
+    // createBleTransport seeds its internal state to 'connected' (correct for
+    // the react-native pattern, where the transport is built only once a link
+    // exists). We build this transport once at app launch, long before any
+    // link, so we must report the truth — disconnected — until connect() fires
+    // 'connected'. Otherwise MeshCoreSession.start() sees getState() ===
+    // 'connected', runs a doomed handshake against a dead link, and then skips
+    // the handshake on the first real connect (the !wasConnected→connected
+    // transition never fires), so the first BLE session never syncs.
+    this.libStateCb?.('idle');
   }
 
   async scan(): Promise<void> {
