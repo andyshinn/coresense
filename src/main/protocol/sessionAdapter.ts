@@ -1,4 +1,5 @@
 import { MeshCoreSession, type Transport } from '@andyshinn/meshcore-ts';
+import { adminSessions } from '../bridge/adminSession';
 import { wireSessionEvents } from './adapterEvents';
 
 const APP_NAME = 'coresense';
@@ -132,11 +133,26 @@ export class SessionAdapter {
   }
 
   // repeater admin
-  repeaterLogin(key: string, password: string) {
-    return this.session.repeaterLogin(key, password);
+  async repeaterLogin(key: string, password: string) {
+    const result = await this.session.repeaterLogin(key, password);
+    // The library owns the login round-trip; mirror the resulting session into
+    // coresense's adminSessions read-model so the bridge/API (which reads
+    // adminSessions.getSession) reflects the logged-in state.
+    adminSessions.setSession({
+      contactKey: key,
+      publicKeyHex: key.startsWith('c:') ? key.slice(2) : key,
+      mode: result.mode,
+      role: result.isAdmin ? 'admin' : 'guest',
+      permissionsBits: result.permissions,
+      aclPermissionsBits: result.aclPermissions,
+      firmwareVerLevel: result.firmwareVerLevel,
+      loggedInAt: Date.now(),
+    });
+    return result;
   }
-  repeaterLogout(key: string) {
-    return this.session.repeaterLogout(key);
+  async repeaterLogout(key: string) {
+    await this.session.repeaterLogout(key);
+    adminSessions.clearSession(key);
   }
   repeaterRequestAcl(key: string) {
     return this.session.repeaterRequestAcl(key);
