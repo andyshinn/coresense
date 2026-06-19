@@ -108,6 +108,8 @@ function wireMessages(session: MeshCoreSession): void {
     holder.setMessageState(id, state);
     emit.messageState(id, state);
   });
+  // The lib emits only { id, path } (it doesn't track this message's state —
+  // we do); coresense owns the 'sent' → 'heard' transition.
   ev.on('messagePathHeard', ({ id, path }) => {
     const state = holder.appendMessagePath(id, path);
     if (state) emit.messagePathHeard({ id, path, state });

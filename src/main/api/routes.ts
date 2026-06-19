@@ -610,6 +610,12 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       const nextState = result.ok ? 'sent' : 'failed';
       holder.setMessageState(id, nextState);
       emit.messageState(id, nextState);
+      // Register the send so repeater relays we hear over the air (0x88) are
+      // attributed back to this message — the lib then emits `messagePathHeard`,
+      // which drives the green ✓×N "heard by N repeaters" counter.
+      if (result.ok && result.channelHash != null) {
+        protocolSession().registerChannelSend({ messageId: id, channelHash: result.channelHash });
+      }
       return result.ok ? c.json({ ok: true, id }) : c.json({ error: result.error }, 503);
     }
 

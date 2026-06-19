@@ -38,6 +38,9 @@ export class SessionAdapter {
   sendChannelText(key: string, text: string) {
     return this.session.sendChannelText(key, text);
   }
+  registerChannelSend(params: Parameters<MeshCoreSession['registerChannelSend']>[0]) {
+    return this.session.registerChannelSend(params);
+  }
   sendDmTextWithRetry(key: string, text: string, id: string) {
     return this.session.sendDmTextWithRetry(key, text, id);
   }

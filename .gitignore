@@ -172,3 +172,5 @@ tmbootpicker.efi
 
 # Lock files
 *.af~lock~
+
+.pnpm-store/
