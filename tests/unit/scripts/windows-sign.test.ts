@@ -84,6 +84,22 @@ describe('windows-sign hook', () => {
     await sign('C:/app/foo.exe');
     const [tool, args] = execFileSyncSpy.mock.calls[0];
     expect(tool).toBe('C:/sdk/signtool.exe');
-    expect(args).toContain('http://ts.example/');
+    expect(args).toEqual([
+      'sign',
+      '/v',
+      '/fd',
+      'sha256',
+      '/tr',
+      'http://ts.example/',
+      '/td',
+      'sha256',
+      '/dlib',
+      '/tmp/dlib.dll',
+      '/dmdf',
+      '/tmp/metadata.json',
+      '/d',
+      'CoreSense',
+      'C:/app/foo.exe',
+    ]);
   });
 });
