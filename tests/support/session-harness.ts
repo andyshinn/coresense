@@ -1,10 +1,10 @@
 import type { Buffer } from 'node:buffer';
-import { LoopbackTransport } from '@andyshinn/meshcore-ts';
+import { Transports } from '@andyshinn/meshcore-ts';
 import { SessionAdapter } from '../../src/main/protocol/sessionAdapter';
 
 export interface TestSession {
   adapter: SessionAdapter;
-  transport: LoopbackTransport;
+  transport: Transports.Loopback;
   /** Deliver one inbound companion frame (hex or Buffer) to the session. */
   receive(frame: Buffer | string): void;
 }
@@ -13,7 +13,7 @@ export interface TestSession {
  *  (so the handshake doesn't fire). Inject frames with `receive()`; assert on the
  *  emit.* bus + holder + transport.sent. */
 export function makeTestSession(): TestSession {
-  const transport = new LoopbackTransport();
+  const transport = new Transports.Loopback();
   const adapter = new SessionAdapter(transport);
   adapter.start();
   return {

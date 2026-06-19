@@ -1,4 +1,4 @@
-import type { ContactRecord } from '@andyshinn/meshcore-ts';
+import type { Models } from '@andyshinn/meshcore-ts';
 import {
   advTypeToKind,
   contactMatchesAnyBlockRule,
@@ -56,7 +56,7 @@ export const discoveredStore = {
    *  node) from a GET_CONTACTS resync (the device just listing what it stores).
    *  last_heard_ms is our-clock and only advances on a live advert, so it never
    *  moves on a resync — committing a contact to the radio can't bump it. */
-  upsert(record: ContactRecord, opts: { onRadio: boolean; nowMs: number; heardLive: boolean }): void {
+  upsert(record: Models.ContactRecord, opts: { onRadio: boolean; nowMs: number; heardLive: boolean }): void {
     const db = openDb();
     const heardMs = opts.heardLive ? opts.nowMs : 0;
     db.prepare(

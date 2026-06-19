@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { LoopbackTransport, type Transport } from '@andyshinn/meshcore-ts';
+import { type Ports, Transports } from '@andyshinn/meshcore-ts';
 import type { ITransport } from '../../src/main/transport/types';
 import type { RawPacket } from '../../src/shared/types';
 
@@ -26,7 +26,7 @@ export class FakeTransport implements ITransport {
   readonly sent: Buffer[] = [];
   // Placeholder lib Transport satisfying ITransport. These tests inject frames
   // via emit.packet, not through the lib Transport.
-  readonly libTransport: Transport = new LoopbackTransport();
+  readonly libTransport: Ports.Transport = new Transports.Loopback();
 
   async connect(): Promise<void> {
     /* no-op: nothing to connect to */

@@ -1,6 +1,5 @@
 import { Buffer } from 'node:buffer';
-import type { TransportState as LibTransportState, Transport } from '@andyshinn/meshcore-ts';
-import { createBleTransport } from '@andyshinn/meshcore-ts/transports';
+import { type Models, type Ports, Transports } from '@andyshinn/meshcore-ts';
 import noble, { type Characteristic, type Peripheral } from '@stoprocent/noble';
 import type { BleDevice } from '../../shared/types';
 import { emit } from '../events/bus';
@@ -94,12 +93,12 @@ export class BleTransport implements ITransport {
   // 'disconnect' event and our forceLinkDead() invoke it for the same session.
   private disconnectHandled = false;
 
-  private libStateCb: ((s: LibTransportState) => void) | null = null;
+  private libStateCb: ((s: Models.TransportState) => void) | null = null;
   private libDataCb: ((bytes: Uint8Array) => void) | null = null;
 
   /** The lib Transport the MeshCoreSession consumes. Bridges noble I/O:
    *  write→rxChar, TX notifications→onBytes, connect/disconnect→state. */
-  readonly libTransport: Transport = createBleTransport({
+  readonly libTransport: Ports.Transport = Transports.createBle({
     write: (bytes) => this.sendBytes(Buffer.from(bytes)),
     subscribe: (onBytes) => {
       this.libDataCb = onBytes;
@@ -111,7 +110,7 @@ export class BleTransport implements ITransport {
 
   constructor() {
     noble.on('discover', this.onDiscover);
-    // createBleTransport seeds its internal state to 'connected' (correct for
+    // Transports.createBle seeds its internal state to 'connected' (correct for
     // the react-native pattern, where the transport is built only once a link
     // exists). We build this transport once at app launch, long before any
     // link, so we must report the truth — disconnected — until connect() fires

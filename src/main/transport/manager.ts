@@ -1,4 +1,4 @@
-import type { Transport } from '@andyshinn/meshcore-ts';
+import type { Ports } from '@andyshinn/meshcore-ts';
 import type { TransportState } from '../../shared/types';
 import type { ITransport } from './types';
 
@@ -21,7 +21,7 @@ class TransportManager {
 
   /** The lib Transport of the active transport — what the SessionAdapter's
    *  MeshCoreSession is built over. Throws if no transport is installed yet. */
-  getLibTransport(): Transport {
+  getLibTransport(): Ports.Transport {
     if (!this.active) {
       throw new Error('no transport installed: call installStartupTransport() before protocolSession()');
     }

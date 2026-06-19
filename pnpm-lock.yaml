@@ -7,15 +7,14 @@ settings:
 overrides:
   '@types/parse-path': npm:parse-path@7.1.0
   extract-zip: npm:@electron-internal/extract-zip@1.0.3
-  '@andyshinn/meshcore-ts': link:../meshcore-ts
 
 importers:
 
   .:
     dependencies:
       '@andyshinn/meshcore-ts':
-        specifier: link:../meshcore-ts
-        version: link:../meshcore-ts
+        specifier: ^0.2.0
+        version: 0.2.0
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -214,6 +213,10 @@ importers:
         version: 4.1.8(@types/node@25.9.3)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.3)(jiti@2.7.0)(terser@5.48.0)(yaml@2.9.0))
 
 packages:
+
+  '@andyshinn/meshcore-ts@0.2.0':
+    resolution: {integrity: sha512-5Kqx8lGeuSl2fsoVnOR9A+mmQr5+4nIFwYBT+56bq3c2oMj3zLJOmh/xZ5wV2fvt0y7TSxsoXmjIg78UtoCDvg==}
+    engines: {node: '>=22'}
 
   '@asamuzakjp/css-color@5.1.11':
     resolution: {integrity: sha512-KVw6qIiCTUQhByfTd78h2yD1/00waTmm9uy/R7Ck/ctUyAPj+AEDLkQIdJW0T8+qGgj3j5bpNKK7Q3G+LedJWg==}
@@ -4567,6 +4570,8 @@ packages:
         optional: true
 
 snapshots:
+
+  '@andyshinn/meshcore-ts@0.2.0': {}
 
   '@asamuzakjp/css-color@5.1.11':
     dependencies:

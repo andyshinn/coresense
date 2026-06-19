@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { readFileSync } from 'node:fs';
-import { LoopbackTransport, type Transport } from '@andyshinn/meshcore-ts';
+import { type Ports, Transports } from '@andyshinn/meshcore-ts';
 import { emit } from '../events/bus';
 import { child } from '../log';
 import { parseCompanionFrame } from './companionFrame';
@@ -44,10 +44,10 @@ export class FileReplayTransport implements ITransport {
   readonly type = 'ble' as const;
   readonly sent: Buffer[] = [];
   // The lib Transport the SessionAdapter's MeshCoreSession ingests. A
-  // LoopbackTransport lets us push state transitions (drives the handshake) and
+  // Transports.Loopback lets us push state transitions (drives the handshake) and
   // deliver each recorded frame into the session via receive().
-  private readonly loopback = new LoopbackTransport();
-  readonly libTransport: Transport = this.loopback;
+  private readonly loopback = new Transports.Loopback();
+  readonly libTransport: Ports.Transport = this.loopback;
   private readonly fixturePath: string;
 
   constructor(fixturePath: string) {

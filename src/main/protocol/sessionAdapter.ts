@@ -1,4 +1,4 @@
-import { MeshCoreSession, type Transport } from '@andyshinn/meshcore-ts';
+import { MeshCoreSession, type Ports } from '@andyshinn/meshcore-ts';
 import { adminSessions } from '../bridge/adminSession';
 import { wireSessionEvents } from './adapterEvents';
 
@@ -11,7 +11,7 @@ export class SessionAdapter {
   readonly session: MeshCoreSession;
   private started = false;
 
-  constructor(transport: Transport) {
+  constructor(transport: Ports.Transport) {
     this.session = new MeshCoreSession({ transport, appName: APP_NAME, appVersion: APP_VERSION });
   }
 

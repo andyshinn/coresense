@@ -1,4 +1,4 @@
-import type { ContactRecord, ContactSource, Contact as LibContact } from '@andyshinn/meshcore-ts';
+import type { Models } from '@andyshinn/meshcore-ts';
 import { advTypeToKind } from '../../shared/contacts/discovered';
 import type { Contact } from '../../shared/types';
 import { emit } from '../events/bus';
@@ -8,7 +8,7 @@ import { stateHolder } from './holder';
 /** Feed a raw observed contact record into the sqlite discovered pool and emit
  *  the refreshed discovered list. Mirrors the old features/contacts ingestContact
  *  discovery path. `source` is 'sync' (on-radio handshake) or 'advert' (heard live). */
-export function ingestObservedContact(record: ContactRecord, source: ContactSource): void {
+export function ingestObservedContact(record: Models.ContactRecord, source: Models.ContactSource): void {
   const holder = stateHolder();
   // A brand-new advert (no existing row) is heard-live but NOT on the radio yet,
   // so default to false when get() is null — only an existing row with on_radio=1
@@ -31,7 +31,7 @@ export function ingestObservedContact(record: ContactRecord, source: ContactSour
 /** Merge coresense-only fields (pinned/muted) from current holder contacts into
  *  the lib's authoritative contact list, persist, and emit. The lib owns
  *  favourite/outPath/preferDirect/pathManual/pathLearnedAt. */
-export function applyLibContacts(libContacts: LibContact[]): void {
+export function applyLibContacts(libContacts: Models.Contact[]): void {
   const holder = stateHolder();
   const prev = new Map(holder.getContacts().map((c) => [c.key, c]));
   const merged: Contact[] = libContacts.map((c) => {
