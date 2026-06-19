@@ -134,10 +134,10 @@ jobs:
             Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
           if (-not $signtool) { throw "signtool.exe not found" }
           # Export for the forge windowsSign hook (scripts/windows-sign.cjs)
-          "AZURE_TRUSTED_SIGNING_DLIB=$dlib"         | Out-File $env:GITHUB_ENV -Append
-          "AZURE_TRUSTED_SIGNING_METADATA=$metadata" | Out-File $env:GITHUB_ENV -Append
-          "SIGNTOOL_PATH=$signtool"                  | Out-File $env:GITHUB_ENV -Append
-          "WINDOWS_SIGN=1"                           | Out-File $env:GITHUB_ENV -Append
+          "AZURE_TRUSTED_SIGNING_DLIB=$dlib"         | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "AZURE_TRUSTED_SIGNING_METADATA=$metadata" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "SIGNTOOL_PATH=$signtool"                  | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "WINDOWS_SIGN=1"                           | Out-File $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Make
         env:
