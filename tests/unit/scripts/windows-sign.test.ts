@@ -31,6 +31,7 @@ describe('windows-sign hook', () => {
       if (original[k] === undefined) delete process.env[k];
       else process.env[k] = original[k];
     }
+    execFileSyncSpy.mockRestore();
   });
 
   it('throws when AZURE_TRUSTED_SIGNING_DLIB is unset', async () => {
