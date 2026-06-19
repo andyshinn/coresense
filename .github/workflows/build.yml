@@ -157,3 +157,23 @@ jobs:
           name: coresense-${{ matrix.platform }}
           path: out/make/**
           if-no-files-found: error
+
+  release:
+    name: Draft release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          # Every maker output across the three coresense-<platform> artifacts.
+          # Includes the auto-update set (RELEASES, *.nupkg, *Setup.exe, *.zip).
+          files: dist-artifacts/**/*
+          fail_on_unmatched_files: true
