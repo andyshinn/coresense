@@ -150,12 +150,9 @@ export function LeftNav({ client }: LeftNavProps) {
     setRevealed((m) => ({ ...m, [key]: true }));
   }, []);
 
-  // Aggregate counts shown on the parent button — sums per-key counts for items
-  // in the group, so a collapsed branch still surfaces "there's something new".
-  const channelUnreadTotal = useMemo(
-    () => sortedChannels.reduce((acc, ch) => acc + (unreadByKey[ch.key] ?? 0), 0),
-    [sortedChannels, unreadByKey],
-  );
+  // Aggregate counts shown on the contact parent buttons — sums per-key counts
+  // for items in the group, so a collapsed branch still surfaces "there's
+  // something new".
   const contactUnreadByKind = useMemo(() => {
     const out: Record<ContactKind, number> = { chat: 0, repeater: 0, room: 0, sensor: 0 };
     for (const c of sortedContacts) {
@@ -275,7 +272,6 @@ export function LeftNav({ client }: LeftNavProps) {
                 icon={Hash}
                 open={openChannels}
                 onToggle={() => setLeftNavGroup('channels', !openChannels)}
-                unreadTotal={channelUnreadTotal}
                 onContextMenu={(e) => {
                   if (!connected) return;
                   e.preventDefault();

@@ -14,3 +14,4 @@
 * Exxpand the notification API from https://www.electronjs.org/docs/latest/api/notification to include groupID, groupTitle, subtitle, hasREply, icon.
 * Option to remember right panel expanded / collapsed state per context (DM, channel, settings, map, etc)
 * Make the channel and unread messages share the same component and style so that our messaging views are consistent.
+* A "Last advert" section in the right rail for a contact, showing the most recent advert we heard from them: advertised position, settings, and hop count. Removed for now because it was never wired up to real data — see the old `rail.contact.advert` placeholder in `src/renderer/shell/rightrail/sectionsFor.tsx`. *The contact's last advertised position already exists on the `Contact` type (`src/shared/types.ts`), so this is mostly a matter of surfacing the stored advert metadata in the rail.

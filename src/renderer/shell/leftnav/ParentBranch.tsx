@@ -10,7 +10,7 @@ export function ParentBranch({
   icon: Icon,
   open,
   onToggle,
-  unreadTotal,
+  unreadTotal = 0,
   trailingAction,
   onContextMenu,
   children,
@@ -19,7 +19,7 @@ export function ParentBranch({
   icon: LucideIcon;
   open: boolean;
   onToggle: () => void;
-  unreadTotal: number;
+  unreadTotal?: number;
   /** Optional action rendered absolute-positioned right of the button — typically wraps a PopoverTrigger via SidebarMenuAction asChild. */
   trailingAction?: ReactNode;
   onContextMenu?: (e: MouseEvent<HTMLButtonElement>) => void;

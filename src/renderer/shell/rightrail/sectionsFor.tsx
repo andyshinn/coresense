@@ -22,7 +22,7 @@ import { NeighboursRailBody } from './sections/NeighboursRail';
 import { VersionSection } from './sections/VersionSection';
 
 export interface RailSection {
-  id: string; // persisted key e.g. 'rail.channel.members'
+  id: string; // persisted key e.g. 'rail.channel.info'
   label: string;
   body: () => React.ReactNode;
   defaultOpen?: boolean;
@@ -180,16 +180,6 @@ export function sectionsFor(
           defaultOpen: baseDefaultOpen,
           body: () => <ChannelInfoSection channel={data.channel} />,
         },
-        {
-          id: 'rail.channel.members',
-          label: 'Members',
-          body: () => <Placeholder label="contacts heard in this channel" />,
-        },
-        {
-          id: 'rail.channel.pinned',
-          label: 'Pinned messages',
-          body: () => <Placeholder label="pinned messages — coming in Phase 11" />,
-        },
       ];
     case 'dm':
     case 'repeater':
@@ -212,16 +202,6 @@ export function sectionsFor(
             ) : (
               <Placeholder label="path editor needs a full public key (waiting on advert)" />
             ),
-        },
-        {
-          id: 'rail.contact.advert',
-          label: 'Last advert',
-          body: () => <Placeholder label="advertised position, settings, hops" />,
-        },
-        {
-          id: 'rail.contact.shared',
-          label: 'Shared channels',
-          body: () => <Placeholder label="channels this contact also sends to" />,
         },
       ];
     case 'packetlog':
