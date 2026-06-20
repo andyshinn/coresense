@@ -102,72 +102,23 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
-      # --- macOS: import Developer ID cert into an ephemeral keychain ---
-      - name: Import macOS signing certificate
+      # macOS code signing + notarization setup (cert import + notary key).
+      - name: Set up macOS signing
         if: matrix.platform == 'darwin'
-        env:
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-        run: |
-          set -euo pipefail
-          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
-          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
-          CERT_PATH="$RUNNER_TEMP/certificate.p12"
-          echo "$MACOS_CERTIFICATE" | base64 --decode > "$CERT_PATH"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERT_PATH" -P "$MACOS_CERTIFICATE_PASSWORD" \
-            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple:,codesign: \
-            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security default-keychain -s "$KEYCHAIN_PATH"
-          security list-keychains -d user -s "$KEYCHAIN_PATH"
-          rm -f "$CERT_PATH"
+        uses: ./.github/actions/setup-macos-signing
+        with:
+          certificate: ${{ secrets.MACOS_CERTIFICATE }}
+          certificate-password: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          api-key: ${{ secrets.APPLE_API_KEY }}
 
-      # --- macOS: write the notary API key (.p8) to a file forge can read ---
-      - name: Write notary API key
-        if: matrix.platform == 'darwin'
-        env:
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-        run: |
-          set -euo pipefail
-          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
-          printf '%s' "$APPLE_API_KEY" > "$KEY_PATH"
-          echo "APPLE_API_KEY=$KEY_PATH" >> "$GITHUB_ENV"
-
-      # --- Windows: install Trusted Signing dlib + metadata, locate signtool ---
-      - name: Set up Azure Trusted Signing
+      # Windows Azure Trusted Signing setup (dlib + metadata + signtool).
+      - name: Set up Windows signing
         if: matrix.platform == 'win32'
-        shell: pwsh
-        env:
-          AZURE_CODE_SIGNING_ENDPOINT: ${{ secrets.AZURE_CODE_SIGNING_ENDPOINT }}
-          AZURE_CODE_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
-          AZURE_CERT_PROFILE: ${{ secrets.AZURE_CERT_PROFILE }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          # Trusted Signing client contains Azure.CodeSigning.Dlib.dll
-          $client = "$env:RUNNER_TEMP\tsclient"
-          nuget install Microsoft.Trusted.Signing.Client -Version 1.0.95 `
-            -OutputDirectory $client -ExcludeVersion
-          $dlib = Join-Path $client "Microsoft.Trusted.Signing.Client\bin\x64\Azure.CodeSigning.Dlib.dll"
-          if (-not (Test-Path $dlib)) { throw "Trusted Signing dlib not found at $dlib" }
-          # Metadata describing the signing account + certificate profile
-          $metadata = "$env:RUNNER_TEMP\metadata.json"
-          @{
-            Endpoint = $env:AZURE_CODE_SIGNING_ENDPOINT
-            CodeSigningAccountName = $env:AZURE_CODE_SIGNING_ACCOUNT
-            CertificateProfileName = $env:AZURE_CERT_PROFILE
-          } | ConvertTo-Json | Set-Content -Path $metadata -Encoding utf8
-          # Newest signtool from the Windows SDK (>= 10.0.2261.755 required)
-          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
-            Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
-          if (-not $signtool) { throw "signtool.exe not found" }
-          # Export for the forge windowsSign hook (scripts/windows-sign.cjs)
-          "AZURE_TRUSTED_SIGNING_DLIB=$dlib"         | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-          "AZURE_TRUSTED_SIGNING_METADATA=$metadata" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-          "SIGNTOOL_PATH=$signtool"                  | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-          "WINDOWS_SIGN=1"                           | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+        uses: ./.github/actions/setup-windows-signing
+        with:
+          endpoint: ${{ secrets.AZURE_CODE_SIGNING_ENDPOINT }}
+          account: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          certificate-profile: ${{ secrets.AZURE_CERT_PROFILE }}
 
       - name: Make
         env:
