@@ -5,7 +5,7 @@ allowBuilds:
   '@stoprocent/noble': true
   electron: true
   electron-winstaller: true
-  es5-ext: set this to true or false
+  es5-ext: true
   esbuild: true
   fs-xattr: true
   macos-alias: true
