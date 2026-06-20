@@ -23,13 +23,13 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install native build deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -39,7 +39,7 @@ jobs:
       - run: pnpm test:unit
       - run: pnpm test:integration
       - run: pnpm test:coverage
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage
@@ -48,13 +48,13 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install native build + headless Electron deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev xvfb
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -63,7 +63,7 @@ jobs:
         run: pnpm exec playwright install-deps
       - run: pnpm package
       - run: xvfb-run --auto-servernum pnpm test:e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
@@ -87,16 +87,16 @@ jobs:
             platform: linux
             make: pnpm make
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           lfs: true
       - name: Install Linux build deps
         if: matrix.platform == 'linux'
         run: sudo apt-get update && sudo apt-get install -y libudev-dev rpm fakeroot
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -171,6 +171,10 @@ jobs:
 
       - name: Make
         env:
+          # Renderer commercial license for @virtuoso.dev/message-list, embedded
+          # by Vite at build time (VITE_-prefixed env). Without it the packaged
+          # app shows a "license key is missing" warning instead of messages.
+          VITE_VIRTUOSO_LICENSE_KEY: ${{ secrets.VITE_VIRTUOSO_LICENSE_KEY }}
           # macOS signing + notarization (read by forge.config.ts)
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
@@ -182,7 +186,7 @@ jobs:
         run: ${{ matrix.make }}
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coresense-${{ matrix.platform }}
           path: out/make/**
@@ -197,11 +201,11 @@ jobs:
       contents: write
     steps:
       - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist-artifacts
       - name: Create draft release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           draft: true
           generate_release_notes: true
