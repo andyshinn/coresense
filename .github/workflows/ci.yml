@@ -2,8 +2,22 @@ name: CI
 
 on:
   push:
-    branches-ignore: [main] # main is tested by build.yml's gate
-  pull_request:
+    branches: [main] # nightly → build artifacts only
+    tags: ['v*.*.*'] # release → draft GitHub release
+  pull_request: # test + build every PR
+  workflow_dispatch: # manual
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # never cancel an in-flight tag/release build; do cancel superseded PR/main runs
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  NODE_VERSION: '24.15.0'
+  PNPM_VERSION: '11'
 
 jobs:
   checks:
@@ -14,10 +28,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libudev-dev
       - uses: pnpm/action-setup@v4
         with:
-          version: 11
+          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 24.15.0
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
@@ -39,10 +53,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libudev-dev xvfb
       - uses: pnpm/action-setup@v4
         with:
-          version: 11
+          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 24.15.0
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Install Electron/Chromium shared libraries
@@ -54,3 +68,144 @@ jobs:
         with:
           name: playwright-report
           path: playwright-report/
+
+  build:
+    name: Build (${{ matrix.platform }})
+    needs: checks
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin
+            make: pnpm make:mac
+          - os: windows-latest
+            platform: win32
+            make: pnpm make:win
+          - os: ubuntu-latest
+            platform: linux
+            make: pnpm make
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Install Linux build deps
+        if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev rpm fakeroot
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # --- macOS: import Developer ID cert into an ephemeral keychain ---
+      - name: Import macOS signing certificate
+        if: matrix.platform == 'darwin'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          rm -f "$CERT_PATH"
+
+      # --- macOS: write the notary API key (.p8) to a file forge can read ---
+      - name: Write notary API key
+        if: matrix.platform == 'darwin'
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+        run: |
+          set -euo pipefail
+          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s' "$APPLE_API_KEY" > "$KEY_PATH"
+          echo "APPLE_API_KEY=$KEY_PATH" >> "$GITHUB_ENV"
+
+      # --- Windows: install Trusted Signing dlib + metadata, locate signtool ---
+      - name: Set up Azure Trusted Signing
+        if: matrix.platform == 'win32'
+        shell: pwsh
+        env:
+          AZURE_CODE_SIGNING_ENDPOINT: ${{ secrets.AZURE_CODE_SIGNING_ENDPOINT }}
+          AZURE_CODE_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_CERT_PROFILE: ${{ secrets.AZURE_CERT_PROFILE }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Trusted Signing client contains Azure.CodeSigning.Dlib.dll
+          $client = "$env:RUNNER_TEMP\tsclient"
+          nuget install Microsoft.Trusted.Signing.Client -Version 1.0.95 `
+            -OutputDirectory $client -ExcludeVersion
+          $dlib = Join-Path $client "Microsoft.Trusted.Signing.Client\bin\x64\Azure.CodeSigning.Dlib.dll"
+          if (-not (Test-Path $dlib)) { throw "Trusted Signing dlib not found at $dlib" }
+          # Metadata describing the signing account + certificate profile
+          $metadata = "$env:RUNNER_TEMP\metadata.json"
+          @{
+            Endpoint = $env:AZURE_CODE_SIGNING_ENDPOINT
+            CodeSigningAccountName = $env:AZURE_CODE_SIGNING_ACCOUNT
+            CertificateProfileName = $env:AZURE_CERT_PROFILE
+          } | ConvertTo-Json | Set-Content -Path $metadata -Encoding utf8
+          # Newest signtool from the Windows SDK (>= 10.0.2261.755 required)
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $signtool) { throw "signtool.exe not found" }
+          # Export for the forge windowsSign hook (scripts/windows-sign.cjs)
+          "AZURE_TRUSTED_SIGNING_DLIB=$dlib"         | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "AZURE_TRUSTED_SIGNING_METADATA=$metadata" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "SIGNTOOL_PATH=$signtool"                  | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "WINDOWS_SIGN=1"                           | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Make
+        env:
+          # macOS signing + notarization (read by forge.config.ts)
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          # Windows Trusted Signing auth (read by the signtool dlib)
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: ${{ matrix.make }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coresense-${{ matrix.platform }}
+          path: out/make/**
+          if-no-files-found: error
+
+  release:
+    name: Draft release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          # Every maker output across the three coresense-<platform> artifacts.
+          # Includes the auto-update set (RELEASES, *.nupkg, *Setup.exe, *.zip).
+          files: dist-artifacts/**/*
+          fail_on_unmatched_files: true
