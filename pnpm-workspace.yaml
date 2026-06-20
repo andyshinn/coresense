@@ -24,8 +24,10 @@ allowedDeprecatedVersions:
   tar: "6.2.1"
 blockExoticSubdeps: false
 minimumReleaseAgeExclude:
-  - '@andyshinn/meshcore-ts@0.3.0'
-  - '@andyshinn/meshcore-ts@0.3.1'
+  # First-party scope: exempt our own packages from the release-age cooldown
+  # so a fresh publish + dependency bump doesn't block CI. Version-agnostic so
+  # new releases need no edit here. Third-party deps keep the full cooldown.
+  - '@andyshinn/*'
 nodeLinker: hoisted
 overrides:
   "@types/parse-path": "npm:parse-path@7.1.0"
