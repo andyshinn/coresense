@@ -13,15 +13,11 @@ export interface UpdateControllerDeps {
   openExternal: (url: string) => void;
   emitState: (s: UpdateState) => void;
   logger: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
-  setInterval: (fn: () => void, ms: number) => ReturnType<typeof setInterval>;
-  clearInterval: (h: ReturnType<typeof setInterval>) => void;
 }
 
 /** Shown when the silent path can't run (dev/MAS) so the UI doesn't spin on
  *  'checking' forever. */
 const SILENT_UNAVAILABLE = 'Automatic updates are only available in packaged builds.';
-
-const POLL_MS = 60 * 60 * 1000;
 
 export function createUpdateController(deps: UpdateControllerDeps) {
   const initial = deps.getSettings();
@@ -31,18 +27,10 @@ export function createUpdateController(deps: UpdateControllerDeps) {
     channel: initial.channel,
     currentVersion: deps.currentVersion,
   };
-  let poll: ReturnType<typeof setInterval> | null = null;
 
   function setState(partial: Partial<UpdateState>): void {
     state = { ...state, ...partial };
     deps.emitState(state);
-  }
-
-  function stopPoll(): void {
-    if (poll !== null) {
-      deps.clearInterval(poll);
-      poll = null;
-    }
   }
 
   async function check(): Promise<UpdateState> {
@@ -79,13 +67,12 @@ export function createUpdateController(deps: UpdateControllerDeps) {
     const { channel, autoCheck } = deps.getSettings();
     const mode = computeMode(deps.platform, channel);
     setState({ mode, channel });
-    if (mode === 'silent') {
-      stopPoll(); // update-electron-app owns its own interval
-      if (autoCheck) deps.silent.ensureStarted();
-    } else {
-      stopPoll();
-      if (autoCheck) poll = deps.setInterval(() => void check(), POLL_MS);
-    }
+    // Silent path (Stable, mac/win): update-electron-app owns its own polling;
+    // start it when auto-check is on. Notify path (Development / Linux): NO
+    // background polling — it checks once on launch and on demand only, to keep
+    // unauthenticated GitHub API usage minimal and avoid rate limits. We
+    // deliberately do NOT re-check here on settings changes for the same reason.
+    if (mode === 'silent' && autoCheck) deps.silent.ensureStarted();
   }
 
   return {

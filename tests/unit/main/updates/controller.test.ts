@@ -28,7 +28,6 @@ function harness(over: Partial<Parameters<typeof createUpdateController>[0]> = {
     }),
   );
   let settings = { channel: 'stable' as const, autoCheck: true };
-  const timers: Array<() => void> = [];
   const controller = createUpdateController({
     platform: 'darwin',
     currentVersion: '0.0.10',
@@ -38,11 +37,6 @@ function harness(over: Partial<Parameters<typeof createUpdateController>[0]> = {
     openExternal,
     emitState,
     logger,
-    setInterval: (fn) => {
-      timers.push(fn);
-      return 1 as unknown as ReturnType<typeof setInterval>;
-    },
-    clearInterval: vi.fn(),
     ...over,
   });
   return { controller, silent, emitState, openExternal, checkNotify, setSettings: (s: typeof settings) => (settings = s) };
@@ -92,5 +86,11 @@ describe('createUpdateController', () => {
     await controller.check();
     expect(emitState).toHaveBeenCalledWith(expect.objectContaining({ status: 'checking' }));
     expect(emitState).toHaveBeenCalledWith(expect.objectContaining({ status: 'available' }));
+  });
+
+  it('does not run a notify check on settings change (no recurring/extra GitHub API calls)', () => {
+    const { controller, checkNotify } = harness({ platform: 'linux' });
+    controller.onSettingsChanged();
+    expect(checkNotify).not.toHaveBeenCalled();
   });
 });

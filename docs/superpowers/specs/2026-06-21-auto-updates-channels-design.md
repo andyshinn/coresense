@@ -101,7 +101,7 @@ export type UpdateChannel = 'stable' | 'development';
 // inside AppSettings:
 updates: {
   channel: UpdateChannel;   // default 'stable'
-  autoCheck: boolean;       // default true — gates background polling on both paths
+  autoCheck: boolean;       // default true — gates the on-launch check + the silent updater
 };
 ```
 
@@ -165,12 +165,17 @@ New module `src/main/updates/` (replacing the single-purpose `updater.ts`):
   - On a newer version → set `status: 'available'` with `latestVersion` and
     `releaseUrl`. `installAndRestart()` in notify mode → `shell.openExternal`
     of the release.
-  - Owns its **own** 1h interval (stoppable) when `autoCheck` is true, and
-    reacts immediately to channel/`autoCheck` changes.
+  - **No background polling.** The notify path checks only **once on launch**
+    (when `autoCheck` is on) and **on demand** (manual "Check for Updates").
+    This is deliberate: the GitHub Releases API is unauthenticated
+    (60 req/hr/IP), so we avoid a recurring timer — and we also do **not**
+    re-check on settings changes — to keep API usage minimal and rate-limit-safe.
 
 ### `autoCheck` + manual-check semantics
 
-- `autoCheck` gates **background polling** on both paths.
+- `autoCheck` gates the **on-launch** check (both paths) and whether the silent
+  path's `update-electron-app` (which has its own internal hourly poll) starts.
+  The notify path has no timer of its own.
 - **Manual "Check for Updates" always works.** Notify mode runs our checker;
   silent mode ensures `update-electron-app` is initialized then calls
   `checkForUpdates()`.

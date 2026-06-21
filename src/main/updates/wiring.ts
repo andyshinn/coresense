@@ -33,8 +33,6 @@ export function startUpdates(): void {
     openExternal: (url) => void shell.openExternal(url),
     emitState: (s) => emit.updateState(s),
     logger,
-    setInterval: (fn, ms) => setInterval(fn, ms),
-    clearInterval: (h) => clearInterval(h),
   });
 
   controllerRef = controller;
