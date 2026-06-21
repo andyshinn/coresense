@@ -60,11 +60,12 @@ const osxNotarize =
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
-    // Force a lowercase executable name. electron-installer-debian/rpm derive
-    // the expected binary name from the (lowercased) package name "coresense",
-    // but without this packager names the binary after productName ("CoreSense")
-    // and the deb/rpm makers fail with "could not find the Electron app binary".
-    executableName: 'coresense',
+    // No executableName override: the binary keeps the branded productName
+    // ("CoreSense") on every platform. The Linux deb/rpm makers default to
+    // looking up the binary by the lowercased package name ("coresense") and
+    // would fail with "could not find the Electron app binary"; instead of
+    // renaming the binary everywhere, the MakerDeb/MakerRpm `bin` option below
+    // points just those two makers at the real "CoreSense" name.
     icon: 'build/icon',
     extraResource: [...bundledTiles, ...macIconCatalog],
     // The Vite plugin's default ignore excludes everything outside /.vite, but
@@ -163,8 +164,13 @@ const config: ForgeConfig = {
     new MakerSquirrel({ setupIcon: 'build/icon.ico', windowsSign }),
     new MakerZIP({}, ['darwin', 'win32']),
     new MakerDMG({ icon: 'build/icon.icns' }),
-    new MakerRpm({}),
-    new MakerDeb({}),
+    // Packager names the binary after productName ("CoreSense"), but
+    // electron-installer-debian/redhat default to the lowercased package name
+    // ("coresense") and can't find it. Point them at the real binary name. The
+    // user-facing launcher symlink (/usr/bin/coresense) stays lowercase — it's
+    // derived from the package name, not from `bin`.
+    new MakerRpm({ options: { bin: 'CoreSense' } }),
+    new MakerDeb({ options: { bin: 'CoreSense' } }),
   ],
   publishers: [
     new PublisherGithub({
