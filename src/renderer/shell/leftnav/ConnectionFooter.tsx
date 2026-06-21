@@ -1,11 +1,13 @@
-import { Bluetooth, RotateCw } from 'lucide-react';
+import { ArrowUpCircle, Bluetooth, RotateCw } from 'lucide-react';
 import { type MouseEvent, useCallback, useEffect, useState } from 'react';
 import type { SyncProgress, TransportState } from '../../../shared/types';
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Progress } from '../../components/ui/progress';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '../../components/ui/sidebar';
 import { type ApiClient, api } from '../../lib/api';
 import { loadLastDevice } from '../../lib/lastDevice';
 import { notify } from '../../lib/notify';
+import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
 import { ACTIVE_BUTTON_CLASS } from './atoms';
 
@@ -44,6 +46,13 @@ export function ConnectionFooter({
   onClick: () => void;
   active: boolean;
 }) {
+  const updateState = useStore((s) => s.updateState);
+  const updatePending = updateState && (updateState.status === 'available' || updateState.status === 'downloaded');
+  const onInstall = () => {
+    if (!client || !updateState) return;
+    void api.installUpdate(client).catch(() => {});
+  };
+
   const syncing = state === 'connected' && sync.phase === 'syncing';
   const justFinished = state === 'connected' && sync.phase === 'done';
   const [reconnecting, setReconnecting] = useState(false);
@@ -127,6 +136,38 @@ export function ConnectionFooter({
           >
             <RotateCw aria-hidden="true" className="size-4" />
           </button>
+        )}
+        {updatePending && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                data-testid="update-indicator"
+                title="Update available"
+                aria-label="Update available"
+                className="absolute right-8 top-1/2 flex aspect-square size-7 -translate-y-1/2 items-center justify-center rounded-md text-cs-online transition-colors hover:bg-cs-bg-3"
+              >
+                <ArrowUpCircle aria-hidden="true" className="size-4" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-64 space-y-2 text-[12px]">
+              <div className="font-medium text-cs-text">
+                {updateState?.status === 'downloaded' ? 'Update ready' : 'Update available'}
+              </div>
+              <div className="text-cs-text-dim">
+                {updateState?.currentVersion}
+                {updateState?.latestVersion ? ` → ${updateState.latestVersion}` : ''}
+                {` (${updateState?.channel})`}
+              </div>
+              <button
+                type="button"
+                onClick={onInstall}
+                className="flex w-full items-center justify-center gap-1 rounded border border-cs-border bg-cs-bg-2 px-2 py-1 text-cs-text hover:bg-cs-bg-3"
+              >
+                {updateState?.mode === 'silent' ? 'Restart & install' : 'Open download'}
+              </button>
+            </PopoverContent>
+          </Popover>
         )}
       </SidebarMenuItem>
     </SidebarMenu>
