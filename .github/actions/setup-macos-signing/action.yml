@@ -1,0 +1,55 @@
+name: Set up macOS signing
+description: >-
+  Import the Developer ID Application certificate into an ephemeral keychain and
+  write the App Store Connect notary API key to a file, then export APPLE_API_KEY
+  (its path) so a later electron-forge make step can sign and notarize.
+
+inputs:
+  certificate:
+    description: Base64-encoded Developer ID Application .p12
+    required: true
+  certificate-password:
+    description: Password for the .p12
+    required: true
+  api-key:
+    description: Contents of the App Store Connect notary API key (.p8)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Import the Developer ID cert into a throwaway keychain and make it the
+    # default + searchable one so codesign can find the identity.
+    - name: Import signing certificate
+      shell: bash
+      env:
+        MACOS_CERTIFICATE: ${{ inputs.certificate }}
+        MACOS_CERTIFICATE_PASSWORD: ${{ inputs.certificate-password }}
+      run: |
+        set -euo pipefail
+        KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+        KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+        CERT_PATH="$RUNNER_TEMP/certificate.p12"
+        echo "$MACOS_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+        security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+        security import "$CERT_PATH" -P "$MACOS_CERTIFICATE_PASSWORD" \
+          -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+        security set-key-partition-list -S apple-tool:,apple:,codesign: \
+          -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+        security default-keychain -s "$KEYCHAIN_PATH"
+        security list-keychains -d user -s "$KEYCHAIN_PATH"
+        rm -f "$CERT_PATH"
+
+    # Write the notary API key to a file and export its path; @electron/notarize
+    # (via forge.config.ts) reads APPLE_API_KEY as a path, not the key contents.
+    - name: Write notary API key
+      shell: bash
+      env:
+        APPLE_API_KEY: ${{ inputs.api-key }}
+      run: |
+        set -euo pipefail
+        KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+        printf '%s' "$APPLE_API_KEY" > "$KEY_PATH"
+        echo "APPLE_API_KEY=$KEY_PATH" >> "$GITHUB_ENV"

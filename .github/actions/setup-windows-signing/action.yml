@@ -1,0 +1,50 @@
+name: Set up Windows Azure Trusted Signing
+description: >-
+  Install the Azure Trusted Signing dlib, write its metadata, locate a recent
+  signtool, and export the env (AZURE_TRUSTED_SIGNING_DLIB/METADATA,
+  SIGNTOOL_PATH, WINDOWS_SIGN) the forge windowsSign hook reads at make time.
+
+inputs:
+  endpoint:
+    description: Trusted Signing account endpoint URI (e.g. https://eus.codesigning.azure.net/)
+    required: true
+  account:
+    description: Trusted Signing account name
+    required: true
+  certificate-profile:
+    description: Trusted Signing certificate profile name
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install Trusted Signing dlib and locate signtool
+      shell: pwsh
+      env:
+        AZURE_CODE_SIGNING_ENDPOINT: ${{ inputs.endpoint }}
+        AZURE_CODE_SIGNING_ACCOUNT: ${{ inputs.account }}
+        AZURE_CERT_PROFILE: ${{ inputs.certificate-profile }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        # Trusted Signing client contains Azure.CodeSigning.Dlib.dll
+        $client = "$env:RUNNER_TEMP\tsclient"
+        nuget install Microsoft.Trusted.Signing.Client -Version 1.0.95 `
+          -OutputDirectory $client -ExcludeVersion
+        $dlib = Join-Path $client "Microsoft.Trusted.Signing.Client\bin\x64\Azure.CodeSigning.Dlib.dll"
+        if (-not (Test-Path $dlib)) { throw "Trusted Signing dlib not found at $dlib" }
+        # Metadata describing the signing account + certificate profile
+        $metadata = "$env:RUNNER_TEMP\metadata.json"
+        @{
+          Endpoint = $env:AZURE_CODE_SIGNING_ENDPOINT
+          CodeSigningAccountName = $env:AZURE_CODE_SIGNING_ACCOUNT
+          CertificateProfileName = $env:AZURE_CERT_PROFILE
+        } | ConvertTo-Json | Set-Content -Path $metadata -Encoding utf8
+        # Newest signtool from the Windows SDK (>= 10.0.2261.755 required)
+        $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+          Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+        if (-not $signtool) { throw "signtool.exe not found" }
+        # Export for the forge windowsSign hook (scripts/windows-sign.cjs)
+        "AZURE_TRUSTED_SIGNING_DLIB=$dlib"         | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+        "AZURE_TRUSTED_SIGNING_METADATA=$metadata" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+        "SIGNTOOL_PATH=$signtool"                  | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+        "WINDOWS_SIGN=1"                           | Out-File $env:GITHUB_ENV -Append -Encoding utf8

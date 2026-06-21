@@ -60,6 +60,11 @@ const osxNotarize =
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    // Force a lowercase executable name. electron-installer-debian/rpm derive
+    // the expected binary name from the (lowercased) package name "coresense",
+    // but without this packager names the binary after productName ("CoreSense")
+    // and the deb/rpm makers fail with "could not find the Electron app binary".
+    executableName: 'coresense',
     icon: 'build/icon',
     extraResource: [...bundledTiles, ...macIconCatalog],
     // The Vite plugin's default ignore excludes everything outside /.vite, but
@@ -136,6 +141,15 @@ const config: ForgeConfig = {
           recursive: true,
           force: true,
         });
+      }
+      // appdmg (used by MakerDMG) pulls native build-time helpers — macos-alias
+      // and fs-xattr — whose .node binaries are byte-identical across x64/arm64.
+      // @electron/universal aborts the stitch on such files ("same in both x64
+      // and arm64 builds and not covered by the x64ArchFiles rule"). They're
+      // host-side DMG tooling, never loaded by the packaged app, so drop them
+      // from the bundle entirely. (devDependency prune leaves them under pnpm.)
+      for (const pkg of ['macos-alias', 'fs-xattr']) {
+        await rm(join(nodeModules, pkg), { recursive: true, force: true });
       }
       // Forge's prune removes devDependency packages but leaves their
       // node_modules/.bin/* CLI shims behind as dangling symlinks. @electron/asar
