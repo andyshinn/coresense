@@ -377,6 +377,7 @@ export function buildActionItems({
         (r) => {
           if (r.updateState?.status === 'available') notify.success(`Update available: ${r.updateState.latestVersion}`);
           else if (r.updateState?.status === 'up-to-date') notify.info('You are up to date');
+          else if (r.updateState?.status === 'error') notify.error(r.updateState.error ?? 'Update check failed');
         },
         (err) => notify.error(`Update check failed: ${(err as Error).message}`, err),
       );

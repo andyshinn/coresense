@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { computeMode, createUpdateController } from '../../../../src/main/updates/controller';
-import type { UpdateState } from '../../../../src/shared/types';
+import type { UpdateChannel, UpdateState } from '../../../../src/shared/types';
 
 describe('computeMode', () => {
   it('is silent only for stable on macOS/Windows', () => {
@@ -27,7 +27,7 @@ function harness(over: Partial<Parameters<typeof createUpdateController>[0]> = {
       releaseUrl: 'https://gh/rel',
     }),
   );
-  let settings = { channel: 'stable' as const, autoCheck: true };
+  let settings: { channel: UpdateChannel; autoCheck: boolean } = { channel: 'stable', autoCheck: true };
   const controller = createUpdateController({
     platform: 'darwin',
     currentVersion: '0.0.10',
@@ -91,6 +91,25 @@ describe('createUpdateController', () => {
   it('does not run a notify check on settings change (no recurring/extra GitHub API calls)', () => {
     const { controller, checkNotify } = harness({ platform: 'linux' });
     controller.onSettingsChanged();
+    expect(checkNotify).not.toHaveBeenCalled();
+  });
+
+  it('clears stale result when the channel changes, without re-checking', async () => {
+    const { controller, checkNotify, setSettings } = harness({ platform: 'linux' });
+    await controller.check();
+    expect(controller.getState()).toMatchObject({
+      status: 'available',
+      latestVersion: '9.9.9',
+      releaseUrl: 'https://gh/rel',
+    });
+    checkNotify.mockClear();
+    setSettings({ channel: 'development', autoCheck: true });
+    controller.onSettingsChanged();
+    const s = controller.getState();
+    expect(s.channel).toBe('development');
+    expect(s.status).toBe('idle');
+    expect(s.latestVersion).toBeUndefined();
+    expect(s.releaseUrl).toBeUndefined();
     expect(checkNotify).not.toHaveBeenCalled();
   });
 });

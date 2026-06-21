@@ -66,12 +66,28 @@ export function createUpdateController(deps: UpdateControllerDeps) {
   function applySettings(): void {
     const { channel, autoCheck } = deps.getSettings();
     const mode = computeMode(deps.platform, channel);
-    setState({ mode, channel });
+    // A channel change points at a different release set, so clear any prior
+    // result — otherwise the indicator/Popover would keep advertising (and try
+    // to install) the previous channel's release. We intentionally do NOT
+    // auto-check here: that would add unauthenticated GitHub API calls. The
+    // fresh result comes from the next manual check or the next launch.
+    if (channel !== state.channel) {
+      setState({
+        mode,
+        channel,
+        status: 'idle',
+        latestVersion: undefined,
+        releaseUrl: undefined,
+        error: undefined,
+        lastCheckedAt: undefined,
+      });
+    } else {
+      setState({ mode, channel });
+    }
     // Silent path (Stable, mac/win): update-electron-app owns its own polling;
     // start it when auto-check is on. Notify path (Development / Linux): NO
     // background polling — it checks once on launch and on demand only, to keep
-    // unauthenticated GitHub API usage minimal and avoid rate limits. We
-    // deliberately do NOT re-check here on settings changes for the same reason.
+    // unauthenticated GitHub API usage minimal and avoid rate limits.
     if (mode === 'silent' && autoCheck) deps.silent.ensureStarted();
   }
 

@@ -50,7 +50,9 @@ export function ConnectionFooter({
   const updatePending = updateState && (updateState.status === 'available' || updateState.status === 'downloaded');
   const onInstall = () => {
     if (!client || !updateState) return;
-    void api.installUpdate(client).catch(() => {});
+    // On the silent path quitAndInstall quits the app, so the promise may never
+    // settle — that's fine. A real failure (route/network) must not be silent.
+    void api.installUpdate(client).catch((err) => notify.error(`Update action failed: ${(err as Error).message}`, err));
   };
 
   const syncing = state === 'connected' && sync.phase === 'syncing';
