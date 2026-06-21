@@ -30,6 +30,7 @@ import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { searchMessages } from '../storage/search';
 import { transportManager } from '../transport/manager';
+import { updatesController } from '../updates/controller';
 import { markQuitConfirmed } from '../window/quit';
 import { getConfigPath } from './middleware/auth';
 import { buildTileManifest, registerTileRoutes } from './tiles';
@@ -134,6 +135,16 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       appLifecycle().relaunch();
       appLifecycle().exit(0);
     }, 0);
+    return c.json({ ok: true });
+  });
+
+  api.post('/api/updates/check', async (c) => {
+    const updateState = await updatesController().check();
+    return c.json({ ok: true, updateState });
+  });
+
+  api.post('/api/updates/install', (c) => {
+    updatesController().installAndRestart();
     return c.json({ ok: true });
   });
 
