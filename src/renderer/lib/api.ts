@@ -23,6 +23,7 @@ import type {
   StateSnapshot,
   TelemetryPolicy,
   UiState,
+  UpdateState,
 } from '../../shared/types';
 
 export interface ApiClient {
@@ -271,4 +272,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(opts),
     }),
+  checkForUpdates: (c: ApiClient) =>
+    request<{ ok: true; updateState: UpdateState }>(c, '/api/updates/check', { method: 'POST' }),
+  installUpdate: (c: ApiClient) => request<{ ok: true }>(c, '/api/updates/install', { method: 'POST' }),
 };

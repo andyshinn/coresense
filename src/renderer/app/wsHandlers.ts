@@ -79,6 +79,9 @@ export function createWsMessageHandler(deps: WsMessageHandlerDeps): (msg: WsMess
       case 'appSettings':
         s.applyAppSettings(msg.payload);
         break;
+      case 'updateState':
+        s.applyUpdateState(msg.payload);
+        break;
       case 'blockRules':
         s.applyBlockRules(msg.payload);
         break;
