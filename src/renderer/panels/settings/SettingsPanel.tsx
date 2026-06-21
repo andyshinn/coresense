@@ -12,6 +12,7 @@ import {
   NotificationsSection,
   ProxySection,
   ToastsSection,
+  UpdatesSection,
 } from './app';
 import { BlockedSection } from './blocked';
 import { DangerZoneSection, ImportExportSection, MaintenanceSection } from './ExtraSections';
@@ -46,6 +47,7 @@ const TAB_SECTIONS: Record<SettingsTab, SettingsSectionMeta[]> = {
     { id: 'app-behavior', title: 'Behavior', tab: 'app' },
     { id: 'app-logs', title: 'Logs', tab: 'app' },
     { id: 'app-map', title: 'Map Tiles', tab: 'app' },
+    { id: 'app-updates', title: 'Updates', tab: 'app' },
   ],
   radio: [
     { id: 'radio-public-info', title: 'Public Info', tab: 'radio' },
@@ -181,6 +183,7 @@ function AppTab({ client }: { client: ApiClient | null }) {
       <BehaviorSection client={client} />
       <LoggingSection client={client} />
       <MapKeySection client={client} />
+      <UpdatesSection client={client} />
     </>
   );
 }
