@@ -13,9 +13,10 @@ describe('computeMode', () => {
 });
 
 function harness(over: Partial<Parameters<typeof createUpdateController>[0]> = {}) {
-  const silent = { ensureStarted: vi.fn(() => true), check: vi.fn(), installAndRestart: vi.fn() };
+  const silent = { ensureStarted: vi.fn(() => true), check: vi.fn(() => true), installAndRestart: vi.fn() };
   const emitState = vi.fn();
   const openExternal = vi.fn();
+  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const checkNotify = vi.fn(
     async (channel, current): Promise<UpdateState> => ({
       status: 'available',
@@ -36,6 +37,7 @@ function harness(over: Partial<Parameters<typeof createUpdateController>[0]> = {
     checkNotify,
     openExternal,
     emitState,
+    logger,
     setInterval: (fn) => {
       timers.push(fn);
       return 1 as unknown as ReturnType<typeof setInterval>;
@@ -52,6 +54,15 @@ describe('createUpdateController', () => {
     await controller.check();
     expect(silent.check).toHaveBeenCalledTimes(1);
     expect(controller.getState().mode).toBe('silent');
+  });
+
+  it('settles on a terminal error (not stuck on checking) when the silent updater cannot run', async () => {
+    const { controller } = harness({
+      silent: { ensureStarted: vi.fn(() => false), check: vi.fn(() => false), installAndRestart: vi.fn() },
+    });
+    const s = await controller.check();
+    expect(s.status).toBe('error');
+    expect(s.error).toMatch(/packaged/i);
   });
 
   it('notify check uses checkNotify and stores the result', async () => {

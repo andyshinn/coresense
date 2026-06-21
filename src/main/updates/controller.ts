@@ -8,13 +8,18 @@ export interface UpdateControllerDeps {
   platform: NodeJS.Platform;
   currentVersion: string;
   getSettings: () => { channel: UpdateChannel; autoCheck: boolean };
-  silent: { ensureStarted(): boolean; check(): void; installAndRestart(): void };
+  silent: { ensureStarted(): boolean; check(): boolean; installAndRestart(): void };
   checkNotify: (channel: UpdateChannel, current: string) => Promise<UpdateState>;
   openExternal: (url: string) => void;
   emitState: (s: UpdateState) => void;
+  logger: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
   setInterval: (fn: () => void, ms: number) => ReturnType<typeof setInterval>;
   clearInterval: (h: ReturnType<typeof setInterval>) => void;
 }
+
+/** Shown when the silent path can't run (dev/MAS) so the UI doesn't spin on
+ *  'checking' forever. */
+const SILENT_UNAVAILABLE = 'Automatic updates are only available in packaged builds.';
 
 const POLL_MS = 60 * 60 * 1000;
 
@@ -43,18 +48,29 @@ export function createUpdateController(deps: UpdateControllerDeps) {
   async function check(): Promise<UpdateState> {
     const { channel } = deps.getSettings();
     const mode = computeMode(deps.platform, channel);
+    deps.logger.info(`check requested (channel=${channel}, mode=${mode}, current=${deps.currentVersion})`);
     setState({ status: 'checking', mode, channel });
     if (mode === 'silent') {
-      // Status flows back through onSilentState() from autoUpdater events.
-      deps.silent.check();
+      // When the check is dispatched, status flows back through onSilentState()
+      // from autoUpdater events. When it can't be dispatched (dev/MAS), settle
+      // on a terminal state so the UI doesn't spin on 'checking' forever.
+      const dispatched = deps.silent.check();
+      if (!dispatched) {
+        deps.logger.info('silent path unavailable — reporting terminal error state');
+        setState({ status: 'error', error: SILENT_UNAVAILABLE });
+      }
       return state;
     }
     const result = await deps.checkNotify(channel, deps.currentVersion);
+    deps.logger.info(
+      `notify result: status=${result.status}${result.latestVersion ? ` latest=${result.latestVersion}` : ''}${result.error ? ` error=${result.error}` : ''}`,
+    );
     setState(result);
     return state;
   }
 
   function installAndRestart(): void {
+    deps.logger.info(`installAndRestart requested (mode=${state.mode})`);
     if (state.mode === 'silent') deps.silent.installAndRestart();
     else if (state.releaseUrl) deps.openExternal(state.releaseUrl);
   }
@@ -74,8 +90,12 @@ export function createUpdateController(deps: UpdateControllerDeps) {
 
   return {
     start(): void {
+      const s = deps.getSettings();
+      deps.logger.info(
+        `updates controller starting (channel=${s.channel}, mode=${computeMode(deps.platform, s.channel)}, autoCheck=${s.autoCheck})`,
+      );
       applySettings();
-      if (deps.getSettings().autoCheck) void check();
+      if (s.autoCheck) void check();
     },
     check,
     installAndRestart,

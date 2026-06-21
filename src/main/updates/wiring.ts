@@ -12,6 +12,7 @@ import { createSilentUpdater } from './silent';
 // for the updater. Everything it wires is dependency-injected and unit-tested.
 export function startUpdates(): void {
   const log = child('updates');
+  const logger = { info: (m: string) => log.info(m), warn: (m: string) => log.warn(m), error: (m: string) => log.error(m) };
   let controllerRef: UpdateController | null = null;
 
   const silent = createSilentUpdater({
@@ -19,7 +20,7 @@ export function startUpdates(): void {
     updateElectronApp: updateElectronApp as unknown as Parameters<typeof createSilentUpdater>[0]['updateElectronApp'],
     isPackaged: () => app.isPackaged,
     isMas: () => Boolean(process.mas),
-    logger: { info: (m) => log.info(m), warn: (m) => log.warn(m), error: (m) => log.error(m) },
+    logger,
     onState: (p) => controllerRef?.onSilentState(p),
   });
 
@@ -31,6 +32,7 @@ export function startUpdates(): void {
     checkNotify: (channel, current) => checkNotify(channel, current, { fetch: globalThis.fetch, now: () => Date.now() }),
     openExternal: (url) => void shell.openExternal(url),
     emitState: (s) => emit.updateState(s),
+    logger,
     setInterval: (fn, ms) => setInterval(fn, ms),
     clearInterval: (h) => clearInterval(h),
   });

@@ -48,12 +48,17 @@ export function UpdatesSection({ client }: SectionProps) {
       (r) => {
         if (r.updateState?.status === 'available') notify.success(`Update available: ${r.updateState.latestVersion}`);
         else if (r.updateState?.status === 'up-to-date') notify.info('You are up to date');
+        else if (r.updateState?.status === 'error') notify.error(r.updateState.error ?? 'Update check failed');
       },
       (err) => notify.error(`Update check failed: ${(err as Error).message}`, err),
     );
   };
 
-  const statusText = updateState ? (STATUS_LABEL[updateState.status] ?? updateState.status) : 'Idle';
+  const statusText = !updateState
+    ? 'Idle'
+    : updateState.status === 'error' && updateState.error
+      ? updateState.error
+      : (STATUS_LABEL[updateState.status] ?? updateState.status);
   const silentRestartHint =
     dirty && (s0.channel === 'stable' || u.channel === 'stable')
       ? 'Channel/auto-check changes to the silent updater apply on next launch.'

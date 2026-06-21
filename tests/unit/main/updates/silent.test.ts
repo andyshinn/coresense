@@ -61,11 +61,17 @@ describe('createSilentUpdater', () => {
     expect(onState).toHaveBeenCalledWith({ status: 'error', error: 'boom' });
   });
 
-  it('check() starts then calls checkForUpdates; install calls quitAndInstall', () => {
+  it('check() starts, returns true, and calls checkForUpdates; install calls quitAndInstall', () => {
     const { silent, autoUpdater } = harness();
-    silent.check();
+    expect(silent.check()).toBe(true);
     expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
     silent.installAndRestart();
     expect(autoUpdater.quitAndInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it('check() returns false and does not dispatch when the updater cannot start (e.g. dev build)', () => {
+    const { silent, autoUpdater } = harness({ isPackaged: () => false });
+    expect(silent.check()).toBe(false);
+    expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
   });
 });
