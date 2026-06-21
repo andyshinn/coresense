@@ -10,6 +10,7 @@ import type { Contact, Message, MessageStyle, Owner } from '../../shared/types';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
 import { deriveSenderName } from '../lib/utils';
+import { VIRTUOSO_LICENSE_KEY } from '../lib/virtuosoLicense';
 import { BlockSenderDialog, type BlockSenderDialogPrefill } from './BlockSenderDialog';
 import { ContextMenu, type ContextMenuEntry, copyToClipboard, menuItem, menuSeparator } from './ContextMenu';
 import { MessageRow } from './MessageRow';
@@ -53,8 +54,6 @@ interface MessageMenuState {
   x: number;
   y: number;
 }
-
-const LICENSE_KEY = (import.meta.env.VITE_VIRTUOSO_LICENSE_KEY as string | undefined) ?? '';
 
 function computeFirstUnreadIdx(messages: Message[], cutoff: number): number {
   if (!cutoff) return -1;
@@ -313,7 +312,7 @@ export function MessageList({
 
   return (
     <div className="relative h-full">
-      <VirtuosoMessageListLicense licenseKey={LICENSE_KEY}>
+      <VirtuosoMessageListLicense licenseKey={VIRTUOSO_LICENSE_KEY}>
         <VirtuosoMessageList<Item, RowContext>
           ref={listRef}
           style={{ height: '100%' }}

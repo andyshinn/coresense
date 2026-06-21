@@ -7,10 +7,9 @@ import {
 import { useMemo, useRef } from 'react';
 import type { LogEntry } from '../../../shared/types';
 import { useStore } from '../../lib/store';
+import { VIRTUOSO_LICENSE_KEY } from '../../lib/virtuosoLicense';
 import { filterLogs } from './filter';
 import { LogRow } from './LogRow';
-
-const LICENSE_KEY = (import.meta.env.VITE_VIRTUOSO_LICENSE_KEY as string | undefined) ?? '';
 
 export function LogsPanel() {
   const logs = useStore((s) => s.logs);
@@ -41,7 +40,7 @@ export function LogsPanel() {
         Logs ({visible.length} of {logs.length})
       </div>
       <div className="min-h-0 flex-1">
-        <VirtuosoMessageListLicense licenseKey={LICENSE_KEY}>
+        <VirtuosoMessageListLicense licenseKey={VIRTUOSO_LICENSE_KEY}>
           <VirtuosoMessageList<LogEntry, null>
             ref={ref}
             data={data}
