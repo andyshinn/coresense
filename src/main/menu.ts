@@ -3,6 +3,7 @@ import { accelFor, menuActionFor } from '../shared/shortcuts';
 import type { MenuAction } from '../shared/types';
 import { showAboutDialog } from './about';
 import { emit } from './events/bus';
+import { updatesController } from './updates/controller';
 
 const isMac = process.platform === 'darwin';
 const mod = isMac ? 'Cmd' : 'Ctrl';
@@ -19,6 +20,12 @@ export function buildMenu(): Menu {
       label: app.name,
       submenu: [
         { role: 'about' },
+        {
+          label: 'Check for Updates…',
+          click: () => {
+            void updatesController().check();
+          },
+        },
         { type: 'separator' },
         {
           label: 'Settings…',
@@ -197,11 +204,17 @@ export function buildMenu(): Menu {
           void shell.openExternal('https://meshcore.co.uk');
         },
       },
+      {
+        label: 'Check for Updates…',
+        click: () => {
+          void updatesController().check();
+        },
+      },
+      { type: 'separator' },
       // macOS users can still reach a native panel through the app menu's
       // standard "About" item (see applyAboutPanel); this Help entry is the
       // sole About surface on Windows where setAboutPanelOptions is a no-op,
       // and the Linux fallback when GTK doesn't render the native panel.
-      { type: 'separator' },
       {
         label: `About ${app.name}`,
         click: () => showAboutDialog(BrowserWindow.getFocusedWindow()),
