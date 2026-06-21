@@ -35,6 +35,7 @@ import type {
   TileManifest,
   TransportState,
   UiState,
+  UpdateState,
   WsMessage,
 } from '../shared/types';
 import { apiKeyAuth, checkWsKey } from './api/middleware/auth';
@@ -45,6 +46,7 @@ import { getLogBuffer } from './log';
 import { stateHolder } from './state/holder';
 import { discoveredStore } from './storage/discoveredContacts';
 import { transportManager } from './transport/manager';
+import { currentUpdateState } from './updates/controller';
 
 const DEFAULT_PORT_PROD = 7654;
 const DEFAULT_PORT_DEV = 7754;
@@ -170,6 +172,7 @@ export async function startServer(
         payload: discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
       }),
     );
+    ws.send(JSON.stringify({ type: 'updateState', payload: currentUpdateState() } satisfies WsMessage));
     // Other clients should learn that the population just grew/shrank too.
     broadcastClientCount();
     const drop = () => {
@@ -215,6 +218,7 @@ export async function startServer(
   const onDeviceCapabilities = (caps: DeviceCapabilities) => broadcast({ type: 'deviceCapabilities', payload: caps });
   const onBlockRules = (rules: BlockRule[]) => broadcast({ type: 'blockRules', payload: rules });
   const onUiState = (state: UiState) => broadcast({ type: 'uiState', payload: state });
+  const onUpdateState = (state: UpdateState) => broadcast({ type: 'updateState', payload: state });
   const onLogEntry = (entry: LogEntry) => broadcast({ type: 'log', payload: entry });
 
   bus.on('packet', onPacket);
@@ -248,6 +252,7 @@ export async function startServer(
   bus.on('deviceCapabilities', onDeviceCapabilities);
   bus.on('blockRules', onBlockRules);
   bus.on('uiState', onUiState);
+  bus.on('updateState', onUpdateState);
   bus.on('log:entry', onLogEntry);
   bridge.on('statusChanged', onBridgeStatus);
 
@@ -283,6 +288,7 @@ export async function startServer(
     bus.off('deviceCapabilities', onDeviceCapabilities);
     bus.off('blockRules', onBlockRules);
     bus.off('uiState', onUiState);
+    bus.off('updateState', onUpdateState);
     bus.off('log:entry', onLogEntry);
     bridge.off('statusChanged', onBridgeStatus);
     // Force-terminate WS clients and HTTP keep-alives. The renderer is still
