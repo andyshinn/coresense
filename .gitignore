@@ -174,3 +174,5 @@ tmbootpicker.efi
 *.af~lock~
 
 .pnpm-store/
+.design-sync/
+.ds-sync/
