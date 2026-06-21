@@ -158,10 +158,11 @@ jobs:
           # playwright-report artifacts that other jobs upload to the same run.
           pattern: coresense-*
           path: dist-artifacts
-      - name: Create draft release
+      - name: Create release
         uses: softprops/action-gh-release@v3
         with:
-          draft: true
+          draft: ${{ !contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
           # Every maker output across the three coresense-<platform> artifacts.
           # Includes the auto-update set (RELEASES, *.nupkg, *Setup.exe, *.zip).
