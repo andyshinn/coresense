@@ -6,6 +6,7 @@
 * Trace path (trace packets) don't seem to be handled properly over the bridge. When the official client does a trace it always times out. When I connect to the radio directly from the official client and do the same trace it works fine. This is likely an issue with the bridge not properly handling trace packets.
 * Theme settings ligh / dark have no effect. Should switch between our different light / dark themes if we force one.
 * When BLE disconnects (from a device leaving home or too far, etc) the app gets stuck in "Connecting" state with no way to cancel or retry. We should have some reasonable timeouts and also a way to force-cancel connecting so we can manually retry.
+* We use the message packet timestamp for sorting messages. If a message has a timestamp far in the future or past then we don't place the message in the list at the correct spot. We should show the packets timestamp but keep our own "received" timestamp for sorting as well.
 
 # Next
 
