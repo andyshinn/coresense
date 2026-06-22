@@ -31,9 +31,15 @@ function setCache(next: MacroTemplate[]): void {
   settingsStore.saveMacros(next);
 }
 
+/** Test-only seam: drop the in-memory cache so the next read re-hydrates from
+ *  the current (temp) userData dir. Call in integration test beforeEach. */
+export function resetMacrosCacheForTests(): void {
+  cache = null;
+}
+
 export const macrosStore = {
   list(): MacroTemplate[] {
-    return getCache();
+    return getCache().slice();
   },
   add(input: NewMacro): MacroTemplate {
     assertValid(input.template);

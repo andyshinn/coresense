@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { MacroValidationError, macrosStore } from '../../../src/main/macros/store';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { MacroValidationError, macrosStore, resetMacrosCacheForTests } from '../../../src/main/macros/store';
 
 describe('macrosStore', () => {
+  beforeEach(() => resetMacrosCacheForTests());
+
   it('round-trips create, update, list, remove', () => {
     const created = macrosStore.add({ name: 'sig', template: 'rssi {{ rssi }}', scope: 'global' });
     expect(created.id).toBeTruthy();
