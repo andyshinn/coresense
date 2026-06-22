@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { MacroTemplate } from '../../shared/macros/types';
 import {
   type AppSettings,
   type AutoAddConfig,
@@ -46,6 +47,7 @@ const FILES = {
   gps: 'gps-config.json',
   deviceInfo: 'device-info.json',
   blockRules: 'block-rules.json',
+  macros: 'macros.json',
 } as const;
 
 function pathFor(file: string): string {
@@ -160,6 +162,9 @@ export const settingsStore = {
 
   loadBlockRules: (): BlockRule[] => readJson(FILES.blockRules, [] as BlockRule[]),
   saveBlockRules: (v: BlockRule[]): void => writeJson(FILES.blockRules, v),
+
+  loadMacros: (): MacroTemplate[] => readJson(FILES.macros, [] as MacroTemplate[]),
+  saveMacros: (v: MacroTemplate[]): void => writeJson(FILES.macros, v),
 };
 
 // Recursive merge so new fields added in code get default values when reading
