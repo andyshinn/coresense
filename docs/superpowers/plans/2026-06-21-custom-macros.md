@@ -1097,10 +1097,12 @@ Adds the `macros.json` store and a CRUD module that validates templates before p
 
 ```ts
 // tests/integration/macros/store.test.ts
-import { describe, expect, it } from 'vitest';
-import { MacroValidationError, macrosStore } from '../../../src/main/macros/store';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { MacroValidationError, macrosStore, resetMacrosCacheForTests } from '../../../src/main/macros/store';
 
 describe('macrosStore', () => {
+  beforeEach(() => resetMacrosCacheForTests());
+
   it('round-trips create, update, list, remove', () => {
     const created = macrosStore.add({ name: 'sig', template: 'rssi {{ rssi }}', scope: 'global' });
     expect(created.id).toBeTruthy();
@@ -1174,31 +1176,53 @@ function assertValid(template: string): void {
   if (!v.ok) throw new MacroValidationError(v.errors);
 }
 
+// In-memory cache is authoritative (mirrors src/main/blocking/store.ts):
+// settingsStore.saveMacros -> writeJson is async fire-and-forget, so a disk
+// read immediately after a write returns stale data. Reads come from memory;
+// writes update memory + persist asynchronously.
+let cache: MacroTemplate[] | null = null;
+
+function getCache(): MacroTemplate[] {
+  if (cache === null) cache = settingsStore.loadMacros();
+  return cache;
+}
+
+function setCache(next: MacroTemplate[]): void {
+  cache = next;
+  settingsStore.saveMacros(next);
+}
+
+/** Test-only seam: drop the in-memory cache so the next read re-hydrates from
+ *  the current (temp) userData dir. Call in integration test beforeEach. */
+export function resetMacrosCacheForTests(): void {
+  cache = null;
+}
+
 export const macrosStore = {
   list(): MacroTemplate[] {
-    return settingsStore.loadMacros();
+    return getCache().slice();
   },
   add(input: NewMacro): MacroTemplate {
     assertValid(input.template);
     const now = Date.now();
     const macro: MacroTemplate = { ...input, id: randomUUID(), createdAt: now, updatedAt: now };
-    settingsStore.saveMacros([...this.list(), macro]);
+    setCache([...getCache(), macro]);
     return macro;
   },
   update(id: string, patch: Partial<NewMacro>): MacroTemplate | null {
     if (patch.template != null) assertValid(patch.template);
-    const list = this.list();
+    const list = getCache();
     const idx = list.findIndex((m) => m.id === id);
     if (idx === -1) return null;
     const updated: MacroTemplate = { ...list[idx], ...patch, id, updatedAt: Date.now() };
-    settingsStore.saveMacros(list.map((m, i) => (i === idx ? updated : m)));
+    setCache(list.map((m, i) => (i === idx ? updated : m)));
     return updated;
   },
   remove(id: string): boolean {
-    const list = this.list();
+    const list = getCache();
     const next = list.filter((m) => m.id !== id);
     if (next.length === list.length) return false;
-    settingsStore.saveMacros(next);
+    setCache(next);
     return true;
   },
 };
@@ -1461,14 +1485,15 @@ Ties the store, engine, and settings together: resolves a macro id or raw templa
 
 ```ts
 // tests/integration/macros/service.test.ts
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { buildSampleContext } from '../../../src/shared/macros';
-import { macrosStore } from '../../../src/main/macros/store';
+import { macrosStore, resetMacrosCacheForTests } from '../../../src/main/macros/store';
 import { renderMacro } from '../../../src/main/macros/service';
 
 const ctx = () => buildSampleContext();
 
 describe('renderMacro', () => {
+  beforeEach(() => resetMacrosCacheForTests());
   it('renders a raw template string', () => {
     const r = renderMacro('hi {{ peer_name }}', ctx());
     expect(r).toEqual({ ok: true, text: 'hi Alice' });
@@ -1642,8 +1667,9 @@ CRUD plus `manifest`, `validate`, and `render` endpoints.
 
 ```ts
 // tests/integration/api/macros.routes.test.ts
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createRoutes } from '../../../src/main/api/routes';
+import { resetMacrosCacheForTests } from '../../../src/main/macros/store';
 
 function app() {
   return createRoutes({
@@ -1660,6 +1686,8 @@ const json = (body: unknown) => ({
 });
 
 describe('macros api', () => {
+  beforeEach(() => resetMacrosCacheForTests());
+
   it('lists, creates, and deletes macros', async () => {
     expect((await (await app().request('/api/macros')).json()) as unknown[]).toEqual([]);
 
