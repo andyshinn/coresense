@@ -15,6 +15,10 @@ function nameFromMessage(msg: string): string | undefined {
   return m ? m[1] : undefined;
 }
 
+function filterNameFromMessage(msg: string): string | undefined {
+  return msg.match(/undefined filter:\s*([^,\s]+)/i)?.[1];
+}
+
 function lineCol(e: unknown): { line?: number; col?: number } {
   const t = (e as { token?: { line?: number; col?: number } }).token;
   const out: { line?: number; col?: number } = {};
@@ -26,14 +30,14 @@ function lineCol(e: unknown): { line?: number; col?: number } {
 export function classifyParseError(e: unknown): MacroError {
   const message = (e as Error).message ?? String(e);
   const low = message.toLowerCase();
-  if (low.includes('undefined filter')) return { kind: 'unknown-filter', message, name: nameFromMessage(message) };
+  if (low.includes('undefined filter')) return { kind: 'unknown-filter', message, name: filterNameFromMessage(message) };
   return { kind: 'parse', message, ...lineCol(e) };
 }
 
 export function classifyRenderError(e: unknown, elapsedMs: number, limit: number): MacroError {
   const message = (e as Error).message ?? String(e);
   const low = message.toLowerCase();
-  if (low.includes('undefined filter')) return { kind: 'unknown-filter', message, name: nameFromMessage(message) };
+  if (low.includes('undefined filter')) return { kind: 'unknown-filter', message, name: filterNameFromMessage(message) };
   if (low.includes('undefined variable')) return { kind: 'unknown-variable', message, name: nameFromMessage(message) };
   if (/template render limit/i.test(message) || elapsedMs >= limit) return { kind: 'timeout', message };
   return { kind: 'render', message };

@@ -13,7 +13,10 @@ describe('validateTemplate', () => {
   it('flags an unknown filter distinctly', () => {
     const r = validateTemplate('{{ peer_name | nope }}');
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.errors[0].kind).toBe('unknown-filter');
+    if (!r.ok) {
+      expect(r.errors[0].kind).toBe('unknown-filter');
+      expect(r.errors[0].name).toBe('nope');
+    }
   });
   it('flags an unknown variable distinctly', () => {
     const r = validateTemplate('{{ definitely_not_a_var }}');
