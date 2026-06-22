@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
+import type { MacroTemplate } from '../../shared/macros/types';
 import {
   type AppSettings,
   type AutoAddConfig,
@@ -254,6 +255,7 @@ interface CoreState {
   appSettings: AppSettings;
   updateState: UpdateState | null;
   blockRules: BlockRule[];
+  macros: MacroTemplate[];
   radioSettings: RadioSettings;
   deviceIdentity: DeviceIdentity;
   autoAddConfig: AutoAddConfig;
@@ -353,6 +355,7 @@ interface CoreState {
   applyAppSettings: (settings: AppSettings) => void;
   applyUpdateState: (state: UpdateState | null) => void;
   applyBlockRules: (rules: BlockRule[]) => void;
+  applyMacros: (macros: MacroTemplate[]) => void;
   applyRadioSettings: (settings: RadioSettings) => void;
   applyDeviceIdentity: (identity: DeviceIdentity) => void;
   applyAutoAddConfig: (cfg: AutoAddConfig) => void;
@@ -533,6 +536,7 @@ export const useStore = create<CoreState>((set) => ({
   appSettings: DEFAULT_APP_SETTINGS,
   updateState: null,
   blockRules: [],
+  macros: [],
   radioSettings: DEFAULT_RADIO_SETTINGS,
   deviceIdentity: DEFAULT_DEVICE_IDENTITY,
   autoAddConfig: DEFAULT_AUTO_ADD_CONFIG,
@@ -708,6 +712,7 @@ export const useStore = create<CoreState>((set) => ({
   },
   applyUpdateState: (state) => set(() => ({ updateState: state })),
   applyBlockRules: (rules) => set(() => ({ blockRules: rules })),
+  applyMacros: (macros) => set(() => ({ macros })),
   applyRadioSettings: (settings) => set(() => ({ radioSettings: settings })),
   applyDeviceIdentity: (identity) => set(() => ({ deviceIdentity: identity })),
   applyAutoAddConfig: (cfg) => set(() => ({ autoAddConfig: cfg })),

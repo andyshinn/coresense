@@ -1,4 +1,5 @@
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
+import type { MacroManifest, MacroTemplate, RenderResult, ValidateResult } from '../../shared/macros/types';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -281,4 +282,38 @@ export const api = {
   checkForUpdates: (c: ApiClient) =>
     request<{ ok: true; updateState: UpdateState }>(c, '/api/updates/check', { method: 'POST' }),
   installUpdate: (c: ApiClient) => request<{ ok: true }>(c, '/api/updates/install', { method: 'POST' }),
+  getMacros: (c: ApiClient) => request<MacroTemplate[]>(c, '/api/macros'),
+  getMacroManifest: (c: ApiClient) => request<MacroManifest>(c, '/api/macros/manifest'),
+  addMacro: (
+    c: ApiClient,
+    input: Pick<MacroTemplate, 'name' | 'template' | 'scope'> & Partial<Pick<MacroTemplate, 'channelKey' | 'contactKey'>>,
+  ) =>
+    request<{ macro: MacroTemplate }>(c, '/api/macros', { method: 'POST', body: JSON.stringify(input) }).then(
+      (r) => r.macro,
+    ),
+  updateMacro: (
+    c: ApiClient,
+    id: string,
+    patch: Partial<Pick<MacroTemplate, 'name' | 'template' | 'scope' | 'channelKey' | 'contactKey'>>,
+  ) =>
+    request<{ macro: MacroTemplate }>(c, `/api/macros/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    }).then((r) => r.macro),
+  deleteMacro: (c: ApiClient, id: string) =>
+    request<{ ok: true }>(c, `/api/macros/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  validateMacro: (c: ApiClient, template: string) =>
+    request<ValidateResult>(c, '/api/macros/validate', { method: 'POST', body: JSON.stringify({ template }) }),
+  renderMacro: (
+    c: ApiClient,
+    body: {
+      macroId?: string;
+      template?: string;
+      mode: 'reply' | 'send';
+      messageId?: string;
+      contactKey?: string;
+      channelKey?: string;
+      placeholder?: string;
+    },
+  ) => request<RenderResult>(c, '/api/macros/render', { method: 'POST', body: JSON.stringify(body) }),
 };
