@@ -18,6 +18,7 @@ import type {
   DeviceInfo,
   GpsConfig,
   LogEntry,
+  MacroTemplate,
   MapSettings,
   MapTileStatus,
   MenuAction,
@@ -223,6 +224,7 @@ export async function startServer(
   const onDeviceInfo = (info: DeviceInfo) => broadcast({ type: 'deviceInfo', payload: info });
   const onDeviceCapabilities = (caps: DeviceCapabilities) => broadcast({ type: 'deviceCapabilities', payload: caps });
   const onBlockRules = (rules: BlockRule[]) => broadcast({ type: 'blockRules', payload: rules });
+  const onMacros = (macros: MacroTemplate[]) => broadcast({ type: 'macros', payload: macros });
   const onUiState = (state: UiState) => broadcast({ type: 'uiState', payload: state });
   const onWindowFocus = (focused: boolean) => broadcast({ type: 'windowFocus', payload: { focused } });
   const onUpdateState = (state: UpdateState) => broadcast({ type: 'updateState', payload: state });
@@ -259,6 +261,7 @@ export async function startServer(
   bus.on('deviceInfo', onDeviceInfo);
   bus.on('deviceCapabilities', onDeviceCapabilities);
   bus.on('blockRules', onBlockRules);
+  bus.on('macros', onMacros);
   bus.on('uiState', onUiState);
   bus.on('windowFocus', onWindowFocus);
   bus.on('updateState', onUpdateState);
@@ -297,6 +300,7 @@ export async function startServer(
     bus.off('deviceInfo', onDeviceInfo);
     bus.off('deviceCapabilities', onDeviceCapabilities);
     bus.off('blockRules', onBlockRules);
+    bus.off('macros', onMacros);
     bus.off('uiState', onUiState);
     bus.off('windowFocus', onWindowFocus);
     bus.off('updateState', onUpdateState);

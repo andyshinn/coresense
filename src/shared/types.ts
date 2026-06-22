@@ -1,6 +1,8 @@
 import type { QuickActionId } from '../renderer/features/quick-actions/ids';
 import type { DiscoveredContact } from './contacts/discovered';
-import type { DistanceUnit } from './macros/types';
+import type { DistanceUnit, MacroTemplate } from './macros/types';
+
+export type { MacroTemplate } from './macros/types';
 
 export type TransportState = 'idle' | 'scanning' | 'connecting' | 'connected' | 'error';
 
@@ -1076,6 +1078,7 @@ export type WsMessage =
   | { type: 'windowFocus'; payload: { focused: boolean } }
   | { type: 'wsClients'; payload: { count: number } }
   | { type: 'blockRules'; payload: BlockRule[] }
+  | { type: 'macros'; payload: MacroTemplate[] }
   | { type: 'log'; payload: LogEntry }
   | { type: 'log:snapshot'; payload: LogEntry[] }
   | { type: 'updateState'; payload: UpdateState };
