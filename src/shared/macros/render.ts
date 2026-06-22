@@ -24,7 +24,10 @@ function lineCol(e: unknown): { line?: number; col?: number } {
 }
 
 export function classifyParseError(e: unknown): MacroError {
-  return { kind: 'parse', message: (e as Error).message, ...lineCol(e) };
+  const message = (e as Error).message ?? String(e);
+  const low = message.toLowerCase();
+  if (low.includes('undefined filter')) return { kind: 'unknown-filter', message, name: nameFromMessage(message) };
+  return { kind: 'parse', message, ...lineCol(e) };
 }
 
 export function classifyRenderError(e: unknown, elapsedMs: number, limit: number): MacroError {
