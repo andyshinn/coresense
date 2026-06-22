@@ -1,4 +1,6 @@
 import { Hono } from 'hono';
+import { getManifest, validateTemplate } from '../../shared/macros';
+import type { MacroContext } from '../../shared/macros/types';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -21,6 +23,9 @@ import { APP_VERSION, GIT_SHA } from '../build-info';
 import { emit } from '../events/bus';
 import { applyLoggingSettings } from '../logging/apply';
 import { currentPath, folderPath } from '../logging/fileSink';
+import { buildReplyContext, buildSendContext } from '../macros/contextBuilder';
+import { renderMacro } from '../macros/service';
+import { MacroValidationError, macrosStore } from '../macros/store';
 import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
 import { clampTileCacheMaxBytes, getTileCache } from '../map/tile-cache';
 import { sendMessage } from '../messaging/sendMessage';
@@ -29,6 +34,7 @@ import { ContactTableFullError, UnknownContactError } from '../protocol/errors';
 import { appLifecycle } from '../runtime/appLifecycle';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
+import { messagesStore } from '../storage/messages';
 import { searchMessages } from '../storage/search';
 import { transportManager } from '../transport/manager';
 import { updatesController } from '../updates/controller';
@@ -878,6 +884,112 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     } catch (err) {
       return c.json({ error: (err as Error).message }, 500);
     }
+  });
+
+  // ----- Macros -----
+  api.get('/api/macros', (c) => c.json(macrosStore.list()));
+
+  api.get('/api/macros/manifest', (c) => c.json(getManifest()));
+
+  api.post('/api/macros/validate', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { template?: string } | null;
+    if (!body || typeof body.template !== 'string') return c.json({ error: 'template required' }, 400);
+    return c.json(validateTemplate(body.template));
+  });
+
+  api.post('/api/macros', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as {
+      name?: string;
+      template?: string;
+      scope?: 'global' | 'channel' | 'contact';
+      channelKey?: string;
+      contactKey?: string;
+    } | null;
+    if (!body?.name || typeof body.template !== 'string' || !body.scope) {
+      return c.json({ error: 'name, template, scope required' }, 400);
+    }
+    try {
+      const macro = macrosStore.add({
+        name: body.name,
+        template: body.template,
+        scope: body.scope,
+        channelKey: body.channelKey,
+        contactKey: body.contactKey,
+      });
+      emit.macros(macrosStore.list());
+      return c.json({ macro });
+    } catch (e) {
+      if (e instanceof MacroValidationError) return c.json({ error: 'invalid template', errors: e.errors }, 400);
+      throw e;
+    }
+  });
+
+  api.put('/api/macros/:id', async (c) => {
+    const id = c.req.param('id');
+    const patch = (await c.req.json().catch(() => null)) as Partial<{
+      name: string;
+      template: string;
+      scope: 'global' | 'channel' | 'contact';
+      channelKey: string;
+      contactKey: string;
+    }> | null;
+    if (!patch) return c.json({ error: 'invalid body' }, 400);
+    try {
+      const updated = macrosStore.update(id, patch);
+      if (!updated) return c.json({ error: 'not found' }, 404);
+      emit.macros(macrosStore.list());
+      return c.json({ macro: updated });
+    } catch (e) {
+      if (e instanceof MacroValidationError) return c.json({ error: 'invalid template', errors: e.errors }, 400);
+      throw e;
+    }
+  });
+
+  api.delete('/api/macros/:id', (c) => {
+    const id = c.req.param('id');
+    if (!macrosStore.remove(id)) return c.json({ error: 'not found' }, 404);
+    emit.macros(macrosStore.list());
+    return c.json({ ok: true });
+  });
+
+  api.post('/api/macros/render', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as {
+      macroId?: string;
+      template?: string;
+      mode?: 'reply' | 'send';
+      messageId?: string;
+      contactKey?: string;
+      channelKey?: string;
+      placeholder?: string;
+    } | null;
+    if (!body || (!body.macroId && typeof body.template !== 'string')) {
+      return c.json({ error: 'macroId or template required' }, 400);
+    }
+    const holder = stateHolder();
+    const self = {
+      owner: holder.getOwner(),
+      deviceInfo: holder.getDeviceInfo(),
+      deviceIdentity: holder.getDeviceIdentity(),
+    };
+    const channelName = body.channelKey
+      ? (holder.getChannels().find((ch) => ch.key === body.channelKey)?.name ?? body.channelKey.replace(/^ch:/, ''))
+      : null;
+
+    let context: MacroContext;
+    if (body.mode === 'reply') {
+      const message = body.messageId ? messagesStore.findById(body.messageId) : null;
+      if (!message) return c.json({ error: 'message not found' }, 404);
+      const senderContact = message.fromPublicKeyHex
+        ? (holder.getContacts().find((ct) => ct.publicKeyHex === message.fromPublicKeyHex) ?? null)
+        : null;
+      context = buildReplyContext({ self, message, senderContact, channelName });
+    } else {
+      const peerContact = body.contactKey ? (holder.getContacts().find((ct) => ct.key === body.contactKey) ?? null) : null;
+      context = buildSendContext({ self, peerContact, channelName });
+    }
+
+    const result = renderMacro(body.macroId ?? (body.template as string), context, { placeholder: body.placeholder });
+    return c.json(result);
   });
 
   return api;
