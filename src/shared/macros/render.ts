@@ -10,11 +10,6 @@ function wrapScope(context: Record<string, unknown>, placeholder: string): Recor
   return out;
 }
 
-function nameFromMessage(msg: string): string | undefined {
-  const m = msg.match(/:\s*([^\s]+)\s*$/);
-  return m ? m[1] : undefined;
-}
-
 function filterNameFromMessage(msg: string): string | undefined {
   return msg.match(/undefined filter:\s*([^,\s]+)/i)?.[1];
 }
@@ -38,7 +33,8 @@ export function classifyRenderError(e: unknown, elapsedMs: number, limit: number
   const message = (e as Error).message ?? String(e);
   const low = message.toLowerCase();
   if (low.includes('undefined filter')) return { kind: 'unknown-filter', message, name: filterNameFromMessage(message) };
-  if (low.includes('undefined variable')) return { kind: 'unknown-variable', message, name: nameFromMessage(message) };
+  if (low.includes('undefined variable'))
+    return { kind: 'unknown-variable', message, name: message.match(/undefined variable:\s*([^,\s]+)/i)?.[1] };
   if (/template render limit/i.test(message) || elapsedMs >= limit) return { kind: 'timeout', message };
   return { kind: 'render', message };
 }

@@ -988,6 +988,9 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       context = buildSendContext({ self, peerContact, channelName });
     }
 
+    if (body.macroId && !macrosStore.list().some((m) => m.id === body.macroId)) {
+      return c.json({ error: 'macro not found' }, 404);
+    }
     const result = renderMacro(body.macroId ?? (body.template as string), context, { placeholder: body.placeholder });
     return c.json(result);
   });

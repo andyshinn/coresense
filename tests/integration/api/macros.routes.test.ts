@@ -61,4 +61,9 @@ describe('macros api', () => {
     const body = (await res.json()) as { ok: boolean; text?: string };
     expect(body.ok).toBe(true);
   });
+
+  it('returns 404 when macroId does not exist', async () => {
+    const res = await app().request('/api/macros/render', json({ macroId: 'does-not-exist', mode: 'send' }));
+    expect(res.status).toBe(404);
+  });
 });

@@ -9,8 +9,8 @@ export interface SelfState {
 }
 
 function pos(lat: number | null | undefined, lon: number | null | undefined): MacroPosition | null {
-  if (typeof lat !== 'number' || typeof lon !== 'number') return null;
-  return { lat, lon };
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  return { lat: lat as number, lon: lon as number };
 }
 
 function humanizeAgo(ms: number): string {

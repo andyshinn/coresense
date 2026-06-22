@@ -21,6 +21,9 @@ describe('validateTemplate', () => {
   it('flags an unknown variable distinctly', () => {
     const r = validateTemplate('{{ definitely_not_a_var }}');
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.errors[0].kind).toBe('unknown-variable');
+    if (!r.ok) {
+      expect(r.errors[0].kind).toBe('unknown-variable');
+      expect(r.errors[0].name).toBe('definitely_not_a_var');
+    }
   });
 });

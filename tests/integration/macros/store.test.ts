@@ -21,4 +21,12 @@ describe('macrosStore', () => {
     expect(() => macrosStore.add({ name: 'bad', template: '{% if %}', scope: 'global' })).toThrow(MacroValidationError);
     expect(macrosStore.list()).toHaveLength(0);
   });
+
+  it('returns null on update with unknown id', () => {
+    expect(macrosStore.update('nope', { name: 'x' })).toBeNull();
+  });
+
+  it('returns false on remove with unknown id', () => {
+    expect(macrosStore.remove('nope')).toBe(false);
+  });
 });

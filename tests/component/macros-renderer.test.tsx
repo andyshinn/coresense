@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import type { MacroTemplate } from '../../src/shared/macros/types';
 
 const client = { baseUrl: 'http://x', apiKey: 'k' } as Parameters<typeof api.getMacros>[0];
 
+beforeEach(() => useStore.setState({ macros: [] }));
 afterEach(() => vi.unstubAllGlobals());
 
 describe('renderer macro plumbing', () => {

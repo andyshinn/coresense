@@ -18,7 +18,3 @@ export function renderMacro(idOrTemplate: string, context: MacroContext, opts?: 
   const engine = engineForUnit(unit);
   return renderTemplate(engine, template, context as unknown as Record<string, unknown>, opts);
 }
-
-export function resetMacroEngineCacheForTests(): void {
-  cached = null;
-}
