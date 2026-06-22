@@ -820,7 +820,7 @@ Expected: FAIL — cannot resolve `render`.
 
 ```ts
 // src/shared/macros/render.ts
-import { type Liquid, ParseError, TokenizationError } from 'liquidjs';
+import type { Liquid } from 'liquidjs';
 import { DEFAULT_RENDER_LIMIT } from './engine';
 import { PlaceholderDrop } from './placeholder';
 import type { MacroError, RenderOptions, RenderResult } from './types';
@@ -866,7 +866,6 @@ export function renderTemplate(
   try {
     templates = engine.parse(template);
   } catch (e) {
-    if (e instanceof ParseError || e instanceof TokenizationError) return { ok: false, error: classifyParseError(e) };
     return { ok: false, error: classifyParseError(e) };
   }
   const limit = opts.renderLimit ?? DEFAULT_RENDER_LIMIT;
@@ -1494,8 +1493,8 @@ Expected: FAIL — cannot resolve `service`.
 
 ```ts
 // src/main/macros/service.ts
-import { type Liquid, createMacroEngine } from '../../shared/macros';
-import { renderTemplate } from '../../shared/macros';
+import type { Liquid } from 'liquidjs';
+import { createMacroEngine, renderTemplate } from '../../shared/macros';
 import type { DistanceUnit, MacroContext, RenderOptions, RenderResult } from '../../shared/macros/types';
 import { settingsStore } from '../storage/settings';
 import { macrosStore } from './store';
@@ -1515,8 +1514,6 @@ export function renderMacro(idOrTemplate: string, context: MacroContext, opts?: 
   return renderTemplate(engine, template, context as unknown as Record<string, unknown>, opts);
 }
 ```
-
-> Note: `Liquid` is re-exported transitively from `liquidjs`; if `import { type Liquid } from '../../shared/macros'` does not resolve, import the type directly: `import type { Liquid } from 'liquidjs'`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
