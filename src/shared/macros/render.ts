@@ -17,7 +17,10 @@ function nameFromMessage(msg: string): string | undefined {
 
 function lineCol(e: unknown): { line?: number; col?: number } {
   const t = (e as { token?: { line?: number; col?: number } }).token;
-  return { line: t?.line, col: t?.col };
+  const out: { line?: number; col?: number } = {};
+  if (typeof t?.line === 'number') out.line = t.line;
+  if (typeof t?.col === 'number') out.col = t.col;
+  return out;
 }
 
 export function classifyParseError(e: unknown): MacroError {
@@ -29,7 +32,7 @@ export function classifyRenderError(e: unknown, elapsedMs: number, limit: number
   const low = message.toLowerCase();
   if (low.includes('undefined filter')) return { kind: 'unknown-filter', message, name: nameFromMessage(message) };
   if (low.includes('undefined variable')) return { kind: 'unknown-variable', message, name: nameFromMessage(message) };
-  if (low.includes('limit') || elapsedMs >= limit) return { kind: 'timeout', message };
+  if (/template render limit/i.test(message) || elapsedMs >= limit) return { kind: 'timeout', message };
   return { kind: 'render', message };
 }
 
