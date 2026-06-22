@@ -1,5 +1,6 @@
 import type { QuickActionId } from '../renderer/features/quick-actions/ids';
 import type { DiscoveredContact } from './contacts/discovered';
+import type { DistanceUnit } from './macros/types';
 
 export type TransportState = 'idle' | 'scanning' | 'connecting' | 'connected' | 'error';
 
@@ -459,6 +460,7 @@ export interface AppSettings {
     channel: UpdateChannel;
     autoCheck: boolean;
   };
+  distanceUnit: DistanceUnit;
 }
 
 export type ContactGrouping = 'nested' | 'top-level';
@@ -501,6 +503,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   logging: { fileEnabled: false, level: 'info' },
   quickActions: ['flood', 'gps', 'shareLoc', 'disconnect'],
   updates: { channel: 'stable', autoCheck: true },
+  distanceUnit: 'metric',
 };
 
 /** Bundled vector basemap source for the Map panel.
