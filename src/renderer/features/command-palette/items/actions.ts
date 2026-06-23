@@ -1,4 +1,5 @@
 import {
+  ArrowUpCircle,
   CheckCheck,
   Clipboard,
   Eraser,
@@ -358,6 +359,28 @@ export function buildActionItems({
       void api.disconnect(client).catch((err) => {
         notify.error(`Disconnect failed: ${(err as Error).message}`, err);
       });
+      close();
+    },
+  });
+
+  list.push({
+    id: 'action:checkForUpdates',
+    label: 'Check for updates',
+    hint: 'App',
+    group: 'action',
+    groupLabel: 'Actions',
+    icon: ArrowUpCircle,
+    keywords: 'update upgrade version check',
+    run: () => {
+      if (!client) return;
+      void api.checkForUpdates(client).then(
+        (r) => {
+          if (r.updateState?.status === 'available') notify.success(`Update available: ${r.updateState.latestVersion}`);
+          else if (r.updateState?.status === 'up-to-date') notify.info('You are up to date');
+          else if (r.updateState?.status === 'error') notify.error(r.updateState.error ?? 'Update check failed');
+        },
+        (err) => notify.error(`Update check failed: ${(err as Error).message}`, err),
+      );
       close();
     },
   });

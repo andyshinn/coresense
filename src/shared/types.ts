@@ -314,6 +314,23 @@ export type MessageStyle = 'compact' | 'rich';
  *  explicit values force a 12- or 24-hour clock regardless of locale. */
 export type TimeFormatPref = 'auto' | '12h' | '24h';
 
+export type UpdateChannel = 'stable' | 'development';
+
+export type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'downloaded' | 'error';
+
+export interface UpdateState {
+  status: UpdateStatus;
+  /** Which mechanism applies right now, from (platform, channel). */
+  mode: 'silent' | 'notify';
+  channel: UpdateChannel;
+  currentVersion: string;
+  latestVersion?: string;
+  /** Notify path only: the GitHub release page to open. */
+  releaseUrl?: string;
+  lastCheckedAt?: number;
+  error?: string;
+}
+
 export interface AppSettings {
   theme: ThemePrefValue;
   /** Density for the channel/DM conversation message list. */
@@ -410,6 +427,11 @@ export interface AppSettings {
    *  button). Validated against the catalog on read, so unknown/removed ids are
    *  dropped. */
   quickActions: QuickActionId[];
+  /** Auto-update channel + background-check toggle. */
+  updates: {
+    channel: UpdateChannel;
+    autoCheck: boolean;
+  };
 }
 
 export type ContactGrouping = 'nested' | 'top-level';
@@ -450,6 +472,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   unreadsPreview: { enabled: true, limit: 25 },
   logging: { fileEnabled: false, level: 'info' },
   quickActions: ['flood', 'gps', 'shareLoc', 'disconnect'],
+  updates: { channel: 'stable', autoCheck: true },
 };
 
 /** Bundled vector basemap + raster terrain sources for the Map panel.
@@ -984,7 +1007,8 @@ export type WsMessage =
   | { type: 'wsClients'; payload: { count: number } }
   | { type: 'blockRules'; payload: BlockRule[] }
   | { type: 'log'; payload: LogEntry }
-  | { type: 'log:snapshot'; payload: LogEntry[] };
+  | { type: 'log:snapshot'; payload: LogEntry[] }
+  | { type: 'updateState'; payload: UpdateState };
 
 export interface PathLearnedEvent {
   contactKey: string;

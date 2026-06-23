@@ -47,6 +47,7 @@ import {
   type TileManifest,
   type TransportState,
   type UiState,
+  type UpdateState,
 } from '../../shared/types';
 import { setRendererLogLevel } from './logger';
 import type { NeighbourSortKey } from './neighbours';
@@ -238,6 +239,7 @@ interface CoreState {
 
   // Settings
   appSettings: AppSettings;
+  updateState: UpdateState | null;
   blockRules: BlockRule[];
   radioSettings: RadioSettings;
   deviceIdentity: DeviceIdentity;
@@ -335,6 +337,7 @@ interface CoreState {
   applyDiscovered: (rows: DiscoveredContact[]) => void;
   applyOwner: (owner: Owner | null) => void;
   applyAppSettings: (settings: AppSettings) => void;
+  applyUpdateState: (state: UpdateState | null) => void;
   applyBlockRules: (rules: BlockRule[]) => void;
   applyRadioSettings: (settings: RadioSettings) => void;
   applyDeviceIdentity: (identity: DeviceIdentity) => void;
@@ -507,6 +510,7 @@ export const useStore = create<CoreState>((set) => ({
   capabilities: null,
 
   appSettings: DEFAULT_APP_SETTINGS,
+  updateState: null,
   blockRules: [],
   radioSettings: DEFAULT_RADIO_SETTINGS,
   deviceIdentity: DEFAULT_DEVICE_IDENTITY,
@@ -679,6 +683,7 @@ export const useStore = create<CoreState>((set) => ({
     setRendererLogLevel(settings.logging.level);
     set(() => ({ appSettings: settings }));
   },
+  applyUpdateState: (state) => set(() => ({ updateState: state })),
   applyBlockRules: (rules) => set(() => ({ blockRules: rules })),
   applyRadioSettings: (settings) => set(() => ({ radioSettings: settings })),
   applyDeviceIdentity: (identity) => set(() => ({ deviceIdentity: identity })),

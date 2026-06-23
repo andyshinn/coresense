@@ -5,3 +5,4 @@ export { LoggingSection } from './Logging';
 export { NotificationsSection } from './Notifications';
 export { ProxySection } from './Proxy';
 export { ToastsSection } from './Toasts';
+export { UpdatesSection } from './Updates';

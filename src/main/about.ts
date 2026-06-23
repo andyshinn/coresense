@@ -1,5 +1,6 @@
 import { app, type BrowserWindow, dialog } from 'electron';
 import { APP_VERSION, GIT_SHA } from './build-info';
+import { updatesController } from './updates/controller';
 
 const COPYRIGHT = `Copyright © ${new Date().getFullYear()} Andy Shinn`;
 const WEBSITE = 'https://github.com/andyshinn/coresense';
@@ -36,12 +37,16 @@ export function showAboutDialog(parent?: BrowserWindow | null): void {
     title: `About ${app.name}`,
     message: app.name,
     detail,
-    buttons: ['OK'],
+    buttons: ['OK', 'Check for Updates'],
     defaultId: 0,
+    cancelId: 0,
+  };
+  const handle = (result: { response: number }) => {
+    if (result.response === 1) void updatesController().check();
   };
   if (parent) {
-    void dialog.showMessageBox(parent, opts);
+    void dialog.showMessageBox(parent, opts).then(handle);
   } else {
-    void dialog.showMessageBox(opts);
+    void dialog.showMessageBox(opts).then(handle);
   }
 }

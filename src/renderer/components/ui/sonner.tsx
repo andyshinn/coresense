@@ -33,10 +33,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          '--normal-bg': 'var(--popover)',
-          '--normal-text': 'var(--popover-foreground)',
-          '--normal-border': 'var(--border)',
-          '--border-radius': 'var(--radius)',
+          // These map to the project's Tailwind v4 `@theme` tokens, which are
+          // named `--color-*` (e.g. `--color-popover: rgb(var(--cs-bg-2))`).
+          // The bare `--popover`/`--border`/`--radius` names don't exist, which
+          // left the toast background transparent.
+          '--normal-bg': 'var(--color-popover)',
+          '--normal-text': 'var(--color-popover-foreground)',
+          '--normal-border': 'var(--color-border)',
+          '--border-radius': '0.375rem',
         } as React.CSSProperties
       }
       {...props}

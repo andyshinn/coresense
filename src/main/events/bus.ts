@@ -30,6 +30,7 @@ import type {
   TileManifest,
   TransportState,
   UiState,
+  UpdateState,
 } from '../../shared/types';
 
 /** Contact-sync coordination signal emitted by the contacts feature while a
@@ -80,6 +81,7 @@ export const emit = {
   deviceCapabilities: (caps: DeviceCapabilities) => bus.emit('deviceCapabilities', caps),
   blockRules: (rules: BlockRule[]) => bus.emit('blockRules', rules),
   logEntry: (entry: LogEntry) => bus.emit('log:entry', entry),
+  updateState: (state: UpdateState) => bus.emit('updateState', state),
 };
 
 export type BusEvents = {
@@ -117,4 +119,5 @@ export type BusEvents = {
   deviceCapabilities: (caps: DeviceCapabilities) => void;
   blockRules: (rules: BlockRule[]) => void;
   'log:entry': (entry: LogEntry) => void;
+  updateState: (state: UpdateState) => void;
 };

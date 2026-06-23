@@ -52,7 +52,7 @@ import { optimizeFts } from './storage/search';
 import { flushSettings } from './storage/settings';
 import { transportManager } from './transport/manager';
 import { installStartupTransport } from './transport/select';
-import { startUpdater } from './updater';
+import { startUpdates } from './updates/wiring';
 import { isQuitConfirmed } from './window/quit';
 import { getMainWindow, setMainWindow } from './window/registry';
 import { flushWindowState, loadWindowState, trackWindow } from './window/state';
@@ -145,7 +145,7 @@ async function bootstrap() {
     void transportManager.getTransport()?.connect('replay');
   }
   startNotifications();
-  startUpdater();
+  startUpdates();
 
   createWindow();
 }
