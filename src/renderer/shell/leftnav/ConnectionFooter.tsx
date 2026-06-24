@@ -1,15 +1,15 @@
-import { ArrowUpCircle, Bluetooth, RotateCw } from 'lucide-react';
+import { ReloadIcon, UpdateIcon } from '@radix-ui/react-icons';
+import { Flex, Popover, Progress, Text } from '@radix-ui/themes';
+import { Bluetooth } from 'lucide-react';
 import { type MouseEvent, useCallback, useEffect, useState } from 'react';
 import type { SyncProgress, TransportState } from '../../../shared/types';
-import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
-import { Progress } from '../../components/ui/progress';
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '../../components/ui/sidebar';
 import { type ApiClient, api } from '../../lib/api';
 import { loadLastDevice } from '../../lib/lastDevice';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
 import { ACTIVE_BUTTON_CLASS } from './atoms';
+import { NavButton, NavItem, NavMenu } from './nav';
 
 const TRANSPORT_LABEL: Record<TransportState, string> = {
   idle: 'Not connected',
@@ -95,9 +95,9 @@ export function ConnectionFooter({
   const label = syncing ? 'Syncing' : TRANSPORT_LABEL[state];
 
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <SidebarMenuButton
+    <NavMenu>
+      <NavItem>
+        <NavButton
           data-testid="connection-status-footer"
           tooltip={label}
           isActive={active}
@@ -105,7 +105,7 @@ export function ConnectionFooter({
           className={cn(ACTIVE_BUTTON_CLASS, 'h-auto flex-col items-stretch gap-1.5 group-data-[collapsible=icon]:flex-row')}
         >
           <span className="flex w-full items-center gap-2">
-            <Bluetooth aria-hidden="true" className="shrink-0 group-data-[collapsible=icon]:hidden" />
+            <Bluetooth aria-hidden={true} className="shrink-0 group-data-[collapsible=icon]:hidden" />
             {/* In icon mode this dot is the only visible element. Bumping it
                 from size-2 to size-2.5 there gives a more legible target inside
                 the 32px icon button. */}
@@ -121,13 +121,11 @@ export function ConnectionFooter({
             <Progress
               value={pct}
               aria-label="Sync progress"
-              className={cn(
-                'h-1 bg-cs-warn/20 transition-opacity duration-500 *:data-[slot=progress-indicator]:bg-cs-warn',
-                syncing ? 'opacity-100' : 'opacity-0',
-              )}
+              color="yellow"
+              className={cn('transition-opacity duration-500', syncing ? 'opacity-100' : 'opacity-0')}
             />
           )}
-        </SidebarMenuButton>
+        </NavButton>
         {canReconnect && (
           <button
             type="button"
@@ -136,12 +134,12 @@ export function ConnectionFooter({
             aria-label={`Reconnect to ${lastDevice?.name ?? 'last radio'}`}
             className="absolute right-1 top-1/2 flex aspect-square size-7 -translate-y-1/2 items-center justify-center rounded-md text-cs-text-muted transition-colors hover:bg-cs-bg-3 hover:text-cs-text group-data-[collapsible=icon]:hidden"
           >
-            <RotateCw aria-hidden="true" className="size-4" />
+            <ReloadIcon aria-hidden={true} width="16" height="16" />
           </button>
         )}
         {updatePending && (
-          <Popover>
-            <PopoverTrigger asChild>
+          <Popover.Root>
+            <Popover.Trigger>
               <button
                 type="button"
                 data-testid="update-indicator"
@@ -149,29 +147,31 @@ export function ConnectionFooter({
                 aria-label="Update available"
                 className="absolute right-8 top-1/2 flex aspect-square size-7 -translate-y-1/2 items-center justify-center rounded-md text-cs-online transition-colors hover:bg-cs-bg-3"
               >
-                <ArrowUpCircle aria-hidden="true" className="size-4" />
+                <UpdateIcon aria-hidden={true} width="16" height="16" />
               </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-64 space-y-2 text-[12px]">
-              <div className="font-medium text-cs-text">
-                {updateState?.status === 'downloaded' ? 'Update ready' : 'Update available'}
-              </div>
-              <div className="text-cs-text-dim">
-                {updateState?.currentVersion}
-                {updateState?.latestVersion ? ` → ${updateState.latestVersion}` : ''}
-                {` (${updateState?.channel})`}
-              </div>
-              <button
-                type="button"
-                onClick={onInstall}
-                className="flex w-full items-center justify-center gap-1 rounded border border-cs-border bg-cs-bg-2 px-2 py-1 text-cs-text hover:bg-cs-bg-3"
-              >
-                {updateState?.mode === 'silent' ? 'Restart & install' : 'Open download'}
-              </button>
-            </PopoverContent>
-          </Popover>
+            </Popover.Trigger>
+            <Popover.Content size="1" side="right" align="start">
+              <Flex direction="column" gap="2">
+                <Text size="2" weight="medium" className="text-cs-text">
+                  {updateState?.status === 'downloaded' ? 'Update ready' : 'Update available'}
+                </Text>
+                <Text size="1" className="text-cs-text-dim">
+                  {updateState?.currentVersion}
+                  {updateState?.latestVersion ? ` → ${updateState.latestVersion}` : ''}
+                  {` (${updateState?.channel})`}
+                </Text>
+                <button
+                  type="button"
+                  onClick={onInstall}
+                  className="flex w-full items-center justify-center gap-1 rounded border border-cs-border bg-cs-bg-2 px-2 py-1 text-cs-text hover:bg-cs-bg-3"
+                >
+                  {updateState?.mode === 'silent' ? 'Restart & install' : 'Open download'}
+                </button>
+              </Flex>
+            </Popover.Content>
+          </Popover.Root>
         )}
-      </SidebarMenuItem>
-    </SidebarMenu>
+      </NavItem>
+    </NavMenu>
   );
 }

@@ -1,16 +1,17 @@
+import { Theme } from '@radix-ui/themes';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
-import { SidebarMenu, SidebarProvider } from '@/components/ui/sidebar';
+import { NavRoot } from '@/shell/leftnav/nav';
 import { UnreadsNavItem } from '@/shell/leftnav/UnreadsNavItem';
 
 function renderItem(props: { totalUnread: number; isActive?: boolean; onSelect?: () => void }) {
   const onSelect = props.onSelect ?? (() => {});
   return render(
-    <SidebarProvider>
-      <SidebarMenu>
+    <Theme>
+      <NavRoot>
         <UnreadsNavItem totalUnread={props.totalUnread} isActive={props.isActive ?? false} onSelect={onSelect} />
-      </SidebarMenu>
-    </SidebarProvider>,
+      </NavRoot>
+    </Theme>,
   );
 }
 

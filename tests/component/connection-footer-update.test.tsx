@@ -8,24 +8,27 @@ vi.mock('../../src/renderer/lib/notify', () => ({
   notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 
-import { SidebarProvider } from '../../src/renderer/components/ui/sidebar';
+import { Theme } from '@radix-ui/themes';
 import { api } from '../../src/renderer/lib/api';
 import { notify } from '../../src/renderer/lib/notify';
 import { useStore } from '../../src/renderer/lib/store';
 import { ConnectionFooter } from '../../src/renderer/shell/leftnav/ConnectionFooter';
+import { NavRoot } from '../../src/renderer/shell/leftnav/nav';
 import type { UpdateState } from '../../src/shared/types';
 
 function renderFooter() {
   return render(
-    <SidebarProvider>
-      <ConnectionFooter
-        client={{ baseUrl: 'http://x', apiKey: 'k' }}
-        state="connected"
-        sync={{ phase: 'idle', channels: { done: 0, total: 0 }, contacts: { done: 0, total: 0 } }}
-        onClick={() => {}}
-        active={false}
-      />
-    </SidebarProvider>,
+    <Theme>
+      <NavRoot>
+        <ConnectionFooter
+          client={{ baseUrl: 'http://x', apiKey: 'k' }}
+          state="connected"
+          sync={{ phase: 'idle', channels: { done: 0, total: 0 }, contacts: { done: 0, total: 0 } }}
+          onClick={() => {}}
+          active={false}
+        />
+      </NavRoot>
+    </Theme>,
   );
 }
 

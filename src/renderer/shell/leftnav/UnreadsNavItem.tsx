@@ -1,6 +1,6 @@
 import { Inbox } from 'lucide-react';
-import { SidebarMenuButton, SidebarMenuItem } from '../../components/ui/sidebar';
 import { ACTIVE_BUTTON_CLASS, UnreadChip } from './atoms';
+import { NavButton, NavItem } from './nav';
 
 interface UnreadsNavItemProps {
   totalUnread: number;
@@ -16,15 +16,15 @@ interface UnreadsNavItemProps {
 export function UnreadsNavItem({ totalUnread, isActive, onSelect }: UnreadsNavItemProps) {
   const hasUnread = totalUnread > 0;
   return (
-    <SidebarMenuItem>
-      <SidebarMenuButton tooltip="Unreads" isActive={isActive} onClick={onSelect} className={ACTIVE_BUTTON_CLASS}>
+    <NavItem>
+      <NavButton tooltip="Unreads" isActive={isActive} onClick={onSelect} className={ACTIVE_BUTTON_CLASS}>
         <span className="relative flex shrink-0 items-center">
           <Inbox className="size-4" />
           {hasUnread && <span className="absolute -right-1 -top-1 size-1.5 animate-pulse rounded-full bg-cs-accent" />}
         </span>
         <span>Unreads</span>
         <UnreadChip count={totalUnread} muted={!hasUnread} className="ml-auto" />
-      </SidebarMenuButton>
-    </SidebarMenuItem>
+      </NavButton>
+    </NavItem>
   );
 }
