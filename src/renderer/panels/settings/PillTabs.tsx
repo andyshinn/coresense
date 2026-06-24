@@ -1,10 +1,18 @@
 import { Box, Flex, SegmentedControl, Text } from '@radix-ui/themes';
-import type { LucideIcon } from 'lucide-react';
+import type React from 'react';
+
+/** Icon component type — accepts both lucide-react icons and @radix-ui/react-icons. */
+type IconComponent = React.ComponentType<{
+  width?: number | string;
+  height?: number | string;
+  'aria-hidden'?: boolean | 'true' | 'false';
+  className?: string;
+}>;
 
 export interface PillTab<T extends string> {
   id: T;
   label: string;
-  icon: LucideIcon;
+  icon: IconComponent;
   /** Shows a warn dot on the pill when the tab has unsaved changes. */
   dirty?: boolean;
 }

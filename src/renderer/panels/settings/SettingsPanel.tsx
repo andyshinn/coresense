@@ -1,4 +1,6 @@
-import { Cog, Radio, Settings, ShieldOff, Wrench, Zap } from 'lucide-react';
+import { GearIcon, LightningBoltIcon } from '@radix-ui/react-icons';
+import { Box, Flex, Heading, Text } from '@radix-ui/themes';
+import { Radio, ShieldOff, Wrench } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { ApiKeySection } from '../../components/settings/ApiKeySection';
 import { MapKeySection } from '../../components/settings/MapKeySection';
@@ -137,37 +139,44 @@ export function SettingsPanel({ client, initialTab, initialSection }: Props) {
   const tabDirty = (tab: SettingsTab) => Object.entries(dirtyById).some(([id, v]) => v && id.startsWith(`${tab}-`));
 
   const pillTabs: PillTab<SettingsTab>[] = [
-    { id: 'app', label: 'Application Settings', icon: Cog, dirty: tabDirty('app') },
-    { id: 'quickActions', label: 'Quick Actions', icon: Zap, dirty: tabDirty('quickActions') },
+    { id: 'app', label: 'Application Settings', icon: GearIcon, dirty: tabDirty('app') },
+    { id: 'quickActions', label: 'Quick Actions', icon: LightningBoltIcon, dirty: tabDirty('quickActions') },
     { id: 'radio', label: 'Radio Settings', icon: Radio, dirty: tabDirty('radio') },
     { id: 'blocked', label: 'Blocked', icon: ShieldOff, dirty: tabDirty('blocked') },
     { id: 'extra', label: 'Extra Tools', icon: Wrench },
   ];
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-cs-bg">
-      <header className="shrink-0 border-b border-cs-border px-7 py-3">
-        <div className="mb-3 flex items-center gap-3">
-          <h1 className="flex items-center gap-2 text-[15px] font-bold text-cs-text">
-            <Settings className="size-4 text-cs-accent" aria-hidden />
-            Settings
-          </h1>
-          <div className="flex-1" />
+    <Flex direction="column" height="100%" overflow="hidden">
+      <Flex direction="column" flexShrink="0" px="7" py="3" style={{ borderBottom: '1px solid var(--cs-border)' }}>
+        <Flex align="center" gap="3" mb="3">
+          <Heading size="3" as="h1">
+            <Flex align="center" gap="2">
+              <Text color="amber">
+                <GearIcon width="16" height="16" aria-hidden />
+              </Text>
+              Settings
+            </Flex>
+          </Heading>
+          <Box flexGrow="1" />
           <StatusPill tab={activeTab} />
-        </div>
+        </Flex>
         <PillTabs tabs={pillTabs} active={activeTab} onChange={setSettingsTab} />
-      </header>
+      </Flex>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-7 pb-10">
+      {/* Box overflow="auto" keeps the scroll host as a real DOM div so the
+          IntersectionObserver root ref and smooth-scroll querySelector work
+          without needing to pierce a ScrollArea viewport wrapper. */}
+      <Box ref={scrollRef} flexGrow="1" overflow="auto" px="7" pb="9">
         {activeTab === 'app' && <AppTab client={client} />}
         {activeTab === 'quickActions' && <QuickActionsTab client={client} />}
         {activeTab === 'radio' && <RadioTab client={client} />}
         {activeTab === 'blocked' && <BlockedTab client={client} />}
         {activeTab === 'extra' && <ExtraTab client={client} />}
-      </div>
+      </Box>
 
       <UnsavedChangesDialog client={client} />
-    </div>
+    </Flex>
   );
 }
 
@@ -193,9 +202,16 @@ function RadioTab({ client }: { client: ApiClient | null }) {
   return (
     <>
       {!connected && (
-        <div className="mt-4 rounded border border-cs-border bg-cs-bg-2 px-3 py-2 text-[11px] text-cs-text-dim">
-          No radio connected — radio changes save app-side only and apply on next connect.
-        </div>
+        <Box
+          mt="4"
+          px="3"
+          py="2"
+          style={{ borderRadius: 'var(--radius-2)', border: '1px solid var(--cs-border)', background: 'var(--cs-bg-2)' }}
+        >
+          <Text size="1" color="gray">
+            No radio connected — radio changes save app-side only and apply on next connect.
+          </Text>
+        </Box>
       )}
       <PublicInfoSection client={client} />
       <RadioSection client={client} />
