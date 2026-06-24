@@ -29,6 +29,7 @@ export default defineConfig({
           name: 'unit',
           environment: 'node',
           include: ['tests/unit/**/*.test.ts'],
+          setupFiles: ['tests/unit/setup.ts'],
         },
       },
       {
