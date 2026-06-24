@@ -71,7 +71,7 @@ In `src/renderer/App.tsx`:
   - **Accent** dropdown — all 26 Radix accents (gray, gold, bronze, brown, yellow, **amber**, orange, **tomato**, red, ruby, crimson, pink, plum, purple, violet, iris, indigo, blue, cyan, teal, jade, green, grass, lime, mint, sky).
   - **Gray** dropdown — auto, gray, mauve, slate, sage, olive, sand.
   - **Panel background** — translucent / **solid**.
-  - *(Optional, easy adds: radius, scaling.)*
+  - **Radius and scaling are out of scope** for this slice — set as static `<Theme>` defaults (`radius="medium"`, `scaling="100%"`), not exposed as Playground controls.
 - **Appearance (light/dark)** is **not** a playground control — it stays driven by the existing theme pref (`auto/light/dark`) to avoid two sources of truth. The playground governs accent/gray/panel-bg only.
 - **State + persistence:** a small **dedicated zustand store** (matching the existing `lib/store` pattern) holding `{ accentColor, grayColor, panelBackground }`, persisted to `localStorage` (`coresense.radixThemePlayground`) so selections survive reloads while evaluating. Default = warm preset: `accentColor: "amber"`, `grayColor: "sand"`, `panelBackground: "translucent"`.
 - The root `<Theme>` reads this store; the Appearance dropdowns write to it. Store must be provided above `<Theme>` in the tree.
