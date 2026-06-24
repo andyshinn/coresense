@@ -1,10 +1,11 @@
-import { BellOff, Star } from 'lucide-react';
+import { StarFilledIcon } from '@radix-ui/react-icons';
+import { BellOff } from 'lucide-react';
 import { type DragEvent, type MouseEvent, useRef, useState } from 'react';
 import type { Channel } from '../../../shared/types';
-import { SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '../../components/ui/sidebar';
 import { CHANNEL_ICON } from '../../lib/conversationIcons';
 import { cn } from '../../lib/utils';
 import { ACTIVE_BUTTON_CLASS, ShowMoreRow, UnreadChip } from './atoms';
+import { NavSub, NavSubButton, NavSubItem } from './nav';
 
 /** Sub-list of channel rows with drag-to-reorder, presence dimming, unread/mute/pin badges, and capped reveal. */
 export function ChannelSubList({
@@ -65,7 +66,7 @@ export function ChannelSubList({
   const shown = limit !== null && !revealed ? channels.slice(0, limit) : channels;
   const hidden = channels.length - shown.length;
   return (
-    <SidebarMenuSub>
+    <NavSub>
       {shown.map((ch) => {
         const onDevice = presence.has(ch.key);
         const Icon = CHANNEL_ICON[ch.kind];
@@ -73,7 +74,7 @@ export function ChannelSubList({
         const active = activeKey === ch.key;
         const showUnread = unread > 0 && !active;
         return (
-          <SidebarMenuSubItem
+          <NavSubItem
             key={ch.key}
             draggable
             onDragStart={(e) => onDragStart(e, ch.key)}
@@ -82,7 +83,7 @@ export function ChannelSubList({
             onDrop={(e) => onDrop(e, ch.key)}
             className={dragOver === ch.key ? 'border-t border-cs-accent' : undefined}
           >
-            <SidebarMenuSubButton
+            <NavSubButton
               isActive={active}
               onClick={() => onSelect(ch.key)}
               onContextMenu={(e) => onContext(ch, e)}
@@ -95,19 +96,14 @@ export function ChannelSubList({
                 {showUnread && <UnreadChip count={unread} />}
                 {ch.muted && <BellOff aria-label="muted" className="size-3 text-cs-text-dim/60" />}
                 {pinSet.has(ch.key) && (
-                  <Star
-                    data-testid="channel-pin-indicator"
-                    aria-hidden="true"
-                    className="size-3 text-cs-accent"
-                    fill="currentColor"
-                  />
+                  <StarFilledIcon data-testid="channel-pin-indicator" aria-hidden="true" className="size-3 text-cs-accent" />
                 )}
               </button>
-            </SidebarMenuSubButton>
-          </SidebarMenuSubItem>
+            </NavSubButton>
+          </NavSubItem>
         );
       })}
       {hidden > 0 && <ShowMoreRow count={hidden} onClick={onShowMore} />}
-    </SidebarMenuSub>
+    </NavSub>
   );
 }

@@ -1,9 +1,10 @@
-import { BellOff, Star } from 'lucide-react';
+import { StarFilledIcon } from '@radix-ui/react-icons';
+import { BellOff } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import type { Contact } from '../../../shared/types';
-import { SidebarMenuSubButton, SidebarMenuSubItem } from '../../components/ui/sidebar';
 import { CONTACT_ICON } from '../../lib/conversationIcons';
 import { ACTIVE_BUTTON_CLASS, UnreadChip } from './atoms';
+import { NavSubButton, NavSubItem } from './nav';
 
 /** Single contact row in a sub-list with unread/mute/pin badges. */
 export function ContactSubItem({
@@ -24,8 +25,8 @@ export function ContactSubItem({
   const Icon = CONTACT_ICON[contact.kind];
   const showUnread = unread > 0 && !active;
   return (
-    <SidebarMenuSubItem>
-      <SidebarMenuSubButton
+    <NavSubItem>
+      <NavSubButton
         isActive={active}
         onClick={onSelect}
         onContextMenu={onContextMenu}
@@ -37,9 +38,9 @@ export function ContactSubItem({
           <span className="flex-1 truncate">{contact.name}</span>
           {showUnread && <UnreadChip count={unread} />}
           {contact.muted && <BellOff aria-label="muted" className="size-3 text-cs-text-dim/60" />}
-          {pinned && <Star aria-hidden="true" className="size-3 text-cs-accent" fill="currentColor" />}
+          {pinned && <StarFilledIcon aria-hidden="true" className="size-3 text-cs-accent" />}
         </button>
-      </SidebarMenuSubButton>
-    </SidebarMenuSubItem>
+      </NavSubButton>
+    </NavSubItem>
   );
 }

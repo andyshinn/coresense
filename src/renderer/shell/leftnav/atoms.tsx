@@ -1,7 +1,7 @@
-import { MoreHorizontal } from 'lucide-react';
+import { DotsHorizontalIcon } from '@radix-ui/react-icons';
 import type { ReactNode } from 'react';
-import { SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '../../components/ui/sidebar';
 import { cn } from '../../lib/utils';
+import { NavSub, NavSubButton, NavSubItem } from './nav';
 
 /** Active styling that survives hover for top-level and sub buttons in the left nav. */
 export const ACTIVE_BUTTON_CLASS = cn(
@@ -35,24 +35,24 @@ export function UnreadChip({ count, muted, className }: { count: number; muted?:
 /** Trailing affordance for capped branches that reveals the rest of the list for the session. */
 export function ShowMoreRow({ count, onClick }: { count: number; onClick: () => void }) {
   return (
-    <SidebarMenuSubItem>
-      <SidebarMenuSubButton onClick={onClick} className="text-cs-text-muted hover:text-cs-text" asChild>
+    <NavSubItem>
+      <NavSubButton onClick={onClick} className="text-cs-text-muted hover:text-cs-text" asChild>
         <button type="button">
-          <MoreHorizontal />
+          <DotsHorizontalIcon />
           <span>Show {count} more</span>
         </button>
-      </SidebarMenuSubButton>
-    </SidebarMenuSubItem>
+      </NavSubButton>
+    </NavSubItem>
   );
 }
 
-/** Italic empty-state hint rendered inside an empty SidebarMenuSub. */
+/** Italic empty-state hint rendered inside an empty NavSub. */
 export function EmptySubHint({ children }: { children: ReactNode }) {
   return (
-    <SidebarMenuSub>
-      <SidebarMenuSubItem>
+    <NavSub>
+      <NavSubItem>
         <span className="px-2 py-1 text-[11px] italic text-cs-text-dim">{children}</span>
-      </SidebarMenuSubItem>
-    </SidebarMenuSub>
+      </NavSubItem>
+    </NavSub>
   );
 }
