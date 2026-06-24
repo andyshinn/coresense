@@ -1,0 +1,62 @@
+/*
+ * Icon-collapsed behavior for the local Radix nav-shell.
+ *
+ * Mirrors the shadcn sidebar's `group-data-[collapsible=icon]:*` utilities. The
+ * root sets `data-collapsible="icon"` only while collapsed; descendants opt into
+ * collapse-aware styling via the `nav-*` classes below. Consumers that previously
+ * relied on Tailwind `group-data-[collapsible=icon]:hidden` can instead read
+ * `useNav().state` and conditionally render, OR add the `nav-collapse-hide`
+ * class to a node to have it hidden automatically while collapsed.
+ */
+
+:root {
+  /* Icon-rail width — matches the shadcn SIDEBAR_WIDTH_ICON (3rem). */
+  --nav-width-icon: 3rem;
+}
+
+/* Root shell. Width comes from --sidebar-width (defined in index.css). */
+.nav-root {
+  width: var(--sidebar-width);
+  height: 100%;
+  min-height: 0;
+}
+
+/* Collapsed: shrink to the icon rail. */
+.nav-root[data-collapsible="icon"] {
+  width: var(--nav-width-icon);
+}
+
+/* Hide labels/search/sub-lists when collapsed to the icon rail. Equivalent to
+ * the old `group-data-[collapsible=icon]:hidden`. */
+.nav-root[data-collapsible="icon"] .nav-collapse-hide {
+  display: none;
+}
+
+/* Group label collapses to zero height + fades — mirrors
+ * `group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0`. */
+.nav-root[data-collapsible="icon"] .nav-group-label {
+  margin-top: -2rem;
+  opacity: 0;
+}
+
+/* Content scroll region hides overflow while collapsed so partially-clipped
+ * rows don't bleed past the icon rail. */
+.nav-root[data-collapsible="icon"] .nav-content {
+  overflow: hidden;
+}
+
+/* Menu button: square it off in the icon rail so the glyph centers. Mirrors
+ * `group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-2`.
+ * The attribute+descendant selector already out-specifies the base `.nav-button`
+ * class, so no `!important` is needed. */
+.nav-root[data-collapsible="icon"] .nav-button {
+  width: 2rem;
+  height: 2rem;
+  padding: 0.5rem;
+}
+
+/* Trailing action + sub-lists never render in the icon rail. */
+.nav-root[data-collapsible="icon"] .nav-action,
+.nav-root[data-collapsible="icon"] .nav-sub {
+  display: none;
+}
