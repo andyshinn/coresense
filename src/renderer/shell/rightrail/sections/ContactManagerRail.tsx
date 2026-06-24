@@ -1,14 +1,17 @@
-import { Ban, ChevronLeft, Download, type LucideIcon, Minus, Plus, Settings, Star, Trash2, Upload } from 'lucide-react';
+import {
+  ChevronLeftIcon,
+  DownloadIcon,
+  GearIcon,
+  MinusIcon,
+  PlusIcon,
+  StarIcon,
+  TrashIcon,
+  UploadIcon,
+} from '@radix-ui/react-icons';
+import { AlertDialog, Box, Button, DataList, Flex, Grid, Text } from '@radix-ui/themes';
+import { Ban } from 'lucide-react';
 import { useState } from 'react';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../../../components/ui/dialog';
 import { KeyValueRow } from '../../../components/ui/KeyValueRow';
 import { type ApiClient, api } from '../../../lib/api';
 import { deriveContactView } from '../../../lib/contactManagerView';
@@ -18,6 +21,8 @@ import { ContactDetail } from './ContactDetail';
 
 type Tone = 'danger' | 'accent' | undefined;
 
+type RadixIconComponent = React.FC<{ width?: number | string; height?: number | string }>;
+
 function RailActionButton({
   icon: Icon,
   label,
@@ -26,33 +31,55 @@ function RailActionButton({
   tone,
   disabled,
 }: {
-  icon: LucideIcon;
+  icon: RadixIconComponent | React.FC<{ size?: number; className?: string }>;
   label: string;
   sub?: string;
   onClick: () => void;
   tone?: Tone;
   disabled?: boolean;
 }) {
-  const iconTone = tone === 'danger' ? 'text-cs-danger' : tone === 'accent' ? 'text-cs-accent' : 'text-cs-text-muted';
-  const labelTone = tone === 'danger' ? 'text-cs-danger' : 'text-cs-text';
+  const iconColor: React.ComponentProps<typeof Text>['color'] =
+    tone === 'danger' ? 'red' : tone === 'accent' ? 'amber' : 'gray';
+
   return (
-    <button
-      type="button"
+    <Button
+      variant="surface"
+      size="1"
+      color={tone === 'danger' ? 'red' : tone === 'accent' ? 'amber' : undefined}
       onClick={onClick}
       disabled={disabled}
-      className="flex w-full items-center gap-2.5 rounded-md border border-cs-border bg-cs-bg-2 px-2.5 py-2 text-xs hover:bg-cs-bg-3 disabled:cursor-not-allowed disabled:opacity-50"
+      style={{ width: '100%', justifyContent: 'flex-start', height: 'auto', padding: '6px 10px' }}
     >
-      <Icon className={`size-4 shrink-0 ${iconTone}`} />
-      <span className="flex min-w-0 flex-col text-left">
-        <span className={labelTone}>{label}</span>
-        {sub ? <span className="font-mono text-[9.5px] text-cs-text-dim">{sub}</span> : null}
-      </span>
-    </button>
+      <Text color={iconColor} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        <Icon width={16} height={16} />
+      </Text>
+      <Flex direction="column" align="start" minWidth="0">
+        <Text size="1">{label}</Text>
+        {sub ? (
+          <Text size="1" style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, color: 'var(--cs-text-dim)' }}>
+            {sub}
+          </Text>
+        ) : null}
+      </Flex>
+    </Button>
   );
 }
 
 function SubHeader({ children }: { children: React.ReactNode }) {
-  return <div className="font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">{children}</div>;
+  return (
+    <Text
+      size="1"
+      style={{
+        fontFamily: 'var(--font-mono)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+        color: 'var(--cs-text-dim)',
+        fontSize: 10,
+      }}
+    >
+      {children}
+    </Text>
+  );
 }
 
 function BulkActions({ client }: { client: ApiClient | null }) {
@@ -72,14 +99,16 @@ function BulkActions({ client }: { client: ApiClient | null }) {
   }
 
   return (
-    <div className="space-y-2.5">
-      <div className="flex items-center justify-between">
+    <Flex direction="column" gap="3">
+      <Flex align="center" justify="between">
         <SubHeader>Selection</SubHeader>
-        <span className="font-mono text-[9.5px] text-cs-text-dim">{n} selected</span>
-      </div>
-      <div className="space-y-1.5">
+        <Text size="1" style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, color: 'var(--cs-text-dim)' }}>
+          {n} selected
+        </Text>
+      </Flex>
+      <Flex direction="column" gap="2">
         <RailActionButton
-          icon={Plus}
+          icon={PlusIcon}
           label="Add to radio"
           sub={`${n} contact${n === 1 ? '' : 's'}`}
           tone="accent"
@@ -95,7 +124,7 @@ function BulkActions({ client }: { client: ApiClient | null }) {
           }
         />
         <RailActionButton
-          icon={Minus}
+          icon={MinusIcon}
           label="Remove from radio"
           disabled={!client}
           onClick={() =>
@@ -109,7 +138,7 @@ function BulkActions({ client }: { client: ApiClient | null }) {
           }
         />
         <RailActionButton
-          icon={Star}
+          icon={StarIcon}
           label="Favourite"
           sub="never auto-pruned"
           disabled={!client}
@@ -144,11 +173,11 @@ function BulkActions({ client }: { client: ApiClient | null }) {
             )
           }
         />
-      </div>
-      <button type="button" onClick={clearCmSelected} className="text-[11px] text-cs-text-dim hover:text-cs-text">
+      </Flex>
+      <Button variant="ghost" size="1" color="gray" onClick={clearCmSelected} style={{ alignSelf: 'flex-start' }}>
         Clear selection
-      </button>
-    </div>
+      </Button>
+    </Flex>
   );
 }
 
@@ -223,59 +252,65 @@ function ListActions({ client }: { client: ApiClient | null }) {
   }
 
   return (
-    <div className="space-y-3">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
+    <Flex direction="column" gap="3">
+      <Flex direction="column" gap="2">
+        <Flex align="center" justify="between">
           <SubHeader>Quick actions</SubHeader>
-          <span className="font-mono text-[9.5px] text-cs-text-dim">FILTERED · {rows.length} shown</span>
-        </div>
-        <div className="space-y-1.5">
+          <Text size="1" style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, color: 'var(--cs-text-dim)' }}>
+            FILTERED · {rows.length} shown
+          </Text>
+        </Flex>
+        <Flex direction="column" gap="2">
           <RailActionButton
-            icon={Plus}
+            icon={PlusIcon}
             label="Add all filtered"
             sub={`${discoveredOnly.length} → radio`}
             tone="accent"
             disabled={!client}
             onClick={addAllFiltered}
           />
-          <RailActionButton icon={Minus} label="Remove all filtered" disabled={!client} onClick={removeAllFiltered} />
-        </div>
-      </div>
+          <RailActionButton icon={MinusIcon} label="Remove all filtered" disabled={!client} onClick={removeAllFiltered} />
+        </Flex>
+      </Flex>
 
-      <div className="space-y-2">
+      <Flex direction="column" gap="2">
         <SubHeader>Prune older than</SubHeader>
-        <div className="grid grid-cols-2 gap-1.5">
+        <Grid columns="2" gap="2">
           {PRUNE_OPTIONS.map((opt) => (
-            <button
+            <Button
               key={opt.label}
-              type="button"
+              variant="surface"
+              size="1"
+              color="gray"
               disabled={!client}
               onClick={() => prune(opt.ms, opt.label)}
-              className="flex items-center gap-1.5 rounded-md border border-cs-border px-2 py-2 text-[11.5px] hover:border-cs-warn hover:bg-cs-bg-3 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ justifyContent: 'flex-start' }}
             >
-              <Trash2 className="size-3.5 shrink-0 text-cs-text-muted" />
+              <TrashIcon width={14} height={14} />
               {opt.label}
-            </button>
+            </Button>
           ))}
-        </div>
-      </div>
+        </Grid>
+      </Flex>
 
-      <div className="space-y-1.5 border-t border-cs-border pt-3">
-        <div className="grid grid-cols-2 gap-1.5">
-          <RailActionButton icon={Upload} label="Import" onClick={() => notify.info('Import JSON — coming soon')} />
-          <RailActionButton icon={Download} label="Export" onClick={() => notify.info('Export JSON — coming soon')} />
-        </div>
-        <RailActionButton
-          icon={Trash2}
-          label="Clear discovered list"
-          sub="keeps on-radio contacts"
-          tone="danger"
-          disabled={!client}
-          onClick={() => setShowClear(true)}
-        />
-      </div>
+      <Box style={{ borderTop: '1px solid var(--cs-border)', paddingTop: 'var(--space-3)' }}>
+        <Flex direction="column" gap="2">
+          <Grid columns="2" gap="2">
+            <RailActionButton icon={UploadIcon} label="Import" onClick={() => notify.info('Import JSON — coming soon')} />
+            <RailActionButton icon={DownloadIcon} label="Export" onClick={() => notify.info('Export JSON — coming soon')} />
+          </Grid>
+          <RailActionButton
+            icon={TrashIcon}
+            label="Clear discovered list"
+            sub="keeps on-radio contacts"
+            tone="danger"
+            disabled={!client}
+            onClick={() => setShowClear(true)}
+          />
+        </Flex>
+      </Box>
 
-      <div className="border-t border-cs-border pt-3">
+      <Box style={{ borderTop: '1px solid var(--cs-border)', paddingTop: 'var(--space-3)' }}>
         <RailActionButton
           icon={Ban}
           label="Add block rule"
@@ -284,37 +319,33 @@ function ListActions({ client }: { client: ApiClient | null }) {
           disabled={!client}
           onClick={() => setShowBlock(true)}
         />
-      </div>
+      </Box>
 
-      <Dialog open={showClear} onOpenChange={(open) => !open && setShowClear(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Clear discovered list</DialogTitle>
-            <DialogDescription>
-              Delete {clearCount} discovered-only contact{clearCount === 1 ? '' : 's'}? On-radio contacts are kept.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <button
-              type="button"
-              onClick={() => setShowClear(false)}
-              className="rounded-md border border-cs-border bg-cs-bg-2 px-3 py-1.5 text-xs hover:bg-cs-bg-3"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={clearDiscovered}
-              className="rounded-md border border-cs-danger bg-cs-danger/10 px-3 py-1.5 text-xs text-cs-danger hover:bg-cs-danger/20"
-            >
-              Delete {clearCount}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Clear dialog: closes in finally{} (success + failure), so AlertDialog.Action is safe —
+          Radix closes the dialog synchronously before the handler fires, and finally{} runs after. */}
+      <AlertDialog.Root open={showClear} onOpenChange={(open) => !open && setShowClear(false)}>
+        <AlertDialog.Content maxWidth="420px">
+          <AlertDialog.Title>Clear discovered list</AlertDialog.Title>
+          <AlertDialog.Description size="2">
+            Delete {clearCount} discovered-only contact{clearCount === 1 ? '' : 's'}? On-radio contacts are kept.
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action>
+              <Button color="red" onClick={() => void clearDiscovered()}>
+                Delete {clearCount}
+              </Button>
+            </AlertDialog.Action>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
 
       {showBlock && <BlockSenderDialog client={client} open prefill={{}} onClose={() => setShowBlock(false)} />}
-    </div>
+    </Flex>
   );
 }
 
@@ -329,17 +360,13 @@ export function ContactManagerRailBody({ client }: { client: ApiClient | null })
   if (selected.length > 0) return <BulkActions client={client} />;
   if (focusKey) {
     return (
-      <div className="space-y-2">
-        <button
-          type="button"
-          onClick={() => setCmFocus(null)}
-          className="flex items-center gap-1 text-[11px] text-cs-text-dim hover:text-cs-text"
-        >
-          <ChevronLeft className="size-3.5" aria-hidden="true" />
+      <Flex direction="column" gap="2">
+        <Button variant="ghost" size="1" color="gray" onClick={() => setCmFocus(null)} style={{ alignSelf: 'flex-start' }}>
+          <ChevronLeftIcon width={14} height={14} aria-hidden="true" />
           Back to list actions
-        </button>
+        </Button>
         <ContactDetail publicKeyHex={focusKey} client={client} />
-      </div>
+      </Flex>
     );
   }
   return <ListActions client={client} />;
@@ -368,18 +395,18 @@ export function DiscoverySettings() {
           .join(', ') || 'None';
 
   return (
-    <div className="space-y-2.5">
-      <div className="space-y-1.5">
+    <Flex direction="column" gap="3">
+      <DataList.Root orientation="horizontal" size="1">
         <KeyValueRow label="Auto-add" value={autoAddLabel} />
         <KeyValueRow label="Overwrite oldest" value={cfg.overwriteOldest ? 'On' : 'Off'} />
         <KeyValueRow label="Max hops" value={cfg.maxHops == null ? 'No limit' : String(cfg.maxHops)} mono />
-      </div>
+      </DataList.Root>
       <RailActionButton
-        icon={Settings}
+        icon={GearIcon}
         label="Auto-Add settings"
         sub="edit in Radio settings"
         onClick={() => setActiveKey('tool:settings:radio')}
       />
-    </div>
+    </Flex>
   );
 }
