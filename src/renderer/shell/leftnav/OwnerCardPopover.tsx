@@ -50,10 +50,7 @@ function Ring({
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Flex direction="column">
-      <Text
-        size="1"
-        className="mb-1.5 font-mono text-[9px] uppercase tracking-wide text-cs-text-dim"
-      >
+      <Text size="1" className="mb-1.5 font-mono text-[9px] uppercase tracking-wide text-cs-text-dim">
         {title}
       </Text>
       {children}
@@ -64,8 +61,12 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 function KV({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
   return (
     <Flex align="center" justify="between" py="1" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
-      <Text size="1" className="text-cs-text-muted">{k}</Text>
-      <Text size="1" className={cn('font-mono', accent ? 'text-cs-accent' : 'text-cs-text')}>{v}</Text>
+      <Text size="1" className="text-cs-text-muted">
+        {k}
+      </Text>
+      <Text size="1" className={cn('font-mono', accent ? 'text-cs-accent' : 'text-cs-text')}>
+        {v}
+      </Text>
     </Flex>
   );
 }
@@ -74,11 +75,15 @@ function CapBar({ k, used, max, value }: { k: string; used: number; max: number;
   const pct = max > 0 ? Math.min(100, (used / max) * 100) : 0;
   return (
     <Flex align="center" gap="2" py="1" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
-      <Text size="1" className="w-14 text-cs-text-muted">{k}</Text>
+      <Text size="1" className="w-14 text-cs-text-muted">
+        {k}
+      </Text>
       <div className="h-1 flex-1 overflow-hidden rounded-full bg-cs-bg-3">
         <div className="h-full rounded-full bg-cs-accent" style={{ width: `${pct}%` }} />
       </div>
-      <Text size="1" className="w-20 text-right font-mono text-cs-text">{value}</Text>
+      <Text size="1" className="w-20 text-right font-mono text-cs-text">
+        {value}
+      </Text>
     </Flex>
   );
 }

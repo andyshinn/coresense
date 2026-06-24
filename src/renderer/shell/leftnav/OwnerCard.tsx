@@ -9,7 +9,7 @@ import type { ApiClient } from '../../lib/api';
 import { formatVoltage, lipoPercent } from '../../lib/battery';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
-import { NavMenu, NavItem } from './nav';
+import { NavItem, NavMenu } from './nav';
 import { OwnerCardPopover } from './OwnerCardPopover';
 
 /** Header identity card — identicon, name, battery, instrument rail, and the
