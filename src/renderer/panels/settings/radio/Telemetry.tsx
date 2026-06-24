@@ -1,4 +1,4 @@
-import { SlidersHorizontal } from 'lucide-react';
+import { MixerHorizontalIcon } from '@radix-ui/react-icons';
 import type { TelemetryPolicy } from '../../../../shared/types';
 import { Row, Select } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
@@ -37,7 +37,7 @@ export function TelemetrySection({ client }: SectionProps) {
   return (
     <SettingsSection
       id="radio-telemetry"
-      icon={SlidersHorizontal}
+      icon={() => <MixerHorizontalIcon width="14" height="14" />}
       title="Telemetry"
       description="Who can query telemetry from this radio."
       dirty={dirty}
