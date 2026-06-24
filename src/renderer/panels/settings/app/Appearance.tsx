@@ -1,7 +1,9 @@
+import { Flex, Select as RadixSelect, SegmentedControl, Text } from '@radix-ui/themes';
 import { Sun } from 'lucide-react';
 import type { AppSettings as AppSettingsType, ThemePrefValue } from '../../../../shared/types';
 import { Row, Select } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
+import { ACCENT_OPTIONS, GRAY_OPTIONS, useRadixTheme } from '../../../lib/radix-theme-store';
 import { useStore } from '../../../lib/store';
 import type { SectionProps } from '../radio/shared';
 import { useSettingsSection } from '../useSectionDraft';
@@ -49,6 +51,8 @@ export function AppearanceSection({ client }: SectionProps) {
       ),
   });
 
+  const rt = useRadixTheme();
+
   return (
     <SettingsSection
       id="app-appearance"
@@ -60,6 +64,52 @@ export function AppearanceSection({ client }: SectionProps) {
       canSave={!!client}
       onSave={save}
     >
+      <Flex direction="column" gap="2" mb="3">
+        <Text size="1" weight="medium" color="gray">
+          Radix Theme (preview)
+        </Text>
+        <Flex align="center" justify="between" gap="3">
+          <Text size="1">Accent</Text>
+          <RadixSelect.Root
+            value={rt.accentColor}
+            onValueChange={(v) => rt.setAccentColor(v as typeof rt.accentColor)}
+            size="1"
+          >
+            <RadixSelect.Trigger />
+            <RadixSelect.Content>
+              {ACCENT_OPTIONS.map((c) => (
+                <RadixSelect.Item key={c} value={c}>
+                  {c}
+                </RadixSelect.Item>
+              ))}
+            </RadixSelect.Content>
+          </RadixSelect.Root>
+        </Flex>
+        <Flex align="center" justify="between" gap="3">
+          <Text size="1">Gray</Text>
+          <RadixSelect.Root value={rt.grayColor} onValueChange={(v) => rt.setGrayColor(v as typeof rt.grayColor)} size="1">
+            <RadixSelect.Trigger />
+            <RadixSelect.Content>
+              {GRAY_OPTIONS.map((c) => (
+                <RadixSelect.Item key={c} value={c}>
+                  {c}
+                </RadixSelect.Item>
+              ))}
+            </RadixSelect.Content>
+          </RadixSelect.Root>
+        </Flex>
+        <Flex align="center" justify="between" gap="3">
+          <Text size="1">Panel background</Text>
+          <SegmentedControl.Root
+            value={rt.panelBackground}
+            onValueChange={(v) => rt.setPanelBackground(v as typeof rt.panelBackground)}
+            size="1"
+          >
+            <SegmentedControl.Item value="translucent">Translucent</SegmentedControl.Item>
+            <SegmentedControl.Item value="solid">Solid</SegmentedControl.Item>
+          </SegmentedControl.Root>
+        </Flex>
+      </Flex>
       <Row
         label="Theme"
         description="Auto follows your OS setting (Cmd-T cycles)."
