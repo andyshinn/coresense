@@ -1,14 +1,15 @@
-import { Copy, Radio } from 'lucide-react';
+import { CopyIcon } from '@radix-ui/react-icons';
+import { Flex, HoverCard } from '@radix-ui/themes';
+import { Radio } from 'lucide-react';
 import type { Owner } from '../../../shared/types';
 import { CopyButton } from '../../components/CopyButton';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
-import { SidebarMenu, SidebarMenuItem } from '../../components/ui/sidebar';
 import { Identicon } from '../../features/quick-actions/Identicon';
 import { QuickActions } from '../../features/quick-actions/QuickActions';
 import type { ApiClient } from '../../lib/api';
 import { formatVoltage, lipoPercent } from '../../lib/battery';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
+import { NavMenu, NavItem } from './nav';
 import { OwnerCardPopover } from './OwnerCardPopover';
 
 /** Header identity card — identicon, name, battery, instrument rail, and the
@@ -25,12 +26,12 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
   const battText = battMv > 0 ? `${formatVoltage(battMv)}${battPct !== null ? ` · ${battPct}%` : ''}` : '—';
 
   return (
-    <SidebarMenu>
-      <SidebarMenuItem className="p-1 group-data-[collapsible=icon]:p-0">
-        <HoverCard openDelay={200} closeDelay={120}>
-          <div className="flex flex-col gap-2">
+    <NavMenu>
+      <NavItem className="p-1 group-data-[collapsible=icon]:p-0">
+        <HoverCard.Root openDelay={200} closeDelay={120}>
+          <Flex direction="column" gap="2">
             {/* Hovering this top row reveals the full radio details. */}
-            <HoverCardTrigger asChild>
+            <HoverCard.Trigger>
               <div className="flex items-center gap-2">
                 {owner ? (
                   <Identicon hex={owner.publicKeyHex} size={32} />
@@ -51,7 +52,7 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
                         className="flex items-center gap-1 rounded font-mono text-[10px] tracking-wide text-cs-text-dim hover:text-cs-text"
                       >
                         <span className="truncate">{owner.publicKeyHex.slice(0, 6)}</span>
-                        <Copy aria-hidden="true" className="size-2.5 shrink-0" />
+                        <CopyIcon aria-hidden={true} width="10" height="10" className="shrink-0" />
                       </CopyButton>
                       <span
                         title={`Path hash size: ${pathHashMode} byte${pathHashMode > 1 ? 's' : ''} per hop`}
@@ -67,10 +68,10 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
                   )}
                 </div>
               </div>
-            </HoverCardTrigger>
+            </HoverCard.Trigger>
 
             {/* Detail block — hidden when the sidebar is icon-collapsed */}
-            <div className="flex flex-col gap-2 group-data-[collapsible=icon]:hidden">
+            <Flex direction="column" gap="2" className="group-data-[collapsible=icon]:hidden">
               {/* Battery — grays out and prompts to connect when offline */}
               <div className={cn('transition-opacity', !connected && 'opacity-50')}>
                 {connected ? (
@@ -91,13 +92,13 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
 
               {/* Configurable quick actions */}
               <QuickActions owner={owner} client={client} />
-            </div>
-          </div>
-          <HoverCardContent align="start" side="right" sideOffset={8} className="w-72 p-3">
+            </Flex>
+          </Flex>
+          <HoverCard.Content side="right" align="start" maxWidth="288px">
             <OwnerCardPopover />
-          </HoverCardContent>
-        </HoverCard>
-      </SidebarMenuItem>
-    </SidebarMenu>
+          </HoverCard.Content>
+        </HoverCard.Root>
+      </NavItem>
+    </NavMenu>
   );
 }

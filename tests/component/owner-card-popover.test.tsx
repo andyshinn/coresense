@@ -1,3 +1,4 @@
+import { Theme } from '@radix-ui/themes';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
 import { useStore } from '@/lib/store';
@@ -16,7 +17,11 @@ describe('OwnerCardPopover', () => {
       },
     });
 
-    render(<OwnerCardPopover />);
+    render(
+      <Theme>
+        <OwnerCardPopover />
+      </Theme>,
+    );
 
     expect(screen.getByText('Device')).toBeTruthy();
     expect(screen.getByText('Heltec T096')).toBeTruthy();

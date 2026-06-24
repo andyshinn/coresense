@@ -1,3 +1,4 @@
+import { Flex, Text } from '@radix-ui/themes';
 import { MapPin } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { lipoPercent } from '../../lib/battery';
@@ -22,7 +23,7 @@ function Ring({
   const stroke =
     tone === 'online' ? 'rgb(var(--cs-online))' : tone === 'dim' ? 'rgb(var(--cs-accent-soft))' : 'rgb(var(--cs-accent))';
   return (
-    <div className="flex flex-col items-center gap-1.5">
+    <Flex direction="column" align="center" gap="1">
       <div className="relative size-11">
         <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
           <circle cx="22" cy="22" r={r} fill="none" stroke="rgb(var(--cs-bg-3))" strokeWidth="4" />
@@ -42,38 +43,43 @@ function Ring({
         <div className="absolute inset-0 flex items-center justify-center font-mono text-[11px] text-cs-text">{label}</div>
       </div>
       <span className="font-mono text-[8.5px] uppercase tracking-wide text-cs-text-dim">{sub}</span>
-    </div>
+    </Flex>
   );
 }
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div>
-      <div className="mb-1.5 font-mono text-[9px] uppercase tracking-wide text-cs-text-dim">{title}</div>
+    <Flex direction="column">
+      <Text
+        size="1"
+        className="mb-1.5 font-mono text-[9px] uppercase tracking-wide text-cs-text-dim"
+      >
+        {title}
+      </Text>
       {children}
-    </div>
+    </Flex>
   );
 }
 
 function KV({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
   return (
-    <div className="flex items-center justify-between py-0.5">
-      <span className="text-[11px] text-cs-text-muted">{k}</span>
-      <span className={cn('font-mono text-[11px]', accent ? 'text-cs-accent' : 'text-cs-text')}>{v}</span>
-    </div>
+    <Flex align="center" justify="between" py="1" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
+      <Text size="1" className="text-cs-text-muted">{k}</Text>
+      <Text size="1" className={cn('font-mono', accent ? 'text-cs-accent' : 'text-cs-text')}>{v}</Text>
+    </Flex>
   );
 }
 
 function CapBar({ k, used, max, value }: { k: string; used: number; max: number; value: string }) {
   const pct = max > 0 ? Math.min(100, (used / max) * 100) : 0;
   return (
-    <div className="flex items-center gap-2 py-0.5">
-      <span className="w-14 text-[11px] text-cs-text-muted">{k}</span>
+    <Flex align="center" gap="2" py="1" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
+      <Text size="1" className="w-14 text-cs-text-muted">{k}</Text>
       <div className="h-1 flex-1 overflow-hidden rounded-full bg-cs-bg-3">
         <div className="h-full rounded-full bg-cs-accent" style={{ width: `${pct}%` }} />
       </div>
-      <span className="w-20 text-right font-mono text-[10px] text-cs-text">{value}</span>
-    </div>
+      <Text size="1" className="w-20 text-right font-mono text-cs-text">{value}</Text>
+    </Flex>
   );
 }
 
@@ -108,17 +114,17 @@ export function OwnerCardPopover() {
   const hasLocation = identity.lat !== null && identity.lon !== null;
 
   return (
-    <div className="flex flex-col gap-3">
+    <Flex direction="column" gap="3">
       <Group title="Device">
-        <div className="grid grid-cols-1 gap-y-0.5">
+        <Flex direction="column" style={{ gap: '2px' }}>
           <KV k="Model" v={deviceInfo.deviceModel || '—'} />
           <KV k="Firmware" v={fmtFirmware(deviceInfo.firmwareVersion, deviceInfo.firmwareVerCode)} accent />
           <KV k="Build" v={deviceInfo.firmwareBuildDate || '—'} />
-        </div>
+        </Flex>
       </Group>
 
       {/* Gauges */}
-      <div className="flex justify-around">
+      <Flex className="flex justify-around">
         <Ring pct={battPct} label={`${battPct}`} sub="Battery %" />
         <Ring
           pct={storagePct}
@@ -132,10 +138,10 @@ export function OwnerCardPopover() {
           sub="Contacts"
           tone="online"
         />
-      </div>
+      </Flex>
 
       <Group title="Radio">
-        <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+        <div className="grid grid-cols-2 gap-x-4" style={{ gap: '2px 16px' }}>
           <KV k="Freq" v={`${fmtFreqMhz(radio.frequencyHz)} MHz`} accent />
           <KV k="BW" v={fmtBandwidth(radio.bandwidthHz)} />
           <KV k="SF" v={`${radio.spreadingFactor}`} />
@@ -157,7 +163,7 @@ export function OwnerCardPopover() {
       </Group>
 
       <Group title="Position">
-        <div className="flex items-center gap-2">
+        <Flex align="center" gap="2">
           <MapPin
             className={cn('size-3.5', identity.sharePositionInAdvert ? 'text-cs-accent' : 'text-cs-text-dim')}
             aria-hidden
@@ -165,15 +171,15 @@ export function OwnerCardPopover() {
           <span className="font-mono text-[11px] text-cs-text">
             {hasLocation ? `${identity.lat?.toFixed(5)}, ${identity.lon?.toFixed(5)}` : 'Not set'}
           </span>
-        </div>
-        <div className="mt-1.5 flex gap-1.5">
+        </Flex>
+        <Flex gap="1" mt="2">
           <MiniStat on={gps.enabled} label={gps.enabled ? `GPS ${fmtGpsInterval(gps.intervalSec)}` : 'GPS off'} />
           <MiniStat
             on={identity.sharePositionInAdvert}
             label={identity.sharePositionInAdvert ? 'shared in advert' : 'not shared'}
           />
-        </div>
+        </Flex>
       </Group>
-    </div>
+    </Flex>
   );
 }
