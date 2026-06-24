@@ -45,7 +45,15 @@ export function ResizeHandle({ width, onChange }: { width: number; onChange: (w:
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      className="absolute -left-1 top-0 z-10 h-full w-2 cursor-col-resize"
+      style={{
+        position: 'absolute',
+        left: -4,
+        top: 0,
+        zIndex: 10,
+        height: '100%',
+        width: 8,
+        cursor: 'col-resize',
+      }}
     />
   );
 }

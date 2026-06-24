@@ -1,3 +1,4 @@
+import { Box, Flex, IconButton, Text } from '@radix-ui/themes';
 import { PanelRightClose } from 'lucide-react';
 import { useMemo } from 'react';
 import { Collapsible } from '../../components/Collapsible';
@@ -82,52 +83,84 @@ export function RightRail({ client }: RightRailProps) {
   );
 
   return (
-    <aside
-      className="relative flex h-full shrink-0 flex-col border-l border-cs-border bg-cs-bg-2"
-      style={{ width: `${rightWidth}px` }}
-      aria-label="Detail rail"
+    <Flex
+      asChild
+      direction="column"
+      position="relative"
+      flexShrink="0"
+      style={{
+        width: `${rightWidth}px`,
+        height: '100%',
+        borderLeft: '1px solid var(--cs-border)',
+        backgroundColor: 'var(--cs-bg-2)',
+      }}
     >
-      <ResizeHandle width={rightWidth} onChange={setRightWidth} />
+      <aside aria-label="Detail rail">
+        <ResizeHandle width={rightWidth} onChange={setRightWidth} />
 
-      <header className="flex items-center justify-between border-b border-cs-border px-3 py-2">
-        <h2 className="font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">{railTitle(activeKey)}</h2>
-        <button
-          type="button"
-          onClick={toggleRightRail}
-          title="Collapse rail (⌘.)"
-          aria-label="Collapse rail"
-          className="rounded p-0.5 text-cs-text-dim hover:bg-cs-bg-3 hover:text-cs-text"
+        <Flex
+          asChild
+          align="center"
+          justify="between"
+          px="3"
+          py="2"
+          flexShrink="0"
+          style={{ borderBottom: '1px solid var(--cs-border)' }}
         >
-          <PanelRightClose size={12} />
-        </button>
-      </header>
+          <header>
+            <Text
+              size="1"
+              style={{
+                fontFamily: 'var(--font-mono)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                color: 'var(--cs-text-dim)',
+              }}
+            >
+              {railTitle(activeKey)}
+            </Text>
+            <IconButton
+              variant="ghost"
+              color="gray"
+              size="1"
+              onClick={toggleRightRail}
+              title="Collapse rail (⌘.)"
+              aria-label="Collapse rail"
+            >
+              <PanelRightClose size={12} />
+            </IconButton>
+          </header>
+        </Flex>
 
-      <div className="flex-1 overflow-hidden">
-        {activeKey === 'tool:map' ? (
-          // The Map view's right pane is a fully custom layout (search,
-          // filters, last-heard slider, layer toggles, legend, or a node /
-          // site card on selection) — bypass the standard Collapsible
-          // sections so it matches the design's spec sheet.
-          <MapDetailsRail client={client} />
-        ) : (
-          <div className="h-full overflow-y-auto py-1">
-            {sections.map((section) => {
-              const open = openSections[section.id] ?? section.defaultOpen ?? true;
-              return (
-                <Collapsible
-                  key={section.id}
-                  label={section.label}
-                  open={open}
-                  onToggle={() => setRailSection(section.id, !open)}
-                  className="border-b border-cs-border last:border-b-0"
-                >
-                  <div className="px-3 py-2 text-xs text-cs-text-muted">{section.body()}</div>
-                </Collapsible>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </aside>
+        <Box flexGrow="1" overflow="hidden">
+          {activeKey === 'tool:map' ? (
+            // The Map view's right pane is a fully custom layout (search,
+            // filters, last-heard slider, layer toggles, legend, or a node /
+            // site card on selection) — bypass the standard Collapsible
+            // sections so it matches the design's spec sheet.
+            <MapDetailsRail client={client} />
+          ) : (
+            <Box overflow="auto" py="1" style={{ height: '100%' }}>
+              {sections.map((section) => {
+                const open = openSections[section.id] ?? section.defaultOpen ?? true;
+                return (
+                  <Collapsible
+                    key={section.id}
+                    label={section.label}
+                    open={open}
+                    onToggle={() => setRailSection(section.id, !open)}
+                    className="border-b border-cs-border last:border-b-0"
+                  >
+                    <Box px="3" py="2">
+                      {section.body()}
+                    </Box>
+                  </Collapsible>
+                );
+              })}
+            </Box>
+          )}
+        </Box>
+      </aside>
+    </Flex>
   );
 }

@@ -1,6 +1,10 @@
-import { cn } from '../../lib/utils';
+import { Text } from '@radix-ui/themes';
 
 /** Italic dim placeholder used when a section has nothing to show. */
 export function Placeholder({ label }: { label: string }) {
-  return <p className={cn('italic text-cs-text-dim')}>{label}</p>;
+  return (
+    <Text size="1" style={{ fontStyle: 'italic', color: 'var(--cs-text-dim)' }}>
+      {label}
+    </Text>
+  );
 }
