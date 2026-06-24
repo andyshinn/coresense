@@ -1,4 +1,5 @@
-import { BellOff, Copy, Megaphone, PinIcon, PinOff, Trash2 } from 'lucide-react';
+import { CopyIcon, DrawingPinFilledIcon, DrawingPinIcon, SpeakerLoudIcon, TrashIcon } from '@radix-ui/react-icons';
+import { BellOff } from 'lucide-react';
 import type { Contact } from '../../../shared/types';
 import { copyToClipboard, menuItem, menuSeparator } from '../../components/ContextMenu';
 import { type ApiClient, api } from '../../lib/api';
@@ -35,7 +36,7 @@ export function ContactContextMenu({
   const items: ContextMenuEntry[] = [
     menuItem('Open', () => setActiveKey(contact.key)),
     menuItem(isPinned ? 'Unpin' : 'Pin to top', () => onTogglePin(contact.key), {
-      icon: isPinned ? PinOff : PinIcon,
+      icon: isPinned ? DrawingPinIcon : DrawingPinFilledIcon,
     }),
     menuItem(
       contact.muted ? 'Unmute' : 'Mute',
@@ -51,7 +52,7 @@ export function ContactContextMenu({
     ),
     menuSeparator,
     menuItem('Copy public key', () => copyToClipboard(contact.publicKeyHex, () => notify.success('Public key copied')), {
-      icon: Copy,
+      icon: CopyIcon,
     }),
     menuItem(
       'Send self-advert',
@@ -64,7 +65,7 @@ export function ContactContextMenu({
           notify.error(`Advert failed: ${(err as Error).message}`, err);
         }
       },
-      { icon: Megaphone, disabled: !connected || !client },
+      { icon: SpeakerLoudIcon, disabled: !connected || !client },
     ),
     menuSeparator,
     menuItem(
@@ -78,7 +79,7 @@ export function ContactContextMenu({
           notify.error(`Remove failed: ${(err as Error).message}`, err);
         }
       },
-      { icon: Trash2, danger: true, disabled: !client },
+      { icon: TrashIcon, danger: true, disabled: !client },
     ),
   ];
 

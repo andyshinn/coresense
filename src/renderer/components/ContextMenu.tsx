@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react';
+import type React from 'react';
 import type { MouseEvent } from 'react';
 import { useEffect } from 'react';
 import { log } from '../lib/logger';
@@ -6,13 +6,22 @@ import { cn } from '../lib/utils';
 
 // Reusable right-click context menu. Renders a fixed-position popover at
 // (x, y), closes on outside click / Escape, and exposes a small declarative
-// API (items + separators) so callers stay terse. No radix / shadcn dep.
+// API (items + separators) so callers stay terse. Styled with Radix tokens.
+
+/** Icon component type — accepts both lucide-react icons and @radix-ui/react-icons. */
+type IconComponent = React.ComponentType<{
+  size?: number;
+  width?: number | string;
+  height?: number | string;
+  className?: string;
+  'aria-hidden'?: boolean | 'true' | 'false';
+}>;
 
 export interface ContextMenuItem {
   kind?: 'item';
   label: string;
   onClick: () => void;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   disabled?: boolean;
   danger?: boolean;
   hint?: string;
@@ -57,14 +66,24 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
   return (
     <div
       role="menu"
-      style={{ left: x, top: y }}
-      className="fixed z-50 min-w-44 rounded-md border border-cs-border bg-cs-bg-2 py-1 text-xs shadow-lg"
+      style={{
+        left: x,
+        top: y,
+        position: 'fixed',
+        zIndex: 50,
+        minWidth: '11rem',
+        padding: '4px 0',
+        background: 'var(--color-panel-solid)',
+        border: '1px solid var(--gray-a5)',
+        borderRadius: 'var(--radius-3)',
+        boxShadow: 'var(--shadow-4)',
+      }}
       onMouseDown={stopPropagation}
     >
       {items.map((entry, i) => {
         if (entry.kind === 'separator') {
           // biome-ignore lint/suspicious/noArrayIndexKey: separator position within a static items array is the only stable id
-          return <div key={`sep-${i}`} className="my-1 h-px bg-cs-border" />;
+          return <div key={`sep-${i}`} style={{ margin: '4px 0', height: 1, background: 'var(--gray-a4)' }} />;
         }
         return <ContextMenuItemRow key={entry.label} entry={entry} onClose={onClose} />;
       })}
@@ -74,6 +93,11 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
 
 function ContextMenuItemRow({ entry, onClose }: { entry: ContextMenuItem; onClose: () => void }) {
   const Icon = entry.icon;
+  const colorStyle: React.CSSProperties = entry.disabled
+    ? { color: 'var(--gray-a8)', cursor: 'not-allowed', opacity: 0.6 }
+    : entry.danger
+      ? { color: 'var(--red-11)' }
+      : { color: 'var(--gray-11)' };
   return (
     <button
       type="button"
@@ -86,17 +110,14 @@ function ContextMenuItemRow({ entry, onClose }: { entry: ContextMenuItem; onClos
         onClose();
       }}
       className={cn(
-        'flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors',
-        entry.disabled
-          ? 'cursor-not-allowed text-cs-text-dim opacity-60'
-          : entry.danger
-            ? 'text-cs-danger hover:bg-cs-danger/10'
-            : 'text-cs-text-muted hover:bg-cs-bg-3 hover:text-cs-text',
+        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors',
+        !entry.disabled && (entry.danger ? 'hover:bg-(--red-a3)' : 'hover:bg-(--gray-a3)'),
       )}
+      style={colorStyle}
     >
-      {Icon && <Icon size={11} aria-hidden="true" className="shrink-0" />}
+      {Icon && <Icon size={11} width={11} height={11} aria-hidden="true" className="shrink-0" />}
       <span className="flex-1 truncate">{entry.label}</span>
-      {entry.hint && <span className="text-[10px] text-cs-text-dim">{entry.hint}</span>}
+      {entry.hint && <span style={{ fontSize: 10, color: 'var(--gray-a8)' }}>{entry.hint}</span>}
     </button>
   );
 }

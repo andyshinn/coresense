@@ -1,4 +1,5 @@
-import { BellOff, Copy, Minus, PinIcon, PinOff, Plus, Trash2 } from 'lucide-react';
+import { CopyIcon, DrawingPinFilledIcon, DrawingPinIcon, MinusIcon, PlusIcon, TrashIcon } from '@radix-ui/react-icons';
+import { BellOff } from 'lucide-react';
 import type { Channel } from '../../../shared/types';
 import { copyToClipboard, menuItem, menuSeparator } from '../../components/ContextMenu';
 import { type ApiClient, api } from '../../lib/api';
@@ -34,7 +35,7 @@ export function ChannelContextMenu({
 
   const items: ContextMenuEntry[] = [
     menuItem(isPinned ? 'Unpin' : 'Pin to top', () => onTogglePin(channel.key), {
-      icon: isPinned ? PinOff : PinIcon,
+      icon: isPinned ? DrawingPinIcon : DrawingPinFilledIcon,
       testid: 'pin-toggle-menu-item',
     }),
     menuItem(
@@ -50,7 +51,7 @@ export function ChannelContextMenu({
       { icon: BellOff, disabled: !client },
     ),
     menuItem('Copy name', () => copyToClipboard(channel.name, () => notify.success('Copied')), {
-      icon: Copy,
+      icon: CopyIcon,
     }),
     menuSeparator,
     onDevice
@@ -65,7 +66,7 @@ export function ChannelContextMenu({
               notify.error(`Remove failed: ${(err as Error).message}`, err);
             }
           },
-          { icon: Minus, disabled: !connected || !client },
+          { icon: MinusIcon, disabled: !connected || !client },
         )
       : menuItem(
           'Add to device',
@@ -78,7 +79,7 @@ export function ChannelContextMenu({
               notify.error(`Add failed: ${(err as Error).message}`, err);
             }
           },
-          { icon: Plus, disabled: !connected || !client },
+          { icon: PlusIcon, disabled: !connected || !client },
         ),
     menuSeparator,
     menuItem(
@@ -92,7 +93,7 @@ export function ChannelContextMenu({
           notify.error(`Delete failed: ${(err as Error).message}`, err);
         }
       },
-      { icon: Trash2, danger: true, disabled: !client },
+      { icon: TrashIcon, danger: true, disabled: !client },
     ),
   ];
 
