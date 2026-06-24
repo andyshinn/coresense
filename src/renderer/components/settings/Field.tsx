@@ -1,6 +1,16 @@
 import { Box, Flex, Heading, Select as RadixSelect, ScrollArea, Separator, Switch, Text, TextField } from '@radix-ui/themes';
 import type { ReactNode } from 'react';
 
+/** Convert width prop, handling Tailwind w-<n> shorthand to px. */
+function resolveWidth(width: string): string {
+  const match = width.match(/^w-(\d+)$/);
+  if (match) {
+    const n = Number(match[1]);
+    return `${n * 4}px`;
+  }
+  return width;
+}
+
 interface SectionProps {
   title: string;
   description?: string;
@@ -140,7 +150,7 @@ export function NumberInput({ value, onChange, min, max, step, disabled, width =
         max={max}
         step={step}
         disabled={disabled}
-        style={{ width: width.startsWith('w-') ? 96 : width }}
+        style={{ width: resolveWidth(width) }}
         onChange={(e) => {
           const n = Number(e.target.value);
           if (!Number.isNaN(n)) onChange(n);
@@ -170,7 +180,7 @@ export function TextInput({ value, onChange, disabled, placeholder, width = '192
       value={value}
       placeholder={placeholder}
       disabled={disabled}
-      style={{ width: width.startsWith('w-') ? 192 : width }}
+      style={{ width: resolveWidth(width) }}
       onChange={(e) => onChange(e.target.value)}
     />
   );
