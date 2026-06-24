@@ -1,8 +1,9 @@
-import { ChevronRight, type LucideIcon } from 'lucide-react';
+import { ChevronRightIcon } from '@radix-ui/react-icons';
+import type { LucideIcon } from 'lucide-react';
 import { Collapsible } from 'radix-ui';
 import type { MouseEvent, ReactNode } from 'react';
-import { SidebarMenuButton, SidebarMenuItem, useSidebar } from '../../components/ui/sidebar';
 import { cn } from '../../lib/utils';
+import { NavButton, NavItem, useNav } from './nav';
 
 /** Top-level menu row that opens a submenu with icon + label + rotating chevron and aggregate unread badge. */
 export function ParentBranch({
@@ -29,7 +30,7 @@ export function ParentBranch({
   // Collapsible-toggle click does nothing visible. Treat the click as
   // "expand the sidebar and ensure this branch is open" instead — the user's
   // intent (see this group's contents) is the same either way.
-  const { state, setOpen } = useSidebar();
+  const { state, setOpen } = useNav();
   const handleClick = () => {
     if (state === 'collapsed') {
       setOpen(true);
@@ -40,8 +41,8 @@ export function ParentBranch({
   };
   return (
     <Collapsible.Root open={open} className="group/collapsible" asChild>
-      <SidebarMenuItem>
-        <SidebarMenuButton tooltip={label} onClick={handleClick} onContextMenu={onContextMenu}>
+      <NavItem>
+        <NavButton tooltip={label} onClick={handleClick} onContextMenu={onContextMenu}>
           <Icon />
           <span>{label}</span>
           {unreadTotal > 0 && (
@@ -53,16 +54,16 @@ export function ParentBranch({
               {unreadTotal > 99 ? '99+' : unreadTotal}
             </span>
           )}
-          <ChevronRight
+          <ChevronRightIcon
             className={cn(
               'transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90',
               unreadTotal > 0 ? '' : 'ml-auto',
             )}
           />
-        </SidebarMenuButton>
+        </NavButton>
         {trailingAction}
         <Collapsible.Content>{children}</Collapsible.Content>
-      </SidebarMenuItem>
+      </NavItem>
     </Collapsible.Root>
   );
 }

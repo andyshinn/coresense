@@ -1,7 +1,8 @@
-import { ChevronRight, type LucideIcon } from 'lucide-react';
+import { ChevronRightIcon } from '@radix-ui/react-icons';
+import type { LucideIcon } from 'lucide-react';
 import { Collapsible } from 'radix-ui';
 import type { ReactNode } from 'react';
-import { SidebarMenuButton, SidebarMenuItem } from '../../components/ui/sidebar';
+import { NavButton, NavItem } from './nav';
 
 /** Inner branch nested inside a SidebarMenuSub (chevron-first sub-row with own collapsible). */
 export function KindBranch({
@@ -20,15 +21,15 @@ export function KindBranch({
   children: ReactNode;
 }) {
   return (
-    <SidebarMenuItem>
+    <NavItem>
       <Collapsible.Root
         open={open}
         onOpenChange={onToggle}
         className="group/kind [&[data-state=open]>button>svg:first-child]:rotate-90"
       >
         <Collapsible.Trigger asChild>
-          <SidebarMenuButton className="h-7 text-xs">
-            <ChevronRight className="transition-transform" />
+          <NavButton className="h-7 text-xs">
+            <ChevronRightIcon className="transition-transform" />
             <Icon />
             <span>{label}</span>
             {unreadTotal > 0 && (
@@ -40,10 +41,10 @@ export function KindBranch({
                 {unreadTotal > 99 ? '99+' : unreadTotal}
               </span>
             )}
-          </SidebarMenuButton>
+          </NavButton>
         </Collapsible.Trigger>
         <Collapsible.Content>{children}</Collapsible.Content>
       </Collapsible.Root>
-    </SidebarMenuItem>
+    </NavItem>
   );
 }
