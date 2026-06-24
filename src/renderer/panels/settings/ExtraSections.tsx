@@ -1,4 +1,6 @@
-import { AlertTriangle, FolderInput, Wrench } from 'lucide-react';
+import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
+import { Button } from '@radix-ui/themes';
+import { FolderInput, Wrench } from 'lucide-react';
 import { useState } from 'react';
 import { Row } from '../../components/settings/Field';
 import { SettingsSection } from '../../components/settings/SettingsSection';
@@ -12,11 +14,6 @@ import { useStore } from '../../lib/store';
 interface SectionProps {
   client: ApiClient | null;
 }
-
-const disabledBtn =
-  'cursor-not-allowed rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text-dim opacity-60';
-const dangerBtn =
-  'cursor-not-allowed rounded border border-cs-danger/40 bg-cs-danger/10 px-2 py-0.5 text-[12px] text-cs-text-dim opacity-60';
 
 export function MaintenanceSection({ client }: SectionProps) {
   const connected = useStore((s) => s.transportState === 'connected');
@@ -57,28 +54,18 @@ export function MaintenanceSection({ client }: SectionProps) {
         label="Refresh device snapshot"
         description="Issues DEVICE_QUERY + GET_BATT_AND_STORAGE + GET_AUTO_ADD_CONFIG + GPS custom vars."
         control={
-          <button
-            type="button"
-            disabled={!client || !connected}
-            onClick={refresh}
-            className="rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text hover:bg-cs-bg-3 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <Button size="1" variant="surface" disabled={!client || !connected} onClick={refresh}>
             Refresh
-          </button>
+          </Button>
         }
       />
       <Row
         label="Reboot"
         description="Restart the radio. The BLE link will drop and reconnect."
         control={
-          <button
-            type="button"
-            disabled={!client || !connected || rebootBusy}
-            onClick={reboot}
-            className="rounded border border-cs-danger bg-cs-danger/20 px-2 py-0.5 text-[12px] text-cs-danger hover:bg-cs-danger/30 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <Button size="1" variant="surface" color="red" disabled={!client || !connected || rebootBusy} onClick={reboot}>
             {rebootBusy ? 'Rebooting…' : 'Reboot'}
-          </button>
+          </Button>
         }
       />
     </SettingsSection>
@@ -98,27 +85,27 @@ export function ImportExportSection() {
         label="Import Config"
         description="Not yet supported — the open-source protocol doesn't expose a bulk import opcode."
         control={
-          <button type="button" disabled className={disabledBtn}>
+          <Button size="1" variant="surface" disabled>
             Import
-          </button>
+          </Button>
         }
       />
       <Row
         label="Export Config"
         description="Not yet supported — coming in a future phase (parity with the mobile app's selectable export)."
         control={
-          <button type="button" disabled className={disabledBtn}>
+          <Button size="1" variant="surface" disabled>
             Export
-          </button>
+          </Button>
         }
       />
       <Row
         label="Export App Database"
         description="Not yet supported."
         control={
-          <button type="button" disabled className={disabledBtn}>
+          <Button size="1" variant="surface" disabled>
             Export
-          </button>
+          </Button>
         }
       />
     </SettingsSection>
@@ -129,7 +116,7 @@ export function DangerZoneSection() {
   return (
     <SettingsSection
       id="extra-danger"
-      icon={AlertTriangle}
+      icon={() => <ExclamationTriangleIcon width="14" height="14" />}
       title="Danger Zone"
       description="Destructive operations — not exposed over BLE in the open-source firmware."
       dirty={false}
@@ -138,18 +125,18 @@ export function DangerZoneSection() {
         label="Purge Data"
         description="Not exposed over BLE in the open-source firmware. Use a USB CLI session or the official mobile app."
         control={
-          <button type="button" disabled className={dangerBtn}>
+          <Button size="1" variant="surface" color="red" disabled>
             Purge
-          </button>
+          </Button>
         }
       />
       <Row
         label="Factory Reset"
         description="Not exposed over BLE in the open-source firmware."
         control={
-          <button type="button" disabled className={dangerBtn}>
+          <Button size="1" variant="surface" color="red" disabled>
             Factory Reset
-          </button>
+          </Button>
         }
       />
     </SettingsSection>
