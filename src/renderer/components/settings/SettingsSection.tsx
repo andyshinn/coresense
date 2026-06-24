@@ -1,11 +1,10 @@
-import type { LucideIcon } from 'lucide-react';
+import { Badge, Box, Button, Flex, Heading, Text } from '@radix-ui/themes';
 import type { ReactNode } from 'react';
-import { cn } from '../../lib/utils';
 
 interface SettingsSectionProps {
   /** Stable id — also the `data-section` anchor for scroll-spy / jump rail. */
   id: string;
-  icon: LucideIcon;
+  icon: React.ComponentType<{ className?: string }>;
   title: string;
   description?: string;
   footnote?: string;
@@ -35,41 +34,46 @@ export function SettingsSection({
   children,
 }: SettingsSectionProps) {
   return (
-    <section data-section={id} className="scroll-mt-4 border-b border-cs-border py-5 last:border-b-0">
-      <header className="mb-3 flex items-start gap-3">
-        <div className="flex-1">
-          <h2 className="flex items-center gap-2 text-[13px] font-semibold text-cs-text">
-            <Icon className="size-3.5 shrink-0 text-cs-accent" aria-hidden />
-            {title}
-          </h2>
-          {description && <p className="mt-1 max-w-115 text-[11px] text-cs-text-muted">{description}</p>}
-        </div>
-        {onSave && (
-          <div className="flex shrink-0 items-center gap-2">
-            {dirty && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-cs-warn/40 bg-cs-warn/10 px-1.5 py-0.5 text-[10px] font-medium text-cs-warn">
-                <span className="size-1.5 rounded-full bg-cs-warn" aria-hidden />
-                Unsaved
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={!dirty || !canSave || saving}
-              className={cn(
-                'rounded border px-2.5 py-0.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed',
-                dirty && canSave
-                  ? 'border-cs-accent bg-cs-accent text-cs-bg hover:bg-cs-accent/90'
-                  : 'border-cs-border bg-transparent text-cs-text-dim opacity-60',
+    <Box asChild style={{ scrollMarginTop: '1rem' }}>
+      <section data-section={id}>
+        <Flex direction="column" gap="3" py="5" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
+          <Flex align="start" gap="3">
+            <Box flexGrow="1">
+              <Heading size="2" as="h2">
+                <Flex align="center" gap="2">
+                  <Icon className="size-3.5 shrink-0" aria-hidden />
+                  {title}
+                </Flex>
+              </Heading>
+              {description && (
+                <Text as="p" size="1" color="gray" mt="1" style={{ maxWidth: '28.75rem' }}>
+                  {description}
+                </Text>
               )}
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        )}
-      </header>
-      <div className="space-y-0.5">{children}</div>
-      {footnote && <p className="mt-2 px-2 text-[10px] italic text-cs-text-dim">{footnote}</p>}
-    </section>
+            </Box>
+            {onSave && (
+              <Flex flexShrink="0" align="center" gap="2">
+                {dirty && (
+                  <Badge color="amber" variant="soft">
+                    Unsaved
+                  </Badge>
+                )}
+                <Button size="1" onClick={onSave} disabled={!dirty || !canSave || saving}>
+                  {saving ? 'Saving…' : 'Save'}
+                </Button>
+              </Flex>
+            )}
+          </Flex>
+          <Flex direction="column" gap="1">
+            {children}
+          </Flex>
+          {footnote && (
+            <Text size="1" color="gray" style={{ fontStyle: 'italic', paddingLeft: '0.5rem', paddingRight: '0.5rem' }}>
+              {footnote}
+            </Text>
+          )}
+        </Flex>
+      </section>
+    </Box>
   );
 }
