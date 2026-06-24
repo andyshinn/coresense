@@ -1,5 +1,5 @@
+import { SunIcon } from '@radix-ui/react-icons';
 import { Flex, Select as RadixSelect, SegmentedControl, Text } from '@radix-ui/themes';
-import { Sun } from 'lucide-react';
 import type { AppSettings as AppSettingsType, ThemePrefValue } from '../../../../shared/types';
 import { Row, Select } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
@@ -56,7 +56,7 @@ export function AppearanceSection({ client }: SectionProps) {
   return (
     <SettingsSection
       id="app-appearance"
-      icon={Sun}
+      icon={() => <SunIcon width="14" height="14" />}
       title="Appearance"
       description="Visual preferences for the app window."
       dirty={dirty}
