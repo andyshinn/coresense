@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { ErrorBoundary } from 'react-error-boundary';
 import { App } from './App';
 import { AppErrorFallback, logError } from './components/errors/ErrorFallback';
+import { RadixThemeProvider } from './components/theme/RadixThemeProvider';
 import './index.css';
+import '@radix-ui/themes/styles.css';
 import { initScrollbarReveal } from './lib/scrollbarReveal';
 import { applyTheme, readLegacyThemePref, resolveTheme, systemPrefersDark } from './lib/theme';
 
@@ -22,7 +24,9 @@ if (!container) throw new Error('#root element missing');
 createRoot(container).render(
   <StrictMode>
     <ErrorBoundary FallbackComponent={AppErrorFallback} onError={logError}>
-      <App />
+      <RadixThemeProvider>
+        <App />
+      </RadixThemeProvider>
     </ErrorBoundary>
   </StrictMode>,
 );
