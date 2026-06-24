@@ -35,7 +35,7 @@ import { getApiKey } from './api/middleware/auth';
 import { blockingStore } from './blocking/store';
 import { type BridgeHandle, startBridge } from './bridge';
 import { emit } from './events/bus';
-import { child, ingestLogEntry, log } from './log';
+import { child, log } from './log';
 import { applyLoggingSettings } from './logging/apply';
 import { folderPath } from './logging/fileSink';
 import { buildMenu } from './menu';
@@ -88,22 +88,6 @@ async function bootstrap() {
     event.returnValue = serverHandle?.port ?? null;
   });
 
-  ipcMain.on('coresense:ship-log-entry', (_event, entry: unknown) => {
-    // Sanity-check renderer-untrusted input before feeding the pipeline.
-    if (
-      entry !== null &&
-      typeof entry === 'object' &&
-      typeof (entry as Record<string, unknown>).id === 'string' &&
-      typeof (entry as Record<string, unknown>).ts === 'number' &&
-      typeof (entry as Record<string, unknown>).level === 'string' &&
-      typeof (entry as Record<string, unknown>).source === 'string' &&
-      typeof (entry as Record<string, unknown>).logger === 'string' &&
-      typeof (entry as Record<string, unknown>).message === 'string' &&
-      typeof (entry as Record<string, unknown>).levelId === 'number'
-    ) {
-      ingestLogEntry(entry as Parameters<typeof ingestLogEntry>[0]);
-    }
-  });
   ipcMain.on('coresense:logs:reveal', () => {
     shell.openPath(folderPath()).catch((err) => console.error('openPath failed', err));
   });
@@ -376,14 +360,11 @@ function createWindow() {
     event.preventDefault();
   });
 
-  // Pipe renderer console messages + page errors through the main logger so
-  // we can see them when running headless via `pnpm start`. Dev-only — in prod
-  // this is just IPC + log overhead on every console.log from chatty UI code.
-  if (isDev) {
-    mainWindow.webContents.on('console-message', (event) => {
-      rendererLog.debug(`[${event.level}] ${event.message} (${event.sourceId}:${event.lineNumber})`);
-    });
-  }
+  // NOTE: renderer and main logging are intentionally kept separate. The
+  // renderer logs to its own browser console (tslog pretty → DevTools); main
+  // logs to the terminal + Logs panel + file sink. We deliberately do NOT
+  // scrape `console-message` to mirror the renderer here — re-logging tslog's
+  // own pretty `%c` output through the main logger double-wrapped every line.
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
     rendererLog.error(`gone: ${details.reason} (exit=${details.exitCode})`);
   });

@@ -11,7 +11,6 @@ import type { CoreSenseBridge } from './shared/types';
 const bridge: CoreSenseBridge = {
   apiKey: ipcRenderer.sendSync('coresense:get-api-key') as string,
   httpPort: ipcRenderer.sendSync('coresense:get-http-port') as number,
-  shipLogEntry: (entry) => ipcRenderer.send('coresense:ship-log-entry', entry),
   revealLogs: () => ipcRenderer.send('coresense:logs:reveal'),
 };
 

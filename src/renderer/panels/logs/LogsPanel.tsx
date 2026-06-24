@@ -13,8 +13,13 @@ import { LogRow } from './LogRow';
 
 export function LogsPanel() {
   const logs = useStore((s) => s.logs);
+  const rendererLogs = useStore((s) => s.rendererLogs);
   const filter = useStore((s) => s.ui.logsFilter);
-  const visible = useMemo(() => filterLogs(logs, filter), [logs, filter]);
+  // Main logs arrive over WS; renderer logs are appended in-process. Merge the
+  // two feeds and order by timestamp (same-machine clocks, so ts is reliable).
+  // Array.sort is stable, so equal-ts entries keep insertion order.
+  const merged = useMemo(() => [...logs, ...rendererLogs].sort((a, b) => a.ts - b.ts), [logs, rendererLogs]);
+  const visible = useMemo(() => filterLogs(merged, filter), [merged, filter]);
   const ref = useRef<VirtuosoMessageListMethods<LogEntry>>(null);
 
   const data = useMemo<VirtuosoMessageListProps<LogEntry, null>['data']>(
@@ -37,7 +42,7 @@ export function LogsPanel() {
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-cs-border px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-cs-text-dim">
-        Logs ({visible.length} of {logs.length})
+        Logs ({visible.length} of {merged.length})
       </div>
       <div className="min-h-0 flex-1">
         <VirtuosoMessageListLicense licenseKey={VIRTUOSO_LICENSE_KEY}>

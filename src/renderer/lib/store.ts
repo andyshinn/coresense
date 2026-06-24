@@ -49,7 +49,7 @@ import {
   type UiState,
   type UpdateState,
 } from '../../shared/types';
-import { setRendererLogLevel } from './logger';
+import { setRendererLogLevel, setRendererLogSink } from './logger';
 import type { NeighbourSortKey } from './neighbours';
 
 const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null, terrain: null };
@@ -209,8 +209,12 @@ interface CoreState {
   // Live packet log (capped ring buffer)
   packets: RawPacket[];
 
-  // Live log entries (capped ring buffer)
+  // Live log entries from main, mirrored over WS (capped ring buffer).
   logs: LogEntry[];
+  // Live log entries from this renderer, fed in-process by the tslog transport
+  // (see logger.ts). Kept separate from `logs` so the WS `log:snapshot` replace
+  // can't wipe them on reconnect. The Logs panel merges the two by timestamp.
+  rendererLogs: LogEntry[];
 
   // Domain data (mirrored from main)
   owner: Owner | null;
@@ -393,6 +397,7 @@ interface CoreState {
   setDraft: (key: string, text: string) => void;
   setPacketLogFilter: (patch: Partial<UiState['packetLogFilter']>) => void;
   appendLog: (entry: LogEntry) => void;
+  appendRendererLog: (entry: LogEntry) => void;
   replaceLogs: (entries: LogEntry[]) => void;
   setLogsFilter: (patch: Partial<UiState['logsFilter']>) => void;
   clearLogs: () => void;
@@ -498,6 +503,7 @@ export const useStore = create<CoreState>((set) => ({
 
   packets: [],
   logs: [],
+  rendererLogs: [],
 
   owner: null,
   channels: [],
@@ -837,9 +843,14 @@ export const useStore = create<CoreState>((set) => ({
       const next = s.logs.length >= MAX_LOGS ? s.logs.slice(-(MAX_LOGS - 1)) : s.logs;
       return { logs: [...next, entry] };
     }),
+  appendRendererLog: (entry) =>
+    set((s) => {
+      const next = s.rendererLogs.length >= MAX_LOGS ? s.rendererLogs.slice(-(MAX_LOGS - 1)) : s.rendererLogs;
+      return { rendererLogs: [...next, entry] };
+    }),
   replaceLogs: (entries) => set(() => ({ logs: entries.slice(-MAX_LOGS) })),
   setLogsFilter: (patch) => set((s) => ({ ui: { ...s.ui, logsFilter: { ...s.ui.logsFilter, ...patch } } })),
-  clearLogs: () => set(() => ({ logs: [] })),
+  clearLogs: () => set(() => ({ logs: [], rendererLogs: [] })),
   setThemePref: (mode) => set((s) => ({ ui: { ...s.ui, themePref: mode } })),
   togglePin: (key) =>
     set((s) => {
@@ -942,6 +953,15 @@ export const useStore = create<CoreState>((set) => ({
     }),
   clearSettingsUi: () => set(() => ({ settingsUi: DEFAULT_SETTINGS_UI })),
 }));
+
+// Tee renderer-side tslog output into the store so the Logs panel shows it
+// (in-process — no IPC). Registered here, after the store exists, to keep
+// logger.ts free of a back-import on the store. See logger.ts for the rationale.
+// Deferred a microtask so a log emitted during React's render phase can't
+// trigger a synchronous store update ("cannot update while rendering").
+setRendererLogSink((entry) => {
+  queueMicrotask(() => useStore.getState().appendRendererLog(entry));
+});
 
 function groupMessagesByKey(messages: Message[]): Record<string, Message[]> {
   const out: Record<string, Message[]> = {};

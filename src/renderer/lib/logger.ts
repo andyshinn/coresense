@@ -29,25 +29,45 @@ const LEVEL_NAME_TO_ID: Record<LogLevel, number> = {
 const VALID_LEVELS = new Set<string>(Object.keys(LEVEL_NAME_TO_ID));
 
 // ---------------------------------------------------------------------------
-// Monotonic counter (renderer IDs use 'r-' prefix to avoid collisions with
-// the main process 'm-' prefix).
-// ---------------------------------------------------------------------------
-
-let counter = 0;
-
-// ---------------------------------------------------------------------------
 // Logger
 // ---------------------------------------------------------------------------
+//
+// Renderer logging stays in-process: tslog's default browser pretty output
+// goes to the DevTools console, and the transport below tees a structured
+// LogEntry into a registered sink (the Zustand store) so the in-app Logs panel
+// can show renderer logs WITHOUT any IPC round-trip through main. Main and
+// renderer each own their own log sources; the panel merges them by timestamp.
 
 export const log = new Logger({ name: 'renderer', minLevel: 2 });
 
 // ---------------------------------------------------------------------------
-// Transport: converts tslog logObj → LogEntry and ships it to main via bridge
+// Sink registration
+// ---------------------------------------------------------------------------
+//
+// The store registers a sink via setRendererLogSink() once it's created. We
+// keep this indirection so logger.ts never imports the store (store.ts already
+// imports this module for setRendererLogLevel — a direct back-import would be a
+// circular dependency). Until a sink is registered, renderer logs still reach
+// the DevTools console; they just aren't buffered for the panel.
+
+type RendererLogSink = (entry: LogEntry) => void;
+
+let sink: RendererLogSink | null = null;
+
+export function setRendererLogSink(fn: RendererLogSink | null): void {
+  sink = fn;
+}
+
+// ---------------------------------------------------------------------------
+// Transport: converts tslog logObj → LogEntry and hands it to the sink
 // ---------------------------------------------------------------------------
 
 type TslogObj = Record<string | number, unknown> & ILogObjMeta;
 
+let counter = 0;
+
 log.attachTransport((logObj: unknown) => {
+  if (!sink) return;
   try {
     const obj = logObj as TslogObj;
     const meta = obj._meta as {
@@ -102,14 +122,14 @@ log.attachTransport((logObj: unknown) => {
       ...(hasNonString && args.length > 0 ? { args } : {}),
     };
 
-    window.coresense?.shipLogEntry?.(entry);
+    sink(entry);
   } catch {
     // Silently swallow transport errors — never break the log call
   }
 });
 
 // ---------------------------------------------------------------------------
-// setRendererLogLevel — called by Task 5 (app-settings subscription)
+// setRendererLogLevel — driven by the app-settings subscription
 // ---------------------------------------------------------------------------
 
 export function setRendererLogLevel(level: LogLevel): void {

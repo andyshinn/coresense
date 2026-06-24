@@ -1059,8 +1059,6 @@ export interface CoreSenseBridge {
   /** The port the local Hono server bound to. Lets the renderer skip the
    *  capabilities probe and avoid the dev/prod port-default mismatch. */
   httpPort: number;
-  /** Ship a renderer-side LogEntry into the main-process log pipeline. */
-  shipLogEntry: (entry: LogEntry) => void;
   /** Open the logs folder in the OS file manager. */
   revealLogs: () => void;
 }
