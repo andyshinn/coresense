@@ -1,4 +1,5 @@
-import { Check, Copy } from 'lucide-react';
+import { CheckIcon, CopyIcon } from '@radix-ui/react-icons';
+import { DataList, Text } from '@radix-ui/themes';
 import { useState } from 'react';
 import { KeyValueRow } from '../../../components/ui/KeyValueRow';
 import { useStore } from '../../../lib/store';
@@ -20,26 +21,47 @@ export function VersionSection() {
   };
 
   return (
-    <div className="space-y-1.5 text-cs-text-muted">
+    <DataList.Root orientation="horizontal" size="1">
       <KeyValueRow label="Version" value={capabilities.version} mono />
-      <div className="flex items-baseline justify-between gap-3 text-xs">
-        <span className="shrink-0 text-[10px] uppercase tracking-wider text-cs-text-dim">Commit</span>
-        <button
-          type="button"
-          onClick={onCopySha}
-          title={copied ? 'Copied' : 'Click to copy'}
-          className="inline-flex items-center gap-1 truncate font-mono tabular-nums text-[11px] text-cs-text hover:text-cs-text-bright"
-        >
-          <span>{capabilities.gitSha}</span>
-          {copied ? (
-            <Check className="h-3 w-3 text-cs-text-dim" aria-hidden />
-          ) : (
-            <Copy className="h-3 w-3 text-cs-text-dim" aria-hidden />
-          )}
-        </button>
-      </div>
+      <DataList.Item>
+        <DataList.Label minWidth="0">
+          <Text size="1" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: 10 }}>
+            Commit
+          </Text>
+        </DataList.Label>
+        <DataList.Value>
+          <button
+            type="button"
+            onClick={onCopySha}
+            title={copied ? 'Copied' : 'Click to copy'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+            }}
+          >
+            <Text
+              size="1"
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontVariantNumeric: 'tabular-nums',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {capabilities.gitSha}
+            </Text>
+            {copied ? <CheckIcon width="12" height="12" aria-hidden /> : <CopyIcon width="12" height="12" aria-hidden />}
+          </button>
+        </DataList.Value>
+      </DataList.Item>
       <KeyValueRow label="Electron" value={capabilities.electronVersion} mono />
       <KeyValueRow label="Platform" value={capabilities.platform} mono />
-    </div>
+    </DataList.Root>
   );
 }

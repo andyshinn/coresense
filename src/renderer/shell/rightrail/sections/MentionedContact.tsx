@@ -1,18 +1,21 @@
+import { Button, Flex } from '@radix-ui/themes';
 import type { Contact } from '../../../../shared/types';
 import { ContactDetail } from './ContactDetail';
 
 /** Contact card surfaced by clicking an @mention, with a Clear control. */
 export function MentionedContactSection({ contact, onClear }: { contact: Contact; onClear: () => void }) {
   return (
-    <div className="space-y-2">
+    <Flex direction="column" gap="2">
       <ContactDetail publicKeyHex={contact.publicKeyHex} client={null} showPath={false} />
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        color="gray"
+        size="1"
         onClick={onClear}
-        className="text-[10px] uppercase tracking-wider text-cs-text-dim hover:text-cs-text"
+        style={{ alignSelf: 'flex-start', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: 10 }}
       >
         Clear
-      </button>
-    </div>
+      </Button>
+    </Flex>
   );
 }
