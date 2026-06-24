@@ -58,8 +58,10 @@ export function AppShell({ title, children, showShell = true, client = null }: A
           wired inside LeftNav). SidebarProvider is no longer needed here. */}
       <Flex flexGrow="1" overflow="hidden" minHeight="0">
         <LeftNav client={client} />
-        <Box flexGrow="1" overflow="hidden" className="flex flex-col bg-cs-bg">
-          {children}
+        <Box asChild flexGrow="1" overflow="hidden" className="flex flex-col bg-cs-bg">
+          <main className="flex flex-col bg-cs-bg">
+            {children}
+          </main>
         </Box>
         {rightOpen && <RightRail client={client} />}
       </Flex>

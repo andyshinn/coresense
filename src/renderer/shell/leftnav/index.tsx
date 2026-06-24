@@ -304,9 +304,7 @@ export function LeftNav({ client }: LeftNavProps) {
                     className="text-cs-text-dim hover:text-cs-text disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Popover.Trigger>
-                      <button type="button">
-                        <PlusIcon />
-                      </button>
+                      <PlusIcon />
                     </Popover.Trigger>
                   </NavAction>
                 }
