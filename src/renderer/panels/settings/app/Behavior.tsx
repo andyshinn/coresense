@@ -1,4 +1,4 @@
-import { SlidersHorizontal } from 'lucide-react';
+import { MixerHorizontalIcon } from '@radix-ui/react-icons';
 import type { AppSettings as AppSettingsType, ContactGrouping } from '../../../../shared/types';
 import { NumberInput, Row, Select, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
@@ -59,7 +59,7 @@ export function BehaviorSection({ client }: SectionProps) {
   return (
     <SettingsSection
       id="app-behavior"
-      icon={SlidersHorizontal}
+      icon={() => <MixerHorizontalIcon width="14" height="14" />}
       title="Behavior"
       dirty={dirty}
       saving={saving}
