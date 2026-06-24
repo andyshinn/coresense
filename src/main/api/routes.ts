@@ -518,8 +518,18 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     emit.contacts(holder.getContacts());
     return c.json({ ok: true });
   });
-  api.delete('/api/contacts/:key', (c) => {
+  api.delete('/api/contacts/:key', async (c) => {
     const key = decodeURIComponent(c.req.param('key'));
+    const pubkey = key.startsWith('c:') ? key.slice(2) : key;
+    // Tell the radio to drop the contact first (CMD_REMOVE_CONTACT). Strict: if
+    // the radio op fails (disconnected, not on radio) we leave local state alone
+    // so the app and radio can't desync — a local-only delete would just resync
+    // back from the radio on the next contact sync.
+    try {
+      await protocolSession().removeContactFromRadio(pubkey);
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
     const holder = stateHolder();
     holder.removeContact(key);
     emit.contacts(holder.getContacts());
