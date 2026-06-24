@@ -1,5 +1,5 @@
+import { Box, Flex, Heading, Select as RadixSelect, ScrollArea, Separator, Switch, Text, TextField } from '@radix-ui/themes';
 import type { ReactNode } from 'react';
-import { cn } from '../../lib/utils';
 
 interface SectionProps {
   title: string;
@@ -9,13 +9,27 @@ interface SectionProps {
 
 export function Section({ title, description, children }: SectionProps) {
   return (
-    <section className="border-b border-cs-border py-4 last:border-b-0">
-      <header className="mb-2">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">{title}</h2>
-        {description && <p className="mt-0.5 text-[11px] text-cs-text-dim">{description}</p>}
-      </header>
-      <div className="space-y-1">{children}</div>
-    </section>
+    <Box>
+      <Box mb="2">
+        <Text
+          size="1"
+          weight="medium"
+          color="gray"
+          style={{ textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}
+        >
+          {title}
+        </Text>
+        {description && (
+          <Text size="1" color="gray" style={{ display: 'block', marginTop: 2 }}>
+            {description}
+          </Text>
+        )}
+      </Box>
+      <Flex direction="column" gap="1">
+        {children}
+      </Flex>
+      <Separator size="4" my="2" />
+    </Box>
   );
 }
 
@@ -30,22 +44,45 @@ interface RowProps {
 
 export function Row({ label, description, control, warning, changed }: RowProps) {
   return (
-    <div
-      className={cn(
-        'flex items-start gap-3 rounded border-l-2 px-2 py-1 hover:bg-cs-bg-2',
-        changed ? 'border-cs-accent' : 'border-transparent',
-      )}
+    <Flex
+      align="start"
+      gap="3"
+      px="2"
+      py="1"
+      style={{
+        borderLeft: changed ? '2px solid var(--accent-9)' : '2px solid transparent',
+        borderRadius: 'var(--radius-1)',
+      }}
     >
-      <div className="flex-1">
-        <div className="flex items-center gap-1.5 text-[12px] text-cs-text">
-          {changed && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-cs-accent" />}
-          <span>{label}</span>
-        </div>
-        {description && <div className="text-[11px] text-cs-text-dim">{description}</div>}
-        {warning && <div className="mt-0.5 text-[11px] text-cs-warn">{warning}</div>}
-      </div>
-      <div className="shrink-0">{control}</div>
-    </div>
+      <Box flexGrow="1">
+        <Flex align="center" gap="1" style={{ fontSize: 12 }}>
+          {changed && (
+            <Box
+              aria-hidden
+              flexShrink="0"
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: 'var(--accent-9)',
+              }}
+            />
+          )}
+          <Text size="2">{label}</Text>
+        </Flex>
+        {description && (
+          <Text size="1" color="gray" style={{ display: 'block' }}>
+            {description}
+          </Text>
+        )}
+        {warning && (
+          <Text size="1" color="amber" style={{ display: 'block', marginTop: 2 }}>
+            {warning}
+          </Text>
+        )}
+      </Box>
+      <Box flexShrink="0">{control}</Box>
+    </Flex>
   );
 }
 
@@ -56,15 +93,7 @@ interface ToggleProps {
 }
 
 export function Toggle({ checked, onChange, disabled }: ToggleProps) {
-  return (
-    <input
-      type="checkbox"
-      checked={checked}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.checked)}
-      className="h-4 w-4 cursor-pointer accent-cs-accent disabled:cursor-not-allowed disabled:opacity-50"
-    />
-  );
+  return <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} size="1" />;
 }
 
 interface SelectProps<T extends string> {
@@ -76,18 +105,16 @@ interface SelectProps<T extends string> {
 
 export function Select<T extends string>({ value, options, onChange, disabled }: SelectProps<T>) {
   return (
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value as T)}
-      className="rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
+    <RadixSelect.Root value={value} onValueChange={(v) => onChange(v as T)} disabled={disabled} size="1">
+      <RadixSelect.Trigger variant="surface" />
+      <RadixSelect.Content>
+        {options.map((opt) => (
+          <RadixSelect.Item key={opt.value} value={opt.value}>
+            {opt.label}
+          </RadixSelect.Item>
+        ))}
+      </RadixSelect.Content>
+    </RadixSelect.Root>
   );
 }
 
@@ -102,24 +129,29 @@ interface NumberInputProps {
   suffix?: string;
 }
 
-export function NumberInput({ value, onChange, min, max, step, disabled, width = 'w-24', suffix }: NumberInputProps) {
+export function NumberInput({ value, onChange, min, max, step, disabled, width = '96px', suffix }: NumberInputProps) {
   return (
-    <span className="flex items-baseline gap-1">
-      <input
+    <Flex align="baseline" gap="1">
+      <TextField.Root
         type="number"
-        value={value}
-        disabled={disabled}
+        size="1"
+        value={String(value)}
         min={min}
         max={max}
         step={step}
+        disabled={disabled}
+        style={{ width: width.startsWith('w-') ? 96 : width }}
         onChange={(e) => {
-          const next = Number(e.target.value);
-          if (!Number.isNaN(next)) onChange(next);
+          const n = Number(e.target.value);
+          if (!Number.isNaN(n)) onChange(n);
         }}
-        className={`rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-right font-mono text-[12px] text-cs-text disabled:cursor-not-allowed disabled:opacity-50 ${width}`}
       />
-      {suffix && <span className="text-[11px] text-cs-text-dim">{suffix}</span>}
-    </span>
+      {suffix && (
+        <Text size="1" color="gray">
+          {suffix}
+        </Text>
+      )}
+    </Flex>
   );
 }
 
@@ -131,15 +163,15 @@ interface TextInputProps {
   width?: string;
 }
 
-export function TextInput({ value, onChange, disabled, placeholder, width = 'w-48' }: TextInputProps) {
+export function TextInput({ value, onChange, disabled, placeholder, width = '192px' }: TextInputProps) {
   return (
-    <input
-      type="text"
+    <TextField.Root
+      size="1"
       value={value}
       placeholder={placeholder}
       disabled={disabled}
+      style={{ width: width.startsWith('w-') ? 192 : width }}
       onChange={(e) => onChange(e.target.value)}
-      className={`rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text disabled:cursor-not-allowed disabled:opacity-50 ${width}`}
     />
   );
 }
@@ -153,15 +185,25 @@ interface PanelShellProps {
 
 export function PanelShell({ title, description, actions, children }: PanelShellProps) {
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex shrink-0 items-center gap-3 border-b border-cs-border bg-cs-bg-2 px-4 py-2.5">
-        <div className="flex flex-col">
-          <h1 className="font-medium leading-tight text-cs-text">{title}</h1>
-          {description && <span className="font-mono text-[10px] text-cs-text-dim">{description}</span>}
-        </div>
-        {actions && <div className="ml-auto flex items-center gap-2">{actions}</div>}
-      </header>
-      <div className="flex-1 overflow-y-auto px-4">{children}</div>
-    </div>
+    <Flex direction="column" height="100%">
+      <Flex align="center" gap="3" px="4" py="2" flexShrink="0" style={{ borderBottom: '1px solid var(--gray-a5)' }}>
+        <Flex direction="column">
+          <Heading size="2">{title}</Heading>
+          {description && (
+            <Text size="1" color="gray" style={{ fontFamily: 'var(--font-mono)' }}>
+              {description}
+            </Text>
+          )}
+        </Flex>
+        {actions && (
+          <Flex align="center" gap="2" style={{ marginLeft: 'auto' }}>
+            {actions}
+          </Flex>
+        )}
+      </Flex>
+      <ScrollArea style={{ flex: 1 }}>
+        <Box px="4">{children}</Box>
+      </ScrollArea>
+    </Flex>
   );
 }

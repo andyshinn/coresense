@@ -10,6 +10,22 @@ afterEach(() => {
   cleanup();
 });
 
+// jsdom doesn't implement ResizeObserver. Radix UI components (ScrollArea,
+// Select, etc.) use it in layout effects. Stub it globally so tests don't throw.
+if (typeof window !== 'undefined' && !window.ResizeObserver) {
+  window.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
+// jsdom doesn't implement scrollIntoView. Radix Select uses it when opening
+// the dropdown to position the highlighted option.
+if (typeof window !== 'undefined') {
+  window.HTMLElement.prototype.scrollIntoView = () => {};
+}
+
 // jsdom doesn't implement matchMedia. shadcn's SidebarProvider -> useIsMobile
 // calls window.matchMedia in an effect, so any component test that mounts the
 // sidebar needs a stub.
