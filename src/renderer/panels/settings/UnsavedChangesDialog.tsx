@@ -92,11 +92,11 @@ export function UnsavedChangesDialog({ client }: { client: ApiClient | null }) {
               Discard
             </Button>
           </AlertDialog.Action>
-          <AlertDialog.Action>
-            <Button disabled={busy} onClick={onSaveAll}>
-              {busy ? 'Saving…' : 'Save all'}
-            </Button>
-          </AlertDialog.Action>
+          {/* Plain Button, not AlertDialog.Action: onSaveAll is async and may fail;
+              it closes the dialog itself via finish() on success, and leaves it open on failure. */}
+          <Button disabled={busy} onClick={onSaveAll}>
+            {busy ? 'Saving…' : 'Save all'}
+          </Button>
         </Flex>
       </AlertDialog.Content>
     </AlertDialog.Root>
