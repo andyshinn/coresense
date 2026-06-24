@@ -1,6 +1,5 @@
+import { Box, DataList, Text } from '@radix-ui/themes';
 import type { ReactNode } from 'react';
-
-import { cn } from '@/lib/utils';
 
 /** Label/value row — replaces `DetailRow` in LeftNav.tsx and `Field` in RightRail.tsx. */
 export function KeyValueRow({
@@ -15,21 +14,31 @@ export function KeyValueRow({
   title?: string;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 text-xs">
-      <span className="shrink-0 text-[10px] uppercase tracking-wider text-cs-text-dim">{label}</span>
-      <span title={title} className={cn('truncate text-right text-cs-text', mono && 'font-mono tabular-nums text-[11px]')}>
-        {value}
-      </span>
-    </div>
+    <DataList.Item>
+      <DataList.Label minWidth="0">{label}</DataList.Label>
+      <DataList.Value title={title}>
+        {mono ? (
+          <Text size="1" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}>
+            {value}
+          </Text>
+        ) : (
+          value
+        )}
+      </DataList.Value>
+    </DataList.Item>
   );
 }
 
 /** Section wrapper with uppercase title — replaces `DetailSection` in LeftNav.tsx. */
 export function KeyValueGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="text-[10px] font-medium uppercase tracking-wider text-cs-text-dim">{title}</div>
-      <div className="flex flex-col gap-1">{children}</div>
-    </div>
+    <Box>
+      <Text size="1" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }} mb="2">
+        {title}
+      </Text>
+      <DataList.Root orientation="horizontal" size="1">
+        {children}
+      </DataList.Root>
+    </Box>
   );
 }
