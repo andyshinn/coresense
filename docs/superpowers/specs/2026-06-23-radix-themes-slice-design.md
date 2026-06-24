@@ -159,3 +159,13 @@ All work is isolated in the `worktree-feat+radix-themes-slice` branch/worktree. 
 ## Open implementation references
 
 Exact Radix Themes APIs (prop enums, component sub-parts) to be confirmed against current docs via Context7 during planning/implementation.
+
+## Post-build notes (2026-06-24, after implementation + final review)
+
+The slice is implemented (37 commits) and the whole branch is green: `tsc --noEmit` clean, 283/283 vitest pass, `biome check src tests` clean. Findings to carry into the visual sweep:
+
+- **CSS import order (Risk #4) — NOT yet flipped.** `main.tsx` imports `./index.css` then `@radix-ui/themes/styles.css` (Radix *after* app CSS), the opposite of this spec's original mitigation. It was left as-is because flipping blindly is riskier than verifying first — Radix-last means Radix's base wins specificity ties (the reset-bleed vector) but also guarantees the converted components are styled. **Action for the visual sweep:** confirm the un-converted panels (Map / Search / Logs / Repeater-admin) and the command palette still render correctly; if bleed appears, try moving the Radix import before `./index.css` and re-check.
+- **Reset-bleed (Task 0.2) — still unverified.** The root `<Theme>` wraps the whole app, so `.radix-themes` reaches the shadcn panels. No automated signal covers this; it needs a human launching `pnpm start` and eyeballing the un-converted panels.
+- **"Systemic kept-lucide 24px sizing" — REFUTED.** The final review verified lucide-react 1.21.0 spreads `...rest` after the size-derived width/height, so explicit `width`/`height` override correctly; and the kept-lucide icons in the slice actually use `size`/`className`. Not a defect. (One pre-existing `Bluetooth` without explicit size is constrained by Radix's `[&>svg]:size-4`.)
+- **Deferred Minors (acceptable for an exploratory preview):** lost `hover:` color affordance on a few bare `<button>`s in ContactDetail; `KindBranch` chevron uses a fragile `>button>svg` descendant selector (pre-existing pattern; `ParentBranch` uses the cleaner `group-data` class); `HoverCard` maxWidth 288 vs canonical 320; `SettingsPanel` scroll `overflow="auto"` (both axes) vs original y-only; test-polyfill `localStorage.length` snapshotted at construction; the panel-background store test omits a persistence assertion. None affect correctness; revisit if the slice graduates from preview to a real migration.
+- **Fixed during final review:** settings section-header icons restored to accent color; right-rail title restored to an `<h2>` heading landmark; `<main>` landmark restored in AppShell; dead `py`/`setRemoveOpen` props dropped; an AppShell biome-format lint regression fixed.
