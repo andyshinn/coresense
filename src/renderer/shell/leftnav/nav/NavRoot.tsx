@@ -1,5 +1,4 @@
 import { Box, Flex, ScrollArea } from '@radix-ui/themes';
-import { Tooltip as TooltipPrimitive } from 'radix-ui';
 import {
   type ComponentProps,
   type CSSProperties,
@@ -98,19 +97,17 @@ export function NavRoot({
 
   return (
     <NavContext.Provider value={ctx}>
-      <TooltipPrimitive.Provider delayDuration={0}>
-        <Flex
-          direction="column"
-          data-slot="nav"
-          data-state={state}
-          data-collapsible={collapsedToIcon ? 'icon' : undefined}
-          className={cn('nav-root', className)}
-          style={style as CSSProperties}
-          {...props}
-        >
-          {children}
-        </Flex>
-      </TooltipPrimitive.Provider>
+      <Flex
+        direction="column"
+        data-slot="nav"
+        data-state={state}
+        data-collapsible={collapsedToIcon ? 'icon' : undefined}
+        className={cn('nav-root group', className)}
+        style={style as CSSProperties}
+        {...props}
+      >
+        {children}
+      </Flex>
     </NavContext.Provider>
   );
 }

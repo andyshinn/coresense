@@ -12,7 +12,7 @@ export function NavSub({ className, ...props }: ComponentProps<'ul'>) {
     <ul
       data-slot="nav-sub"
       className={cn(
-        'nav-sub mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-cs-border px-2.5 py-0.5 list-none m-0',
+        'nav-sub mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-cs-border px-2.5 py-0.5 list-none',
         className,
       )}
       {...props}
