@@ -1,5 +1,5 @@
+import { Badge, Flex } from '@radix-ui/themes';
 import { type SettingsTab, useStore } from '../../lib/store';
-import { cn } from '../../lib/utils';
 
 // Small header status pill: App settings are stored locally; Radio/Extra
 // reflect the live radio connection.
@@ -14,9 +14,21 @@ export function StatusPill({ tab }: { tab: SettingsTab }) {
         : 'No radio connected';
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] text-cs-text-muted">
-      <span aria-hidden className={cn('size-1.5 rounded-full', online ? 'bg-cs-online' : 'bg-cs-text-dim')} />
-      {label}
-    </span>
+    <Badge variant="soft" color={online ? 'green' : 'gray'} size="1">
+      <Flex align="center" gap="1">
+        <span
+          aria-hidden
+          style={{
+            display: 'inline-block',
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            background: online ? 'var(--green-9)' : 'var(--gray-8)',
+            flexShrink: 0,
+          }}
+        />
+        {label}
+      </Flex>
+    </Badge>
   );
 }
