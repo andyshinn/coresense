@@ -1,6 +1,6 @@
+import { Box, Flex } from '@radix-ui/themes';
 import { PanelLeftOpen, PanelRightOpen } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { SidebarInset, SidebarProvider } from '../components/ui/sidebar';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
 import { cn } from '../lib/utils';
@@ -19,10 +19,9 @@ interface AppShellProps {
 }
 
 export function AppShell({ title, children, showShell = true, client = null }: AppShellProps) {
-  const leftOpen = useStore((s) => s.ui.leftOpen);
   const rightOpen = useStore((s) => s.ui.rightOpen);
-  const toggleLeftNav = useStore((s) => s.toggleLeftNav);
   const toggleRightRail = useStore((s) => s.toggleRightRail);
+  const toggleLeftNav = useStore((s) => s.toggleLeftNav);
 
   // Deselect the active message when the user clicks off it (empty space, the
   // composer, the left nav, …). See the hook for why this is needed and how it
@@ -55,17 +54,15 @@ export function AppShell({ title, children, showShell = true, client = null }: A
           />
         }
       />
-      <SidebarProvider
-        open={leftOpen}
-        onOpenChange={(v) => {
-          if (v !== leftOpen) toggleLeftNav();
-        }}
-        className="flex-1 overflow-hidden"
-      >
+      {/* NavRoot self-owns the open/collapsed context via the store (open/onOpenChange
+          wired inside LeftNav). SidebarProvider is no longer needed here. */}
+      <Flex flexGrow="1" overflow="hidden" minHeight="0">
         <LeftNav client={client} />
-        <SidebarInset className="flex flex-1 flex-col overflow-hidden bg-cs-bg">{children}</SidebarInset>
+        <Box flexGrow="1" overflow="hidden" className="flex flex-col bg-cs-bg">
+          {children}
+        </Box>
         {rightOpen && <RightRail client={client} />}
-      </SidebarProvider>
+      </Flex>
     </div>
   );
 }

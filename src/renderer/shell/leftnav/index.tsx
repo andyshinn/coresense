@@ -1,23 +1,10 @@
-import { Hash, Plus, Search, Users, X } from 'lucide-react';
+import { Cross2Icon, MagnifyingGlassIcon, PlusIcon } from '@radix-ui/react-icons';
+import { Popover } from '@radix-ui/themes';
+import { Hash, Plus, Users } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { Contact, ContactKind } from '../../../shared/types';
 import { AddChannelPopover } from '../../components/AddChannelPopover';
 import { ContextMenu, menuItem } from '../../components/ContextMenu';
-import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuAction,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarRail,
-} from '../../components/ui/sidebar';
 import { useUnreadByKey } from '../../hooks/useUnreads';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
@@ -30,6 +17,20 @@ import { ContactContextMenu, type ContactMenuState } from './ContactContextMenu'
 import { ContactSubItem } from './ContactSubItem';
 import { CONTACT_GROUP_ICON, CONTACT_GROUP_LABEL, CONTACT_GROUP_ORDER, TOOLS } from './constants';
 import { KindBranch } from './KindBranch';
+import {
+  NavAction,
+  NavButton,
+  NavContent,
+  NavFooter,
+  NavGroup,
+  NavGroupLabel,
+  NavHeader,
+  NavItem,
+  NavMenu,
+  NavRail,
+  NavRoot,
+  NavSub,
+} from './nav';
 import { OwnerCard } from './OwnerCard';
 import { ParentBranch } from './ParentBranch';
 import { sortByPinned, sortChannels } from './sorting';
@@ -53,6 +54,10 @@ export function LeftNav({ client }: LeftNavProps) {
   const pinUnreadToTop = useStore((s) => s.appSettings.pinUnreadToTop);
   const showLeftNavUnreads = useStore((s) => s.appSettings.showLeftNavUnreads);
   const setActiveKey = useStore((s) => s.setActiveKey);
+
+  // Controlled open/collapsed state wired directly to the app store.
+  const leftOpen = useStore((s) => s.ui.leftOpen);
+  const toggleLeftNav = useStore((s) => s.toggleLeftNav);
 
   // Per-conversation unread counts, shared with the Unreads panel.
   const unreadByKey = useUnreadByKey();
@@ -193,10 +198,10 @@ export function LeftNav({ client }: LeftNavProps) {
       const shown = collapseListsEnabled && !revealed[key] ? items.slice(0, collapseListsLimit) : items;
       const hidden = items.length - shown.length;
       return (
-        <SidebarMenuSub>
+        <NavSub>
           {shown.map(renderContactSubItem)}
           {hidden > 0 && <ShowMoreRow count={hidden} onClick={() => revealList(key)} />}
-        </SidebarMenuSub>
+        </NavSub>
       );
     },
     [contactsByKind, collapseListsEnabled, collapseListsLimit, revealed, revealList, renderContactSubItem],
@@ -215,18 +220,27 @@ export function LeftNav({ client }: LeftNavProps) {
   );
 
   return (
-    <Sidebar collapsible="icon" aria-label="Primary navigation">
-      <SidebarHeader>
+    <NavRoot
+      collapsible="icon"
+      open={leftOpen}
+      onOpenChange={(v) => {
+        if (v !== leftOpen) toggleLeftNav();
+      }}
+      aria-label="Primary navigation"
+    >
+      <NavHeader>
         <OwnerCard owner={owner} client={client} />
-      </SidebarHeader>
+      </NavHeader>
 
-      <SidebarContent className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <NavContent>
         {showLeftNavSearch && (
           <div className="px-2 pt-2 group-data-[collapsible=icon]:hidden">
             <div className="relative">
-              <Search
+              <MagnifyingGlassIcon
                 aria-hidden="true"
-                className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-cs-text-dim"
+                width="14"
+                height="14"
+                className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-cs-text-dim"
               />
               <input
                 ref={searchRef}
@@ -250,15 +264,15 @@ export function LeftNav({ client }: LeftNavProps) {
                   aria-label="Clear search"
                   className="absolute right-1 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text"
                 >
-                  <X className="size-3" />
+                  <Cross2Icon width="12" height="12" />
                 </button>
               )}
             </div>
           </div>
         )}
-        <SidebarGroup>
-          <SidebarGroupLabel>Conversations</SidebarGroupLabel>
-          <SidebarMenu>
+        <NavGroup>
+          <NavGroupLabel>Conversations</NavGroupLabel>
+          <NavMenu>
             {showLeftNavUnreads && (
               <UnreadsNavItem
                 totalUnread={totalUnread}
@@ -266,7 +280,7 @@ export function LeftNav({ client }: LeftNavProps) {
                 onSelect={() => setActiveKey('tool:unreads')}
               />
             )}
-            <Popover open={addChannelOpen} onOpenChange={setAddChannelOpen}>
+            <Popover.Root open={addChannelOpen} onOpenChange={setAddChannelOpen}>
               <ParentBranch
                 label="Channels"
                 icon={Hash}
@@ -278,23 +292,23 @@ export function LeftNav({ client }: LeftNavProps) {
                   setChannelsRowMenu({ x: e.clientX, y: e.clientY });
                 }}
                 trailingAction={
-                  <SidebarMenuAction
+                  <NavAction
                     asChild
                     aria-label="Add channel"
                     title={connected ? 'Add channel' : 'Connect a radio to add channels'}
                     disabled={!connected}
                     onClick={(e) => {
-                      // Don't let the click bubble up to SidebarMenuButton, which would toggle the collapsible.
+                      // Don't let the click bubble up to NavButton, which would toggle the collapsible.
                       e.stopPropagation();
                     }}
                     className="text-cs-text-dim hover:text-cs-text disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <PopoverTrigger asChild>
+                    <Popover.Trigger>
                       <button type="button">
-                        <Plus className="size-3" />
+                        <PlusIcon />
                       </button>
-                    </PopoverTrigger>
-                  </SidebarMenuAction>
+                    </Popover.Trigger>
+                  </NavAction>
                 }
               >
                 {sortedChannels.length === 0 ? (
@@ -325,10 +339,10 @@ export function LeftNav({ client }: LeftNavProps) {
                   />
                 )}
               </ParentBranch>
-              <PopoverContent
+              <Popover.Content
+                size="1"
+                side="right"
                 align="start"
-                sideOffset={6}
-                className="w-72 p-0"
                 onOpenAutoFocus={(e) => {
                   // Let the form's autoFocus input win instead of Radix's default
                   // focus-to-content behavior.
@@ -336,8 +350,8 @@ export function LeftNav({ client }: LeftNavProps) {
                 }}
               >
                 <AddChannelPopover client={client} onClose={() => setAddChannelOpen(false)} />
-              </PopoverContent>
-            </Popover>
+              </Popover.Content>
+            </Popover.Root>
 
             {contactGrouping === 'top-level' ? (
               CONTACT_GROUP_ORDER.filter((k) => contactsByKind[k].length > 0).map((kind) => (
@@ -353,12 +367,12 @@ export function LeftNav({ client }: LeftNavProps) {
                 </ParentBranch>
               ))
             ) : sortedContacts.length === 0 ? (
-              <SidebarMenuItem>
-                <SidebarMenuButton disabled className="italic text-cs-text-dim">
-                  <Users />
+              <NavItem>
+                <NavButton disabled className="italic text-cs-text-dim">
+                  <Users size={16} />
                   <span>No contacts yet</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+                </NavButton>
+              </NavItem>
             ) : (
               <ParentBranch
                 label="Contacts"
@@ -367,7 +381,7 @@ export function LeftNav({ client }: LeftNavProps) {
                 onToggle={() => setLeftNavGroup('contacts', !openContacts)}
                 unreadTotal={contactsUnreadTotal}
               >
-                <SidebarMenuSub>
+                <NavSub>
                   {CONTACT_GROUP_ORDER.filter((k) => contactsByKind[k].length > 0).map((kind) => (
                     <KindBranch
                       key={kind}
@@ -380,18 +394,18 @@ export function LeftNav({ client }: LeftNavProps) {
                       {renderContactKindSub(kind)}
                     </KindBranch>
                   ))}
-                </SidebarMenuSub>
+                </NavSub>
               </ParentBranch>
             )}
-          </SidebarMenu>
-        </SidebarGroup>
+          </NavMenu>
+        </NavGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Tools</SidebarGroupLabel>
-          <SidebarMenu>
+        <NavGroup>
+          <NavGroupLabel>Tools</NavGroupLabel>
+          <NavMenu>
             {TOOLS.map((t) => (
-              <SidebarMenuItem key={t.key}>
-                <SidebarMenuButton
+              <NavItem key={t.key}>
+                <NavButton
                   tooltip={t.label}
                   isActive={activeKey === t.key}
                   onClick={() => setActiveKey(t.key)}
@@ -399,14 +413,14 @@ export function LeftNav({ client }: LeftNavProps) {
                 >
                   <t.icon />
                   <span>{t.label}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+                </NavButton>
+              </NavItem>
             ))}
-          </SidebarMenu>
-        </SidebarGroup>
-      </SidebarContent>
+          </NavMenu>
+        </NavGroup>
+      </NavContent>
 
-      <SidebarFooter>
+      <NavFooter>
         <ConnectionFooter
           client={client}
           state={transport}
@@ -414,9 +428,9 @@ export function LeftNav({ client }: LeftNavProps) {
           onClick={() => setActiveKey('tool:bleconnect')}
           active={activeKey === 'tool:bleconnect'}
         />
-      </SidebarFooter>
+      </NavFooter>
 
-      <SidebarRail />
+      <NavRail />
 
       {menu && (
         <ChannelContextMenu
@@ -449,6 +463,6 @@ export function LeftNav({ client }: LeftNavProps) {
           onClose={() => setChannelsRowMenu(null)}
         />
       )}
-    </Sidebar>
+    </NavRoot>
   );
 }
