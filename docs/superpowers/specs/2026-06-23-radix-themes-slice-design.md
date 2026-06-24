@@ -93,7 +93,8 @@ In `src/renderer/App.tsx`:
 | `ui/dialog` | `Dialog.*` |
 | `ui/progress` | `Progress` |
 | `ui/hover-card` | `HoverCard.*` |
-| `ui/KeyValueRow` (rightrail, 5 uses) | `DataList.*` (`DataList.Item` / `Label` / `Value`) |
+| `ui/KeyValueRow` (`KeyValueRow` / `KeyValueGroup`) | `DataList.*` (`DataList.Root` / `Item` / `Label` / `Value`) — **shared rail layer**: converting this one file re-skins every metadata rail (ChannelInfo, ContactDetail, MessageInfo, VersionSection, ContactManagerRail), mirroring the `Field.tsx` trick for Settings |
+| Right-rail Dialogs (ContactDetail, ContactManagerRail) | `Dialog.*` / `AlertDialog.*` (block/remove/clear confirmations) |
 | Context menus (`ContactContextMenu`, `ChannelContextMenu`, `contextMenu.tsx`) | `DropdownMenu.*` / `ContextMenu.*` |
 | `lucide-react` icons | `@radix-ui/react-icons` |
 
@@ -113,17 +114,19 @@ In `src/renderer/App.tsx`:
 
 **Showcase sections — fully converted to pure Radix layout (so complete sections render, not just controls):**
 
-- `panels/settings/app/Appearance.tsx` — **+ Theme Playground**.
-- `panels/settings/app/Behavior.tsx` — Toggle + Select + **Slider**.
-- `panels/settings/radio/Telemetry.tsx` — **Slider**.
+- `panels/settings/app/Appearance.tsx` — **+ Theme Playground**; Select controls.
+- `panels/settings/app/Behavior.tsx` — Switch (Toggle) + Select + numeric `TextField` (NumberInput).
+- `panels/settings/radio/Telemetry.tsx` — Select controls.
+
+> **Correction:** an earlier draft listed "Slider" in these sections. That was a false match on the `SlidersHorizontal` lucide *icon* — no settings section uses a Slider component; numeric fields use `NumberInput`. Radix `Slider` is therefore **not exercised by this slice** (the one `ui/slider` consumer lives outside it). `NumberInput` fields map to Radix `TextField` with `type="number"`, preserving behavior.
 
 ## Icons
 
-Swap `lucide-react` → `@radix-ui/react-icons` in converted files. Radix Icons is a curated ~300-icon set, so some lucide glyphs lack an exact match. Strategy:
+Swap `lucide-react` → `@radix-ui/react-icons` where a good match exists. **Reality check from the file survey:** the slice uses many domain glyphs that Radix Icons (a curated ~300-icon set focused on generic UI) simply does not cover — e.g. `Bluetooth`, `Radio`, `Map`, `Megaphone`, `Inbox`, `Activity`, `ArrowUpCircle`, `RotateCw`, `ShieldCheck`, `TerminalSquare`, `MessageSquare`, `FolderInput`. Forcing Radix Icons everywhere would degrade the UI. Strategy:
 
-1. Map to the nearest Radix icon.
-2. For a glyph with no acceptable match, keep that single `lucide-react` icon as a one-off rather than force a poor substitute.
-3. List any one-offs in the implementation summary.
+1. Use Radix Icons for the generic affordances that *do* have clean matches: `MagnifyingGlassIcon` (Search), `PlusIcon`/`MinusIcon`, `Cross2Icon` (X), `ChevronRightIcon`/`ChevronLeftIcon`, `CopyIcon`, `CheckIcon`, `StarIcon`/`StarFilledIcon`, `GearIcon` (Cog/Settings), `TrashIcon` (Trash2), `Pencil2Icon`, `DotsHorizontalIcon` (MoreHorizontal), `BellIcon` family where present.
+2. **Keep the lucide-react icon** for any domain glyph with no acceptable Radix equivalent — expect this to be a sizable set, not a couple of one-offs.
+3. The implementation produces a concrete per-icon mapping table (Radix vs retained-lucide) so the split is explicit and reviewable.
 
 ## Layout (pure Radix)
 
