@@ -1,16 +1,10 @@
-import { Ban, MapPin, MessageSquare, Minus, Plus, Radio, Share2, ShieldCheck, Star, TerminalSquare } from 'lucide-react';
+import { ChatBubbleIcon, MinusIcon, PlusIcon, Share2Icon, StarFilledIcon, StarIcon } from '@radix-ui/react-icons';
+import { AlertDialog, Box, Button, DataList, Flex, Text } from '@radix-ui/themes';
+import { Ban, MapPin, Radio, ShieldCheck, TerminalSquare } from 'lucide-react';
 import { useState } from 'react';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import { copyToClipboard } from '../../../components/ContextMenu';
 import { SetPathEditor } from '../../../components/path/SetPathEditor';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../../../components/ui/dialog';
 import { KeyValueRow } from '../../../components/ui/KeyValueRow';
 import { type ApiClient, api } from '../../../lib/api';
 import { distanceKm, fmtDistance, type ResolvedContact, resolveContact } from '../../../lib/contactDetail';
@@ -20,7 +14,6 @@ import { useStore } from '../../../lib/store';
 import { fmtDateTime, fmtRelative } from '../../../lib/time';
 import { StatusPill, TypeGlyph } from '../../../panels/contacts/ContactRows';
 import { Placeholder } from '../atoms';
-import { CardActionButton } from './ContactCard';
 
 const KIND_LABEL: Record<ResolvedContact['kind'], string> = {
   chat: 'Chat',
@@ -54,6 +47,26 @@ function rcHasFix(rc: ResolvedContact): boolean {
     rc.gpsLat <= 90 &&
     rc.gpsLon >= -180 &&
     rc.gpsLon <= 180
+  );
+}
+
+/** Compact icon+label action button for the contact action row. */
+function ActionButton({
+  icon,
+  label,
+  onClick,
+  color,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  color?: React.ComponentProps<typeof Button>['color'];
+}) {
+  return (
+    <Button size="1" variant="surface" color={color} onClick={onClick}>
+      {icon}
+      {label}
+    </Button>
   );
 }
 
@@ -101,40 +114,69 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
       : null;
 
   return (
-    <div className="space-y-3 text-cs-text-muted">
-      <div className="flex items-start gap-2.5">
-        <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-cs-border bg-cs-bg-3">
+    <Flex direction="column" gap="3">
+      {/* Header: avatar, name, public key, status pill */}
+      <Flex align="start" gap="2">
+        <Box
+          flexShrink="0"
+          style={{
+            width: 36,
+            height: 36,
+            display: 'grid',
+            placeItems: 'center',
+            borderRadius: 'var(--radius-3)',
+            border: '1px solid var(--cs-border)',
+            background: 'var(--cs-bg-3)',
+          }}
+        >
           <TypeGlyph kind={rc.kind} className="size-4.5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className={`truncate text-sm font-semibold text-cs-text ${rc.blocked ? 'line-through opacity-60' : ''}`}>
-              {rc.name || '(unnamed)'}
-            </span>
-          </div>
+        </Box>
+        <Box flexGrow="1" minWidth="0">
+          <Text
+            as="div"
+            size="2"
+            weight="bold"
+            truncate
+            style={{
+              color: 'var(--cs-text)',
+              textDecoration: rc.blocked ? 'line-through' : undefined,
+              opacity: rc.blocked ? 0.6 : undefined,
+            }}
+          >
+            {rc.name || '(unnamed)'}
+          </Text>
           <button
             type="button"
             onClick={() => copyToClipboard(rc.publicKeyHex, () => notify.success('Public key copied'))}
             title={`${rc.publicKeyHex} — click to copy`}
-            className="font-mono text-[10px] text-cs-text-dim hover:text-cs-text-muted"
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              color: 'var(--cs-text-dim)',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+            }}
           >
             {shortKey}
           </button>
-        </div>
+        </Box>
         <StatusPill c={{ blocked: rc.blocked, onRadio: rc.onRadio } as never} />
-      </div>
+      </Flex>
 
-      <div className="flex flex-wrap gap-1.5">
+      {/* Action buttons */}
+      <Flex wrap="wrap" gap="1">
         {!rc.onRadio && !rc.blocked && (
-          <CardActionButton
-            icon={Plus}
+          <ActionButton
+            icon={<PlusIcon />}
             label="Add to radio"
             onClick={() => act((c) => api.addToRadio(c, rc.publicKeyHex), `Added ${rc.name} to radio`)}
           />
         )}
-        {canMessage && <CardActionButton icon={MessageSquare} label="Message" onClick={() => setActiveKey(rc.key)} />}
-        <CardActionButton
-          icon={Star}
+        {canMessage && <ActionButton icon={<ChatBubbleIcon />} label="Message" onClick={() => setActiveKey(rc.key)} />}
+        <ActionButton
+          icon={rc.favourite ? <StarFilledIcon /> : <StarIcon />}
           label={rc.favourite ? 'Unfavourite' : 'Favourite'}
           onClick={() =>
             act(
@@ -143,21 +185,38 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
             )
           }
         />
-        {hasFix && <CardActionButton icon={MapPin} label="View on map" onClick={() => flyToContact(rc)} />}
+        {hasFix && (
+          <ActionButton icon={<MapPin size={12} aria-hidden />} label="View on map" onClick={() => flyToContact(rc)} />
+        )}
         {canAdminister && (
           <>
-            <CardActionButton icon={Radio} label="Telemetry" onClick={() => openRepeaterTab('status')} />
+            <ActionButton
+              icon={<Radio size={12} aria-hidden />}
+              label="Telemetry"
+              onClick={() => openRepeaterTab('status')}
+            />
             {rc.kind === 'repeater' && (
-              <CardActionButton icon={ShieldCheck} label="Permissions" onClick={() => openRepeaterTab('acl')} />
+              <ActionButton
+                icon={<ShieldCheck size={12} aria-hidden />}
+                label="Permissions"
+                onClick={() => openRepeaterTab('acl')}
+              />
             )}
-            <CardActionButton icon={TerminalSquare} label="Remote mgmt" onClick={() => openRepeaterTab('cli')} />
+            <ActionButton
+              icon={<TerminalSquare size={12} aria-hidden />}
+              label="Remote mgmt"
+              onClick={() => openRepeaterTab('cli')}
+            />
           </>
         )}
-        {!rc.blocked && <CardActionButton icon={Ban} label="Block" onClick={() => setBlockOpen(true)} />}
-        {rc.onRadio && <CardActionButton icon={Minus} label="Remove" onClick={() => setRemoveOpen(true)} />}
-        <CardActionButton icon={Share2} label="Share" onClick={() => notify.info('Share — coming soon')} />
-      </div>
+        {!rc.blocked && (
+          <ActionButton icon={<Ban size={12} aria-hidden />} label="Block" color="red" onClick={() => setBlockOpen(true)} />
+        )}
+        {rc.onRadio && <ActionButton icon={<MinusIcon />} label="Remove" color="red" onClick={() => setRemoveOpen(true)} />}
+        <ActionButton icon={<Share2Icon />} label="Share" onClick={() => notify.info('Share — coming soon')} />
+      </Flex>
 
+      {/* Block dialog — keep BlockSenderDialog (complex async, stays as-is) */}
       {blockOpen && (
         <BlockSenderDialog
           client={client}
@@ -167,37 +226,36 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
         />
       )}
 
-      <Dialog open={removeOpen} onOpenChange={(o) => !o && setRemoveOpen(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Remove from radio</DialogTitle>
-            <DialogDescription>
-              Remove {rc.name} from the radio's contact store? It stays in your discovered list and can be re-added later.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <button
-              type="button"
-              onClick={() => setRemoveOpen(false)}
-              className="rounded-md border border-cs-border bg-cs-bg-2 px-3 py-1.5 text-xs hover:bg-cs-bg-3"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setRemoveOpen(false);
-                void act((c) => api.removeFromRadio(c, rc.publicKeyHex), `Removed ${rc.name} from radio`);
-              }}
-              className="rounded-md border border-cs-danger bg-cs-danger/10 px-3 py-1.5 text-xs text-cs-danger hover:bg-cs-danger/20"
-            >
-              Remove
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Remove dialog — AlertDialog.Action is safe: dialog closes sync before async op */}
+      <AlertDialog.Root open={removeOpen} onOpenChange={(o) => !o && setRemoveOpen(false)}>
+        <AlertDialog.Content maxWidth="420px">
+          <AlertDialog.Title>Remove from radio</AlertDialog.Title>
+          <AlertDialog.Description size="2">
+            Remove {rc.name} from the radio's contact store? It stays in your discovered list and can be re-added later.
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action>
+              <Button
+                color="red"
+                onClick={() => {
+                  setRemoveOpen(false);
+                  void act((c) => api.removeFromRadio(c, rc.publicKeyHex), `Removed ${rc.name} from radio`);
+                }}
+              >
+                Remove
+              </Button>
+            </AlertDialog.Action>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
 
-      <div className="space-y-1.5">
+      {/* Metadata rows */}
+      <DataList.Root orientation="horizontal" size="1">
         <KeyValueRow
           label="Public key"
           mono
@@ -206,7 +264,17 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
             <button
               type="button"
               onClick={() => copyToClipboard(rc.publicKeyHex, () => notify.success('Public key copied'))}
-              className="truncate font-mono hover:text-cs-text"
+              style={{
+                fontFamily: 'var(--font-mono)',
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                color: 'inherit',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
             >
               {shortKey}
             </button>
@@ -218,7 +286,19 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
             label="Position"
             mono
             value={
-              <button type="button" onClick={() => flyToContact(rc)} title="View on map" className="hover:text-cs-text">
+              <button
+                type="button"
+                onClick={() => flyToContact(rc)}
+                title="View on map"
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  color: 'inherit',
+                }}
+              >
                 {(rc.gpsLat as number).toFixed(5)}, {(rc.gpsLon as number).toFixed(5)}
               </button>
             }
@@ -247,27 +327,40 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
         />
         {rc.outPathHashSize != null && <KeyValueRow label="Path hash size" value={`${rc.outPathHashSize}-byte`} mono />}
         {rc.rssi != null && <KeyValueRow label="RSSI" value={`${rc.rssi} dBm`} mono />}
-      </div>
+      </DataList.Root>
 
+      {/* Path subsection */}
       {showPath && (
-        <div className="border-t border-cs-border pt-2">
-          <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">Path</div>
+        <Box style={{ borderTop: '1px solid var(--cs-border)', paddingTop: 'var(--space-2)' }}>
+          <Text
+            as="div"
+            size="1"
+            mb="1"
+            style={{
+              fontFamily: 'var(--font-mono)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              color: 'var(--cs-text-dim)',
+            }}
+          >
+            Path
+          </Text>
           {rc.contact && rc.publicKeyHex.length >= 64 ? (
             <SetPathEditor contact={rc.contact} client={client} />
           ) : (
-            <div className="space-y-1 px-1 pb-1">
-              <div className="font-mono text-[12px] text-cs-text">
+            <Box px="1" pb="1">
+              <Text as="div" size="2" style={{ fontFamily: 'var(--font-mono)', color: 'var(--cs-text)' }}>
                 {rc.outPathHex ? `${rc.outPathHex.length / 2} byte path` : 'Flood'}
-              </div>
-              <p className="text-[11px] text-cs-text-dim">
+              </Text>
+              <Text as="p" size="1" style={{ color: 'var(--cs-text-dim)' }}>
                 {rc.onRadio
                   ? 'Waiting on a full advert before the path can be edited.'
                   : 'Add this contact to the radio to set a fixed path.'}
-              </p>
-            </div>
+              </Text>
+            </Box>
           )}
-        </div>
+        </Box>
       )}
-    </div>
+    </Flex>
   );
 }
