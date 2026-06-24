@@ -1,5 +1,5 @@
+import { Box, Flex, SegmentedControl, Text } from '@radix-ui/themes';
 import type { LucideIcon } from 'lucide-react';
-import { cn } from '../../lib/utils';
 
 export interface PillTab<T extends string> {
   id: T;
@@ -19,30 +19,30 @@ interface PillTabsProps<T extends string> {
 // the panel owns its own scroll column so the jump-rail scroll-spy works.
 export function PillTabs<T extends string>({ tabs, active, onChange }: PillTabsProps<T>) {
   return (
-    <div role="tablist" aria-label="Settings tabs" className="flex items-center gap-1">
+    <SegmentedControl.Root value={active} onValueChange={(v) => onChange(v as T)} size="1" aria-label="Settings tabs">
       {tabs.map((t) => {
         const Icon = t.icon;
-        const isActive = t.id === active;
         return (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onChange(t.id)}
-            className={cn(
-              'flex items-center gap-1.5 rounded-md border px-3 py-1 text-[12px] font-medium transition-colors',
-              isActive
-                ? 'border-cs-border bg-cs-accent-soft/30 text-cs-text'
-                : 'border-transparent text-cs-text-muted hover:bg-cs-bg-3 hover:text-cs-text',
-            )}
-          >
-            <Icon className="size-3.5 shrink-0" aria-hidden />
-            <span>{t.label}</span>
-            {t.dirty && <span className="size-1.5 rounded-full bg-cs-warn" aria-hidden />}
-          </button>
+          <SegmentedControl.Item key={t.id} value={t.id}>
+            <Flex align="center" gap="1">
+              <Icon width="14" height="14" aria-hidden />
+              <Text size="1">{t.label}</Text>
+              {t.dirty && (
+                <Box
+                  aria-hidden
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: 'var(--amber-9)',
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+            </Flex>
+          </SegmentedControl.Item>
         );
       })}
-    </div>
+    </SegmentedControl.Root>
   );
 }
