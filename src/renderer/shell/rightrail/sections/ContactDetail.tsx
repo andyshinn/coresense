@@ -243,7 +243,6 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
               <Button
                 color="red"
                 onClick={() => {
-                  setRemoveOpen(false);
                   void act((c) => api.removeFromRadio(c, rc.publicKeyHex), `Removed ${rc.name} from radio`);
                 }}
               >

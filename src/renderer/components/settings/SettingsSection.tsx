@@ -41,7 +41,9 @@ export function SettingsSection({
             <Box flexGrow="1">
               <Heading size="2" as="h2">
                 <Flex align="center" gap="2">
-                  <Icon className="size-3.5 shrink-0" aria-hidden />
+                  <span className="inline-flex shrink-0" style={{ color: 'var(--accent-9)' }}>
+                    <Icon className="size-3.5" aria-hidden />
+                  </span>
                   {title}
                 </Flex>
               </Heading>

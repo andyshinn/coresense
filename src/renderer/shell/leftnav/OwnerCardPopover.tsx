@@ -60,7 +60,7 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 
 function KV({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
   return (
-    <Flex align="center" justify="between" py="1" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
+    <Flex align="center" justify="between" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
       <Text size="1" className="text-cs-text-muted">
         {k}
       </Text>
@@ -74,7 +74,7 @@ function KV({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
 function CapBar({ k, used, max, value }: { k: string; used: number; max: number; value: string }) {
   const pct = max > 0 ? Math.min(100, (used / max) * 100) : 0;
   return (
-    <Flex align="center" gap="2" py="1" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
+    <Flex align="center" gap="2" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
       <Text size="1" className="w-14 text-cs-text-muted">
         {k}
       </Text>

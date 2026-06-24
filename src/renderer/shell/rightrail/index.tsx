@@ -1,4 +1,4 @@
-import { Box, Flex, IconButton, Text } from '@radix-ui/themes';
+import { Box, Flex, Heading, IconButton } from '@radix-ui/themes';
 import { PanelRightClose } from 'lucide-react';
 import { useMemo } from 'react';
 import { Collapsible } from '../../components/Collapsible';
@@ -108,7 +108,8 @@ export function RightRail({ client }: RightRailProps) {
           style={{ borderBottom: '1px solid var(--cs-border)' }}
         >
           <header>
-            <Text
+            <Heading
+              as="h2"
               size="1"
               style={{
                 fontFamily: 'var(--font-mono)',
@@ -118,7 +119,7 @@ export function RightRail({ client }: RightRailProps) {
               }}
             >
               {railTitle(activeKey)}
-            </Text>
+            </Heading>
             <IconButton
               variant="ghost"
               color="gray"
