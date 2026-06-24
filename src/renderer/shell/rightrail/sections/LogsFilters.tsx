@@ -33,8 +33,8 @@ export function LogsSourceSection() {
         style={{ cursor: 'pointer', userSelect: 'none' }}
         onClick={() => setLogsFilter({ showMain: !showMain })}
       >
-        <Checkbox size="1" checked={showMain} onCheckedChange={(checked) => setLogsFilter({ showMain: checked === true })} />
-        <Text size="2">Main</Text>
+        <Checkbox size="1" checked={showMain} />
+        <Text size="1">Main</Text>
       </Flex>
       <Flex
         align="center"
@@ -42,12 +42,8 @@ export function LogsSourceSection() {
         style={{ cursor: 'pointer', userSelect: 'none' }}
         onClick={() => setLogsFilter({ showRenderer: !showRenderer })}
       >
-        <Checkbox
-          size="1"
-          checked={showRenderer}
-          onCheckedChange={(checked) => setLogsFilter({ showRenderer: checked === true })}
-        />
-        <Text size="2">Renderer</Text>
+        <Checkbox size="1" checked={showRenderer} />
+        <Text size="1">Renderer</Text>
       </Flex>
     </Flex>
   );
@@ -95,17 +91,18 @@ export function LogsActionsSection() {
         style={{ cursor: 'pointer', userSelect: 'none' }}
         onClick={() => setLogsFilter({ paused: !paused })}
       >
-        <Checkbox size="1" checked={paused} onCheckedChange={(checked) => setLogsFilter({ paused: checked === true })} />
-        <Text size="2">Pause auto-scroll</Text>
+        <Checkbox size="1" checked={paused} />
+        <Text size="1">Pause auto-scroll</Text>
       </Flex>
       <Flex gap="2">
         <button
           type="button"
           onClick={clearLogs}
-          className="border border-cs-border bg-cs-bg-3 text-cs-text hover:bg-cs-border"
+          className="bg-cs-bg-3 text-cs-text hover:bg-cs-border"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
+            border: '1px solid var(--cs-border)',
             borderRadius: 'var(--radius-2)',
             padding: '2px 8px',
             fontSize: 11,
@@ -117,10 +114,11 @@ export function LogsActionsSection() {
         <button
           type="button"
           onClick={() => setActiveKey('tool:settings:app')}
-          className="border border-cs-border bg-cs-bg-3 text-cs-text hover:bg-cs-border"
+          className="bg-cs-bg-3 text-cs-text hover:bg-cs-border"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
+            border: '1px solid var(--cs-border)',
             borderRadius: 'var(--radius-2)',
             padding: '2px 8px',
             fontSize: 11,

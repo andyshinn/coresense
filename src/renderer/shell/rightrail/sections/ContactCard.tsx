@@ -6,11 +6,12 @@ export function CardActionButton({ icon: Icon, label, onClick }: { icon: LucideI
     <button
       type="button"
       onClick={onClick}
-      className="border border-cs-border bg-cs-bg-3 text-cs-text hover:bg-cs-border"
+      className="bg-cs-bg-3 text-cs-text hover:bg-cs-border"
       style={{
         display: 'inline-flex',
         alignItems: 'center',
         gap: 4,
+        border: '1px solid var(--cs-border)',
         borderRadius: 'var(--radius-2)',
         padding: '2px 8px',
         fontSize: 10,
