@@ -1,13 +1,5 @@
+import { AlertDialog, Box, Button, Flex, Text } from '@radix-ui/themes';
 import { useState } from 'react';
-import { Button } from '../../components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../../components/ui/dialog';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { getSectionHandle, useStore } from '../../lib/store';
@@ -62,41 +54,51 @@ export function UnsavedChangesDialog({ client }: { client: ApiClient | null }) {
   const action = pendingTarget?.kind === 'quit' ? 'quitting' : 'leaving';
 
   return (
-    <Dialog
+    <AlertDialog.Root
       open={open}
       onOpenChange={(o) => {
         if (!o && !busy) clearPendingTarget();
       }}
     >
-      <DialogContent showCloseButton={false}>
-        <DialogHeader>
-          <DialogTitle>Unsaved settings changes</DialogTitle>
-          <DialogDescription>
-            {dirtyTitles.length === 1
-              ? `The "${dirtyTitles[0]}" section has unsaved changes. `
-              : `${dirtyTitles.length} sections have unsaved changes. `}
-            Save them before {action}?
-          </DialogDescription>
-        </DialogHeader>
+      <AlertDialog.Content maxWidth="420px">
+        <AlertDialog.Title>Unsaved settings changes</AlertDialog.Title>
+        <AlertDialog.Description size="2">
+          {dirtyTitles.length === 1
+            ? `The "${dirtyTitles[0]}" section has unsaved changes. `
+            : `${dirtyTitles.length} sections have unsaved changes. `}
+          Save them before {action}?
+        </AlertDialog.Description>
         {dirtyTitles.length > 1 && (
-          <ul className="list-disc pl-5 text-[12px] text-cs-text-muted">
-            {dirtyTitles.map((t) => (
-              <li key={t}>{t}</li>
-            ))}
-          </ul>
+          <Box mt="2">
+            <ul style={{ paddingLeft: '1.25rem', margin: 0 }}>
+              {dirtyTitles.map((t) => (
+                <li key={t}>
+                  <Text size="1" color="gray">
+                    {t}
+                  </Text>
+                </li>
+              ))}
+            </ul>
+          </Box>
         )}
-        <DialogFooter>
-          <Button variant="ghost" size="sm" disabled={busy} onClick={() => clearPendingTarget()}>
-            Cancel
-          </Button>
-          <Button variant="outline" size="sm" disabled={busy} onClick={onDiscard}>
-            Discard
-          </Button>
-          <Button size="sm" disabled={busy} onClick={onSaveAll}>
-            {busy ? 'Saving…' : 'Save all'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <Flex gap="3" mt="4" justify="end">
+          <AlertDialog.Cancel>
+            <Button variant="soft" color="gray" disabled={busy} onClick={clearPendingTarget}>
+              Cancel
+            </Button>
+          </AlertDialog.Cancel>
+          <AlertDialog.Action>
+            <Button color="red" disabled={busy} onClick={onDiscard}>
+              Discard
+            </Button>
+          </AlertDialog.Action>
+          <AlertDialog.Action>
+            <Button disabled={busy} onClick={onSaveAll}>
+              {busy ? 'Saving…' : 'Save all'}
+            </Button>
+          </AlertDialog.Action>
+        </Flex>
+      </AlertDialog.Content>
+    </AlertDialog.Root>
   );
 }
