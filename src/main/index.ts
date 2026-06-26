@@ -1,4 +1,5 @@
 import './storage/paths'; // must precede any module that touches app.getPath()
+import { hostname } from 'node:os';
 import path from 'node:path';
 
 // Wire production implementations of the injectable seams. This must run after
@@ -34,6 +35,7 @@ import { applyAboutPanel } from './about';
 import { getApiKey } from './api/middleware/auth';
 import { blockingStore } from './blocking/store';
 import { type BridgeHandle, startBridge } from './bridge';
+import { buildMdnsServices, type MdnsHandle, startMdns } from './bridge/mdns';
 import { emit } from './events/bus';
 import { child, log } from './log';
 import { applyLoggingSettings } from './logging/apply';
@@ -72,6 +74,7 @@ const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
 
 let serverHandle: { port: number; close: () => Promise<void> } | null = null;
 let bridgeHandle: BridgeHandle | null = null;
+let mdnsHandle: MdnsHandle | null = null;
 
 async function bootstrap() {
   // Initialise API key (logs banner on first run).
@@ -101,19 +104,41 @@ async function bootstrap() {
   await installStartupTransport(process.env, transportManager);
 
   const proxy = stateHolder().getAppSettings().proxy;
+  const bindAddress = proxy.bindAll ? '0.0.0.0' : '127.0.0.1';
   bridgeHandle = await startBridge({
     dev: isDev,
     enableTcp: proxy.enabled,
-    enableMdns: proxy.enabled && proxy.mdns,
-    bindAddress: proxy.bindAll ? '0.0.0.0' : '127.0.0.1',
+    bindAddress,
     tcpPort: proxy.port,
   });
-  log.info(`bridge: TCP=${bridgeHandle.tcpPort ?? 'off'} mDNS=${bridgeHandle.serviceName ?? 'off'}`);
+  log.info(`bridge: TCP=${bridgeHandle.tcpPort ?? 'off'}`);
 
   const rendererDir = isDev ? null : path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`);
 
-  serverHandle = await startServer(rendererDir, bridgeHandle, { dev: isDev });
+  serverHandle = await startServer(rendererDir, bridgeHandle, { dev: isDev, bindAddress });
   log.info(`server listening on http://127.0.0.1:${serverHandle.port}`);
+
+  // mDNS is published once both ports are known. Records are only advertised
+  // when the servers bind the LAN (bindAll) and mDNS is enabled — otherwise the
+  // SRV target would point at an address nothing else can reach.
+  const mdnsPlan = buildMdnsServices({
+    hostname: hostname(),
+    dev: isDev,
+    advertise: proxy.bindAll && proxy.mdns,
+    bridgeEnabled: proxy.enabled,
+    bridgeTcpPort: bridgeHandle.tcpPort,
+    httpPort: serverHandle.port,
+    serviceNameOverride: process.env.BRIDGE_MDNS_NAME,
+  });
+  if (mdnsPlan.services.length > 0) {
+    try {
+      mdnsHandle = startMdns(mdnsPlan);
+    } catch (err) {
+      emit.error(`Bridge: mDNS publish failed: ${(err as Error).message}`);
+    }
+  }
+  bridgeHandle.setMdnsServiceName(mdnsHandle?.serviceName ?? null);
+  log.info(`mDNS=${mdnsHandle?.serviceName ?? 'off'} services=${mdnsPlan.services.length}`);
 
   hardenSession();
   applyAboutPanel();
@@ -445,6 +470,11 @@ app.on('before-quit', (event) => {
 
 async function shutdown() {
   const tasks: Promise<unknown>[] = [];
+  if (mdnsHandle) {
+    const handle = mdnsHandle;
+    mdnsHandle = null;
+    tasks.push(handle.close().catch((err) => log.warn(`mdns close failed: ${(err as Error).message}`)));
+  }
   if (serverHandle) {
     const handle = serverHandle;
     serverHandle = null;
