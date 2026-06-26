@@ -40,7 +40,7 @@ export function ProxySection({ client }: SectionProps) {
     (p0.enabled !== runningEnabled ||
       (p0.enabled && p0.bindAll !== runningBindAll) ||
       (p0.enabled && p0.port !== bridge.tcpPort) ||
-      (p0.enabled && p0.mdns !== runningMdns));
+      (p0.bindAll && p0.mdns) !== runningMdns);
 
   const relaunch = () => {
     if (!client) return;
