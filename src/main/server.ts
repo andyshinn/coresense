@@ -59,6 +59,7 @@ interface StartServerResult {
 
 interface StartServerOptions {
   dev?: boolean;
+  bindAddress?: string;
 }
 
 export async function startServer(
@@ -67,6 +68,7 @@ export async function startServer(
   opts: StartServerOptions = {},
 ): Promise<StartServerResult> {
   const defaultPort = opts.dev ? DEFAULT_PORT_DEV : DEFAULT_PORT_PROD;
+  const bindAddress = opts.bindAddress ?? '127.0.0.1';
   const app = new Hono();
   const clients = new Set<WebSocket>();
 
@@ -117,7 +119,7 @@ export async function startServer(
   }
 
   let boundPort = defaultPort;
-  const httpServer = await listenWithFallback(app.fetch, defaultPort, (p) => {
+  const httpServer = await listenWithFallback(app.fetch, defaultPort, bindAddress, (p) => {
     boundPort = p;
   });
 
@@ -338,11 +340,16 @@ function mimeFor(ext: string): string {
 
 type FetchHandler = Parameters<typeof serve>[0]['fetch'];
 
-function listenWithFallback(fetch: FetchHandler, startPort: number, onBound: (port: number) => void): Promise<ServerType> {
+function listenWithFallback(
+  fetch: FetchHandler,
+  startPort: number,
+  hostname: string,
+  onBound: (port: number) => void,
+): Promise<ServerType> {
   return new Promise((resolve, reject) => {
     let attempt = 0;
     const tryPort = (port: number) => {
-      const server = serve({ fetch, port, hostname: '127.0.0.1' }, (info) => {
+      const server = serve({ fetch, port, hostname }, (info) => {
         onBound(info.port);
         resolve(server);
       });
