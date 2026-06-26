@@ -69,6 +69,11 @@ export class BridgeHub extends EventEmitter {
     this.emit('statusChanged');
   }
 
+  setMdnsServiceName(name: string | null): void {
+    this.mdnsServiceName = name;
+    this.emit('statusChanged');
+  }
+
   add(client: BridgeClient): void {
     this.clients.add(client);
     logger.debug(`client added ${client.kind} ${client.remoteAddr} id=${client.id} (total=${this.clients.size})`);
