@@ -7,11 +7,15 @@ settings:
 overrides:
   '@types/parse-path': npm:parse-path@7.1.0
   extract-zip: npm:@electron-internal/extract-zip@1.0.3
+  '@andyshinn/hostname-sources': link:../hostname-sources
 
 importers:
 
   .:
     dependencies:
+      '@andyshinn/hostname-sources':
+        specifier: link:../hostname-sources
+        version: link:../hostname-sources
       '@andyshinn/meshcore-ts':
         specifier: ^0.3.1
         version: 0.3.1

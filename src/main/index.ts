@@ -18,6 +18,7 @@ setSecretStore({
   decryptString: (b) => safeStorage.decryptString(b),
 });
 
+import { getCanonicalHostName } from '@andyshinn/hostname-sources';
 import {
   app,
   BrowserWindow,
@@ -121,8 +122,18 @@ async function bootstrap() {
   // mDNS is published once both ports are known. Records are only advertised
   // when the servers bind the LAN (bindAll) and mDNS is enabled — otherwise the
   // SRV target would point at an address nothing else can reach.
+  //
+  // Prefer the platform's canonical mDNS hostname (e.g. macOS LocalHostName,
+  // Linux avahi) so the advertised SRV target is the `.local` name the OS
+  // actually resolves; fall back to os.hostname() if probing yields nothing.
+  let canonicalHostname: string;
+  try {
+    canonicalHostname = (await getCanonicalHostName()) ?? hostname();
+  } catch {
+    canonicalHostname = hostname();
+  }
   const mdnsPlan = buildMdnsServices({
-    hostname: hostname(),
+    hostname: canonicalHostname,
     dev: isDev,
     advertise: proxy.bindAll && proxy.mdns,
     bridgeEnabled: proxy.enabled,
