@@ -32,5 +32,3 @@ nodeLinker: hoisted
 overrides:
   "@types/parse-path": "npm:parse-path@7.1.0"
   extract-zip: npm:@electron-internal/extract-zip@1.0.3
-  # Local link until @andyshinn/hostname-sources is published to npm.
-  "@andyshinn/hostname-sources": "link:../hostname-sources"
