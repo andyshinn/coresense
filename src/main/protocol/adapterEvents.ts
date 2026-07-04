@@ -3,6 +3,7 @@ import { emit } from '../events/bus';
 import { applyLibContacts, ingestObservedContact } from '../state/contactSync';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
+import { mergeSyncedChannels } from './mergeChannels';
 
 /** Subscribe to every session event and write through to coresense's stores
  *  + bus. */
@@ -59,7 +60,11 @@ export function wireSessionEvents(session: MeshCoreSession): void {
     emit.autoAddConfig(next);
   });
   ev.on('channels', (chs) => {
-    holder.setChannels(chs);
+    // The lib owns radio fields (name/kind/secretHex/idx) but never carries
+    // coresense's app-only fields (order/muted/pinned), so a wholesale replace
+    // would wipe a user's drag-reorder and mute state on every sync. Merge to
+    // preserve them, seeding `order` from the radio slot `idx` on first sight.
+    holder.setChannels(mergeSyncedChannels(holder.getChannels(), chs));
     emit.channels(holder.getChannels());
   });
   ev.on('channelPresence', (keys) => emit.channelPresence(keys));
