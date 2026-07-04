@@ -59,12 +59,47 @@ describe('mergeSyncedChannels', () => {
     expect(merged[0]?.order).toBe(0); // app-owned order still preserved
   });
 
-  it('drops channels no longer present on the radio', () => {
-    const prev: Channel[] = [{ key: 'ch:Gone', name: 'Gone', kind: 'private', idx: 0, order: 0 }];
+  it('retains an app-stored channel the radio did not enumerate this pass', () => {
+    // The lib emits `channels` incrementally (one cumulative list per
+    // RESP_CHANNEL_INFO), and coresense also keeps app-only channels (e.g. after
+    // "remove from device", idx cleared). A sync that omits a channel must NOT
+    // drop it — membership is owned by explicit DELETE, not by a sync. Otherwise
+    // the omitted channel loses its muted/order (Bug: muting broken on restart).
+    const prev: Channel[] = [
+      { key: 'ch:Alpha', name: 'Alpha', kind: 'private', idx: 0, order: 0 },
+      { key: 'ch:Beta', name: 'Beta', kind: 'private', order: 3, muted: true },
+    ];
     const incoming: Channel[] = [{ key: 'ch:Alpha', name: 'Alpha', kind: 'private', idx: 0 }];
 
     const merged = mergeSyncedChannels(prev, incoming);
 
-    expect(merged.map((c) => c.key)).toEqual(['ch:Alpha']);
+    const beta = merged.find((c) => c.key === 'ch:Beta');
+    expect(beta).toBeDefined();
+    expect(beta?.muted).toBe(true);
+    expect(beta?.order).toBe(3);
+  });
+
+  it('preserves muted/order through an incremental sync burst (restart scenario)', () => {
+    // Simulate a reconnect where the radio re-enumerates channels one at a time.
+    // Both channels were muted and hand-ordered before the restart.
+    const persisted: Channel[] = [
+      { key: 'ch:Alpha', name: 'Alpha', kind: 'private', idx: 0, order: 1, muted: true },
+      { key: 'ch:Beta', name: 'Beta', kind: 'private', idx: 1, order: 0, muted: true },
+    ];
+    const firstEmit: Channel[] = [{ key: 'ch:Alpha', name: 'Alpha', kind: 'private', idx: 0 }];
+    const secondEmit: Channel[] = [
+      { key: 'ch:Alpha', name: 'Alpha', kind: 'private', idx: 0 },
+      { key: 'ch:Beta', name: 'Beta', kind: 'private', idx: 1 },
+    ];
+
+    const afterFirst = mergeSyncedChannels(persisted, firstEmit);
+    const afterSecond = mergeSyncedChannels(afterFirst, secondEmit);
+
+    const beta = afterSecond.find((c) => c.key === 'ch:Beta');
+    const alpha = afterSecond.find((c) => c.key === 'ch:Alpha');
+    expect(alpha?.muted).toBe(true);
+    expect(alpha?.order).toBe(1);
+    expect(beta?.muted).toBe(true);
+    expect(beta?.order).toBe(0);
   });
 });

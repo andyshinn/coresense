@@ -39,4 +39,30 @@ describe('channels sync merge (handler → holder → bus)', () => {
     expect(second?.find((c) => c.key === 'ch:Alpha')?.order).toBe(0);
     expect(second?.find((c) => c.key === 'ch:Zulu')?.order).toBe(1);
   });
+
+  it('keeps muted through an incremental re-enumeration on reconnect (restart)', () => {
+    const { adapter } = makeTestSession();
+    const holder = stateHolder();
+    // State as loaded from disk on restart: both channels muted + hand-ordered.
+    holder.setChannels([
+      { key: 'ch:Zulu', name: 'Zulu', kind: 'private', idx: 0, order: 0, muted: true },
+      { key: 'ch:Alpha', name: 'Alpha', kind: 'private', idx: 1, order: 1, muted: true },
+    ]);
+
+    const emitted: Channel[][] = [];
+    bus.on('channels', (chs: Channel[]) => emitted.push(chs));
+
+    // The lib emits `channels` once per RESP_CHANNEL_INFO with the cumulative
+    // list, so on reconnect it re-enumerates one channel at a time.
+    adapter.session.events.emit('channels', [{ key: 'ch:Zulu', name: 'Zulu', kind: 'private', idx: 0 }]);
+    adapter.session.events.emit('channels', [
+      { key: 'ch:Zulu', name: 'Zulu', kind: 'private', idx: 0 },
+      { key: 'ch:Alpha', name: 'Alpha', kind: 'private', idx: 1 },
+    ]);
+
+    const final = emitted.at(-1);
+    // Alpha was dropped from the first (partial) emit — its muted must survive.
+    expect(final?.find((c) => c.key === 'ch:Zulu')?.muted).toBe(true);
+    expect(final?.find((c) => c.key === 'ch:Alpha')?.muted).toBe(true);
+  });
 });
