@@ -1,6 +1,7 @@
 import { MapIcon } from 'lucide-react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { logError, MapErrorFallback } from '../components/errors/ErrorFallback';
+import { MapApiKeyNotice } from '../components/map/MapApiKeyNotice';
 import { MapCanvas } from '../components/map/MapCanvas';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
@@ -13,7 +14,7 @@ export function MapView({ client }: MapViewProps) {
   const manifest = useStore((s) => s.mapManifest);
   const settings = useStore((s) => s.mapSettings);
 
-  if (manifest.missing) {
+  if (manifest.missing || !manifest.basemap) {
     return (
       <div className="flex h-full w-full items-center justify-center p-8">
         <div className="max-w-lg space-y-4 text-center">
@@ -28,21 +29,14 @@ export function MapView({ client }: MapViewProps) {
             <code className="rounded bg-muted px-1 py-0.5 text-xs">git lfs pull</code> if you cloned without LFS.
           </p>
           <p className="text-xs text-muted-foreground">
-            See <code className="rounded bg-muted px-1 py-0.5 text-xs">scripts/build-tiles.md</code> for instructions on
-            generating your own extracts with <code className="rounded bg-muted px-1 py-0.5 text-xs">pmtiles extract</code>.
+            See <code className="rounded bg-muted px-1 py-0.5 text-xs">scripts/build-tiles.md</code> for how to generate the
+            extract with <code className="rounded bg-muted px-1 py-0.5 text-xs">pmtiles extract</code>.
           </p>
         </div>
       </div>
     );
   }
 
-  if (!manifest.basemap) {
-    return (
-      <div className="flex h-full w-full items-center justify-center p-8">
-        <p className="text-sm text-muted-foreground">Basemap extract is missing.</p>
-      </div>
-    );
-  }
   if (!client) {
     return (
       <div className="flex h-full w-full items-center justify-center p-8">
@@ -52,8 +46,11 @@ export function MapView({ client }: MapViewProps) {
   }
 
   return (
-    <ErrorBoundary FallbackComponent={MapErrorFallback} onError={logError}>
-      <MapCanvas client={client} manifest={manifest} settings={settings} />
-    </ErrorBoundary>
+    <div className="relative h-full w-full">
+      <ErrorBoundary FallbackComponent={MapErrorFallback} onError={logError}>
+        <MapCanvas client={client} manifest={manifest} settings={settings} />
+      </ErrorBoundary>
+      <MapApiKeyNotice />
+    </div>
   );
 }
