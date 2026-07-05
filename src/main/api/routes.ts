@@ -23,6 +23,7 @@ import { child } from '../log';
 import { applyLoggingSettings } from '../logging/apply';
 import { currentPath, folderPath } from '../logging/fileSink';
 import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
+import { clampTileCacheMaxBytes, getTileCache } from '../map/tile-cache';
 import { protocolSession } from '../protocol';
 import { ContactTableFullError, UnknownContactError } from '../protocol/errors';
 import { appLifecycle } from '../runtime/appLifecycle';
@@ -47,6 +48,9 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   const api = new Hono();
 
   registerTileRoutes(api);
+
+  // Apply the persisted cache cap on startup.
+  void getTileCache().setMaxBytes(stateHolder().getMapSettings().tileCacheMaxBytes);
 
   const buildCapabilities = (): Capabilities => ({
     isElectron: true,
@@ -385,8 +389,10 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const sanitized: MapSettings = {
       ...body,
       hasProtomapsApiKey: current.hasProtomapsApiKey,
+      tileCacheMaxBytes: clampTileCacheMaxBytes(body.tileCacheMaxBytes),
     };
     holder.setMapSettings(sanitized);
+    void getTileCache().setMaxBytes(sanitized.tileCacheMaxBytes);
     emit.mapSettings(sanitized);
     return c.json({ ok: true });
   });

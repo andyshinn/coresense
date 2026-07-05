@@ -2,9 +2,12 @@ import { open, stat } from 'node:fs/promises';
 import type { Context, Hono } from 'hono';
 import { PMTiles, type RangeResponse, type Source } from 'pmtiles';
 import type { TileManifest, TileManifestEntry, TileSource } from '../../shared/types';
+import { emit } from '../events/bus';
 import { child } from '../log';
 import { getApiKey as getProtomapsApiKey } from '../map/api-key';
+import { getTileCache } from '../map/tile-cache';
 import { allTileSources, tilePathIfExists } from '../map/tile-paths';
+import { stateHolder } from '../state/holder';
 
 const log = child('tile-proxy');
 const PROTOMAPS_TILE_BASE = 'https://api.protomaps.com/tiles/v4';
@@ -128,6 +131,15 @@ function toArrayBuffer(buf: Buffer): ArrayBuffer {
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
 }
 
+function markKeyRejected(rejected: boolean): void {
+  const holder = stateHolder();
+  const current = holder.getMapTileStatus();
+  if (current.keyRejected === rejected) return; // only broadcast on change
+  const next = { ...current, keyRejected: rejected };
+  holder.setMapTileStatus(next);
+  emit.mapTileStatus(next);
+}
+
 export function registerTileRoutes(api: Hono): void {
   api.get('/api/tiles/manifest', async (c) => c.json(await buildTileManifest()));
 
@@ -146,7 +158,8 @@ export function registerTileRoutes(api: Hono): void {
   // Proxy a single Protomaps API tile so the stored API key never leaves main.
   // Upstream failures degrade to 502 — MapLibre treats that as a missing tile
   // and renders blank rather than throwing, which is the desired UX when the
-  // user goes offline mid-pan.
+  // user goes offline mid-pan. Successful fetches are written through to the
+  // on-disk LRU cache so repeat views of the same tile don't re-hit upstream.
   api.get('/api/map/online-tile-proxy/:source/:z/:x/:y', async (c) => {
     const source = c.req.param('source');
     if (!isTileSource(source)) {
@@ -158,13 +171,29 @@ export function registerTileRoutes(api: Hono): void {
     const z = c.req.param('z');
     const x = c.req.param('x');
     const y = c.req.param('y');
+    const cache = getTileCache();
+    const cacheKey = `${source}/${z}/${x}/${y}`;
+
+    const cached = await cache.get(cacheKey);
+    if (cached) {
+      return c.body(toArrayBuffer(cached), 200, {
+        'Content-Type': 'application/vnd.mapbox-vector-tile',
+        'Cache-Control': 'private, max-age=300',
+      });
+    }
+
     // Protomaps v4 hosts vector tiles for the same schema we render from PMTiles.
     // Terrain has no online fallback — Mapterhorn isn't on the Protomaps API.
     const upstream = `${PROTOMAPS_TILE_BASE}/${z}/${x}/${y}.mvt?key=${encodeURIComponent(key)}`;
     try {
       const res = await fetch(upstream);
+      if (res.status === 401 || res.status === 403) {
+        // Bad/expired key — surface it so the renderer can prompt the user.
+        markKeyRejected(true);
+        return c.body(null, 401);
+      }
       if (res.status === 404) {
-        // Out-of-coverage tile — return 204 so MapLibre stops retrying.
+        // Out-of-coverage tile — 204 so MapLibre stops retrying.
         return c.body(null, 204);
       }
       if (!res.ok) {
@@ -172,9 +201,10 @@ export function registerTileRoutes(api: Hono): void {
         return c.body(null, 502);
       }
       const buf = await res.arrayBuffer();
+      markKeyRejected(false);
+      await cache.put(cacheKey, Buffer.from(buf));
       return c.body(buf, 200, {
         'Content-Type': res.headers.get('Content-Type') ?? 'application/vnd.mapbox-vector-tile',
-        // Short cache so the renderer doesn't re-fetch on every pan in a session.
         'Cache-Control': 'private, max-age=300',
       });
     } catch (err) {

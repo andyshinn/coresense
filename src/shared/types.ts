@@ -543,6 +543,9 @@ export interface MapSettings {
   coLocationMeters: number;
   /** Show the contact's name as a small label next to each marker. */
   showMarkerLabels: boolean;
+  /** On-disk cap (bytes) for cached online tiles. Clamped server-side to
+   *  [64 MB, 5 GB]. Default 512 MB. */
+  tileCacheMaxBytes: number;
   /** Persisted viewport so the Map panel re-opens where the user left off. */
   lastCenter?: { lng: number; lat: number };
   lastZoom?: number;
@@ -564,6 +567,7 @@ export const DEFAULT_MAP_SETTINGS: MapSettings = {
   lightBasemap: false,
   coLocationMeters: 150,
   showMarkerLabels: false,
+  tileCacheMaxBytes: 512 * 1024 * 1024,
 };
 
 /** Runtime status of online tile access — not a user setting, not persisted.
