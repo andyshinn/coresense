@@ -54,7 +54,7 @@ import {
 import { setRendererLogLevel, setRendererLogSink } from './logger';
 import type { NeighbourSortKey } from './neighbours';
 
-const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null, terrain: null };
+const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null };
 
 const MAX_PACKETS = 500;
 const MAX_LOGS = 5000;

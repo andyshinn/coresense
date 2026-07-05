@@ -475,10 +475,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   updates: { channel: 'stable', autoCheck: true },
 };
 
-/** Bundled vector basemap + raster terrain sources for the Map panel.
+/** Bundled vector basemap source for the Map panel.
  *  The renderer fetches tiles via the local Hono server (`/api/tiles/:source`)
- *  using HTTP Range requests; the manifest summarizes each extract's header. */
-export type TileSource = 'basemap' | 'terrain';
+ *  using HTTP Range requests; the manifest summarizes the extract's header. */
+export type TileSource = 'basemap';
 
 export interface TileManifestEntry {
   source: TileSource;
@@ -493,11 +493,10 @@ export interface TileManifestEntry {
 }
 
 export interface TileManifest {
-  /** True when neither basemap nor terrain is available on disk — the Map
-   *  panel renders an empty-state with instructions instead of mounting MapLibre. */
+  /** True when the bundled basemap is not available on disk — the Map panel
+   *  renders an empty-state with instructions instead of mounting MapLibre. */
   missing: boolean;
   basemap: TileManifestEntry | null;
-  terrain: TileManifestEntry | null;
 }
 
 export interface TileCacheInfo {
@@ -508,11 +507,6 @@ export interface TileCacheInfo {
 }
 
 export interface MapSettings {
-  /** Hillshade overlay rendered from the terrain source. */
-  terrainHillshadeEnabled: boolean;
-  /** 3D terrain via map.setTerrain(...). Independent of hillshade — hillshade
-   *  is a 2D paint layer; 3D is exaggeration applied during render. */
-  terrain3DEnabled: boolean;
   /** Derived from the existence of the encrypted blob on disk; never written
    *  by the renderer. When true, the renderer extends the map past the bundled
    *  extract's maxZoom by proxying tiles from the Protomaps hosted API through
@@ -554,8 +548,6 @@ export interface MapSettings {
 }
 
 export const DEFAULT_MAP_SETTINGS: MapSettings = {
-  terrainHillshadeEnabled: true,
-  terrain3DEnabled: false,
   hasProtomapsApiKey: false,
   styleTheme: 'light',
   staleFadeDays: 7,

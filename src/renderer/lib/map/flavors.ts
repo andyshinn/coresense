@@ -168,10 +168,3 @@ export const coresenseDark: Flavor = {
 export function coresenseFlavor(theme: 'light' | 'dark'): Flavor {
   return theme === 'dark' ? coresenseDark : coresenseLight;
 }
-
-/** Warm hillshade tint that fits both flavors better than pure black/white. */
-export function hillshadeColors(theme: 'light' | 'dark') {
-  return theme === 'dark'
-    ? { shadow: '#0c0a06', highlight: '#f59e0b', exaggeration: 0.4 }
-    : { shadow: '#3a3322', highlight: '#f5f1e6', exaggeration: 0.45 };
-}

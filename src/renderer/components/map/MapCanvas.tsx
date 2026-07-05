@@ -6,7 +6,7 @@ import { type ApiClient, api } from '../../lib/api';
 import { log } from '../../lib/logger';
 import { subscribe as subscribeMapBus } from '../../lib/map/bus';
 import { ensurePmtilesProtocol } from '../../lib/map/pmtiles-protocol';
-import { buildStyle, LAYER_HILLSHADE, maxZoomForSettings, SOURCE_TERRAIN } from '../../lib/map/style-builder';
+import { buildStyle, maxZoomForSettings } from '../../lib/map/style-builder';
 import { useStore } from '../../lib/store';
 import { resolveTheme } from '../../lib/theme';
 import { MapClusters } from './MapClusters';
@@ -131,51 +131,8 @@ export function MapCanvas({
     };
   }, []);
 
-  // Hillshade visibility is a paint-layer toggle — no restyle needed. The
-  // layer is always present in the style (when terrain exists), we just flip
-  // its visibility. setLayoutProperty is safe to call before the style finishes
-  // loading because MapLibre queues it.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !manifest.terrain) return;
-    const apply = () => {
-      if (!map.getLayer(LAYER_HILLSHADE)) return;
-      map.setLayoutProperty(LAYER_HILLSHADE, 'visibility', settings.terrainHillshadeEnabled ? 'visible' : 'none');
-    };
-    if (map.isStyleLoaded()) apply();
-    else map.once('styledata', apply);
-  }, [settings.terrainHillshadeEnabled, manifest.terrain]);
-
-  // 3D terrain — applies the same raster-dem source as a terrain definition.
-  // Turning it off resets pitch to 0 so the user doesn't end up with a tilted
-  // flat map; turning it on respects whatever pitch the user (or NavigationControl)
-  // dials in afterward.
-  //
-  // Known warning: MapLibre logs a "same source for hillshade and 3D terrain"
-  // notice — it prefers two separate raster-dem sources at different tileSizes.
-  // We share the bundled Mapterhorn extract for both; quality cost is minor and
-  // splitting would mean shipping two PMTiles or an out-of-band download.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !manifest.terrain) return;
-    const apply = () => {
-      if (settings.terrain3DEnabled) {
-        if (!map.getSource(SOURCE_TERRAIN)) return;
-        map.setTerrain({ source: SOURCE_TERRAIN, exaggeration: 1.2 });
-      } else {
-        map.setTerrain(null);
-        if (map.getPitch() !== 0) map.easeTo({ pitch: 0, duration: 250 });
-      }
-    };
-    if (map.isStyleLoaded()) apply();
-    else map.once('styledata', apply);
-  }, [settings.terrain3DEnabled, manifest.terrain]);
-
   // Online fallback adds a second source + duplicated layers; can't be done
   // surgically, so we rebuild the style. setStyle preserves the viewport.
-  // The hillshade/terrain effects above will re-fire on style.load via the
-  // styledata listener pattern; we re-arm them here explicitly so the new
-  // style's hillshade visibility + 3D state matches the current settings.
   const firstStyleRef = useRef(true);
   // biome-ignore lint/correctness/useExhaustiveDependencies: rebuild only on fallback/theme flips, not on every settings tick
   useEffect(() => {
@@ -187,14 +144,6 @@ export function MapCanvas({
     }
     const apply = () => {
       map.setStyle(buildStyle({ baseUrl: client.baseUrl, manifest, settings, theme }));
-      map.once('style.load', () => {
-        if (map.getLayer(LAYER_HILLSHADE)) {
-          map.setLayoutProperty(LAYER_HILLSHADE, 'visibility', settings.terrainHillshadeEnabled ? 'visible' : 'none');
-        }
-        if (settings.terrain3DEnabled && map.getSource(SOURCE_TERRAIN)) {
-          map.setTerrain({ source: SOURCE_TERRAIN, exaggeration: 1.2 });
-        }
-      });
     };
     // Wait for the previous style to finish loading; calling setStyle mid-load
     // forces MapLibre to discard its diff path and rebuild from scratch (the

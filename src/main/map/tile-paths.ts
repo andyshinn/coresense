@@ -5,7 +5,7 @@ import { appPath, isPackaged } from '../runtime/appInfo';
 
 export type { TileSource };
 
-const TILE_SOURCES: readonly TileSource[] = ['basemap', 'terrain'];
+const TILE_SOURCES: readonly TileSource[] = ['basemap'];
 
 function resolvedPath(name: TileSource): string {
   const file = `${name}.pmtiles`;
@@ -24,7 +24,6 @@ export function tilePathIfExists(name: TileSource): string | null {
 export function listAvailableTiles(): Record<TileSource, string | null> {
   return {
     basemap: tilePathIfExists('basemap'),
-    terrain: tilePathIfExists('terrain'),
   };
 }
 

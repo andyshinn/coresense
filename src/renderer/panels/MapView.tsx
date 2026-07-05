@@ -22,9 +22,8 @@ export function MapView({ client }: MapViewProps) {
           </div>
           <h2 className="text-lg font-semibold">Map tiles not installed</h2>
           <p className="text-sm text-muted-foreground">
-            The bundled basemap and terrain extracts aren't present in this build. Drop{' '}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">basemap.pmtiles</code> and{' '}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">terrain.pmtiles</code> into{' '}
+            The bundled basemap extract isn't present in this build. Drop{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">basemap.pmtiles</code> into{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">resources/tiles/</code> and relaunch — or run{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">git lfs pull</code> if you cloned without LFS.
           </p>
@@ -40,7 +39,7 @@ export function MapView({ client }: MapViewProps) {
   if (!manifest.basemap) {
     return (
       <div className="flex h-full w-full items-center justify-center p-8">
-        <p className="text-sm text-muted-foreground">Basemap extract is missing; only terrain is loaded.</p>
+        <p className="text-sm text-muted-foreground">Basemap extract is missing.</p>
       </div>
     );
   }

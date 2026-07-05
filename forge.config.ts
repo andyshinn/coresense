@@ -13,12 +13,12 @@ import { VitePlugin } from '@electron-forge/plugin-vite';
 import { PublisherGithub } from '@electron-forge/publisher-github';
 import type { ForgeConfig } from '@electron-forge/shared-types';
 
-// Bundled PMTiles extracts (basemap + terrain) ship as extraResource so they
-// land outside app.asar and remain accessible to fs ranged reads. They're
-// tracked in git-LFS but optional at build time — the app must package and
-// run without them (Map panel shows a "missing tiles" empty-state). Only
-// include files that actually exist on disk.
-const TILE_EXTRACTS = ['resources/tiles/basemap.pmtiles', 'resources/tiles/terrain.pmtiles'];
+// Bundled PMTiles extract (basemap) ships as extraResource so it lands
+// outside app.asar and remains accessible to fs ranged reads. It's tracked in
+// git-LFS but optional at build time — the app must package and run without
+// it (Map panel shows a "missing tiles" empty-state). Only include the file
+// if it actually exists on disk.
+const TILE_EXTRACTS = ['resources/tiles/basemap.pmtiles'];
 const bundledTiles = TILE_EXTRACTS.filter((p) => existsSync(p));
 
 // The macOS app icon is built from logo/coresense.icon (Icon Composer bundle)

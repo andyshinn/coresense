@@ -6,7 +6,7 @@ import { emit } from '../events/bus';
 import { child } from '../log';
 import { getApiKey as getProtomapsApiKey } from '../map/api-key';
 import { getTileCache, revealTileCache } from '../map/tile-cache';
-import { allTileSources, tilePathIfExists } from '../map/tile-paths';
+import { tilePathIfExists } from '../map/tile-paths';
 import { stateHolder } from '../state/holder';
 
 const log = child('tile-proxy');
@@ -56,27 +56,17 @@ async function readManifestEntry(source: TileSource, path: string): Promise<Tile
 }
 
 export async function buildTileManifest(): Promise<TileManifest> {
-  const entries = await Promise.all(
-    allTileSources().map(async (source) => {
-      const path = tilePathIfExists(source);
-      if (!path) return [source, null] as const;
-      try {
-        return [source, await readManifestEntry(source, path)] as const;
-      } catch {
-        return [source, null] as const;
-      }
-    }),
-  );
-  const map = Object.fromEntries(entries) as Record<TileSource, TileManifestEntry | null>;
-  return {
-    missing: !map.basemap && !map.terrain,
-    basemap: map.basemap,
-    terrain: map.terrain,
-  };
+  const path = tilePathIfExists('basemap');
+  if (!path) return { missing: true, basemap: null };
+  try {
+    return { missing: false, basemap: await readManifestEntry('basemap', path) };
+  } catch {
+    return { missing: true, basemap: null };
+  }
 }
 
 function isTileSource(value: string): value is TileSource {
-  return value === 'basemap' || value === 'terrain';
+  return value === 'basemap';
 }
 
 async function serveRange(c: Context, filePath: string) {
@@ -183,7 +173,6 @@ export function registerTileRoutes(api: Hono): void {
     }
 
     // Protomaps v4 hosts vector tiles for the same schema we render from PMTiles.
-    // Terrain has no online fallback — Mapterhorn isn't on the Protomaps API.
     const upstream = `${PROTOMAPS_TILE_BASE}/${z}/${x}/${y}.mvt?key=${encodeURIComponent(key)}`;
     try {
       const res = await fetch(upstream);
