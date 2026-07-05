@@ -1,23 +1,20 @@
-import { hostname, networkInterfaces } from 'node:os';
+import { networkInterfaces } from 'node:os';
 import { BRIDGE_DEFAULT_TCP_PORT, BRIDGE_DEFAULT_TCP_PORT_DEV, type BridgeStatus } from '../../shared/types';
 import { emit } from '../events/bus';
 import { BridgeHub } from './hub';
-import { type MdnsHandle, startMdns } from './mdns';
 import { startTcpListener, type TcpListenerHandle } from './tcp';
 
 export interface BridgeOptions {
   tcpPort?: number;
   bindAddress?: string;
-  serviceName?: string;
   enableTcp?: boolean;
-  enableMdns?: boolean;
   dev?: boolean;
 }
 
 export interface BridgeHandle {
   tcpPort: number | null;
-  serviceName: string | null;
   getStatus(): BridgeStatus;
+  setMdnsServiceName(name: string | null): void;
   on(ev: 'statusChanged', fn: () => void): void;
   off(ev: 'statusChanged', fn: () => void): void;
   close(): Promise<void>;
@@ -29,15 +26,11 @@ export async function startBridge(opts: BridgeOptions = {}): Promise<BridgeHandl
   const defaultTcp = opts.dev ? BRIDGE_DEFAULT_TCP_PORT_DEV : BRIDGE_DEFAULT_TCP_PORT;
   const tcpPort = opts.tcpPort ?? readNumberEnv('BRIDGE_TCP_PORT', defaultTcp);
   const bindAddress = opts.bindAddress ?? process.env.BRIDGE_BIND ?? DEFAULT_BIND;
-  const baseHost = hostname().replace(/\..*$/, '');
-  const serviceName = opts.serviceName ?? process.env.BRIDGE_MDNS_NAME ?? (opts.dev ? `${baseHost}-dev` : baseHost);
   const enableTcp = opts.enableTcp ?? readBoolEnv('BRIDGE_TCP_ENABLED', true);
-  const enableMdns = opts.enableMdns ?? readBoolEnv('BRIDGE_MDNS_ENABLED', true);
 
   const hub = new BridgeHub();
 
   let tcp: TcpListenerHandle | null = null;
-  let mdns: MdnsHandle | null = null;
 
   if (enableTcp) {
     try {
@@ -47,32 +40,21 @@ export async function startBridge(opts: BridgeOptions = {}): Promise<BridgeHandl
     }
   }
 
-  if (enableMdns && tcp) {
-    try {
-      mdns = startMdns({
-        serviceName,
-        tcpPort: tcp.port,
-      });
-    } catch (err) {
-      emit.error(`Bridge: mDNS publish failed: ${(err as Error).message}`);
-    }
-  }
-
   hub.setListeners({
     bindAddress,
     lanAddress: resolveLanAddress(bindAddress),
     tcpPort: tcp?.port ?? null,
-    mdnsServiceName: mdns?.serviceName ?? null,
+    mdnsServiceName: null,
   });
 
   return {
     tcpPort: tcp?.port ?? null,
-    serviceName: mdns?.serviceName ?? null,
     getStatus: () => hub.getStatus(),
+    setMdnsServiceName: (name) => hub.setMdnsServiceName(name),
     on: (ev, fn) => hub.on(ev, fn),
     off: (ev, fn) => hub.off(ev, fn),
     close: async () => {
-      await Promise.allSettled([mdns?.close() ?? Promise.resolve(), tcp?.close() ?? Promise.resolve()]);
+      await Promise.allSettled([tcp?.close() ?? Promise.resolve()]);
       hub.close();
     },
   };

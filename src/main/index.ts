@@ -1,4 +1,5 @@
 import './storage/paths'; // must precede any module that touches app.getPath()
+import { hostname } from 'node:os';
 import path from 'node:path';
 
 // Wire production implementations of the injectable seams. This must run after
@@ -17,6 +18,7 @@ setSecretStore({
   decryptString: (b) => safeStorage.decryptString(b),
 });
 
+import { getCanonicalHostName } from '@andyshinn/hostname-sources';
 import {
   app,
   BrowserWindow,
@@ -34,6 +36,7 @@ import { applyAboutPanel } from './about';
 import { getApiKey } from './api/middleware/auth';
 import { blockingStore } from './blocking/store';
 import { type BridgeHandle, startBridge } from './bridge';
+import { buildMdnsServices, type MdnsHandle, startMdns } from './bridge/mdns';
 import { emit } from './events/bus';
 import { child, log } from './log';
 import { applyLoggingSettings } from './logging/apply';
@@ -72,6 +75,7 @@ const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
 
 let serverHandle: { port: number; close: () => Promise<void> } | null = null;
 let bridgeHandle: BridgeHandle | null = null;
+let mdnsHandle: MdnsHandle | null = null;
 
 async function bootstrap() {
   // Initialise API key (logs banner on first run).
@@ -101,19 +105,57 @@ async function bootstrap() {
   await installStartupTransport(process.env, transportManager);
 
   const proxy = stateHolder().getAppSettings().proxy;
+  // "Bind to all interfaces" (and, by extension, mDNS advertising) only take
+  // effect when the proxy is enabled. The settings UI disables — but does not
+  // clear — the bindAll/mdns toggles when the proxy is off, so a stale
+  // bindAll=true must not silently bind the HTTP/WS server (or bridge) to
+  // 0.0.0.0 and expose the API on the LAN.
+  const bindAll = proxy.enabled && proxy.bindAll;
+  const bindAddress = bindAll ? '0.0.0.0' : '127.0.0.1';
   bridgeHandle = await startBridge({
     dev: isDev,
     enableTcp: proxy.enabled,
-    enableMdns: proxy.enabled && proxy.mdns,
-    bindAddress: proxy.bindAll ? '0.0.0.0' : '127.0.0.1',
+    bindAddress,
     tcpPort: proxy.port,
   });
-  log.info(`bridge: TCP=${bridgeHandle.tcpPort ?? 'off'} mDNS=${bridgeHandle.serviceName ?? 'off'}`);
+  log.info(`bridge: TCP=${bridgeHandle.tcpPort ?? 'off'}`);
 
   const rendererDir = isDev ? null : path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`);
 
-  serverHandle = await startServer(rendererDir, bridgeHandle, { dev: isDev });
-  log.info(`server listening on http://127.0.0.1:${serverHandle.port}`);
+  serverHandle = await startServer(rendererDir, bridgeHandle, { dev: isDev, bindAddress });
+  log.info(`server listening on http://${bindAddress}:${serverHandle.port}`);
+
+  // mDNS is published once both ports are known. Records are only advertised
+  // when the servers bind the LAN (bindAll) and mDNS is enabled — otherwise the
+  // SRV target would point at an address nothing else can reach.
+  //
+  // Prefer the platform's canonical mDNS hostname (e.g. macOS LocalHostName,
+  // Linux avahi) so the advertised SRV target is the `.local` name the OS
+  // actually resolves; fall back to os.hostname() if probing yields nothing.
+  let canonicalHostname: string;
+  try {
+    canonicalHostname = (await getCanonicalHostName()) ?? hostname();
+  } catch {
+    canonicalHostname = hostname();
+  }
+  const mdnsPlan = buildMdnsServices({
+    hostname: canonicalHostname,
+    dev: isDev,
+    advertise: bindAll && proxy.mdns,
+    bridgeEnabled: proxy.enabled,
+    bridgeTcpPort: bridgeHandle.tcpPort,
+    httpPort: serverHandle.port,
+    serviceNameOverride: process.env.BRIDGE_MDNS_NAME,
+  });
+  if (mdnsPlan.services.length > 0) {
+    try {
+      mdnsHandle = startMdns(mdnsPlan);
+    } catch (err) {
+      emit.error(`Bridge: mDNS publish failed: ${(err as Error).message}`);
+    }
+  }
+  bridgeHandle.setMdnsServiceName(mdnsHandle?.serviceName ?? null);
+  log.info(`mDNS=${mdnsHandle?.serviceName ?? 'off'} services=${mdnsPlan.services.length}`);
 
   hardenSession();
   applyAboutPanel();
@@ -445,6 +487,11 @@ app.on('before-quit', (event) => {
 
 async function shutdown() {
   const tasks: Promise<unknown>[] = [];
+  if (mdnsHandle) {
+    const handle = mdnsHandle;
+    mdnsHandle = null;
+    tasks.push(handle.close().catch((err) => log.warn(`mdns close failed: ${(err as Error).message}`)));
+  }
   if (serverHandle) {
     const handle = serverHandle;
     serverHandle = null;

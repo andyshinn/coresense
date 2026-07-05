@@ -79,6 +79,7 @@
     "macos-alias": "^0.2.12"
   },
   "dependencies": {
+    "@andyshinn/hostname-sources": "^0.1.0",
     "@andyshinn/meshcore-ts": "^0.3.1",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
