@@ -61,13 +61,19 @@ describe('online tile proxy', () => {
     const a = app();
     await setKey(a);
 
-    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(401)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => fakeResponse(401)),
+    );
     const rejected = await a.request('/api/map/online-tile-proxy/basemap/8/1/1');
     expect(rejected.status).toBe(401);
     let snap = (await (await a.request('/api/state/snapshot')).json()) as StateSnapshot;
     expect(snap.mapTileStatus.keyRejected).toBe(true);
 
-    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(200)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => fakeResponse(200)),
+    );
     const ok = await a.request('/api/map/online-tile-proxy/basemap/8/2/2');
     expect(ok.status).toBe(200);
     snap = (await (await a.request('/api/state/snapshot')).json()) as StateSnapshot;
