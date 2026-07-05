@@ -33,13 +33,31 @@ async function setKey(a: ReturnType<typeof app>) {
 // getSyncProgress(), which throw unless a transport is installed. Install a
 // loopback double so the 401 test's snapshot check can build the payload.
 beforeEach(() => transportManager.setTransport(new FakeTransport()));
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  transportManager.clearTransport();
+  vi.unstubAllGlobals();
+});
 
 describe('online tile proxy', () => {
   it('returns 404 no_api_key when no key is set', async () => {
     const res = await app().request('/api/map/online-tile-proxy/basemap/6/10/20');
     expect(res.status).toBe(404);
     expect((await res.json()) as { error: string }).toEqual({ error: 'no_api_key' });
+  });
+
+  it('rejects non-numeric tile coordinates before touching the cache/upstream', async () => {
+    const a = app();
+    await setKey(a);
+    const fetchMock = vi.fn(async () => fakeResponse(200));
+    vi.stubGlobal('fetch', fetchMock);
+
+    // Only plain digits are accepted; anything else (a traversal payload, a
+    // path separator, a sign) is rejected before it can reach the cache key /
+    // on-disk path or the upstream URL.
+    const res = await a.request('/api/map/online-tile-proxy/basemap/6/10/abc');
+    expect(res.status).toBe(400);
+    expect((await res.json()) as { error: string }).toEqual({ error: 'bad_tile_coords' });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('caches a fetched tile so the second request does not hit upstream', async () => {

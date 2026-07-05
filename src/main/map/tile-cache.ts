@@ -121,11 +121,15 @@ export class TileCache {
       const bytes = await readFile(this.pathFor(key));
       entry.atime = ++this.clock;
       return bytes;
-    } catch {
-      // Only reconcile if this is still the live entry — a concurrent evict may
-      // have already removed it (and decremented total), so a blind decrement
-      // here would double-count.
-      if (this.index.get(key) === entry) {
+    } catch (err) {
+      // Only reconcile the index when the file is genuinely gone (ENOENT). For
+      // transient errors (EACCES/EIO/EMFILE) the bytes are still on disk, so
+      // dropping the entry here would drift `total` below actual usage and let
+      // the cache grow past its cap — return a miss without mutating.
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT' && this.index.get(key) === entry) {
+        // Still the live entry — a concurrent evict may have already removed it
+        // (and decremented total), so a blind decrement would double-count.
         this.index.delete(key);
         this.total -= entry.size;
       }

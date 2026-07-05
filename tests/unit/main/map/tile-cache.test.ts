@@ -75,6 +75,17 @@ describe('TileCache', () => {
     expect(await cache.get('a/0/0/0')).toBeNull();
   });
 
+  it('reconciles total/count when a cached file vanishes from disk (ENOENT)', async () => {
+    const cache = new TileCache(dir, 1_000);
+    await cache.put('a/0/0/0', buf(100));
+    await cache.put('a/0/0/1', buf(150));
+    // Something outside the cache deletes one tile file.
+    rmSync(join(dir, 'a/0/0/0.mvt'));
+    expect(await cache.get('a/0/0/0')).toBeNull();
+    // The missing entry is dropped and its bytes removed from the running total.
+    expect(await cache.size()).toEqual({ bytes: 150, count: 1 });
+  });
+
   it('keeps total/count consistent with disk under concurrent puts over the cap', async () => {
     // maxBytes = 1000, low-water = 900. 40 puts of 100 bytes each = 4000 bytes
     // of writes, well over the cap, so many puts trip evictIfNeeded and race.

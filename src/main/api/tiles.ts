@@ -69,6 +69,24 @@ function isTileSource(value: string): value is TileSource {
   return value === 'basemap';
 }
 
+/**
+ * Web-Mercator tile coordinates arrive as untrusted route params that flow into
+ * a cache key and, from there, an on-disk file path (`TileCache.pathFor`). Reject
+ * anything but plain digits so a value like `..` can't path-traverse out of the
+ * cache dir, and bound them to the valid slippy-map range (0 ≤ z ≤ 24,
+ * 0 ≤ x,y < 2^z) so absurd inputs never reach upstream or the filesystem.
+ */
+function parseTileCoords(z: string, x: string, y: string): { z: number; x: number; y: number } | null {
+  if (!/^\d+$/.test(z) || !/^\d+$/.test(x) || !/^\d+$/.test(y)) return null;
+  const zn = Number(z);
+  const xn = Number(x);
+  const yn = Number(y);
+  if (zn > 24) return null;
+  const max = 2 ** zn;
+  if (xn >= max || yn >= max) return null;
+  return { z: zn, x: xn, y: yn };
+}
+
 async function serveRange(c: Context, filePath: string) {
   const stats = await stat(filePath);
   const total = stats.size;
@@ -158,9 +176,9 @@ export function registerTileRoutes(api: Hono): void {
     const key = await getProtomapsApiKey();
     if (!key) return c.json({ error: 'no_api_key' }, 404);
 
-    const z = c.req.param('z');
-    const x = c.req.param('x');
-    const y = c.req.param('y');
+    const coords = parseTileCoords(c.req.param('z'), c.req.param('x'), c.req.param('y'));
+    if (!coords) return c.json({ error: 'bad_tile_coords' }, 400);
+    const { z, x, y } = coords;
     const cache = getTileCache();
     const cacheKey = `${source}/${z}/${x}/${y}`;
 
