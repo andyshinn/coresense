@@ -5,8 +5,6 @@ import { appPath, isPackaged } from '../runtime/appInfo';
 
 export type { TileSource };
 
-const TILE_SOURCES: readonly TileSource[] = ['basemap'];
-
 function resolvedPath(name: TileSource): string {
   const file = `${name}.pmtiles`;
   return isPackaged() ? join(process.resourcesPath, file) : join(appPath(), 'resources', 'tiles', file);
@@ -19,14 +17,4 @@ export function tilePath(name: TileSource): string {
 export function tilePathIfExists(name: TileSource): string | null {
   const p = resolvedPath(name);
   return existsSync(p) ? p : null;
-}
-
-export function listAvailableTiles(): Record<TileSource, string | null> {
-  return {
-    basemap: tilePathIfExists('basemap'),
-  };
-}
-
-export function allTileSources(): readonly TileSource[] {
-  return TILE_SOURCES;
 }

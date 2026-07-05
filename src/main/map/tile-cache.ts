@@ -33,20 +33,41 @@ export class TileCache {
   private total = 0;
   private clock = 0;
   private ready: Promise<void> | null = null;
+  /**
+   * Promise-chain mutex. MapLibre fires many tile requests in parallel, each a
+   * separate Hono request sharing the `getTileCache()` singleton, so `put`,
+   * `evictIfNeeded`, `setMaxBytes`, `clear`, and the index build would otherwise
+   * interleave their read-modify-write of `index`/`total` and drift `total`
+   * below the actual on-disk bytes. Routing every mutating critical section
+   * through `serialize` makes them run one-at-a-time.
+   */
+  private tail: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly dir: string,
     private maxBytes: number,
   ) {}
 
+  /** Run `fn` after any in-flight serialized section, keeping the chain alive on error. */
+  private serialize<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.tail.then(fn, fn);
+    this.tail = run.then(
+      () => {},
+      () => {},
+    );
+    return run;
+  }
+
   dirPath(): string {
     return this.dir;
   }
 
   async setMaxBytes(next: number): Promise<void> {
-    this.maxBytes = next;
     await this.ensureIndex();
-    await this.evictIfNeeded();
+    await this.serialize(async () => {
+      this.maxBytes = next;
+      await this.evictIfNeeded();
+    });
   }
 
   async ensureDir(): Promise<void> {
@@ -57,8 +78,10 @@ export class TileCache {
     return join(this.dir, `${key}.mvt`);
   }
 
+  /** Build the index once. The build itself is serialized so it can't interleave
+   *  with a concurrent `put`/`evict`/`clear`. */
   private ensureIndex(): Promise<void> {
-    if (!this.ready) this.ready = this.buildIndex();
+    if (!this.ready) this.ready = this.serialize(() => this.buildIndex());
     return this.ready;
   }
 
@@ -77,7 +100,12 @@ export class TileCache {
       const full = join(d.parentPath, d.name);
       const rel = full.slice(this.dir.length + 1);
       const key = rel.slice(0, -'.mvt'.length).split(sep).join('/');
-      const st = await stat(full);
+      let st: Awaited<ReturnType<typeof stat>>;
+      try {
+        st = await stat(full);
+      } catch {
+        continue; // file removed mid-build by a concurrent evict/clear
+      }
       this.index.set(key, { size: st.size, atime: st.mtimeMs });
       this.total += st.size;
       if (st.mtimeMs > maxStamp) maxStamp = st.mtimeMs;
@@ -94,24 +122,32 @@ export class TileCache {
       entry.atime = ++this.clock;
       return bytes;
     } catch {
-      this.index.delete(key);
-      this.total -= entry.size;
+      // Only reconcile if this is still the live entry — a concurrent evict may
+      // have already removed it (and decremented total), so a blind decrement
+      // here would double-count.
+      if (this.index.get(key) === entry) {
+        this.index.delete(key);
+        this.total -= entry.size;
+      }
       return null;
     }
   }
 
   async put(key: string, bytes: Buffer): Promise<void> {
     await this.ensureIndex();
-    const path = this.pathFor(key);
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, bytes);
-    const prev = this.index.get(key);
-    if (prev) this.total -= prev.size;
-    this.index.set(key, { size: bytes.length, atime: ++this.clock });
-    this.total += bytes.length;
-    await this.evictIfNeeded();
+    await this.serialize(async () => {
+      const path = this.pathFor(key);
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, bytes);
+      const prev = this.index.get(key);
+      if (prev) this.total -= prev.size;
+      this.index.set(key, { size: bytes.length, atime: ++this.clock });
+      this.total += bytes.length;
+      await this.evictIfNeeded();
+    });
   }
 
+  /** Caller must hold the serialize mutex. */
   private async evictIfNeeded(): Promise<void> {
     if (this.total <= this.maxBytes) return;
     const low = Math.floor(this.maxBytes * 0.9);
@@ -130,11 +166,13 @@ export class TileCache {
   }
 
   async clear(): Promise<void> {
-    await rm(this.dir, { recursive: true, force: true });
-    this.index.clear();
-    this.total = 0;
-    this.clock = 0;
-    this.ready = null; // force a rebuild on next op
+    await this.serialize(async () => {
+      await rm(this.dir, { recursive: true, force: true });
+      this.index.clear();
+      this.total = 0;
+      this.clock = 0;
+      this.ready = null; // force a rebuild on next op
+    });
   }
 }
 

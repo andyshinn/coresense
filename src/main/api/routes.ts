@@ -49,8 +49,9 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
 
   registerTileRoutes(api);
 
-  // Apply the persisted cache cap on startup.
-  void getTileCache().setMaxBytes(stateHolder().getMapSettings().tileCacheMaxBytes);
+  // Apply the persisted cache cap on startup. Clamp for defense-in-depth
+  // against a hand-edited settings file.
+  void getTileCache().setMaxBytes(clampTileCacheMaxBytes(stateHolder().getMapSettings().tileCacheMaxBytes));
 
   const buildCapabilities = (): Capabilities => ({
     isElectron: true,

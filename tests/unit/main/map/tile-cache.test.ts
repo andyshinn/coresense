@@ -1,4 +1,6 @@
+import type { Dirent } from 'node:fs';
 import { mkdtempSync, rmSync } from 'node:fs';
+import { readdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -72,4 +74,36 @@ describe('TileCache', () => {
     expect(await cache.size()).toEqual({ bytes: 0, count: 0 });
     expect(await cache.get('a/0/0/0')).toBeNull();
   });
+
+  it('keeps total/count consistent with disk under concurrent puts over the cap', async () => {
+    // maxBytes = 1000, low-water = 900. 40 puts of 100 bytes each = 4000 bytes
+    // of writes, well over the cap, so many puts trip evictIfNeeded and race.
+    const cache = new TileCache(dir, 1_000);
+    await Promise.all(Array.from({ length: 40 }, (_, i) => cache.put(`a/0/0/${i}`, buf(100))));
+
+    // Read the actual on-disk state and assert the in-memory index matches it.
+    const onDisk = await readDiskStats(dir);
+    const info = await cache.size();
+    expect(info.bytes).toBe(onDisk.bytes);
+    expect(info.count).toBe(onDisk.count);
+    expect(info.bytes).toBeLessThanOrEqual(1_000);
+  });
 });
+
+async function readDiskStats(root: string): Promise<{ bytes: number; count: number }> {
+  let entries: Dirent[];
+  try {
+    entries = await readdir(root, { recursive: true, withFileTypes: true });
+  } catch {
+    return { bytes: 0, count: 0 };
+  }
+  let bytes = 0;
+  let count = 0;
+  for (const d of entries) {
+    if (!d.isFile() || !d.name.endsWith('.mvt')) continue;
+    const st = await stat(join(d.parentPath, d.name));
+    bytes += st.size;
+    count += 1;
+  }
+  return { bytes, count };
+}

@@ -583,7 +583,7 @@ export const useStore = create<CoreState>((set) => ({
       // newer builds get sensible values when reading older persisted state.
       mapSettings: { ...DEFAULT_MAP_SETTINGS, ...snapshot.mapSettings },
       mapManifest: snapshot.mapManifest,
-      mapTileStatus: snapshot.mapTileStatus,
+      mapTileStatus: snapshot.mapTileStatus ?? DEFAULT_MAP_TILE_STATUS,
       ui: snapshot.uiState,
       // Seed in-session sort from the persisted default so an existing user
       // preference takes effect immediately on launch.
