@@ -94,6 +94,9 @@ export function createWsMessageHandler(deps: WsMessageHandlerDeps): (msg: WsMess
       case 'mapManifest':
         s.applyMapManifest(msg.payload);
         break;
+      case 'mapTileStatus':
+        s.applyMapTileStatus(msg.payload);
+        break;
       case 'uiState':
         s.applyUiState(msg.payload);
         break;

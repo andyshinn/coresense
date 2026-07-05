@@ -19,6 +19,7 @@ import type {
   GpsConfig,
   LogEntry,
   MapSettings,
+  MapTileStatus,
   MenuAction,
   Message,
   MessagePath,
@@ -207,6 +208,7 @@ export async function startServer(
   const onRadioSettings = (settings: RadioSettings) => broadcast({ type: 'radioSettings', payload: settings });
   const onMapSettings = (settings: MapSettings) => broadcast({ type: 'mapSettings', payload: settings });
   const onMapManifest = (manifest: TileManifest) => broadcast({ type: 'mapManifest', payload: manifest });
+  const onMapTileStatus = (status: MapTileStatus) => broadcast({ type: 'mapTileStatus', payload: status });
   const onRepeaterStatus = (snap: RepeaterStatusSnapshot) => broadcast({ type: 'repeaterStatus', payload: snap });
   const onRepeaterTelemetry = (snap: RepeaterTelemetrySnapshot) => broadcast({ type: 'repeaterTelemetry', payload: snap });
   const onPathLearned = (event: PathLearnedEvent) => broadcast({ type: 'pathLearned', payload: event });
@@ -241,6 +243,7 @@ export async function startServer(
   bus.on('radioSettings', onRadioSettings);
   bus.on('mapSettings', onMapSettings);
   bus.on('mapManifest', onMapManifest);
+  bus.on('mapTileStatus', onMapTileStatus);
   bus.on('repeaterStatus', onRepeaterStatus);
   bus.on('repeaterTelemetry', onRepeaterTelemetry);
   bus.on('pathLearned', onPathLearned);
@@ -277,6 +280,7 @@ export async function startServer(
     bus.off('radioSettings', onRadioSettings);
     bus.off('mapSettings', onMapSettings);
     bus.off('mapManifest', onMapManifest);
+    bus.off('mapTileStatus', onMapTileStatus);
     bus.off('repeaterStatus', onRepeaterStatus);
     bus.off('repeaterTelemetry', onRepeaterTelemetry);
     bus.off('pathLearned', onPathLearned);

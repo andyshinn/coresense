@@ -566,6 +566,19 @@ export const DEFAULT_MAP_SETTINGS: MapSettings = {
   showMarkerLabels: false,
 };
 
+/** Runtime status of online tile access — not a user setting, not persisted.
+ *  `keyConfigured` mirrors the encrypted-blob presence; `keyRejected` flips
+ *  when Protomaps rejects the key (401/403) and clears on the next success. */
+export interface MapTileStatus {
+  keyConfigured: boolean;
+  keyRejected: boolean;
+}
+
+export const DEFAULT_MAP_TILE_STATUS: MapTileStatus = {
+  keyConfigured: false,
+  keyRejected: false,
+};
+
 export interface RadioSettings {
   frequencyHz: number;
   bandwidthHz: number;
@@ -820,6 +833,8 @@ export interface StateSnapshot {
    *  Renderer uses this to gate the Map panel's empty-state and pick an
    *  initial view if no last-position is persisted. */
   mapManifest: TileManifest;
+  /** Runtime online-tile status (key configured / key rejected). */
+  mapTileStatus: MapTileStatus;
   uiState: UiState;
   deviceIdentity: DeviceIdentity;
   autoAddConfig: AutoAddConfig;
@@ -1001,6 +1016,7 @@ export type WsMessage =
   | { type: 'radioSettings'; payload: RadioSettings }
   | { type: 'mapSettings'; payload: MapSettings }
   | { type: 'mapManifest'; payload: TileManifest }
+  | { type: 'mapTileStatus'; payload: MapTileStatus }
   | { type: 'repeaterStatus'; payload: RepeaterStatusSnapshot }
   | { type: 'repeaterTelemetry'; payload: RepeaterTelemetrySnapshot }
   | { type: 'pathLearned'; payload: PathLearnedEvent }

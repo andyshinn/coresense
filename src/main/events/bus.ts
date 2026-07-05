@@ -14,6 +14,7 @@ import type {
   GpsConfig,
   LogEntry,
   MapSettings,
+  MapTileStatus,
   MenuAction,
   Message,
   MessagePath,
@@ -69,6 +70,7 @@ export const emit = {
   radioSettings: (settings: RadioSettings) => bus.emit('radioSettings', settings),
   mapSettings: (settings: MapSettings) => bus.emit('mapSettings', settings),
   mapManifest: (manifest: TileManifest) => bus.emit('mapManifest', manifest),
+  mapTileStatus: (status: MapTileStatus) => bus.emit('mapTileStatus', status),
   repeaterStatus: (snap: RepeaterStatusSnapshot) => bus.emit('repeaterStatus', snap),
   repeaterTelemetry: (snap: RepeaterTelemetrySnapshot) => bus.emit('repeaterTelemetry', snap),
   pathLearned: (event: PathLearnedEvent) => bus.emit('pathLearned', event),
@@ -107,6 +109,7 @@ export type BusEvents = {
   radioSettings: (settings: RadioSettings) => void;
   mapSettings: (settings: MapSettings) => void;
   mapManifest: (manifest: TileManifest) => void;
+  mapTileStatus: (status: MapTileStatus) => void;
   repeaterStatus: (snap: RepeaterStatusSnapshot) => void;
   repeaterTelemetry: (snap: RepeaterTelemetrySnapshot) => void;
   pathLearned: (event: PathLearnedEvent) => void;

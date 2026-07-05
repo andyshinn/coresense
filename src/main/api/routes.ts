@@ -96,6 +96,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       radioSettings: holder.getRadioSettings(),
       mapSettings: holder.getMapSettings(),
       mapManifest: await buildTileManifest(),
+      mapTileStatus: holder.getMapTileStatus(),
       uiState: holder.getUiState(),
       deviceIdentity: holder.getDeviceIdentity(),
       autoAddConfig: holder.getAutoAddConfig(),
@@ -408,6 +409,8 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const next: MapSettings = { ...holder.getMapSettings(), hasProtomapsApiKey: true };
     holder.setMapSettings(next);
     emit.mapSettings(next);
+    holder.setMapTileStatus({ keyConfigured: true, keyRejected: false });
+    emit.mapTileStatus(holder.getMapTileStatus());
     return c.json({ ok: true, hasKey: true });
   });
 
@@ -419,6 +422,8 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const next: MapSettings = { ...holder.getMapSettings(), hasProtomapsApiKey: false };
     holder.setMapSettings(next);
     emit.mapSettings(next);
+    holder.setMapTileStatus({ keyConfigured: false, keyRejected: false });
+    emit.mapTileStatus(holder.getMapTileStatus());
     return c.json({ ok: true, hasKey: false });
   });
 
