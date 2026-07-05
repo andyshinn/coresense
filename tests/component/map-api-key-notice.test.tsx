@@ -8,12 +8,12 @@ afterEach(() => {
 });
 
 describe('MapApiKeyNotice', () => {
-  it('renders the no-key prompt with a get-a-key link when no key is configured', () => {
+  it('renders the no-key prompt with a link to the Protomaps account page when no key is configured', () => {
     useStore.getState().applyMapTileStatus({ keyConfigured: false, keyRejected: false });
     render(<MapApiKeyNotice />);
     expect(screen.getByText(/API key/i)).toBeTruthy();
-    const link = screen.getByRole('link', { name: /get a key/i }) as HTMLAnchorElement;
-    expect(link.href).toContain('maps.protomaps.com/keys');
+    const link = screen.getByRole('link', { name: /protomaps\.com\/account/i }) as HTMLAnchorElement;
+    expect(link.href).toContain('protomaps.com/account');
   });
 
   it('renders the rejected prompt when the key is rejected', () => {

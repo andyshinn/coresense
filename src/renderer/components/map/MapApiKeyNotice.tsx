@@ -28,16 +28,16 @@ export function MapApiKeyNotice() {
             <p>Your Protomaps API key was rejected. Check the key in settings to load detailed map tiles.</p>
           ) : (
             <p>
-              Add a Protomaps API key to load detailed map tiles.{' '}
+              Add a Protomaps API key to load detailed map tiles. Get a key at{' '}
               <a
-                href="https://maps.protomaps.com/keys"
+                href="https://protomaps.com/account"
                 target="_blank"
                 rel="noreferrer noopener"
                 className="text-cs-accent underline underline-offset-2 hover:opacity-80"
               >
-                Get a key
-              </a>{' '}
-              (free tier available).
+                https://protomaps.com/account
+              </a>
+              . Once you have a key, open the map settings by clicking the button below and paste it in.
             </p>
           )}
           <button
