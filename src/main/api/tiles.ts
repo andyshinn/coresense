@@ -5,7 +5,7 @@ import type { TileManifest, TileManifestEntry, TileSource } from '../../shared/t
 import { emit } from '../events/bus';
 import { child } from '../log';
 import { getApiKey as getProtomapsApiKey } from '../map/api-key';
-import { getTileCache } from '../map/tile-cache';
+import { getTileCache, revealTileCache } from '../map/tile-cache';
 import { allTileSources, tilePathIfExists } from '../map/tile-paths';
 import { stateHolder } from '../state/holder';
 
@@ -211,5 +211,17 @@ export function registerTileRoutes(api: Hono): void {
       log.warn(`fetch failed for ${z}/${x}/${y}: ${(err as Error).message}`);
       return c.body(null, 502);
     }
+  });
+
+  api.get('/api/map/tile-cache', async (c) => c.json(await getTileCache().size()));
+
+  api.delete('/api/map/tile-cache', async (c) => {
+    await getTileCache().clear();
+    return c.json(await getTileCache().size());
+  });
+
+  api.post('/api/map/tile-cache/open', async (c) => {
+    await revealTileCache();
+    return c.json({ ok: true });
   });
 }

@@ -16,6 +16,9 @@ setSecretStore({
   encryptString: (s) => safeStorage.encryptString(s),
   decryptString: (b) => safeStorage.decryptString(b),
 });
+setTileCacheOpener((dir) => {
+  void shell.openPath(dir).catch((err) => console.error('openPath failed', err));
+});
 
 import {
   app,
@@ -38,6 +41,7 @@ import { emit } from './events/bus';
 import { child, log } from './log';
 import { applyLoggingSettings } from './logging/apply';
 import { folderPath } from './logging/fileSink';
+import { setTileCacheOpener } from './map/tile-cache';
 import { buildMenu } from './menu';
 import { startNotifications } from './notifications';
 import { protocolSession } from './protocol';
