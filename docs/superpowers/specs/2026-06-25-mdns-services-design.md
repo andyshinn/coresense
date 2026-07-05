@@ -37,8 +37,9 @@ never multicast-queried. The OS does **not** need to own the host name — any
 `.local` name gets multicast-queried, and bonjour answers for whatever name it
 published A records under.
 
-**Fix proven to work:** set the SRV target host to `os.hostname()` (domain
-stripped) **+ `.local`** — no `scutil`, no synthetic prefix:
+**Fix proven to work:** append **`.local`** to the SRV target host. The
+proof-of-concept experiment below used `os.hostname()` (the concatenated
+`AndysMacStudio.local`) to isolate the `.local` suffix as the fix:
 
 ```
 host: 'AndysMacStudio.local'              (os.hostname() base + '.local')
@@ -47,12 +48,13 @@ dns-sd -L → ...can be reached at AndysMacStudio.local.:5000   version=1 path=/
 dns-sd -G → AndysMacStudio.local. → 172.16.20.157, 172.16.20.241   (real LAN IPs)
 ```
 
-bonjour is the sole responder for this name (the OS owns the hyphenated
-`Andys-Mac-Studio.local`, a different name — so no conflict), so it resolves
-only while the app is running, which is correct for a service advert. The
-advertised name is the concatenated form (`AndysMacStudio.local`) rather than
-macOS's canonical hyphenated `Andys-Mac-Studio.local`; it resolves and is
-reachable regardless.
+The `.local` suffix is what makes the name multicast-queryable at all — the OS
+does **not** need to own the name; bonjour answers for whatever `.local` name it
+publishes A records under. **Shipped behavior goes one step further:** instead of
+the concatenated `os.hostname()` form, it advertises the platform's **canonical**
+mDNS name (see "The fix" below) — on macOS the hyphenated
+`Andys-Mac-Studio.local` that mDNSResponder itself already owns — so the SRV
+target matches the `.local` name the OS actually resolves.
 
 ## Gating model
 
@@ -79,14 +81,21 @@ All gating reuses the existing `proxy.*` app settings; no new settings.
 ## The fix: append `.local` to the hostname
 
 - One shared A-record host for all services:
-  **`os.hostname()` (domain stripped) + `.local`** — e.g. `AndysMacStudio.local`.
-  Derivation is a pure one-liner (`hostname().replace(/\..*$/, '') + '.local'`),
-  no `child_process`/`scutil` and no platform branching, so it lives inside the
-  testable record-builder.
-- bonjour publishes A records for this name and answers the multicast query for
-  it itself; the OS only needs the name to end in `.local` to query it. No
-  conflict with the OS's own `.local` name (that name is the hyphenated
-  `Andys-Mac-Studio.local`, distinct from the concatenated form here).
+  **`<canonical hostname>` (domain stripped) + `.local`** — e.g.
+  `AndysMacStudio.local`.
+  The orchestrator ([src/main/index.ts](../../../src/main/index.ts)) resolves the
+  canonical mDNS hostname via `getCanonicalHostName()` from
+  `@andyshinn/hostname-sources` (macOS `LocalHostName`, Linux avahi — probed with
+  `execa`), falling back to `os.hostname()` when probing yields nothing or throws.
+  Probing lives in the orchestrator, not the builder: `buildMdnsServices` still
+  just does `stripDomain(input.hostname) + '.local'` on whatever hostname string
+  it is handed, so the record-builder stays pure (no `child_process`, no platform
+  branching) and unit-testable.
+- The name only needs to end in `.local` to be multicast-queryable. Because the
+  canonical name is the platform's own mDNS hostname (on macOS the hyphenated
+  `Andys-Mac-Studio.local` that mDNSResponder owns), the OS's own responder
+  resolves the SRV target to the real LAN addresses — the advertised host is the
+  name the machine already answers for, rather than a synthetic concatenated form.
 - The host is **shared by dev and prod** (same machine). Dev and prod are
   differentiated by service **instance name** (`-dev` suffix) and **port**, not
   by host.
@@ -99,10 +108,10 @@ All gating reuses the existing `proxy.*` app settings; no new settings.
 
 ## Records
 
-`<base>` is the instance-name base: `os.hostname()` with the domain stripped,
-plus a `-dev` suffix in dev mode (the existing `serviceName` logic, unchanged).
-This is the human-readable instance label and is independent of the `.local`
-*host* derived above.
+`<base>` is the instance-name base: the canonical hostname with the domain
+stripped, plus a `-dev` suffix in dev mode (the existing `serviceName` logic,
+unchanged). This is the human-readable instance label and is independent of the
+`.local` *host* derived above.
 
 | Service | Instance name | Port | TXT |
 |---|---|---|---|
@@ -117,7 +126,8 @@ This is the human-readable instance label and is independent of the `.local`
   - `buildMdnsServices(input)` — **pure** function returning `{ host, services }`
     (services empty when not advertising) from the proxy settings, instance-name
     base, dev flag, and the resolved bridge/HTTP ports. It derives the `.local`
-    host inline (`os.hostname()` + `.local`) and holds all the gating and
+    host inline (`stripDomain(input.hostname) + '.local'`, where `input.hostname`
+    is the canonical name the orchestrator resolved) and holds all the gating and
     record-shaping logic — unit-testable without a network.
   - `startMdns({ host, services })` — thin wrapper that publishes every
     descriptor through one `Bonjour` instance and returns a handle with

@@ -13,10 +13,10 @@
 - Package manager: **pnpm**. Run scripts with `pnpm <script>` / `pnpm exec <bin>`.
 - Lint is **scoped to `src tests`** — repo-wide `biome check` fails on pre-existing build/dist artifacts. Always run `pnpm exec biome check src tests`.
 - Typecheck: `pnpm typecheck` (`tsc --noEmit`). Tests: `pnpm exec vitest run <file>` for one file, `pnpm test` for all.
-- mDNS host derivation must be **pure** — `os.hostname()` + `.local`, no `child_process`/`scutil`, no platform branching.
+- mDNS host derivation: the orchestrator (`src/main/index.ts`) resolves the platform's canonical mDNS hostname via `getCanonicalHostName()` (`@andyshinn/hostname-sources`; probes macOS `LocalHostName` / Linux avahi via `execa`), falling back to `os.hostname()` when probing yields nothing or throws. The resolved name is passed into the **pure** builder, which derives `stripDomain(hostname) + '.local'` — the builder itself stays free of `child_process`/platform branching so it remains unit-testable.
 - `disableIPv6: true` on every publish (servers bind IPv4 `0.0.0.0`).
 - Gating: **`advertise = proxy.bindAll && proxy.mdns`**. When `advertise` is false, publish nothing. `_meshcore` additionally requires `proxy.enabled` (bridge listener up); `_http`/`_coresense-ws` are published whenever advertising.
-- The shared SRV host is `os.hostname()` (domain stripped) + `.local`, **identical for dev and prod**. Dev/prod differ only by instance name (`-dev` suffix) and port.
+- The shared SRV host is the canonical hostname (domain stripped) + `.local`, **identical for dev and prod**. Dev/prod differ only by instance name (`-dev` suffix) and port.
 - Commit messages: conventional-commit style (`feat:`/`refactor:`/`test:`), and end every commit message with the trailer:
   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`
 
@@ -36,9 +36,9 @@ Replaces the contents of `src/main/bridge/mdns.ts` with a pure record-builder (`
   export interface MdnsServiceDesc { name: string; type: string; port: number; txt: Record<string, string>; }
   export interface MdnsPlan { host: string; serviceName: string; services: MdnsServiceDesc[]; }
   export interface BuildMdnsInput {
-    hostname: string;          // raw os.hostname()
+    hostname: string;          // canonical mDNS hostname (getCanonicalHostName(), os.hostname() fallback)
     dev: boolean;
-    advertise: boolean;        // proxy.bindAll && proxy.mdns
+    advertise: boolean;        // proxy.enabled && proxy.bindAll && proxy.mdns
     bridgeEnabled: boolean;    // proxy.enabled
     bridgeTcpPort: number | null;
     httpPort: number;

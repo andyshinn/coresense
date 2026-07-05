@@ -105,7 +105,13 @@ async function bootstrap() {
   await installStartupTransport(process.env, transportManager);
 
   const proxy = stateHolder().getAppSettings().proxy;
-  const bindAddress = proxy.bindAll ? '0.0.0.0' : '127.0.0.1';
+  // "Bind to all interfaces" (and, by extension, mDNS advertising) only take
+  // effect when the proxy is enabled. The settings UI disables — but does not
+  // clear — the bindAll/mdns toggles when the proxy is off, so a stale
+  // bindAll=true must not silently bind the HTTP/WS server (or bridge) to
+  // 0.0.0.0 and expose the API on the LAN.
+  const bindAll = proxy.enabled && proxy.bindAll;
+  const bindAddress = bindAll ? '0.0.0.0' : '127.0.0.1';
   bridgeHandle = await startBridge({
     dev: isDev,
     enableTcp: proxy.enabled,
@@ -117,7 +123,7 @@ async function bootstrap() {
   const rendererDir = isDev ? null : path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`);
 
   serverHandle = await startServer(rendererDir, bridgeHandle, { dev: isDev, bindAddress });
-  log.info(`server listening on http://127.0.0.1:${serverHandle.port}`);
+  log.info(`server listening on http://${bindAddress}:${serverHandle.port}`);
 
   // mDNS is published once both ports are known. Records are only advertised
   // when the servers bind the LAN (bindAll) and mDNS is enabled — otherwise the
@@ -135,7 +141,7 @@ async function bootstrap() {
   const mdnsPlan = buildMdnsServices({
     hostname: canonicalHostname,
     dev: isDev,
-    advertise: proxy.bindAll && proxy.mdns,
+    advertise: bindAll && proxy.mdns,
     bridgeEnabled: proxy.enabled,
     bridgeTcpPort: bridgeHandle.tcpPort,
     httpPort: serverHandle.port,
