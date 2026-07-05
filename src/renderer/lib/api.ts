@@ -22,6 +22,7 @@ import type {
   ServerStatus,
   StateSnapshot,
   TelemetryPolicy,
+  TileCacheInfo,
   UiState,
   UpdateState,
 } from '../../shared/types';
@@ -142,6 +143,9 @@ export const api = {
       body: JSON.stringify({ key }),
     }),
   clearProtomapsApiKey: (c: ApiClient) => request<{ ok: true; hasKey: false }>(c, '/api/map/api-key', { method: 'DELETE' }),
+  getTileCacheInfo: (c: ApiClient) => request<TileCacheInfo>(c, '/api/map/tile-cache'),
+  clearTileCache: (c: ApiClient) => request<TileCacheInfo>(c, '/api/map/tile-cache', { method: 'DELETE' }),
+  openTileCacheFolder: (c: ApiClient) => request<{ ok: true }>(c, '/api/map/tile-cache/open', { method: 'POST' }),
   getMessages: (c: ApiClient, key: string) => request<Message[]>(c, `/api/messages/${encodeURIComponent(key)}`),
   sendMessage: (c: ApiClient, key: string, body: string) =>
     request<{ ok: true; id: string }>(c, `/api/messages/${encodeURIComponent(key)}`, {

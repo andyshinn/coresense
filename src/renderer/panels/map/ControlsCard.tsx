@@ -17,7 +17,6 @@ export function ControlsCard({ client }: Props) {
   const contacts = useStore((s) => s.contacts);
   const settings = useStore((s) => s.mapSettings);
   const applyMapSettings = useStore((s) => s.applyMapSettings);
-  const manifest = useStore((s) => s.mapManifest);
   const [query, setQuery] = useState('');
 
   const counts = useMemo(() => {
@@ -160,20 +159,6 @@ export function ControlsCard({ client }: Props) {
       {/* Layers */}
       <SectionHeader>Layers</SectionHeader>
       <div className="space-y-1 px-3 pb-4">
-        {manifest.terrain && (
-          <>
-            <ToggleRow
-              label="Hillshade"
-              on={settings.terrainHillshadeEnabled}
-              onChange={(v) => persist({ ...settings, terrainHillshadeEnabled: v })}
-            />
-            <ToggleRow
-              label="3D terrain"
-              on={settings.terrain3DEnabled}
-              onChange={(v) => persist({ ...settings, terrain3DEnabled: v })}
-            />
-          </>
-        )}
         <ToggleRow
           label="Light basemap"
           on={settings.lightBasemap}

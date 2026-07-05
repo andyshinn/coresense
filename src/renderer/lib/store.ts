@@ -17,6 +17,7 @@ import {
   DEFAULT_DEVICE_INFO,
   DEFAULT_GPS_CONFIG,
   DEFAULT_MAP_SETTINGS,
+  DEFAULT_MAP_TILE_STATUS,
   DEFAULT_RADIO_SETTINGS,
   DEFAULT_SYNC_PROGRESS,
   DEFAULT_TELEMETRY_POLICY,
@@ -28,6 +29,7 @@ import {
   type LeftNavGroupId,
   type LogEntry,
   type MapSettings,
+  type MapTileStatus,
   type Message,
   type MessagePath,
   type MessageState,
@@ -52,7 +54,7 @@ import {
 import { setRendererLogLevel, setRendererLogSink } from './logger';
 import type { NeighbourSortKey } from './neighbours';
 
-const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null, terrain: null };
+const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null };
 
 const MAX_PACKETS = 500;
 const MAX_LOGS = 5000;
@@ -257,6 +259,7 @@ interface CoreState {
    *  Pushed by the snapshot endpoint; the Map panel uses it to gate mounting
    *  MapLibre vs. showing a "missing tiles" empty-state. */
   mapManifest: TileManifest;
+  mapTileStatus: MapTileStatus;
 
   // Latest repeater admin snapshots keyed by contact key. Only the last
   // response is retained — the RightRail / RepeaterAdmin show it; we don't
@@ -352,6 +355,7 @@ interface CoreState {
   applyDeviceCapabilities: (caps: DeviceCapabilities) => void;
   applyMapSettings: (settings: MapSettings) => void;
   applyMapManifest: (manifest: TileManifest) => void;
+  applyMapTileStatus: (status: MapTileStatus) => void;
   /** Merge the account-global subset of a remote UiState broadcast (unread
    *  markers, pinned, theme pref, recents). Window-local fields are ignored so
    *  another client's pane layout / active conversation can't clobber ours. */
@@ -527,6 +531,7 @@ export const useStore = create<CoreState>((set) => ({
   deviceCapabilities: DEFAULT_DEVICE_CAPABILITIES,
   mapSettings: DEFAULT_MAP_SETTINGS,
   mapManifest: DEFAULT_MAP_MANIFEST,
+  mapTileStatus: DEFAULT_MAP_TILE_STATUS,
 
   repeaterStatusByKey: {},
   repeaterTelemetryByKey: {},
@@ -578,6 +583,7 @@ export const useStore = create<CoreState>((set) => ({
       // newer builds get sensible values when reading older persisted state.
       mapSettings: { ...DEFAULT_MAP_SETTINGS, ...snapshot.mapSettings },
       mapManifest: snapshot.mapManifest,
+      mapTileStatus: snapshot.mapTileStatus ?? DEFAULT_MAP_TILE_STATUS,
       ui: snapshot.uiState,
       // Seed in-session sort from the persisted default so an existing user
       // preference takes effect immediately on launch.
@@ -700,6 +706,7 @@ export const useStore = create<CoreState>((set) => ({
   applyDeviceCapabilities: (caps) => set(() => ({ deviceCapabilities: caps })),
   applyMapSettings: (settings) => set(() => ({ mapSettings: settings })),
   applyMapManifest: (manifest) => set(() => ({ mapManifest: manifest })),
+  applyMapTileStatus: (status) => set(() => ({ mapTileStatus: status })),
   applyUiState: (incoming) =>
     set((s) => {
       // Idempotent: when the synced subset already matches, return {} so `ui`

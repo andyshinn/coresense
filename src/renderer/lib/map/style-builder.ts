@@ -1,13 +1,12 @@
 import { layers } from '@protomaps/basemaps';
 import type { StyleSpecification } from 'maplibre-gl';
 import type { MapSettings, TileManifest } from '../../../shared/types';
-import { coresenseFlavor, hillshadeColors } from './flavors';
+import { coresenseFlavor } from './flavors';
 import { pmtilesUrl } from './pmtiles-protocol';
 
-// Layer + source IDs the rest of the map module references. Centralized so the
-// hillshade-insertion logic in Phase 7 has a single place to look up neighbors.
+// Layer + source IDs the rest of the map module references. Centralized so
+// consumers have a single place to look up neighbors.
 export const SOURCE_BASEMAP = 'protomaps';
-export const SOURCE_TERRAIN = 'terrain-dem';
 export const SOURCE_ONLINE = 'protomaps-online';
 
 // External assets. The Protomaps basemaps style references named sprites and
@@ -50,7 +49,6 @@ function applyShieldTextOverrides(
   });
 }
 
-export const LAYER_HILLSHADE = 'hillshade';
 export const ONLINE_LAYER_SUFFIX = '_online';
 
 // Protomaps layers we never render. `address_label` is the house-number / unit
@@ -104,7 +102,6 @@ export function buildStyle({ baseUrl, manifest, settings, theme }: BuildStyleOpt
   // Online fallback: a second vector source aliased to the proxy route on main,
   // plus a duplicate set of basemap layers bound to it. Layers above the
   // cutoff render from online, layers below from the bundled extract.
-  // Terrain (hillshade + 3D) has no online counterpart — it stays bundled-only.
   // Presence of the API key is the only gate; main strips the proxied request
   // when no key exists.
   if (settings.hasProtomapsApiKey) {
@@ -127,17 +124,6 @@ export function buildStyle({ baseUrl, manifest, settings, theme }: BuildStyleOpt
     style.layers.push(...onlineLayers);
   }
 
-  if (manifest.terrain) {
-    style.sources[SOURCE_TERRAIN] = {
-      type: 'raster-dem',
-      url: pmtilesUrl(baseUrl, 'terrain'),
-      tileSize: 512,
-      encoding: 'mapbox',
-      attribution: '<a href="https://download.mapterhorn.com" target="_blank">Mapterhorn</a>',
-    };
-    insertHillshade(style, settings.terrainHillshadeEnabled, theme);
-  }
-
   return style;
 }
 
@@ -147,29 +133,4 @@ export function buildStyle({ baseUrl, manifest, settings, theme }: BuildStyleOpt
 export function maxZoomForSettings(manifest: TileManifest, settings: MapSettings): number {
   const bundled = manifest.basemap?.maxZoom ?? 0;
   return settings.hasProtomapsApiKey ? ONLINE_CAMERA_MAX_ZOOM : bundled;
-}
-
-// Insert the hillshade paint layer over land/water but under roads + labels so
-// road colors and label haloes win when they coincide. Done with a single
-// search for the first id starting with `roads_` to keep the @protomaps/basemaps
-// schema as the source of truth.
-function insertHillshade(style: StyleSpecification, visible: boolean, theme: 'light' | 'dark'): void {
-  const insertBefore = style.layers.findIndex((l) => l.id.startsWith('roads_'));
-  const colors = hillshadeColors(theme);
-  const layer = {
-    id: LAYER_HILLSHADE,
-    type: 'hillshade' as const,
-    source: SOURCE_TERRAIN,
-    layout: { visibility: visible ? ('visible' as const) : ('none' as const) },
-    paint: {
-      'hillshade-exaggeration': colors.exaggeration,
-      'hillshade-shadow-color': colors.shadow,
-      'hillshade-highlight-color': colors.highlight,
-    },
-  };
-  if (insertBefore < 0) {
-    style.layers.push(layer);
-  } else {
-    style.layers.splice(insertBefore, 0, layer);
-  }
 }

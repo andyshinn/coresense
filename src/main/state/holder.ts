@@ -11,6 +11,7 @@ import {
   type DeviceInfo,
   type GpsConfig,
   type MapSettings,
+  type MapTileStatus,
   type Message,
   type MessageMeta,
   type MessagePath,
@@ -36,6 +37,7 @@ class StateHolder {
   private appSettings: AppSettings;
   private radioSettings: RadioSettings;
   private mapSettings: MapSettings;
+  private mapTileStatus: MapTileStatus;
   private uiState: UiState;
   private deviceIdentity: DeviceIdentity;
   private autoAddConfig: AutoAddConfig;
@@ -64,6 +66,8 @@ class StateHolder {
       ...settingsStore.loadMapSettings(),
       hasProtomapsApiKey: hasApiKey(),
     };
+    // Runtime-only status (never persisted). keyConfigured mirrors the blob.
+    this.mapTileStatus = { keyConfigured: hasApiKey(), keyRejected: false };
     this.uiState = settingsStore.loadUiState();
     this.deviceIdentity = settingsStore.loadDeviceIdentity();
     this.autoAddConfig = settingsStore.loadAutoAddConfig();
@@ -146,6 +150,14 @@ class StateHolder {
   setMapSettings(next: MapSettings): void {
     this.mapSettings = next;
     settingsStore.saveMapSettings(next);
+  }
+
+  getMapTileStatus(): MapTileStatus {
+    return this.mapTileStatus;
+  }
+
+  setMapTileStatus(next: MapTileStatus): void {
+    this.mapTileStatus = next; // in-memory only — not saved to disk
   }
 
   getUiState(): UiState {

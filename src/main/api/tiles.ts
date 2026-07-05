@@ -2,9 +2,12 @@ import { open, stat } from 'node:fs/promises';
 import type { Context, Hono } from 'hono';
 import { PMTiles, type RangeResponse, type Source } from 'pmtiles';
 import type { TileManifest, TileManifestEntry, TileSource } from '../../shared/types';
+import { emit } from '../events/bus';
 import { child } from '../log';
 import { getApiKey as getProtomapsApiKey } from '../map/api-key';
-import { allTileSources, tilePathIfExists } from '../map/tile-paths';
+import { getTileCache, revealTileCache } from '../map/tile-cache';
+import { tilePathIfExists } from '../map/tile-paths';
+import { stateHolder } from '../state/holder';
 
 const log = child('tile-proxy');
 const PROTOMAPS_TILE_BASE = 'https://api.protomaps.com/tiles/v4';
@@ -53,27 +56,35 @@ async function readManifestEntry(source: TileSource, path: string): Promise<Tile
 }
 
 export async function buildTileManifest(): Promise<TileManifest> {
-  const entries = await Promise.all(
-    allTileSources().map(async (source) => {
-      const path = tilePathIfExists(source);
-      if (!path) return [source, null] as const;
-      try {
-        return [source, await readManifestEntry(source, path)] as const;
-      } catch {
-        return [source, null] as const;
-      }
-    }),
-  );
-  const map = Object.fromEntries(entries) as Record<TileSource, TileManifestEntry | null>;
-  return {
-    missing: !map.basemap && !map.terrain,
-    basemap: map.basemap,
-    terrain: map.terrain,
-  };
+  const path = tilePathIfExists('basemap');
+  if (!path) return { missing: true, basemap: null };
+  try {
+    return { missing: false, basemap: await readManifestEntry('basemap', path) };
+  } catch {
+    return { missing: true, basemap: null };
+  }
 }
 
 function isTileSource(value: string): value is TileSource {
-  return value === 'basemap' || value === 'terrain';
+  return value === 'basemap';
+}
+
+/**
+ * Web-Mercator tile coordinates arrive as untrusted route params that flow into
+ * a cache key and, from there, an on-disk file path (`TileCache.pathFor`). Reject
+ * anything but plain digits so a value like `..` can't path-traverse out of the
+ * cache dir, and bound them to the valid slippy-map range (0 ≤ z ≤ 24,
+ * 0 ≤ x,y < 2^z) so absurd inputs never reach upstream or the filesystem.
+ */
+function parseTileCoords(z: string, x: string, y: string): { z: number; x: number; y: number } | null {
+  if (!/^\d+$/.test(z) || !/^\d+$/.test(x) || !/^\d+$/.test(y)) return null;
+  const zn = Number(z);
+  const xn = Number(x);
+  const yn = Number(y);
+  if (zn > 24) return null;
+  const max = 2 ** zn;
+  if (xn >= max || yn >= max) return null;
+  return { z: zn, x: xn, y: yn };
 }
 
 async function serveRange(c: Context, filePath: string) {
@@ -128,6 +139,15 @@ function toArrayBuffer(buf: Buffer): ArrayBuffer {
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
 }
 
+function markKeyRejected(rejected: boolean): void {
+  const holder = stateHolder();
+  const current = holder.getMapTileStatus();
+  if (current.keyRejected === rejected) return; // only broadcast on change
+  const next = { ...current, keyRejected: rejected };
+  holder.setMapTileStatus(next);
+  emit.mapTileStatus(next);
+}
+
 export function registerTileRoutes(api: Hono): void {
   api.get('/api/tiles/manifest', async (c) => c.json(await buildTileManifest()));
 
@@ -146,7 +166,8 @@ export function registerTileRoutes(api: Hono): void {
   // Proxy a single Protomaps API tile so the stored API key never leaves main.
   // Upstream failures degrade to 502 — MapLibre treats that as a missing tile
   // and renders blank rather than throwing, which is the desired UX when the
-  // user goes offline mid-pan.
+  // user goes offline mid-pan. Successful fetches are written through to the
+  // on-disk LRU cache so repeat views of the same tile don't re-hit upstream.
   api.get('/api/map/online-tile-proxy/:source/:z/:x/:y', async (c) => {
     const source = c.req.param('source');
     if (!isTileSource(source)) {
@@ -155,16 +176,31 @@ export function registerTileRoutes(api: Hono): void {
     const key = await getProtomapsApiKey();
     if (!key) return c.json({ error: 'no_api_key' }, 404);
 
-    const z = c.req.param('z');
-    const x = c.req.param('x');
-    const y = c.req.param('y');
+    const coords = parseTileCoords(c.req.param('z'), c.req.param('x'), c.req.param('y'));
+    if (!coords) return c.json({ error: 'bad_tile_coords' }, 400);
+    const { z, x, y } = coords;
+    const cache = getTileCache();
+    const cacheKey = `${source}/${z}/${x}/${y}`;
+
+    const cached = await cache.get(cacheKey);
+    if (cached) {
+      return c.body(toArrayBuffer(cached), 200, {
+        'Content-Type': 'application/vnd.mapbox-vector-tile',
+        'Cache-Control': 'private, max-age=300',
+      });
+    }
+
     // Protomaps v4 hosts vector tiles for the same schema we render from PMTiles.
-    // Terrain has no online fallback — Mapterhorn isn't on the Protomaps API.
     const upstream = `${PROTOMAPS_TILE_BASE}/${z}/${x}/${y}.mvt?key=${encodeURIComponent(key)}`;
     try {
       const res = await fetch(upstream);
+      if (res.status === 401 || res.status === 403) {
+        // Bad/expired key — surface it so the renderer can prompt the user.
+        markKeyRejected(true);
+        return c.body(null, 401);
+      }
       if (res.status === 404) {
-        // Out-of-coverage tile — return 204 so MapLibre stops retrying.
+        // Out-of-coverage tile — 204 so MapLibre stops retrying.
         return c.body(null, 204);
       }
       if (!res.ok) {
@@ -172,14 +208,27 @@ export function registerTileRoutes(api: Hono): void {
         return c.body(null, 502);
       }
       const buf = await res.arrayBuffer();
+      markKeyRejected(false);
+      await cache.put(cacheKey, Buffer.from(buf));
       return c.body(buf, 200, {
         'Content-Type': res.headers.get('Content-Type') ?? 'application/vnd.mapbox-vector-tile',
-        // Short cache so the renderer doesn't re-fetch on every pan in a session.
         'Cache-Control': 'private, max-age=300',
       });
     } catch (err) {
       log.warn(`fetch failed for ${z}/${x}/${y}: ${(err as Error).message}`);
       return c.body(null, 502);
     }
+  });
+
+  api.get('/api/map/tile-cache', async (c) => c.json(await getTileCache().size()));
+
+  api.delete('/api/map/tile-cache', async (c) => {
+    await getTileCache().clear();
+    return c.json(await getTileCache().size());
+  });
+
+  api.post('/api/map/tile-cache/open', async (c) => {
+    await revealTileCache();
+    return c.json({ ok: true });
   });
 }

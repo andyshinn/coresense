@@ -27,7 +27,7 @@ export function ensurePmtilesProtocol(client: ApiClient): void {
   }
 
   const protocol = new Protocol();
-  for (const source of ['basemap', 'terrain'] as const) {
+  for (const source of ['basemap'] as const) {
     const url = `${client.baseUrl}/api/tiles/${source}`;
     const headers = new Headers({ Authorization: `Bearer ${client.apiKey}` });
     const fetchSource = new FetchSource(url, headers);
@@ -41,6 +41,6 @@ export function ensurePmtilesProtocol(client: ApiClient): void {
 }
 
 /** URL to embed in a MapLibre vector/raster source for a bundled extract. */
-export function pmtilesUrl(baseUrl: string, source: 'basemap' | 'terrain'): string {
+export function pmtilesUrl(baseUrl: string, source: 'basemap'): string {
   return `pmtiles://${baseUrl}/api/tiles/${source}`;
 }

@@ -23,6 +23,7 @@ import { child } from '../log';
 import { applyLoggingSettings } from '../logging/apply';
 import { currentPath, folderPath } from '../logging/fileSink';
 import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
+import { clampTileCacheMaxBytes, getTileCache } from '../map/tile-cache';
 import { protocolSession } from '../protocol';
 import { ContactTableFullError, UnknownContactError } from '../protocol/errors';
 import { appLifecycle } from '../runtime/appLifecycle';
@@ -47,6 +48,10 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   const api = new Hono();
 
   registerTileRoutes(api);
+
+  // Apply the persisted cache cap on startup. Clamp for defense-in-depth
+  // against a hand-edited settings file.
+  void getTileCache().setMaxBytes(clampTileCacheMaxBytes(stateHolder().getMapSettings().tileCacheMaxBytes));
 
   const buildCapabilities = (): Capabilities => ({
     isElectron: true,
@@ -96,6 +101,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       radioSettings: holder.getRadioSettings(),
       mapSettings: holder.getMapSettings(),
       mapManifest: await buildTileManifest(),
+      mapTileStatus: holder.getMapTileStatus(),
       uiState: holder.getUiState(),
       deviceIdentity: holder.getDeviceIdentity(),
       autoAddConfig: holder.getAutoAddConfig(),
@@ -384,8 +390,10 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const sanitized: MapSettings = {
       ...body,
       hasProtomapsApiKey: current.hasProtomapsApiKey,
+      tileCacheMaxBytes: clampTileCacheMaxBytes(body.tileCacheMaxBytes),
     };
     holder.setMapSettings(sanitized);
+    void getTileCache().setMaxBytes(sanitized.tileCacheMaxBytes);
     emit.mapSettings(sanitized);
     return c.json({ ok: true });
   });
@@ -408,6 +416,8 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const next: MapSettings = { ...holder.getMapSettings(), hasProtomapsApiKey: true };
     holder.setMapSettings(next);
     emit.mapSettings(next);
+    holder.setMapTileStatus({ keyConfigured: true, keyRejected: false });
+    emit.mapTileStatus(holder.getMapTileStatus());
     return c.json({ ok: true, hasKey: true });
   });
 
@@ -419,6 +429,8 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const next: MapSettings = { ...holder.getMapSettings(), hasProtomapsApiKey: false };
     holder.setMapSettings(next);
     emit.mapSettings(next);
+    holder.setMapTileStatus({ keyConfigured: false, keyRejected: false });
+    emit.mapTileStatus(holder.getMapTileStatus());
     return c.json({ ok: true, hasKey: false });
   });
 
