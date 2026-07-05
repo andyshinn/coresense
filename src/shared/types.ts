@@ -500,6 +500,13 @@ export interface TileManifest {
   terrain: TileManifestEntry | null;
 }
 
+export interface TileCacheInfo {
+  /** Total bytes of cached online tiles on disk. */
+  bytes: number;
+  /** Number of cached tile files. */
+  count: number;
+}
+
 export interface MapSettings {
   /** Hillshade overlay rendered from the terrain source. */
   terrainHillshadeEnabled: boolean;
