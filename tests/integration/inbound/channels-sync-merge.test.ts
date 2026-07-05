@@ -22,7 +22,7 @@ describe('channels sync merge (handler → holder → bus)', () => {
     const emitted: Channel[][] = [];
     bus.on('channels', (chs: Channel[]) => emitted.push(chs));
 
-    // First sync: order seeded from the radio slot idx (Bug #2 — otherwise the
+    // First sync: order seeded from the radio slot idx (Bug #1 — otherwise the
     // LeftNav falls back to alphabetical, which would put Alpha before Zulu).
     adapter.session.events.emit('channels', radioChannels);
     const first = emitted.at(-1);
@@ -33,7 +33,7 @@ describe('channels sync merge (handler → holder → bus)', () => {
     holder.setChannels(holder.getChannels().map((c) => ({ ...c, order: c.key === 'ch:Alpha' ? 0 : 1 })));
 
     // Re-sync: the radio re-enumerates without order. The manual order must
-    // survive (Bug #1 — a wholesale replace would erase it).
+    // survive (Bug #2 — a wholesale replace would erase it).
     adapter.session.events.emit('channels', radioChannels);
     const second = emitted.at(-1);
     expect(second?.find((c) => c.key === 'ch:Alpha')?.order).toBe(0);

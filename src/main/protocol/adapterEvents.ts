@@ -64,8 +64,9 @@ export function wireSessionEvents(session: MeshCoreSession): void {
     // coresense's app-only fields (order/muted/pinned), so a wholesale replace
     // would wipe a user's drag-reorder and mute state on every sync. Merge to
     // preserve them, seeding `order` from the radio slot `idx` on first sight.
-    holder.setChannels(mergeSyncedChannels(holder.getChannels(), chs));
-    emit.channels(holder.getChannels());
+    const merged = mergeSyncedChannels(holder.getChannels(), chs);
+    holder.setChannels(merged);
+    emit.channels(merged);
   });
   ev.on('channelPresence', (keys) => emit.channelPresence(keys));
   ev.on('syncProgress', (p) => emit.syncProgress(p));

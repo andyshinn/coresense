@@ -8,7 +8,7 @@ import type { Channel } from '../../../../src/shared/types';
 // radio list with the persisted list so a sync never wipes app state.
 describe('mergeSyncedChannels', () => {
   it('seeds order from the radio slot idx when a channel is first seen', () => {
-    // Bug #2: with no seeded order every channel collapses to alphabetical.
+    // Bug #1: with no seeded order every channel collapses to alphabetical.
     const incoming: Channel[] = [
       { key: 'ch:Zulu', name: 'Zulu', kind: 'private', idx: 0 },
       { key: 'ch:Alpha', name: 'Alpha', kind: 'private', idx: 1 },
@@ -21,7 +21,7 @@ describe('mergeSyncedChannels', () => {
   });
 
   it('preserves an existing order across a re-sync (incoming carries no order)', () => {
-    // Bug #1: a drag-reorder writes order; the next sync must not erase it.
+    // Bug #2: a drag-reorder writes order; the next sync must not erase it.
     const prev: Channel[] = [
       { key: 'ch:Alpha', name: 'Alpha', kind: 'private', idx: 1, order: 0 },
       { key: 'ch:Zulu', name: 'Zulu', kind: 'private', idx: 0, order: 1 },
