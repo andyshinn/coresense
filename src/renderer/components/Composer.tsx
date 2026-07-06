@@ -1,4 +1,4 @@
-import { Loader2, Send } from 'lucide-react';
+import { Loader2, Reply, Send, X } from 'lucide-react';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { RadioSettings } from '../../shared/types';
 import { loraAirtimeMs } from '../lib/airtime';
@@ -13,6 +13,7 @@ const WARN_REMAINING = 20;
 
 export interface ComposerHandle {
   insertMention: (name: string) => void;
+  insertReaction: (name: string, content: string) => void;
 }
 
 interface Props {
@@ -30,10 +31,23 @@ interface Props {
   // When true, focus the textarea on mount and whenever the conversation
   // (draftKey) changes, so the user can start typing immediately on navigate.
   autoFocus?: boolean;
+  /** Sender name being replied to; shows the reply-context chip when set. */
+  replyingTo?: string | null;
+  onClearReply?: () => void;
 }
 
 export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
-  { onSend, disabled, returnToSend, radioSettings, placeholder = 'Send a message…', draftKey, autoFocus },
+  {
+    onSend,
+    disabled,
+    returnToSend,
+    radioSettings,
+    placeholder = 'Send a message…',
+    draftKey,
+    autoFocus,
+    replyingTo,
+    onClearReply,
+  },
   ref,
 ) {
   const draft = useStore((s) => (draftKey ? (s.ui.drafts[draftKey] ?? '') : ''));
@@ -51,10 +65,9 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useImperativeHandle(ref, () => ({
-    insertMention: (name: string) => {
+  useImperativeHandle(ref, () => {
+    const insertAtCaret = (token: string) => {
       const ta = textareaRef.current;
-      const token = `@[${name}] `;
       setValue((prev) => {
         const start = ta?.selectionStart ?? prev.length;
         const end = ta?.selectionEnd ?? prev.length;
@@ -72,8 +85,12 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
         });
         return next;
       });
-    },
-  }));
+    };
+    return {
+      insertMention: (name: string) => insertAtCaret(`@[${name}] `),
+      insertReaction: (name: string, content: string) => insertAtCaret(`@[${name}] ${content} `),
+    };
+  });
   // Focus the field on navigate. Keyed on draftKey so switching between
   // conversations (which re-renders rather than remounts this component)
   // still re-focuses. Skipped while disabled — nothing to type into.
@@ -124,6 +141,22 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
 
   return (
     <div className="flex shrink-0 flex-col gap-1 border-t border-cs-border bg-cs-bg-2 px-3 py-2">
+      {replyingTo && (
+        <div className="mb-1 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-cs-accent-soft/40 px-2 py-1 text-[11px] text-cs-accent">
+            <Reply size={12} aria-hidden="true" />
+            Replying to <span className="font-semibold">{replyingTo}</span>
+          </span>
+          <button
+            type="button"
+            onClick={onClearReply}
+            aria-label="Cancel reply"
+            className="text-cs-text-dim hover:text-cs-text"
+          >
+            <X size={13} aria-hidden="true" />
+          </button>
+        </div>
+      )}
       <div className="flex items-end gap-2">
         <textarea
           data-testid="message-composer-input"
