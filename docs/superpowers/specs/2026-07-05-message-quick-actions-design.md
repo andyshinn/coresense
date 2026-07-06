@@ -229,10 +229,15 @@ switches like any draft. Reply continues to use `insertMention`.
   Style it with `cs-*` tokens to match the app; compose inside our `Popover`
   (`EmojiPicker` + `EmojiPickerSearch` + `EmojiPickerContent` + optional
   `EmojiPickerFooter`). `onEmojiSelect` yields `{ emoji }`.
-- **Offline data:** frimousse fetches emojibase data from a CDN by default. The
-  app must work offline (mesh/radio context), so bundle emojibase data as a local
-  asset and point frimousse at it (custom data source / locale URL). Confirm the
-  exact configuration during planning (see Open items).
+- **Offline data (decided):** frimousse fetches `${emojibaseUrl}/${locale}/${file}.json`
+  (`data.json` + `messages.json`), default `emojibaseUrl =
+  "https://cdn.jsdelivr.net/npm/emojibase-data"`. Since the app must work offline
+  (mesh/radio context), **bundle the `en` emojibase files under `resources/emoji/`**
+  (mirroring `resources/tiles/`), ship them as an `extraResource`, serve them from
+  the main Hono server (e.g. `GET /api/emoji/:locale/:file`), and set the picker's
+  `emojibaseUrl` to that local route. ~1.5 MB JSON total (`data.json` ≈ 1.5 MB,
+  `messages.json` ≈ 25 KB) — plain text, so git LFS is optional. Verify the exact
+  files frimousse requests via the dev network tab during planning.
 
 ### 7. Wiring in `ChannelView` / `DMView`
 
@@ -283,17 +288,23 @@ threaded through `MessageList` → `RowContext` → `MessageItem` → `MessageQu
 
 ## Open items to confirm during planning
 
-- **Mockup:** obtain `Message Actions - Quick Bar.html` (Claude Design "Send to
-  Claude Code Web", or paste) — it is the visual source of truth for exact button
-  order, inline quick-react count, spacing, and hover styling.
-- **frimousse offline data:** confirm how to bundle emojibase data and point
-  frimousse at a local source (vs the default CDN fetch); confirm the shadcn
+- **Mockup:** `Message Actions - Quick Bar.html` (project `019dff75-…`) is the
+  visual source of truth for exact button order, inline quick-react count, spacing,
+  and hover styling. It **cannot be pulled in a non-interactive session** —
+  DesignSync needs interactive `/design-login`, and `claude.ai/design` 403s to
+  curl/WebFetch (the file is served through the authenticated design MCP API, not
+  as a static page). Obtain it via Claude Design "Send to Claude Code Web", an
+  interactive `/design-login` + DesignSync import, or by saving the exported HTML
+  into the repo.
+- **frimousse offline data:** approach decided (bundle `en` under
+  `resources/emoji/`, serve via main, set `emojibaseUrl`). Remaining: confirm the
+  exact file names frimousse requests (`data.json`/`messages.json`) and the shadcn
   `emoji-picker` install specifics via Context7.
 - **`settingsStore` persistence:** confirm `loadUiState`/`saveUiState`
   ([src/main/storage/settings.ts](../../../src/main/storage/settings.ts)) persists
   new/unknown `UiState` fields generically, or add `emojiUsage` to its schema.
-- **Path-copy format:** confirm comma-separated hop `shortId`s (first path) and
-  newline-separated paths (all) — vs an alternative (names, `→` joins).
+- **Path-copy format:** confirmed — comma-separated hop `shortId`s (first path) and
+  newline-separated paths (all).
 - **132-char cap:** inserting `@[LongName] 😀` consumes the message budget (emoji =
   multiple UTF-16 units); the composer already warns near the limit. Confirm this
   is acceptable (no special handling planned).
@@ -309,9 +320,12 @@ threaded through `MessageList` → `RowContext` → `MessageItem` → `MessageQu
 - `src/renderer/features/message-actions/frecency.ts` (+ unit test)
 - `src/renderer/features/message-actions/paths.ts` (+ unit test)
 - `src/renderer/components/ui/emoji-picker.tsx` (shadcn/frimousse)
-- bundled emojibase data asset (location TBD in planning)
+- `resources/emoji/en/data.json`, `resources/emoji/en/messages.json` (bundled
+  emojibase data; git LFS optional)
 
 **Modify**
+- `forge.config.ts` (`extraResource` for `resources/emoji`)
+- `src/main/api/*` (serve `GET /api/emoji/:locale/:file` from `resources/emoji`)
 - `src/renderer/components/MessageItem.tsx` (mount `MessageQuickBar` for
   interactive rows; remove the standalone reply button; new callback props)
 - `src/renderer/components/MessageRow.tsx` (thread new callbacks)
