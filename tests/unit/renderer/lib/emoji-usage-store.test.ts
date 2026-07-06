@@ -26,4 +26,14 @@ describe('applyUiState merges emojiUsage (account-global)', () => {
     });
     expect(useStore.getState().ui.emojiUsage['🔥'].count).toBe(4);
   });
+
+  it('applyUiState with an equal-value emojiUsage echo preserves ui identity (no re-PUT loop)', () => {
+    useStore.setState({ ui: { ...DEFAULT_UI_STATE, emojiUsage: { '🔥': { count: 3, lastUsedMs: 42 } } } });
+    const before = useStore.getState().ui;
+    // Simulate a broadcast echo: same values, but fresh object references, as a
+    // JSON round-trip over the wire would produce.
+    const incoming = { ...DEFAULT_UI_STATE, emojiUsage: { '🔥': { count: 3, lastUsedMs: 42 } } };
+    useStore.getState().applyUiState(incoming);
+    expect(useStore.getState().ui).toBe(before); // identity preserved -> App effect won't re-fire
+  });
 });

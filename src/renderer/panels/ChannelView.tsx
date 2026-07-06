@@ -47,6 +47,15 @@ export function ChannelView({ channel, client }: Props) {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const composerRef = useRef<ComposerHandle>(null);
 
+  // MainPane re-renders this component in place across conversation switches
+  // (no `key` prop, by design — see Composer's own focus-on-navigate effect),
+  // so component-local state like `replyingTo` would otherwise leak from one
+  // channel to the next. Reset it whenever the active channel changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: channel.key is the conversation-change trigger, not read inside the effect
+  useEffect(() => {
+    setReplyingTo(null);
+  }, [channel.key]);
+
   // Fetch history on activate.
   useEffect(() => {
     if (!client) return;

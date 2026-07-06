@@ -28,9 +28,18 @@ export function MessageQuickBar({ message, isSelf, senderName, onReact, onReply 
   const recordEmojiUse = useStore((s) => s.recordEmojiUse);
   const P = (key: Exclude<PopKey, null>) => ({ open: open === key, onOpenChange: (o: boolean) => setOpen(o ? key : null) });
 
+  // An unresolved sender (e.g. a channel message whose origin name wasn't
+  // decoded) yields senderName === ''. Reacting/replying would otherwise
+  // insert an empty `@[] ` mention into the composer, so no-op instead.
+  const hasSender = senderName !== '';
   const pick = (emoji: string) => {
+    if (!hasSender) return;
     recordEmojiUse(emoji);
     onReact(senderName, emoji);
+  };
+  const reply = () => {
+    if (!hasSender) return;
+    onReply(senderName);
   };
   const copyText = () => copyToClipboard(message.body, () => notify.success('Copied message text'));
 
@@ -59,7 +68,7 @@ export function MessageQuickBar({ message, isSelf, senderName, onReact, onReply 
             <button
               type="button"
               aria-label="Reply"
-              onClick={() => onReply(senderName)}
+              onClick={reply}
               className="flex h-7 items-center gap-1.5 rounded-md border border-cs-border bg-cs-bg-2 px-2.5 text-[12px] text-cs-text-muted hover:text-cs-text"
             >
               <Reply size={14} aria-hidden="true" /> Reply

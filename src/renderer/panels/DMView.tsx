@@ -43,6 +43,15 @@ export function DMView({ contact, client }: Props) {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const composerRef = useRef<ComposerHandle>(null);
 
+  // MainPane re-renders this component in place across conversation switches
+  // (no `key` prop, by design — see Composer's own focus-on-navigate effect),
+  // so component-local state like `replyingTo` would otherwise leak from one
+  // contact to the next. Reset it whenever the active contact changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: contact.key is the conversation-change trigger, not read inside the effect
+  useEffect(() => {
+    setReplyingTo(null);
+  }, [contact.key]);
+
   useEffect(() => {
     if (!client) return;
     let cancelled = false;
