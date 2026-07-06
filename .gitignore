@@ -176,3 +176,6 @@ tmbootpicker.efi
 .pnpm-store/
 .design-sync/
 .ds-sync/
+
+# Claude Code worktrees (local branch checkouts nested in the repo)
+.claude/worktrees/
