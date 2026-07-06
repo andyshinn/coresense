@@ -1,0 +1,68 @@
+name: Homebrew cask
+
+# Keep Casks/coresense.rb and Casks/coresense@dev.rb (version + sha256) in sync
+# with releases. `released` fires only for STABLE, published releases (and
+# prerelease->release promotions); `prereleased` fires for PRERELEASE publishes.
+# Both are post-publish, so the download URL resolves and the sha256 matches the
+# final bytes — no draft-release race.
+on:
+  release:
+    types: [released, prereleased]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: homebrew-cask
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main # commit the bump onto the branch head, not the tagged commit
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Select target cask
+        env:
+          PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          if [ "$PRERELEASE" = "true" ]; then
+            echo "CASK=Casks/coresense@dev.rb" >> "$GITHUB_ENV"
+          else
+            echo "CASK=Casks/coresense.rb" >> "$GITHUB_ENV"
+          fi
+
+      - name: Download release DMG
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'CoreSense-*-universal.dmg' --dir dist
+
+      - name: Update cask
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          shopt -s nullglob
+          dmgs=(dist/CoreSense-*-universal.dmg)
+          if [ ${#dmgs[@]} -eq 0 ]; then echo "No universal DMG found in release $TAG"; exit 1; fi
+          node scripts/update-cask.mjs --version "${TAG#v}" --dmg "${dmgs[0]}" --cask "$CASK"
+
+      - name: Commit cask bump
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if git diff --quiet -- "$CASK"; then
+            echo "Cask already up to date for $TAG; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$CASK"
+          git commit -m "chore: bump homebrew cask to ${TAG} [skip ci]"
+          git push origin HEAD:main
