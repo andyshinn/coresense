@@ -8,6 +8,24 @@ CoreSense is an experimental desktop MeshCore client. It borrows some ideas from
 
 This app is mostly written with help from Claude. While I make efforts to ensure the implemented features work consider this your AI warning. Here be dragons!
 
+## Install
+
+### macOS (Homebrew)
+
+CoreSense ships two Homebrew casks — a **stable** channel and a **development**
+(prerelease) channel:
+
+```sh
+brew tap andyshinn/coresense https://github.com/andyshinn/coresense
+brew install --cask coresense        # latest stable release
+brew install --cask coresense@dev    # latest development (prerelease) build
+```
+
+Upgrade later with `brew upgrade --cask coresense` (or `coresense@dev`). The
+explicit tap URL is needed once because the casks live in this repo rather than a
+separate `homebrew-coresense` tap. Stable builds self-update in-app; development
+builds are upgraded through Homebrew.
+
 ## Features
 
 We aim to have feature parity with the mobile applications. But in addition there are some ideas I wanted to try out:
