@@ -4,7 +4,11 @@ import { MacroChip, MacroPanel } from '@/features/message-actions/MacroPanel';
 
 describe('macros are "soon" placeholders', () => {
   test('the panel lists seed macros with a soon badge', () => {
-    render(<MacroPanel open onOpenChange={() => {}}><button type="button">macros</button></MacroPanel>);
+    render(
+      <MacroPanel open onOpenChange={() => {}}>
+        <button type="button">macros</button>
+      </MacroPanel>,
+    );
     expect(screen.getByText('soon')).toBeTruthy();
     expect(screen.getByText('ACK')).toBeTruthy();
   });

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import {
+  formatAllPathsHeard,
+  formatFirstPathHeard,
+  formatPathHeard,
+} from '../../../../../src/renderer/features/message-actions/paths';
 import type { Message, MessagePath } from '../../../../../src/shared/types';
-import { formatAllPathsHeard, formatFirstPathHeard, formatPathHeard } from '../../../../../src/renderer/features/message-actions/paths';
 
 const path = (ids: string[]): MessagePath => ({
   id: ids.join('-'),

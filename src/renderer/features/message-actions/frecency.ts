@@ -1,4 +1,4 @@
-import type { EmojiUse, EmojiUsage } from '../../../shared/types';
+import type { EmojiUsage, EmojiUse } from '../../../shared/types';
 
 /** Curated, airtime-aware seed shown before the user has any history. */
 export const EMOJI_SEED: readonly string[] = ['👍', '✅', '📡', '🔋', '😂', '❤️'];

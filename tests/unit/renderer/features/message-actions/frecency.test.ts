@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import {
+  EMOJI_SEED,
+  recordUsage,
+  scoreEmoji,
+  topEmojis,
+} from '../../../../../src/renderer/features/message-actions/frecency';
 import type { EmojiUsage } from '../../../../../src/shared/types';
-import { EMOJI_SEED, recordUsage, scoreEmoji, topEmojis } from '../../../../../src/renderer/features/message-actions/frecency';
 
 const NOW = 1_000_000_000_000;
 const DAY = 86_400_000;
