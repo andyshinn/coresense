@@ -54,6 +54,7 @@ import {
   type UpdateState,
 } from '../../shared/types';
 import { recordUsage } from '../features/message-actions/frecency';
+import type { MacroStudioBridge } from '../panels/macros/studio/bridge';
 import { setRendererLogLevel, setRendererLogSink } from './logger';
 import type { NeighbourSortKey } from './neighbours';
 
@@ -288,6 +289,11 @@ interface CoreState {
   // panel unmounts.
   repeaterAdminActiveTab: RepeaterAdminTab | null;
   setRepeaterAdminActiveTab: (tab: RepeaterAdminTab | null) => void;
+
+  // Live handle published by the open Macro studio so the right-rail Reference
+  // panel can insert into its editor. Null when no studio is open. Not persisted.
+  macroStudioBridge: MacroStudioBridge | null;
+  setMacroStudioBridge: (bridge: MacroStudioBridge | null) => void;
 
   // Repeater Neighbours view (map + rail list) — see NeighboursViewState.
   neighbours: NeighboursViewState;
@@ -552,6 +558,7 @@ export const useStore = create<CoreState>((set) => ({
   repeaterTelemetryByKey: {},
   repeaterAdminTab: null,
   repeaterAdminActiveTab: null,
+  macroStudioBridge: null,
   neighbours: NB_DEFAULTS,
 
   ui: DEFAULT_UI_STATE,
@@ -583,6 +590,7 @@ export const useStore = create<CoreState>((set) => ({
       channelPresence: new Set(snapshot.channelPresence ?? []),
       contacts: snapshot.contacts,
       discovered: snapshot.discoveredContacts ?? [],
+      macros: snapshot.macros ?? [],
       messagesByKey: groupMessagesByKey(snapshot.messages),
       capabilities: snapshot.capabilities,
       appSettings: snapshot.appSettings,
@@ -675,6 +683,13 @@ export const useStore = create<CoreState>((set) => ({
       // Entering the Neighbours tab surfaces its controls/list in the rail, so
       // make sure the rail is open (open-only — never auto-collapses).
       ui: tab === 'neighbours' ? { ...s.ui, rightOpen: true } : s.ui,
+    })),
+  setMacroStudioBridge: (bridge) =>
+    set((s) => ({
+      macroStudioBridge: bridge,
+      // Opening a macro surfaces its Reference in the rail, so make sure the
+      // rail is open (open-only — never auto-collapses).
+      ui: bridge ? { ...s.ui, rightOpen: true } : s.ui,
     })),
   setNeighboursFor: (key) =>
     set((s) =>

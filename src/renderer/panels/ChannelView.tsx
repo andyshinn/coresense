@@ -163,6 +163,7 @@ export function ChannelView({ channel, client }: Props) {
         autoFocus={appSettings.composer.autoFocus}
         disabled={composerDisabled}
         draftKey={channel.key}
+        client={client}
       />
     </div>
   );

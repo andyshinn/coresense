@@ -76,9 +76,10 @@ export const MACRO_VARIABLES: MacroVariable[] = [
   { name: 'times_heard', description: 'Distinct receptions merged', type: 'number', example: '3', available: 'reply' },
   {
     name: 'paths',
-    description: 'Relay paths this message took',
+    description:
+      'Relay paths this message took. Each hop has kind/short_id/name; short_id is the per-hop key prefix (relay hops only — origin/sink are labels)',
     type: 'array',
-    example: '{{ paths | size }}',
+    example: '{{ paths.first.hops | where: "kind", "hop" | map: "short_id" | join: "," }}',
     available: 'reply',
   },
 ];
@@ -119,7 +120,7 @@ export function buildSampleContext(): MacroContext {
     my_battery_v: 4.1,
     channel: 'General',
     peer_name: 'Alice',
-    peer_id: 'c0ffee00',
+    peer_id: 'c0ff',
     peer_pos: { lat: 37.8044, lon: -122.2712 },
     peer_last_seen: 1700000000000,
     peer_rssi: -80,
@@ -129,7 +130,7 @@ export function buildSampleContext(): MacroContext {
     msg_time: 1700000000000,
     received_ago: '5m',
     sender_name: 'Alice',
-    sender_id: 'c0ffee00',
+    sender_id: 'c0ff',
     sender_pos: { lat: 37.8044, lon: -122.2712 },
     rssi: -95,
     snr: 5.5,
@@ -142,8 +143,8 @@ export function buildSampleContext(): MacroContext {
         hash_mode: 1,
         final_snr: 6.5,
         hops: [
-          { kind: 'origin', short_id: 'aa', name: 'Alice', pk: 'c0ffee00' },
-          { kind: 'sink', short_id: 'bb', name: 'Me', pk: 'a1b2c3d4e5f6' },
+          { kind: 'origin', short_id: 'aa', name: 'Alice' },
+          { kind: 'sink', short_id: 'bb', name: 'Me' },
         ],
       },
     ],

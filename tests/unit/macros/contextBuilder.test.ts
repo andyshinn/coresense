@@ -90,4 +90,15 @@ describe('buildReplyContext', () => {
     expect(ctx.paths[0].final_snr).toBe(6);
     expect(ctx.paths[0].hops.map((h) => h.name)).toEqual(['Alice', 'Me']);
   });
+
+  it('exposes short_id per hop and never copies the wire-null pk', () => {
+    // Input hops carry pk (lib may set it), but pk is unreliable/always-null in
+    // practice — the context must surface short_id (the real per-hop key prefix)
+    // and must NOT expose pk, so macros don't silently render empties.
+    const ctx = buildReplyContext({ self, message, senderContact: alice, channelName: 'General', now: 1700000300000 });
+    expect(ctx.paths[0].hops.map((h) => h.short_id)).toEqual(['aa', 'bb']);
+    for (const hop of ctx.paths[0].hops) {
+      expect((hop as unknown as Record<string, unknown>).pk).toBeUndefined();
+    }
+  });
 });

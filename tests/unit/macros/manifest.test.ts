@@ -13,6 +13,12 @@ describe('macro manifest', () => {
     expect(getManifest().filters.map((f) => f.name)).toEqual(expect.arrayContaining(['distance', 'bearing', 'unit']));
   });
 
+  it('documents short_id (not pk) as the usable per-hop field', () => {
+    const paths = MACRO_VARIABLES.find((v) => v.name === 'paths');
+    expect(paths?.example).toContain('short_id');
+    expect(paths?.example).not.toContain('pk');
+  });
+
   it('sample context populates every manifest variable (no nulls)', () => {
     const ctx = buildSampleContext() as unknown as Record<string, unknown>;
     for (const v of MACRO_VARIABLES) {

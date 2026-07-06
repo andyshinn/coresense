@@ -27,7 +27,7 @@ function mapPaths(paths: MessagePath[] | undefined): MacroPath[] {
     length: p.hops.length,
     hash_mode: p.hashMode,
     final_snr: p.finalSnr,
-    hops: p.hops.map((h) => ({ kind: h.kind, short_id: h.shortId, name: h.name ?? null, pk: h.pk ?? null })),
+    hops: p.hops.map((h) => ({ kind: h.kind, short_id: h.shortId, name: h.name ?? null })),
   }));
 }
 

@@ -114,6 +114,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       deviceInfo: holder.getDeviceInfo(),
       deviceCapabilities: holder.getDeviceCapabilities(),
       blockRules: holder.getBlockRules(),
+      macros: macrosStore.list(),
     };
     return c.json(payload);
   });

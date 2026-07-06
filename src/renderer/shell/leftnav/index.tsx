@@ -53,6 +53,7 @@ export function LeftNav({ client }: LeftNavProps) {
   const pinUnreadToTop = useStore((s) => s.appSettings.pinUnreadToTop);
   const showLeftNavUnreads = useStore((s) => s.appSettings.showLeftNavUnreads);
   const setActiveKey = useStore((s) => s.setActiveKey);
+  const macroCount = useStore((s) => s.macros.length);
 
   // Per-conversation unread counts, shared with the Unreads panel.
   const unreadByKey = useUnreadByKey();
@@ -399,6 +400,9 @@ export function LeftNav({ client }: LeftNavProps) {
                 >
                   <t.icon />
                   <span>{t.label}</span>
+                  {t.key === 'tool:macros' && macroCount > 0 && (
+                    <span className="ml-auto font-mono text-[10px] text-cs-text-dim">{macroCount}</span>
+                  )}
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}

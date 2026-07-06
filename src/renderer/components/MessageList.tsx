@@ -55,6 +55,7 @@ interface RowContext {
   onReply?: (name: string) => void;
   onReact?: (name: string, emoji: string) => void;
   onContextMenu: (m: Message, e: React.MouseEvent) => void;
+  client: ApiClient | null;
 }
 
 interface MessageMenuState {
@@ -319,6 +320,7 @@ export function MessageList({
     onReply,
     onReact,
     onContextMenu: handleContextMenu,
+    client,
   };
 
   if (visibleMessages.length === 0 && !initialItemsRef.current?.length) {

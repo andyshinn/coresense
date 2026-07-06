@@ -126,6 +126,7 @@ export function DMView({ contact, client }: Props) {
         autoFocus={appSettings.composer.autoFocus}
         disabled={!client}
         draftKey={contact.key}
+        client={client}
       />
     </div>
   );

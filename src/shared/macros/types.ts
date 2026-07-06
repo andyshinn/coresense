@@ -7,9 +7,12 @@ export interface MacroPosition {
 
 export interface MacroPathHop {
   kind: 'origin' | 'hop' | 'sink';
+  // The per-hop key prefix as encoded on the wire (1-3 bytes hex, per the path's
+  // hash_mode). For relay hops (kind 'hop') this is the prefix of the repeater's
+  // pubkey; for 'origin'/'sink' it's a display label. The full pubkey is NOT on
+  // the wire — it's resolved at display time — so no `pk` field is exposed here.
   short_id: string;
   name: string | null;
-  pk: string | null;
 }
 
 export interface MacroPath {

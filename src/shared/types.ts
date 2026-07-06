@@ -883,6 +883,7 @@ export interface StateSnapshot {
   deviceInfo: DeviceInfo;
   deviceCapabilities: DeviceCapabilities;
   blockRules: BlockRule[];
+  macros: MacroTemplate[];
 }
 
 export type MenuAction =
