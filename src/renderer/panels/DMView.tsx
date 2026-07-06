@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import { Activity, DoorOpen, MessageCircle, Radio } from 'lucide-react';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Contact } from '../../shared/types';
 import { Composer, type ComposerHandle } from '../components/Composer';
 import { MessageList } from '../components/MessageList';
@@ -40,6 +40,7 @@ export function DMView({ contact, client }: Props) {
   const rightOpen = useStore((s) => s.ui.rightOpen);
   const lastReadMs = useStore((s) => s.ui.lastReadByKey[contact.key] ?? 0);
   const markRead = useStore((s) => s.markRead);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const composerRef = useRef<ComposerHandle>(null);
 
   useEffect(() => {
@@ -63,12 +64,23 @@ export function DMView({ contact, client }: Props) {
       if (!client) return;
       try {
         await api.sendMessage(client, contact.key, body);
+        setReplyingTo(null);
       } catch (err) {
         notify.error(`Send failed: ${(err as Error).message}`, err);
       }
     },
     [client, contact.key],
   );
+
+  const handleReply = (name: string) => {
+    setReplyingTo(name);
+    composerRef.current?.insertMention(name);
+  };
+
+  const handleReact = (name: string, emoji: string) => {
+    setReplyingTo(name);
+    composerRef.current?.insertReaction(name, emoji);
+  };
 
   const onSelectMessage = (id: string) => {
     setSelectedMessage(selectedId === id ? null : id);
@@ -102,7 +114,8 @@ export function DMView({ contact, client }: Props) {
           lastReadMs={lastReadMs}
           onMarkRead={(ts) => markRead(contact.key, ts)}
           onResend={(m) => onSend(m.body)}
-          onReply={(name) => composerRef.current?.insertMention(name)}
+          onReply={handleReply}
+          onReact={handleReact}
           client={client}
           jumpToId={pendingJumpMid}
           onJumpConsumed={() => setPendingJump(null)}
@@ -117,6 +130,8 @@ export function DMView({ contact, client }: Props) {
         autoFocus={appSettings.composer.autoFocus}
         disabled={!client}
         draftKey={contact.key}
+        replyingTo={replyingTo}
+        onClearReply={() => setReplyingTo(null)}
       />
     </div>
   );

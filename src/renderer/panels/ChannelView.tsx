@@ -44,6 +44,7 @@ export function ChannelView({ channel, client }: Props) {
   const onDevice = channelPresence.has(channel.key);
   const connected = transportState === 'connected';
   const [pushing, setPushing] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const composerRef = useRef<ComposerHandle>(null);
 
   // Fetch history on activate.
@@ -68,12 +69,23 @@ export function ChannelView({ channel, client }: Props) {
       if (!client) return;
       try {
         await api.sendMessage(client, channel.key, body);
+        setReplyingTo(null);
       } catch (err) {
         notify.error(`Send failed: ${(err as Error).message}`, err);
       }
     },
     [client, channel.key],
   );
+
+  const handleReply = (name: string) => {
+    setReplyingTo(name);
+    composerRef.current?.insertMention(name);
+  };
+
+  const handleReact = (name: string, emoji: string) => {
+    setReplyingTo(name);
+    composerRef.current?.insertReaction(name, emoji);
+  };
 
   const onSelectMessage = (id: string) => {
     setSelectedMessage(selectedId === id ? null : id);
@@ -133,7 +145,8 @@ export function ChannelView({ channel, client }: Props) {
           lastReadMs={lastReadMs}
           onMarkRead={(ts) => markRead(channel.key, ts)}
           onResend={(m) => onSend(m.body)}
-          onReply={(name) => composerRef.current?.insertMention(name)}
+          onReply={handleReply}
+          onReact={handleReact}
           client={client}
           jumpToId={pendingJumpMid}
           onJumpConsumed={() => setPendingJump(null)}
@@ -154,6 +167,8 @@ export function ChannelView({ channel, client }: Props) {
         autoFocus={appSettings.composer.autoFocus}
         disabled={composerDisabled}
         draftKey={channel.key}
+        replyingTo={replyingTo}
+        onClearReply={() => setReplyingTo(null)}
       />
     </div>
   );
