@@ -2,341 +2,345 @@
 
 - **Date:** 2026-07-05
 - **Branch/worktree:** `worktree-feat+message-quick-actions`
-- **Status:** Approved shape, pending spec review
+- **Status:** Approved shape (incl. design-handoff reconciliation), pending spec review
+- **Design handoff:** [docs/design/message-actions-quickbar/](../../design/message-actions-quickbar/)
+  (`README.md` is the high-fidelity spec; `qb-concepts.jsx` / `ma-shared.jsx` /
+  `ma-data.js` are the reference prototype — recreate, don't copy verbatim).
 
 ## Summary
 
-Add a Discord-style **hover quick-actions bar** to message rows in the channel and
-DM conversation views. On hover, a compact bar appears in the top-right of the
-message with actions for reacting with an emoji, replying, copying the text, and
-(placeholders) macros and delete, plus an overflow (`⋯`) menu for the rest.
+Add a Discord-style **hover quick-actions bar** ("Quick Bar") to message rows in the
+channel and DM conversation views. Hovering a message reveals a floating pill at its
+top-right corner. The bar's contents differ by author:
 
-The centerpiece is **emoji reactions implemented without any wire protocol**:
-picking an emoji **inserts** `@[sender] 🫡` into the composer (focused, not sent),
-reusing the existing `@[name]` mention tokenizer and `MentionPill`. Because the
-emoji picker is our own UI, we know which emoji was chosen and can **track usage
-(frecency)** to auto-pin the user's most-used emojis as one-click quick-reacts.
+- **Others' messages:** 5 quick-react emoji + emoji picker (`＋`) │ **Reply** │ 2 macro
+  chips + all-macros (`⋯`) │ Copy │ overflow (`⋯`).
+- **Your own messages:** **Copy** │ Info │ Delete.
 
-The bar consolidates and reuses existing message affordances: it **replaces** the
-standalone rich-mode hover reply button, and its `⋯` overflow shares one menu
-with the existing right-click context menu (extended with two new "copy path"
-actions and the existing "view contact").
+The centerpiece is **emoji reactions without any wire protocol**: MeshCore has no
+reaction message type and LoRa airtime is scarce, so nothing is stored or sent as a
+"reaction." Picking an emoji (or a macro, or Reply) instead **composes a normal reply
+into the composer** — `@[sender] 🫡 ` — using the app's existing `@[name]` mention
+tokenizer, and shows a **reply-context chip**. The user presses Enter to send it as an
+ordinary mesh message. Because the picker is our own UI we know the chosen emoji, so we
+**track usage (frecency)** and auto-pin the top emojis as one-click quick-reacts.
+
+Scope is the **bar + the composer reply-context chip**. Existing message-row rendering
+is kept as-is (not restyled). Macros and Delete ship as **non-functional "soon"
+placeholders** (macros are a later feature; no local-DB delete exists yet), so the bar's
+layout is final now.
 
 ## Goals
 
-- A hover-revealed quick-actions bar on interactive message rows in
-  `ChannelView` and `DMView`, both `rich` and `compact` densities.
-- Emoji reaction = insert `@[sender] <emoji> ` into the composer (no send, no wire
-  format, no reaction badges); reuses the mention system.
-- A **custom** emoji picker (shadcn `Popover` + [frimousse](https://frimousse.liveblocks.io)),
-  with a row of **auto-pinned frecent emojis** for one-click reacting.
-- Track emoji usage and auto-pin the top-N by frecency; persisted **account-global**
-  (shared across the Electron window and any web client), seeded with sensible
-  defaults so the bar is never empty.
-- Bar actions: React, Reply, Copy text, Macros (placeholder), Message info,
-  Delete (placeholder), Overflow (`⋯`).
-- Overflow menu (shared with right-click): View contact / go to sender,
-  **Copy first path heard**, **Copy all paths heard**, plus existing Re-send / Block.
-- Retire the standalone rich-mode hover reply button (superseded by the bar).
+- Hover-revealed Quick Bar on interactive message rows in `ChannelView` and `DMView`,
+  both `rich` and `compact` densities; anchored top-right, revealed on row hover
+  (120 ms), and **pinned visible while one of its popovers is open**.
+- Author-aware contents (others vs self) exactly as the handoff specifies.
+- Emoji/macro/Reply → insert `@[sender] <…> ` into the composer (no send, no wire
+  format, no reaction records) + set the **reply-context chip** (`replyingTo`).
+- Custom emoji picker: **frimousse** (shadcn `emoji-picker`) with **`emojibase-data`** as
+  the data source, plus a frecency **"Frequently used"** row and the footer note.
+- Track emoji usage; auto-pin the top-N (default 5) as the inline quick-react row,
+  seeded with `👍 ✅ 📡 🔋 😂`; persisted **account-global**.
+- **Info popover on all messages** (From / Public key / Hops / RSSI·SNR / State + PATH),
+  built from fields already on the message.
+- **Merged overflow menu:** View contact · Copy public key · Copy first path heard ·
+  Copy all paths heard · (divider) · Dismiss locally (destructive, "soon").
+- Macros (inline chips + all-macros popover) and Delete rendered per design but marked
+  **"soon"/non-interactive**.
+- Copy → clipboard + `sonner` toast.
 
 ## Non-goals
 
-- Native OS emoji panel (`app.isEmojiPanelSupported()` / `app.showEmojiPanel()`).
-  Dropped: it cannot report which emoji was picked, which our frecency/auto-pin
-  requires. Custom picker only.
-- Any transmitted/badge reactions, reaction counts, or a MeshCore reaction wire
-  format. Emoji is always just message text.
-- **Functional** message delete. No local-DB delete capability exists yet; Delete
-  ships as a disabled placeholder. (Intended eventual semantics: local delete of
-  any message — see Open items.)
-- Macros. Ships as a disabled placeholder; the macros feature is a separate,
-  later project.
-- Changing the composer's 132-char limit or MeshCore send path.
+- Restyling existing message rows (avatar/bubble/meta) to pixel-match the handoff. We
+  keep the current `MessageItem` rendering and only add the bar + reply chip. (The
+  handoff's row styling is reference for the bar's look, not a row rewrite.)
+- Native OS emoji panel (`app.showEmojiPanel()`) — can't report the picked emoji.
+- Any transmitted/badge reactions or a MeshCore reaction wire format.
+- **Functional** message delete (no local-DB delete yet) and **functional** macros —
+  both are "soon" placeholders.
+- Changing the composer's real **132-char** MeshCore limit (the prototype shows 200).
 
-## Decisions (from brainstorming)
+## Decisions
 
 | Decision | Choice |
 | --- | --- |
-| Emoji action | **Insert `@[sender] <emoji>` into the composer** (mention + emoji), not sent automatically; no wire protocol |
-| Send behavior | **Insert into composer** (user presses Enter to send), never auto-send |
-| Emoji picker | **Custom only** — shadcn `Popover` + **frimousse** (`components/ui/emoji-picker`); native OS panel dropped |
-| Frecency / auto-pin | Track usage; auto-pin **top-N by frecency**; seed defaults when sparse |
-| Frecency storage | **Account-global** — new `UiState.emojiUsage`, synced via the existing `applyUiState` whitelist (like `pinned`/`recentKeys`) |
-| Bar attachment | **Per-row absolute overlay** inside `MessageItem`'s existing `group` container (Approach A) |
-| Bar actions | React, Reply, Copy text, Macros (disabled), Message info, Delete (disabled), Overflow `⋯` |
-| Reply button | **Retire** the standalone rich-mode hover reply button; Reply lives in the bar |
-| Delete | **Disabled placeholder** (no local-DB delete yet); eventual semantics = local delete, any message |
-| Overflow menu | **Reuse** the existing custom `ContextMenu`; one shared item list for right-click and `⋯` |
-| New overflow items | **View contact** (go to sender), **Copy first path heard**, **Copy all paths heard** (comma-separated hop `shortId`s) |
+| Emoji/macro/Reply action | Insert `@[sender] <…> ` into the composer (mention + content); **not** auto-sent; no wire protocol |
+| Author-aware bar | **Others:** reactions+picker · Reply · macro chips+all-macros · Copy · overflow. **Self:** Copy · Info · Delete |
+| Emoji picker | **frimousse** (shadcn `emoji-picker`) + **`emojibase-data`** npm dependency |
+| Emoji data delivery | Build-time copy of `emojibase-data/en/{data,messages}.json` into the Vite renderer output (served by Vite/Hono); **no `resources/`** needed |
+| Frecency / auto-pin | Track usage; inline quick-react row = **top-5** by frecency, seeded `👍 ✅ 📡 🔋 😂`; "Frequently used" row in the picker |
+| Frecency storage | **Account-global** — new `UiState.emojiUsage`, synced via the `applyUiState` whitelist |
+| Reply model | **Reply-context chip** (`replyingTo`) + insert `@[sender] …` at the composer caret (preserves any draft) |
+| Bar attachment | **Per-row absolute overlay** in `MessageItem`'s `group` container (row made `relative`) |
+| Reply button | **Retire** the standalone rich-mode reply button; Reply lives in the bar |
+| Message info | **Info popover on all messages** (design-styled), from existing message fields |
+| Overflow menu | **Merged:** View contact · Copy public key · Copy first path heard · Copy all paths heard · (div) · Dismiss locally (destructive, "soon") |
+| Macros | Inline chips (first 2) + all-macros popover, rendered **"soon"/non-interactive** |
+| Delete / Dismiss | **"Soon" placeholder** (self: trash button; others: "Dismiss locally" in overflow); eventual = local-only removal |
+| Path-copy format | Comma-separated hop `shortId`s (first path); newline-separated paths (all) |
+| Char limit | Keep **132** (MeshCore), not the prototype's 200 |
 
 ## Current architecture (for reference)
 
 - **Message rendering:** `MessageList` ([src/renderer/components/MessageList.tsx](../../../src/renderer/components/MessageList.tsx))
-  virtualizes rows via `@virtuoso.dev/message-list`. Each row → `MessageRow`
-  (store adapter, adds `timeFormat`) → `MessageItem`
+  virtualizes rows via `@virtuoso.dev/message-list` → `MessageRow` → `MessageItem`
   ([src/renderer/components/MessageItem.tsx](../../../src/renderer/components/MessageItem.tsx)),
-  the shared presentational component. `MessageItem`'s outer container is already
-  `<div className="group px-3 py-0.5">`, and it already uses `group-hover:` to
-  reveal a per-row reply button (rich mode). Unreads previews render `MessageItem`
-  **non-interactively** (no `onSelect`).
-- **Row context:** `MessageList` builds a `RowContext` (`selectedId`, `flashId`,
-  `onSelect`, `onReply`, `onContextMenu`, `contactByPk`, `style`) passed to every
-  row. Right-click sets `menu` state and renders a single `ContextMenu`.
-- **Context menu:** `ContextMenu` ([src/renderer/components/ContextMenu.tsx](../../../src/renderer/components/ContextMenu.tsx))
-  is a custom (non-Radix) fixed-position popover with a declarative `menuItem` /
-  `menuSeparator` API and a `copyToClipboard(text, onDone?)` helper.
-  `buildMessageMenuItems` (in `MessageList.tsx`) builds the items: Copy text,
-  View contact, Re-send (failed only), Block sender.
+  the shared presentational component. Its outer container is `<div className="group
+  px-3 py-0.5">` and it already uses `group-hover:` to reveal a rich-mode reply button.
+  Unreads previews render `MessageItem` non-interactively (no `onSelect`).
+- **Row context / menu:** `MessageList` builds a `RowContext` (`selectedId`, `flashId`,
+  `onSelect`, `onReply`, `onContextMenu`, `contactByPk`, `style`); right-click sets
+  `menu` state and renders one `ContextMenu`
+  ([src/renderer/components/ContextMenu.tsx](../../../src/renderer/components/ContextMenu.tsx)),
+  a custom fixed-position menu with `menuItem`/`menuSeparator` + a
+  `copyToClipboard(text, onDone?)` helper. `buildMessageMenuItems` builds Copy text /
+  View contact / Re-send (failed) / Block sender.
 - **Mentions:** `parseMessageContent` ([src/renderer/lib/messageContent.ts](../../../src/renderer/lib/messageContent.ts))
-  tokenizes `@[name]` via `@\[[^\]]+\]`; `MentionPill` resolves the name to a
-  contact and renders a chip. The composer already inserts mentions:
-  `Composer` ([src/renderer/components/Composer.tsx](../../../src/renderer/components/Composer.tsx))
-  exposes `ComposerHandle.insertMention(name)` which inserts `@[name] ` at the
-  caret (with leading-space handling and caret restoration).
-- **View wiring:** `ChannelView` / `DMView` hold a `composerRef` and pass
-  `onReply={(name) => composerRef.current?.insertMention(name)}` down to
-  `MessageList`. `onSelect` opens the right-rail message detail
-  (`setSelectedMessage` + open right rail), which renders the `HeardVia` / path
-  detail (`MessageInfo`).
-- **Paths:** `Message.meta.paths?: MessagePath[]` ([src/shared/types.ts](../../../src/shared/types.ts));
-  each `MessagePath.hops: MessageHop[]` where `MessageHop.shortId` is the per-hop
-  prefix hex (`origin` / `hop` / `sink`). `firstPathStats`/`formatPathStats`
-  ([src/renderer/lib/messagePath.ts](../../../src/renderer/lib/messagePath.ts))
-  derive the compact `"2h · 1b"` meta label from `meta.paths[0]`.
-- **UiState persistence & sync:** `UiState` ([src/shared/types.ts:733](../../../src/shared/types.ts))
-  is persisted and synced generically — `App.tsx` debounce-PUTs the **whole** `ui`
-  object via `api.putUiState`; main (`holder.setUiState` → `settingsStore` +
-  `emit.uiState`) stores it and broadcasts it to all connected clients. The
+  tokenizes `@[name]`; `MentionPill` resolves it to a contact chip. The composer already
+  exposes `ComposerHandle.insertMention(name)` inserting `@[name] ` at the caret
+  ([src/renderer/components/Composer.tsx](../../../src/renderer/components/Composer.tsx));
+  `MAX_MESSAGE_LENGTH = 132`.
+- **View wiring:** `ChannelView`/`DMView` hold a `composerRef` and pass
+  `onReply={(name) => composerRef.current?.insertMention(name)}` into `MessageList`.
+  `onSelect` opens the right-rail message detail.
+- **Paths:** `Message.meta.paths?: MessagePath[]`; `MessagePath.hops: MessageHop[]`,
+  each `MessageHop.shortId` (prefix hex) + optional `name`. `firstPathStats`/
+  `formatPathStats` ([src/renderer/lib/messagePath.ts](../../../src/renderer/lib/messagePath.ts))
+  derive the compact meta label. `Message.meta` also has `rssi`, `snr`, `hops`.
+- **UiState sync:** `UiState` ([src/shared/types.ts:733](../../../src/shared/types.ts)) is
+  PUT whole (debounced) by `App.tsx` via `api.putUiState`; main
+  (`holder.setUiState` → `settingsStore` + `emit.uiState`) stores + broadcasts it. The
   renderer's `applyUiState` ([src/renderer/lib/store.ts:710](../../../src/renderer/lib/store.ts))
-  is what makes fields **account-global vs client-local**: it merges only a
-  whitelist — `lastReadByKey`, `pinned`, `recentKeys`, `themePref` — from remote
-  broadcasts, ignoring the rest so another client's pane layout can't clobber
-  ours. So making a field account-global is a **renderer-only** change (add to the
-  whitelist); main carries any new `UiState` field automatically.
-- **UI stack:** shadcn/ui "new-york" + Radix + Tailwind v4 + lucide-react; toasts
-  via `sonner`. Installed shadcn primitives include `popover`, `tooltip`,
-  `toggle-group`, `command`. No `emoji-picker` component and no `frimousse`
-  dependency yet.
-
-Approach A (per-row overlay) is chosen over Approach B (a single shared floating
-bar positioned via mouse tracking) because it mirrors the existing `group-hover`
-reply-button pattern, needs no global positioning math, and only mounts for the
-handful of on-screen virtualized rows.
+  merges only a whitelist (`lastReadByKey`, `pinned`, `recentKeys`, `themePref`) from
+  remote broadcasts — that whitelist is what makes a field **account-global**; adding a
+  field there is a renderer-only change (main carries any new field automatically).
+- **Renderer is HTTP-served by the app:** in dev the Vite dev server; in prod the app's
+  Hono server serves `rendererDir` ([src/main/index.ts:127-129](../../../src/main/index.ts)).
+  So Vite-emitted static assets are served at the renderer origin in **both** modes —
+  frimousse can fetch bundled emoji data via a local URL without a bespoke route.
+- **UI stack:** shadcn/ui "new-york" + Radix + Tailwind v4 + lucide-react; toasts via
+  `sonner`. Installed primitives include `popover`, `tooltip`, `command`, `badge`,
+  `separator`, and **`KeyValueRow`**. No `emoji-picker` component and no `frimousse` /
+  `emojibase-data` dependency yet. All `cs-*` design tokens in the handoff already exist.
 
 ## Design
 
 ### 1. New feature module: `src/renderer/features/message-actions/`
 
-- **`MessageQuickBar.tsx`** — the hover bar. Rendered by `MessageItem` for
-  interactive rows only. Absolutely positioned top-right inside the existing
-  `group` container; `opacity-0 group-hover:opacity-100`, and forced visible while
-  its own popover/menu is open (`data-[open=true]:opacity-100`). Reads frecent
-  emojis + `recordEmojiUse` from the store directly; receives message-scoped
-  callbacks (react/reply/copy/info/overflow) from `RowContext`. Renders, left→
-  right (exact order/visuals per the mockup — see Prerequisites):
-  - N inline **quick-react emoji** buttons (one-click) — default N = 5.
-  - **React** button (lucide `SmilePlus`) → opens `EmojiPickerPopover`.
-  - **Reply** button (`Reply`) → `onReply(senderName)`.
-  - **Copy text** (`Copy`) → `onCopyText()`.
-  - **Macros** (`Sparkles`/`Zap`, `disabled`, tooltip "Macros — coming soon").
-  - **Message info** (`Info`) → `onInfo()`.
-  - **Delete** (`Trash2`, `disabled`, tooltip "Delete — coming soon").
-  - **Overflow** (`MoreHorizontal`) → `onOverflow(message, rect)`.
-  - Icon buttons use `Tooltip`; disabled placeholders are real `disabled` buttons.
-- **`EmojiPickerPopover.tsx`** — shadcn `Popover` wrapping the frimousse-based
-  `EmojiPicker` (`components/ui/emoji-picker`). `onEmojiSelect={({ emoji }) => …}`
-  → calls `recordEmojiUse(emoji)` then `onReact(senderName, emoji)`, and closes.
-  The picker's data source is bundled locally for offline use (see §6).
-- **`frecency.ts`** — pure, unit-tested:
-  - `type EmojiUsage = Record<string, { count: number; lastUsedMs: number }>`.
-  - `scoreEmoji(entry, nowMs): number` — frecency blend of `count` and recency of
-    `lastUsedMs` (e.g. `count * recencyWeight(nowMs - lastUsedMs)`).
-  - `topEmojis(usage, nowMs, n, seed): string[]` — top-N by score; when usage has
-    fewer than N entries, backfill from `seed` (deduped, order preserved) so the
-    result always has N. `seed = ['👍','❤️','😂','😮','😢','🙏']`.
-  - `recordUsage(usage, emoji, nowMs): EmojiUsage` — increment count + set
-    `lastUsedMs` (pure; returns a new record).
-- **`paths.ts`** — pure, unit-tested path formatting for the overflow copies:
-  - `formatPathHeard(path: MessagePath): string` — hop `shortId`s joined by `,`
-    (e.g. `a1,b2,c3`). Order = origin→…→sink as stored.
-  - `formatFirstPathHeard(message): string | null` — `meta.paths?.[0]` via
-    `formatPathHeard`, else `null`.
-  - `formatAllPathsHeard(message): string | null` — each `meta.paths` entry via
-    `formatPathHeard`, one path per line (`\n`), else `null`.
-  - When there are no paths, the corresponding menu items are omitted (not
-    disabled) so the menu stays tight.
+- **`MessageQuickBar.tsx`** — the pill. Rendered by `MessageItem` for interactive rows
+  only. Absolutely positioned `top:-14px; right:12px` inside the `group` container
+  (which gains `relative`); hidden (`opacity-0 translate-y-[3px] pointer-events-none`),
+  animates in on `group-hover` over 120 ms, and stays visible while a popover is open
+  (local `open` state → `data-open`). Renders the **others** or **self** layout by
+  `isSelf`. Reads frecent emojis + `recordEmojiUse` from the store; receives
+  message-scoped callbacks from `RowContext`.
+- **`EmojiPickerPopover.tsx`** — shadcn `Popover` (`side="top" align="end"
+  sideOffset={8}`, 258px) containing: a frecency **"Frequently used"** row, the
+  **frimousse** `EmojiPicker` (search + grid), and the footer note "Adds `@mention` +
+  emoji to your reply — no separate reaction packet." `onEmojiSelect({ emoji })` →
+  `recordEmojiUse(emoji)` + `onReact(sender, emoji)` + close.
+- **`MessageInfoPopover.tsx`** — the Info popover (288px) for any message (see §6).
+- **`MacroPanel.tsx`** — the all-macros "soon" popover (see §8).
+- **`OverflowMenu.tsx`** — the merged `⋯` menu rendered in a `Popover` (see §7).
+- **`frecency.ts`** — pure, unit-tested: `EmojiUsage = Record<string, { count; lastUsedMs
+  }>`; `scoreEmoji(entry, now)`; `topEmojis(usage, now, n, seed)` (top-N by score,
+  backfilled from `seed` to always return N, deduped/order-preserved); `recordUsage(usage,
+  emoji, now)`. `SEED = ['👍','✅','📡','🔋','😂','❤️']`.
+- **`paths.ts`** — pure, unit-tested: `formatPathHeard(path)` (hop `shortId`s joined by
+  `,`); `formatFirstPathHeard(message)` (paths[0] or null); `formatAllPathsHeard(message)`
+  (each path per line, or null). No-path → the item is omitted.
+- **`quickBarData.ts`** — the seed macro list (`ACK`, `Copy that`, `SNR?`, `Relaying`,
+  `QSY 910.5`, `ETA`) used by the "soon" macro UI.
 
-### 2. Composer — `insertReaction`
+### 2. QuickBar contents & styling (per handoff README)
 
-Extend `ComposerHandle` ([Composer.tsx](../../../src/renderer/components/Composer.tsx))
-with `insertReaction(senderName: string, emoji: string)`, analogous to
-`insertMention`: inserts `@[senderName] <emoji> ` at the caret (leading-space
-handling + caret restoration on the next frame). Reuses the same
-draft/`setValue` mechanics, so it persists to `ui.drafts` and survives view
-switches like any draft. Reply continues to use `insertMention`.
+- **Pill:** `flex items-center gap-1 rounded-lg border border-cs-border-strong bg-cs-bg-3
+  p-1 px-1.5` + elevated shadow. Vertical `Separator` (`h-6 bg-cs-border`) between groups.
+- **Others (left→right):** `ReactionRow` (5 ghost `icon-xs` emoji buttons, tooltip
+  "Reply with {emoji}") + picker `＋` (ghost `icon-xs`) │ sep │ **Reply** (`secondary`,
+  `h-7 px-2.5 text-[12px]`, reply icon + label) │ 2 `MacroChip`s + all-macros `⋯` (ghost
+  `icon-xs`) │ sep │ **Copy** (ghost `icon-sm`, tooltip) │ **More** `⋯` (ghost `icon-sm`).
+- **Self:** **Copy** (`secondary`, `h-7`, copy icon + "Copy") │ **Info** (ghost `icon-sm`)
+  │ **Delete** (ghost `icon-sm`, `text-cs-danger hover:bg-cs-danger/10`).
+- **Icons:** lucide (`SmilePlus`/`Plus`, `Reply`, `Copy`, `Info`, `Trash2`,
+  `MoreHorizontal`, `Zap` for macro bolt, `KeyRound`, `MapPin`). Icon-only buttons get a
+  `Tooltip` (~150 ms).
+- Only one popover open per row at a time; open state pins the bar visible.
 
-### 3. `MessageItem` — mount the bar; retire the reply button
+### 3. Reactions: inline frecent row + frimousse picker (offline via emojibase-data)
 
-- Render `<MessageQuickBar …/>` inside the `group` container
-  ([MessageItem.tsx:137-164](../../../src/renderer/components/MessageItem.tsx))
-  **only when `interactive`** (i.e. `onSelect != null`), so Unreads previews are
-  unaffected.
-- **Remove** the standalone rich-mode reply button
-  ([MessageItem.tsx:101-114](../../../src/renderer/components/MessageItem.tsx));
-  Reply now lives in the bar. Keep the `canReply` gate logic (name present, not
-  self, `onReply` wired) to decide whether the bar shows Reply.
-- New props on `MessageItem`/`MessageRow` to carry the bar callbacks
-  (`onReact`, `onCopyText`, `onInfo`, `onOverflow`) — threaded from `RowContext`
-  exactly like `onReply`/`onSelect` today.
-
-### 4. `MessageList` — row context, shared menu, new copy actions
-
-- Extend `RowContext` with `onReact(name, emoji)`, `onOverflow(m, rect)` (and pass
-  through `onCopyText`/`onInfo`, or derive them in the row from existing
-  `onSelect`/`copyToClipboard`). `onInfo` = `onSelect(m.id)` (opens the right-rail
-  detail). `onCopyText` = `copyToClipboard(m.body)` + a `sonner` "Copied" toast.
-- **One shared menu.** `onOverflow(m, rect)` sets the same `menu` state used by
-  right-click (`setMenu({ message, x, y })`, computing `x/y` from the button
-  rect), so the `⋯` button and right-click render the identical `ContextMenu`.
-- Extend `buildMessageMenuItems` with:
-  - **View contact** — already present (jump to sender's conversation via
-    `setActiveKey('c:<pk>')`); keep.
-  - **Copy first path heard** — shown when `formatFirstPathHeard(message)` is
-    non-null; copies it (comma-separated `shortId`s) + toast.
-  - **Copy all paths heard** — shown when `formatAllPathsHeard(message)` is
-    non-null; copies it (one path per line) + toast.
-  - Existing Copy text / Re-send / Block sender remain.
-
-### 5. Store — `emojiUsage` (account-global)
-
-- Add `emojiUsage: Record<string, { count: number; lastUsedMs: number }>` to
-  `UiState` and `DEFAULT_UI_STATE` (default `{}`) in
-  [src/shared/types.ts](../../../src/shared/types.ts).
-- Add a `recordEmojiUse(emoji: string)` store action that updates
-  `ui.emojiUsage` via `frecency.recordUsage` — mutating `ui` triggers the existing
-  debounced `putUiState` (persist + broadcast) automatically.
-- Add `emojiUsage` to the **account-global whitelist** in `applyUiState`
-  ([store.ts:710](../../../src/renderer/lib/store.ts)) — both the `same`
-  idempotency check and the merged object — so it stays consistent across the
-  Electron window and any web client, matching `pinned`/`recentKeys`.
-- The quick-react row + picker read `topEmojis(ui.emojiUsage, now, N, SEED)`.
-  `now` is read at render (usage recency only affects ordering, not correctness).
-
-### 6. shadcn emoji-picker (frimousse) + offline data
-
-- Add the shadcn `emoji-picker` component
-  (`src/renderer/components/ui/emoji-picker.tsx`) and the `frimousse` dependency.
-  Style it with `cs-*` tokens to match the app; compose inside our `Popover`
-  (`EmojiPicker` + `EmojiPickerSearch` + `EmojiPickerContent` + optional
-  `EmojiPickerFooter`). `onEmojiSelect` yields `{ emoji }`.
+- Add **`frimousse`** (shadcn `emoji-picker` component at
+  `src/renderer/components/ui/emoji-picker.tsx`) and **`emojibase-data`** dependencies.
 - **Offline data (decided):** frimousse fetches `${emojibaseUrl}/${locale}/${file}.json`
-  (`data.json` + `messages.json`), default `emojibaseUrl =
-  "https://cdn.jsdelivr.net/npm/emojibase-data"`. Since the app must work offline
-  (mesh/radio context), **bundle the `en` emojibase files under `resources/emoji/`**
-  (mirroring `resources/tiles/`), ship them as an `extraResource`, serve them from
-  the main Hono server (e.g. `GET /api/emoji/:locale/:file`), and set the picker's
-  `emojibaseUrl` to that local route. ~1.5 MB JSON total (`data.json` ≈ 1.5 MB,
-  `messages.json` ≈ 25 KB) — plain text, so git LFS is optional. Verify the exact
-  files frimousse requests via the dev network tab during planning.
+  (`en/data.json` + `en/messages.json`). Since the renderer is HTTP-served by the app, we
+  **copy those two files out of the `emojibase-data` package into the Vite renderer output
+  at build time** (e.g. `vite-plugin-static-copy` reading `node_modules/emojibase-data/en/*`
+  → `emoji/en/*`), and set `emojibaseUrl` to that origin path
+  (`new URL('emoji', window.location.origin).toString()`). This uses the npm package as
+  the single, version-pinned source of truth (no hand-copied JSON, nothing generated
+  committed) and **needs no `resources/` extraResource or bespoke Hono route** — Vite's
+  emitted assets are already served. Verify the exact requested files via the dev network
+  tab during planning; add the `en` copy only (skip other locales).
+- Inline `ReactionRow` = `topEmojis(emojiUsage, now, 5, SEED)`; the picker's "Frequently
+  used" row uses the same. Selecting an emoji anywhere → `recordEmojiUse(emoji)` +
+  `onReact`.
 
-### 7. Wiring in `ChannelView` / `DMView`
+### 4. Reply / react / macro → composer + reply chip
 
-Both views already hold `composerRef` and pass `onReply`. Add:
-`onReact={(name, emoji) => composerRef.current?.insertReaction(name, emoji)}`,
-threaded through `MessageList` → `RowContext` → `MessageItem` → `MessageQuickBar`
-(same pattern as `onReply`). No new view state. When the composer is disabled
-(e.g. channel not on device), react/reply still write to the persisted draft
-(harmless; consistent with today's reply button behavior).
+- `ChannelView`/`DMView` gain `replyingTo: Message | null` local state (pane-level, not
+  persisted) and pass it + handlers down.
+- Handlers (all preserve the existing draft by inserting at the caret, reusing
+  `insertMention`'s leading-space logic):
+  - **react(m, emoji):** `setReplyingTo(m)` + `composer.insertReaction(sender, emoji)`
+    (inserts `@[sender] emoji `) + focus.
+  - **reply(m):** `setReplyingTo(m)` + `composer.insertMention(sender)` (`@[sender] `;
+    no-op leading token if the draft already starts with it) + focus.
+  - **macro(m, macro):** "soon" — no-op in v1 (the macro UI is a disabled placeholder).
+    (When macros land: `insertReaction`-style insert of `@[sender] {macro.text} `.)
+- **Reply-context chip** (in `Composer`, above the input, shown when `replyingTo`):
+  `bg-cs-accent-soft text-cs-accent` pill "↩ Replying to **@{sender}**" + a clear (`✕`)
+  control. Clearing removes `replyingTo` only (does **not** wipe the draft — a
+  deliberate adaptation of the handoff's replace-model to the app's draft-backed
+  composer). `replyingTo` also clears on successful send.
+
+### 5. Composer changes
+
+- Extend `ComposerHandle` with `insertReaction(senderName, content)` (inserts
+  `@[senderName] content ` at the caret; same mechanics as `insertMention`).
+- Add optional props `replyingTo?: { name: string } | null` and `onClearReply?: () =>
+  void`; render the reply-context chip when set. Keep the **132** limit and existing
+  airtime/counter UI. `onSend` clears `replyingTo` via the view.
+
+### 6. Message Info popover (all messages)
+
+`MessageInfoPopover` (288px, `side="top" align="end"`), built with existing `KeyValueRow`:
+- Header "MESSAGE INFO"; body-preview box (`border cs-border`, `bg-cs-bg-3`).
+- Rows: **From** (resolved sender name or "You"), **Public key** (`fromPublicKeyHex`,
+  mono; "—" for self/unknown), **Hops** (`firstPathStats(m).hops`, mono), **RSSI / SNR**
+  (`meta.rssi`/`meta.snr`, mono, shown when present), **State** (`m.state`, mono).
+- **PATH** section (when `meta.paths?.[0]`): one numbered row per hop, `hop.name ??
+  hop.shortId` (mono). Reuses the same hop data as `HeardVia`.
+- Available on every message (Info button on self; for others it's reachable — see §7
+  note). Read-only; no new IPC.
+
+### 7. Overflow (`⋯`) menu — merged
+
+`OverflowMenu` rendered in a `Popover` (`side="top" align="end"`, ~216px), item list
+shared with the right-click `ContextMenu` via one builder. Items (others' messages):
+- **View contact** — `setActiveKey('c:<pk>')` (real pubkey only).
+- **Copy public key** — `copyToClipboard(fromPublicKeyHex)` + toast.
+- **Copy first path heard** — `formatFirstPathHeard(m)` (shown only when non-null) + toast.
+- **Copy all paths heard** — `formatAllPathsHeard(m)` (shown only when non-null) + toast.
+- *(divider)* **Dismiss locally** — destructive, **"soon"** (disabled, opacity-45, "soon"
+  badge); eventual local-only removal.
+- Existing **Re-send** (failed) / **Block sender…** retained.
+- Menu row styling per handoff `MoreList` (destructive = `cs-danger`; "soon" =
+  disabled + badge).
+
+> Info for others: since the inline bar for others has no Info button (handoff), the Info
+> popover is still reachable via the existing right-rail message detail and (optionally) an
+> Info row could be added to this overflow — decide during planning; not required for v1.
+
+### 8. Macros — "soon" placeholder
+
+- **Inline chips:** first 2 seed macros as `MacroChip`s (bolt icon + label), rendered
+  disabled/"soon".
+- **All-macros popover** (`MacroPanel`, 244px): header "REPLY MACROS" + outline **"soon"**
+  badge; rows list the 6 seed macros (label + mono description), non-interactive.
+- No macro insert wiring in v1 (the future macros feature adds it).
+
+### 9. Store — `emojiUsage` (account-global)
+
+- Add `emojiUsage: Record<string, { count: number; lastUsedMs: number }>` to `UiState` +
+  `DEFAULT_UI_STATE` (`{}`) in [src/shared/types.ts](../../../src/shared/types.ts).
+- Add `recordEmojiUse(emoji)` (via `frecency.recordUsage`) — mutating `ui.emojiUsage`
+  triggers the existing debounced `putUiState` (persist + broadcast).
+- Add `emojiUsage` to the account-global whitelist in `applyUiState`
+  ([store.ts:710](../../../src/renderer/lib/store.ts)) — both the `same` idempotency
+  check and the merged object.
+
+### 10. Wiring in `ChannelView` / `DMView`
+
+Both hold `composerRef` + `replyingTo` state. Thread through `MessageList` → `RowContext`
+→ `MessageItem` → `MessageQuickBar`: `onReact(name, emoji)`, `onReply(name)` (exists),
+`onCopyText(m)`, `onInfo(m)` (opens the Info popover — a bar-local popover, so mostly
+self-contained), `onOverflow` handlers (view contact, copy key, copy paths, dismiss). Pass
+`replyingTo`/`onClearReply` to `Composer`. Retire the standalone rich reply button in
+`MessageItem`.
 
 ## Data flow (end to end)
 
-1. User hovers a message row → `MessageQuickBar` fades in (top-right overlay).
-2. **Quick-react:** click a pinned emoji → `recordEmojiUse(emoji)` (updates
-   `ui.emojiUsage` → debounced persist/broadcast) → `onReact(senderName, emoji)` →
-   `composer.insertReaction` inserts `@[sender] <emoji> ` into the focused
-   composer. User reviews and presses Enter to send it as a normal mesh message.
-3. **Picker:** click React → `Popover` opens the frimousse picker (bar stays
-   visible while open) → select → same `recordEmojiUse` + `insertReaction` path,
-   popover closes.
-4. **Reply:** `onReply(senderName)` → `composer.insertMention`.
-5. **Copy text:** `copyToClipboard(body)` + "Copied" toast.
-6. **Message info:** `onSelect(id)` opens the right-rail path/RSSI detail.
-7. **Overflow `⋯`:** opens the shared `ContextMenu` at the button — View contact,
-   Copy first path heard, Copy all paths heard, Re-send (failed), Block sender.
-8. **Macros / Delete:** disabled buttons with "coming soon" tooltips.
-9. Auto-pins recompute from `ui.emojiUsage` as usage grows; empty/sparse usage
-   backfills from the seed set so the row is always full.
+1. Hover a row → `MessageQuickBar` fades in (120 ms), author-aware contents.
+2. **Quick-react / picker emoji** → `recordEmojiUse(emoji)` (persist/broadcast) →
+   `setReplyingTo(m)` + `insertReaction(sender, emoji)` → composer shows `@[sender] 🫡 `
+   + the reply chip. Enter sends a normal mesh message; send clears `replyingTo`.
+3. **Reply** → `setReplyingTo(m)` + `insertMention(sender)` + chip.
+4. **Copy** → clipboard + toast. **Info** → Info popover from message fields.
+5. **Overflow `⋯`** → View contact / Copy public key / Copy first/all paths / Dismiss
+   (soon).
+6. **Macros / Delete / Dismiss** → non-interactive "soon" placeholders.
+7. Inline quick-react set recomputes from `emojiUsage` (top-5, seeded) as usage grows.
 
 ## Testing strategy (TDD)
 
-- **Unit — `frecency.ts`:** score ordering (count vs recency), `topEmojis`
-  top-N + seed backfill + dedupe + stable order, `recordUsage` increments +
-  timestamp, empty-usage → full seed.
-- **Unit — `paths.ts`:** `formatPathHeard` comma join in hop order;
-  `formatFirstPathHeard`/`formatAllPathsHeard` incl. no-paths → `null` (menu items
-  omitted); multi-path newline formatting.
-- **DOM — quick bar:** bar hidden by default, revealed on hover; clicking a
-  quick-react emoji calls `onReact(senderName, emoji)` and records usage; opening
-  the picker + selecting inserts into the composer + records usage; Copy text
-  writes the body + toast; Reply inserts the mention; overflow opens the menu with
-  the path-copy items; Macros/Delete are `disabled`; Unreads previews render no
-  bar. Use `flushSync` in the harness per the project's DOM-test timing note.
-- **DOM — composer:** `insertReaction` inserts `@[name] <emoji> ` at the caret and
-  updates the draft.
-- Baseline before/after: `pnpm typecheck` + `pnpm test` (green). Scope Biome to
-  `src tests` per repo memory.
+- **Unit — `frecency.ts`:** score ordering (count vs recency), `topEmojis` top-N + seed
+  backfill + dedupe/order, `recordUsage` increment + timestamp, empty-usage → full seed.
+- **Unit — `paths.ts`:** comma-join order; first/all/no-path (null → omitted); multi-path
+  newlines.
+- **DOM — QuickBar:** hidden by default, revealed on hover; **others** vs **self**
+  contents; quick-react click records usage + inserts `@[sender] emoji ` + sets the chip;
+  picker select likewise; Reply inserts the mention; Copy → clipboard + toast; overflow
+  items fire (view contact / copy key / copy paths); Info popover shows the right fields;
+  macros/dismiss are disabled "soon"; Unreads previews render no bar; bar stays open while
+  a popover is open. Use `flushSync` per the project's DOM-test timing note.
+- **DOM — Composer:** `insertReaction` inserts at caret preserving a draft; reply chip
+  shows/clears; clear keeps the draft.
+- Baseline before/after: `pnpm typecheck` + `pnpm test` (green). Scope Biome to `src tests`.
 
 ## Open items to confirm during planning
 
-- **Mockup:** `Message Actions - Quick Bar.html` (project `019dff75-…`) is the
-  visual source of truth for exact button order, inline quick-react count, spacing,
-  and hover styling. It **cannot be pulled in a non-interactive session** —
-  DesignSync needs interactive `/design-login`, and `claude.ai/design` 403s to
-  curl/WebFetch (the file is served through the authenticated design MCP API, not
-  as a static page). Obtain it via Claude Design "Send to Claude Code Web", an
-  interactive `/design-login` + DesignSync import, or by saving the exported HTML
-  into the repo.
-- **frimousse offline data:** approach decided (bundle `en` under
-  `resources/emoji/`, serve via main, set `emojibaseUrl`). Remaining: confirm the
-  exact file names frimousse requests (`data.json`/`messages.json`) and the shadcn
-  `emoji-picker` install specifics via Context7.
+- **frimousse specifics:** confirm the shadcn `emoji-picker` install; confirm the exact
+  files/paths frimousse requests (`en/data.json`, `en/messages.json`) via the dev network
+  tab; confirm `vite-plugin-static-copy` (or a small custom copy step) as the emit
+  mechanism and that a `window.location.origin`-based `emojibaseUrl` resolves in dev + prod.
+- **Info-for-others placement:** whether to add an Info row to the overflow menu for
+  others' messages, or rely on the right-rail detail (not required for v1).
 - **`settingsStore` persistence:** confirm `loadUiState`/`saveUiState`
-  ([src/main/storage/settings.ts](../../../src/main/storage/settings.ts)) persists
-  new/unknown `UiState` fields generically, or add `emojiUsage` to its schema.
-- **Path-copy format:** confirmed — comma-separated hop `shortId`s (first path) and
-  newline-separated paths (all).
-- **132-char cap:** inserting `@[LongName] 😀` consumes the message budget (emoji =
-  multiple UTF-16 units); the composer already warns near the limit. Confirm this
-  is acceptable (no special handling planned).
-- **Delete semantics (future):** when local-DB delete lands, Delete performs a
-  local delete of any message (removed from history + rendered list; never
-  transmitted).
+  ([src/main/storage/settings.ts](../../../src/main/storage/settings.ts)) persists new
+  `UiState` fields generically, or add `emojiUsage` to its schema.
+- **Reply-chip lifecycle edge cases:** stale chip if the user deletes the mention text
+  (cleared on send regardless) — acceptable for v1.
+- **132-char interaction:** `@[LongName] 😀` consumes the budget (emoji = multiple UTF-16
+  units); the composer already warns near the limit — no special handling planned.
 
 ## File-by-file change list
 
 **Add**
 - `src/renderer/features/message-actions/MessageQuickBar.tsx`
 - `src/renderer/features/message-actions/EmojiPickerPopover.tsx`
+- `src/renderer/features/message-actions/MessageInfoPopover.tsx`
+- `src/renderer/features/message-actions/MacroPanel.tsx`
+- `src/renderer/features/message-actions/OverflowMenu.tsx`
 - `src/renderer/features/message-actions/frecency.ts` (+ unit test)
 - `src/renderer/features/message-actions/paths.ts` (+ unit test)
+- `src/renderer/features/message-actions/quickBarData.ts` (seed macros)
 - `src/renderer/components/ui/emoji-picker.tsx` (shadcn/frimousse)
-- `resources/emoji/en/data.json`, `resources/emoji/en/messages.json` (bundled
-  emojibase data; git LFS optional)
 
 **Modify**
-- `forge.config.ts` (`extraResource` for `resources/emoji`)
-- `src/main/api/*` (serve `GET /api/emoji/:locale/:file` from `resources/emoji`)
-- `src/renderer/components/MessageItem.tsx` (mount `MessageQuickBar` for
-  interactive rows; remove the standalone reply button; new callback props)
-- `src/renderer/components/MessageRow.tsx` (thread new callbacks)
-- `src/renderer/components/MessageList.tsx` (`RowContext` gains `onReact`/
-  `onOverflow`/`onInfo`/`onCopyText`; `⋯` opens the shared `ContextMenu`; extend
-  `buildMessageMenuItems` with the two path-copy items)
-- `src/renderer/components/Composer.tsx` (`insertReaction` on `ComposerHandle`)
-- `src/renderer/panels/ChannelView.tsx` (`onReact` wiring)
-- `src/renderer/panels/DMView.tsx` (`onReact` wiring)
+- `src/renderer/components/MessageItem.tsx` (mount `MessageQuickBar` for interactive rows;
+  add `relative`; remove the standalone reply button; new callback props)
+- `src/renderer/components/MessageRow.tsx` (thread new callbacks + frecency)
+- `src/renderer/components/MessageList.tsx` (`RowContext` gains `onReact`/`onCopyText`/
+  `onInfo`/overflow handlers; shared overflow item builder with right-click `ContextMenu`)
+- `src/renderer/components/Composer.tsx` (`insertReaction`; reply-context chip;
+  `replyingTo`/`onClearReply` props)
+- `src/renderer/panels/ChannelView.tsx` (`replyingTo` state + react/reply wiring)
+- `src/renderer/panels/DMView.tsx` (same)
 - `src/renderer/lib/store.ts` (`recordEmojiUse`; add `emojiUsage` to `applyUiState`
   whitelist + idempotency check)
 - `src/shared/types.ts` (`UiState.emojiUsage` + `DEFAULT_UI_STATE`)
 - `src/main/storage/settings.ts` (only if it validates/whitelists `UiState` fields)
-- `package.json` (`frimousse` dependency)
+- `vite.renderer.config.mts` (static-copy of `emojibase-data/en/*` into the renderer
+  output)
+- `package.json` (`frimousse`, `emojibase-data`, and the copy plugin deps)
