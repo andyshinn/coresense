@@ -758,6 +758,13 @@ export type LeftNavGroupId = 'channels' | 'contacts' | 'chat' | 'repeater' | 'ro
 
 export type ThemePref = 'auto' | 'dark' | 'light';
 
+/** Per-emoji usage for frecency-based quick-react pinning. Account-global. */
+export interface EmojiUse {
+  count: number;
+  lastUsedMs: number;
+}
+export type EmojiUsage = Record<string, EmojiUse>;
+
 export interface UiState {
   activeKey: string;
   pinned: string[]; // keys in pin order (channel + contact keys)
