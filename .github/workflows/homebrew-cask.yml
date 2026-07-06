@@ -42,7 +42,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
-        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'CoreSense-*-universal.dmg' --dir dist
+        run: |
+          # The `prereleased` webhook can fire before ci.yml's
+          # softprops/action-gh-release finishes uploading the (large) asset set,
+          # so poll until the universal DMG appears rather than failing on the
+          # first miss. Stable releases publish already-complete, so this is a
+          # no-op there (succeeds on attempt 1).
+          for attempt in $(seq 1 10); do
+            if gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --pattern 'CoreSense-*-universal.dmg' --dir dist --clobber; then
+              echo "Downloaded universal DMG on attempt ${attempt}."
+              exit 0
+            fi
+            echo "Universal DMG not available yet (attempt ${attempt}/10); waiting 15s…"
+            sleep 15
+          done
+          echo "CoreSense universal DMG never appeared for ${TAG}" >&2
+          exit 1
 
       - name: Update cask
         env:
