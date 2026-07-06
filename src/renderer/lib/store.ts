@@ -51,6 +51,7 @@ import {
   type UiState,
   type UpdateState,
 } from '../../shared/types';
+import { recordUsage } from '../features/message-actions/frecency';
 import { setRendererLogLevel, setRendererLogSink } from './logger';
 import type { NeighbourSortKey } from './neighbours';
 
@@ -405,6 +406,7 @@ interface CoreState {
   setRailSection: (id: string, open: boolean) => void;
   setLeftNavGroup: (id: LeftNavGroupId, open: boolean) => void;
   setDraft: (key: string, text: string) => void;
+  recordEmojiUse: (emoji: string) => void;
   setPacketLogFilter: (patch: Partial<UiState['packetLogFilter']>) => void;
   appendLog: (entry: LogEntry) => void;
   appendRendererLog: (entry: LogEntry) => void;
@@ -724,6 +726,7 @@ export const useStore = create<CoreState>((set) => ({
         shallowEqualRecord(s.ui.lastReadByKey, incoming.lastReadByKey) &&
         arraysEqual(s.ui.pinned, incoming.pinned) &&
         arraysEqual(s.ui.recentKeys, incoming.recentKeys) &&
+        shallowEqualRecord(s.ui.emojiUsage, incoming.emojiUsage) &&
         s.ui.themePref === incoming.themePref;
       if (same) return {};
       return {
@@ -732,6 +735,7 @@ export const useStore = create<CoreState>((set) => ({
           lastReadByKey: incoming.lastReadByKey,
           pinned: incoming.pinned,
           recentKeys: incoming.recentKeys,
+          emojiUsage: incoming.emojiUsage,
           themePref: incoming.themePref,
         },
       };
@@ -849,6 +853,7 @@ export const useStore = create<CoreState>((set) => ({
       else delete next[key];
       return { ui: { ...s.ui, drafts: next } };
     }),
+  recordEmojiUse: (emoji) => set((s) => ({ ui: { ...s.ui, emojiUsage: recordUsage(s.ui.emojiUsage, emoji, Date.now()) } })),
   setPacketLogFilter: (patch) => set((s) => ({ ui: { ...s.ui, packetLogFilter: { ...s.ui.packetLogFilter, ...patch } } })),
   appendLog: (entry) =>
     set((s) => {
@@ -995,7 +1000,7 @@ function arraysEqual(a: string[], b: string[]): boolean {
   return a.every((v, i) => v === b[i]);
 }
 
-function shallowEqualRecord(a: Record<string, number>, b: Record<string, number>): boolean {
+function shallowEqualRecord<T>(a: Record<string, T>, b: Record<string, T>): boolean {
   if (a === b) return true;
   const ak = Object.keys(a);
   if (ak.length !== Object.keys(b).length) return false;
