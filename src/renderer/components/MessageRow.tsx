@@ -14,6 +14,7 @@ interface Props {
   /** Caller-resolved sender display name ('' for self / unknown). */
   senderName: string;
   onReply?: (name: string) => void;
+  onReact?: (name: string, emoji: string) => void;
 }
 
 /**
@@ -32,6 +33,7 @@ export function MessageRow({
   style,
   senderName,
   onReply,
+  onReact,
 }: Props) {
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
   return (
@@ -46,6 +48,7 @@ export function MessageRow({
       onSelect={onSelect}
       onContextMenu={onContextMenu}
       onReply={onReply}
+      onReact={onReact}
     />
   );
 }

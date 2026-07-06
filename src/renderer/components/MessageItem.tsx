@@ -1,5 +1,6 @@
-import { AlertCircle, Check, Clock, Reply, Send } from 'lucide-react';
+import { AlertCircle, Check, Clock, Send } from 'lucide-react';
 import type { Message, MessageStyle, TimeFormatPref } from '../../shared/types';
+import { MessageQuickBar } from '../features/message-actions/MessageQuickBar';
 import { firstPathStats, formatPathStats, type PathStats } from '../lib/messagePath';
 import { fmtDateTime, fmtMessageTime } from '../lib/time';
 import { cn } from '../lib/utils';
@@ -25,6 +26,7 @@ export interface MessageItemProps {
   onSelect?: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   onReply?: (name: string) => void;
+  onReact?: (name: string, emoji: string) => void;
 }
 
 const STATE_LABEL: Record<Message['state'], string> = {
@@ -56,13 +58,11 @@ export function MessageItem({
   onSelect,
   onContextMenu,
   onReply,
+  onReact,
 }: MessageItemProps) {
   const interactive = onSelect != null;
   const showSenderHeaderRich = style === 'rich' && !isSelf && senderName !== '';
   const showSenderInlineCompact = style === 'compact' && !isSelf && senderName !== '';
-  // Reply-by-mention only makes sense when there's an addressable name, the
-  // message isn't from us, and the caller wired a reply handler (Unreads doesn't).
-  const canReply = !isSelf && senderName !== '' && onReply != null;
   const stats = firstPathStats(message);
 
   const boxClass = cn(
@@ -99,20 +99,6 @@ export function MessageItem({
         {showSenderHeaderRich && (
           <div className="flex flex-col items-center gap-1">
             <ContactAvatar name={senderName} size="sm" className="mt-0.5" />
-            {canReply && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onReply?.(senderName);
-                }}
-                aria-label={`Reply to ${senderName}`}
-                title={`Reply to ${senderName}`}
-                className="flex h-5 w-5 items-center justify-center rounded text-cs-text-dim opacity-0 transition-opacity hover:bg-cs-bg-3 hover:text-cs-text group-hover:opacity-100 focus:opacity-100"
-              >
-                <Reply size={11} aria-hidden="true" />
-              </button>
-            )}
           </div>
         )}
         <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
@@ -138,9 +124,18 @@ export function MessageItem({
   return (
     <div
       data-testid={interactive ? 'message-row' : undefined}
-      className="group px-3 py-0.5"
+      className="group relative px-3 py-0.5"
       data-flash={flash ? 'true' : undefined}
     >
+      {interactive && onReact && (
+        <MessageQuickBar
+          message={message}
+          isSelf={isSelf}
+          senderName={senderName}
+          onReact={onReact}
+          onReply={(name) => onReply?.(name)}
+        />
+      )}
       {interactive ? (
         // biome-ignore lint/a11y/useSemanticElements: cannot be a <button> because MentionPill renders a nested button
         <div
