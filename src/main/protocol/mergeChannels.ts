@@ -31,6 +31,7 @@ export function mergeSyncedChannels(prev: Channel[], incoming: Channel[]): Chann
       order: existing?.order ?? ch.idx,
       muted: existing?.muted,
       pinned: existing?.pinned,
+      createdAt: existing?.createdAt ?? Date.now(),
     };
   });
   // Carry over channels the radio didn't mention this pass (see the union note

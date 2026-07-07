@@ -80,6 +80,9 @@ export interface Channel {
   /** User-defined sort order in the LeftNav. Seeded from `idx` on first sync;
    *  thereafter set explicitly by drag-reorder. Lower = higher in the list. */
   order?: number;
+  /** App-owned: epoch ms when this channel was first added (user create or
+   *  first radio-sync). Absent on channels created before this field existed. */
+  createdAt?: number;
 }
 
 export type ContactKind = 'chat' | 'repeater' | 'sensor' | 'room';

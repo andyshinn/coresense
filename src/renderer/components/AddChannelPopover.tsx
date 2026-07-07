@@ -162,7 +162,7 @@ export function AddChannelPopover({ client, onClose }: Props) {
             };
             setView(next);
             try {
-              const channel: Channel = { key: 'ch:Public', name: 'Public', kind: 'public' };
+              const channel: Channel = { key: 'ch:Public', name: 'Public', kind: 'public', createdAt: Date.now() };
               await submit(channel, 'Public');
             } catch (err) {
               setView({ ...next, submitting: false, error: (err as Error).message });
@@ -211,14 +211,14 @@ export function AddChannelPopover({ client, onClose }: Props) {
     const key = `ch:${name}`;
     let channel: Channel;
     if (formView.type === 'create-private') {
-      channel = { key, name, kind: 'private', secretHex: generate16ByteHex() };
+      channel = { key, name, kind: 'private', secretHex: generate16ByteHex(), createdAt: Date.now() };
     } else if (formView.type === 'join-private') {
-      channel = { key, name, kind: 'private', secretHex: normalizeHex(formView.secretHex) };
+      channel = { key, name, kind: 'private', secretHex: normalizeHex(formView.secretHex), createdAt: Date.now() };
     } else if (formView.type === 'join-hashtag') {
-      channel = { key, name, kind: 'hashtag' };
+      channel = { key, name, kind: 'hashtag', createdAt: Date.now() };
     } else {
       // join-public: name is fixed to 'Public', secret omitted (server derives)
-      channel = { key: 'ch:Public', name: 'Public', kind: 'public' };
+      channel = { key: 'ch:Public', name: 'Public', kind: 'public', createdAt: Date.now() };
     }
 
     try {
