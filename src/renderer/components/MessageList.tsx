@@ -9,11 +9,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Contact, Message, MessageStyle, Owner } from '../../shared/types';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
+import { fmtDate } from '../lib/time';
 import { deriveSenderName } from '../lib/utils';
 import { VIRTUOSO_LICENSE_KEY } from '../lib/virtuosoLicense';
 import { BlockSenderDialog, type BlockSenderDialogPrefill } from './BlockSenderDialog';
 import { ContextMenu, type ContextMenuEntry, copyToClipboard, menuItem, menuSeparator } from './ContextMenu';
+import { MessageDivider } from './MessageDivider';
 import { MessageRow } from './MessageRow';
+import { buildAppended, buildItems, buildPrepended, computeFirstUnreadIdx, type Item } from './messageListItems';
 
 interface Props {
   conversationKey: string;
@@ -34,10 +37,6 @@ interface Props {
   onJumpConsumed?: () => void;
 }
 
-type DividerItem = { kind: 'divider'; id: '__unread__' };
-type MessageItem = { kind: 'msg'; m: Message };
-type Item = DividerItem | MessageItem;
-
 interface RowContext {
   ownerPk: string | undefined;
   contactByPk: Map<string, Contact>;
@@ -55,24 +54,6 @@ interface MessageMenuState {
   y: number;
 }
 
-function computeFirstUnreadIdx(messages: Message[], cutoff: number): number {
-  if (!cutoff) return -1;
-  for (let i = 0; i < messages.length; i++) {
-    if (messages[i].ts > cutoff && messages[i].fromPublicKeyHex !== undefined) return i;
-  }
-  return -1;
-}
-
-function buildItems(messages: Message[], firstUnreadIdx: number): Item[] {
-  if (firstUnreadIdx < 0) return messages.map((m) => ({ kind: 'msg', m }));
-  const items: Item[] = [];
-  for (let i = 0; i < messages.length; i++) {
-    if (i === firstUnreadIdx) items.push({ kind: 'divider', id: '__unread__' });
-    items.push({ kind: 'msg', m: messages[i] });
-  }
-  return items;
-}
-
 function initialLocationFor(items: Item[]) {
   const dividerIdx = items.findIndex((i) => i.kind === 'divider');
   // `start-no-overflow` pins the divider to the top of the viewport but only
@@ -84,7 +65,8 @@ function initialLocationFor(items: Item[]) {
 }
 
 const ItemRow: ItemContent<Item, RowContext> = ({ data, context }) => {
-  if (data.kind === 'divider') return <UnreadDivider />;
+  if (data.kind === 'date') return <MessageDivider label={fmtDate(data.ts)} tone="date" />;
+  if (data.kind === 'divider') return <MessageDivider label="New" tone="accent" />;
   const m = data.m;
   const isSelf = m.fromPublicKeyHex === undefined;
   // Resolve the display name here (the row context already holds contactByPk)
@@ -217,7 +199,7 @@ export function MessageList({
       prev.length > 0 &&
       visibleMessages[prev.length - 1]?.id === prev[prev.length - 1]?.id
     ) {
-      const appended = visibleMessages.slice(prev.length).map<Item>((m) => ({ kind: 'msg', m }));
+      const appended = buildAppended(visibleMessages.slice(prev.length), prev[prev.length - 1]);
       ref.data.append(appended, ({ atBottom }) => (atBottom ? 'smooth' : false));
       return;
     }
@@ -236,9 +218,8 @@ export function MessageList({
       prev.length > 0 &&
       visibleMessages[visibleMessages.length - prev.length]?.id === prev[0]?.id
     ) {
-      const prepended = visibleMessages
-        .slice(0, visibleMessages.length - prev.length)
-        .map<Item>((m) => ({ kind: 'msg', m }));
+      const olderMsgs = visibleMessages.slice(0, visibleMessages.length - prev.length);
+      const prepended = buildPrepended(olderMsgs, prev[0]);
       ref.data.prepend(prepended);
       return;
     }
@@ -323,7 +304,7 @@ export function MessageList({
             // Defensive: Virtuoso has been observed to call this with `data`
             // undefined for a transient render window slot during replace.
             // Falling back to index keeps React from crashing the whole pane.
-            data ? (data.kind === 'msg' ? data.m.id : '__unread__') : `__pending-${index}__`
+            data ? (data.kind === 'msg' ? data.m.id : data.id) : `__pending-${index}__`
           }
           ItemContent={ItemRow}
           EmptyPlaceholder={EmptyState}
@@ -415,14 +396,4 @@ function buildMessageMenuItems({
   );
 
   return items;
-}
-
-function UnreadDivider() {
-  return (
-    <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-cs-accent">
-      <span className="h-px flex-1 bg-cs-accent/40" />
-      <span>New</span>
-      <span className="h-px flex-1 bg-cs-accent/40" />
-    </div>
-  );
 }

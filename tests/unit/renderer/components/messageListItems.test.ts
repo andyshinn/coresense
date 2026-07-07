@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { Message } from '../../../../src/shared/types';
 import {
   buildAppended,
   buildItems,
   buildPrepended,
   computeFirstUnreadIdx,
 } from '../../../../src/renderer/components/messageListItems';
+import type { Message } from '../../../../src/shared/types';
 
 const JUL2 = new Date(2026, 6, 2, 12, 0, 0).getTime();
 const JUL2_LATER = new Date(2026, 6, 2, 18, 0, 0).getTime();
