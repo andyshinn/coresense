@@ -25,31 +25,37 @@ describe('truncateBody', () => {
 
 describe('buildContent — channel', () => {
   it('macOS: channel title + sender subtitle', () => {
-    expect(buildContent({ isChannel: true, displayName: '#general', senderName: 'Alice', mention: false, body: 'hi', caps: mac }))
-      .toEqual({ title: '#general', subtitle: 'Alice', body: 'hi' });
+    expect(
+      buildContent({ isChannel: true, displayName: '#general', senderName: 'Alice', mention: false, body: 'hi', caps: mac }),
+    ).toEqual({ title: '#general', subtitle: 'Alice', body: 'hi' });
   });
   it('macOS mention: appends the mention marker to the title, sender stays in subtitle', () => {
-    expect(buildContent({ isChannel: true, displayName: '#general', senderName: 'Alice', mention: true, body: 'hi', caps: mac }))
-      .toEqual({ title: '#general • mention', subtitle: 'Alice', body: 'hi' });
+    expect(
+      buildContent({ isChannel: true, displayName: '#general', senderName: 'Alice', mention: true, body: 'hi', caps: mac }),
+    ).toEqual({ title: '#general • mention', subtitle: 'Alice', body: 'hi' });
   });
   it('Windows: folds sender into the title with a delimiter, no subtitle', () => {
-    expect(buildContent({ isChannel: true, displayName: '#general', senderName: 'Alice', mention: false, body: 'hi', caps: win }))
-      .toEqual({ title: '#general — Alice', body: 'hi' });
+    expect(
+      buildContent({ isChannel: true, displayName: '#general', senderName: 'Alice', mention: false, body: 'hi', caps: win }),
+    ).toEqual({ title: '#general — Alice', body: 'hi' });
   });
   it('Windows mention: delimiter + mention marker', () => {
-    expect(buildContent({ isChannel: true, displayName: '#general', senderName: 'Alice', mention: true, body: 'hi', caps: win }))
-      .toEqual({ title: '#general — Alice • mention', body: 'hi' });
+    expect(
+      buildContent({ isChannel: true, displayName: '#general', senderName: 'Alice', mention: true, body: 'hi', caps: win }),
+    ).toEqual({ title: '#general — Alice • mention', body: 'hi' });
   });
   it('no sender: bare channel title', () => {
-    expect(buildContent({ isChannel: true, displayName: '#general', senderName: '', mention: false, body: 'hi', caps: win }))
-      .toEqual({ title: '#general', body: 'hi' });
+    expect(
+      buildContent({ isChannel: true, displayName: '#general', senderName: '', mention: false, body: 'hi', caps: win }),
+    ).toEqual({ title: '#general', body: 'hi' });
   });
 });
 
 describe('buildContent — DM', () => {
   it('uses the contact name as title with no subtitle on any platform', () => {
-    expect(buildContent({ isChannel: false, displayName: 'Alice', senderName: '', mention: false, body: 'hi', caps: mac }))
-      .toEqual({ title: 'Alice', body: 'hi' });
+    expect(
+      buildContent({ isChannel: false, displayName: 'Alice', senderName: '', mention: false, body: 'hi', caps: mac }),
+    ).toEqual({ title: 'Alice', body: 'hi' });
   });
 });
 

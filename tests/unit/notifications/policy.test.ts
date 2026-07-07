@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import { classify, mentionsOwner, passesPolicy } from '../../../src/main/notifications/policy';
 import type { AppSettings, Message } from '../../../src/shared/types';
 import { DEFAULT_APP_SETTINGS } from '../../../src/shared/types';
-import { classify, mentionsOwner, passesPolicy } from '../../../src/main/notifications/policy';
 
 const notif: AppSettings['notifications'] = DEFAULT_APP_SETTINGS.notifications;
-const msg = (over: Partial<Message>): Message => ({ id: 'm1', key: 'ch:general', body: 'hi', ts: 1, state: 'received', ...over });
+const msg = (over: Partial<Message>): Message => ({
+  id: 'm1',
+  key: 'ch:general',
+  body: 'hi',
+  ts: 1,
+  state: 'received',
+  ...over,
+});
 
 describe('mentionsOwner', () => {
   it('matches @name, @[name], and a bare word', () => {
@@ -28,7 +35,14 @@ describe('classify', () => {
 });
 
 describe('passesPolicy', () => {
-  const base = { notifications: notif, ownerName: 'bob', contactKind: undefined, muted: false, blocked: false, focused: false };
+  const base = {
+    notifications: notif,
+    ownerName: 'bob',
+    contactKind: undefined,
+    muted: false,
+    blocked: false,
+    focused: false,
+  };
   it('shows a DM by default', () => {
     expect(passesPolicy({ ...base, msg: msg({ key: 'c:aa' }), contactKind: 'chat' }).show).toBe(true);
   });

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Message } from '../../../src/shared/types';
 import { createAggregator, type StaleDescriptor } from '../../../src/main/notifications/aggregator';
+import type { Message } from '../../../src/shared/types';
 
 const NOW = 1_000_000_000_000;
 const config = { staleThresholdMs: 5 * 60_000, flushDelayMs: 1_000, rollupCap: 5 };
