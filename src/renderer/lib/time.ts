@@ -60,3 +60,9 @@ export function fmtRelative(ts: number, now: number = Date.now()): string {
   }
   return 'just now';
 }
+
+// Calendar date without time — "Nov 14, 2023". Used for durable "Added on" /
+// "First seen" anchors where a relative label would read oddly.
+export function fmtDate(ts: number): string {
+  return new Date(ts).toLocaleDateString(undefined, { dateStyle: 'medium' });
+}
