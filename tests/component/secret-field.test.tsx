@@ -9,7 +9,9 @@ describe('SecretField', () => {
     render(<SecretField secretHex={SECRET} />);
     expect(screen.queryByText(SECRET)).toBeNull();
     fireEvent.click(screen.getByLabelText('Reveal secret'));
-    expect(screen.getByText(SECRET)).toBeTruthy();
+    const revealedElement = screen.getByText(SECRET);
+    expect(revealedElement).toBeTruthy();
+    expect(revealedElement.className).toContain('whitespace-normal');
   });
 
   it('offers a copy control', () => {

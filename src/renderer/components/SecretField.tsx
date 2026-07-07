@@ -9,7 +9,7 @@ export function SecretField({ secretHex }: { secretHex: string }) {
   const [revealed, setRevealed] = useState(false);
   return (
     <span className="inline-flex items-center gap-1">
-      <code className={cn('font-mono text-[11px] text-cs-text', revealed ? 'break-all' : 'truncate')}>
+      <code className={cn('font-mono text-[11px] text-cs-text', revealed ? 'whitespace-normal break-all' : 'truncate')}>
         {revealed ? secretHex : '•'.repeat(12)}
       </code>
       <button
