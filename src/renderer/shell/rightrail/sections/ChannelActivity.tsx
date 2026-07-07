@@ -24,7 +24,8 @@ export function ChannelActivityBody({
 }) {
   if (!stats) return <Placeholder label={loading ? 'loading…' : 'no activity yet'} />;
 
-  const spanDays = stats.firstTs && stats.lastTs ? Math.max(1, Math.round((stats.lastTs - stats.firstTs) / DAY)) : 0;
+  const spanDays =
+    stats.firstTs != null && stats.lastTs != null ? Math.max(1, Math.round((stats.lastTs - stats.firstTs) / DAY)) : 0;
   const perDayAvg = spanDays ? (stats.count / spanDays).toFixed(1) : '0';
 
   return (
@@ -40,7 +41,7 @@ export function ChannelActivityBody({
       <div className="text-cs-text">{`${stats.count24h} in 24h · ${stats.count7d} in 7d`}</div>
       <Sparkline data={stats.perDay} className="text-cs-accent" />
       <div className="text-[10px] text-cs-text-dim">
-        {stats.firstTs ? `First seen ${fmtDate(stats.firstTs)} · ${spanDays}d · ~${perDayAvg}/day` : 'no history'}
+        {stats.firstTs != null ? `First seen ${fmtDate(stats.firstTs)} · ${spanDays}d · ~${perDayAvg}/day` : 'no history'}
       </div>
     </div>
   );

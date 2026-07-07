@@ -36,10 +36,10 @@ export function ChannelInfoBody({
       <KeyValueRow label="Slot" value={typeof channel.idx === 'number' ? channel.idx : 'not synced'} mono />
       <KeyValueRow
         label="Added"
-        value={channel.createdAt ? <RelativeTime ts={channel.createdAt} /> : 'unknown'}
-        title={channel.createdAt ? fmtDate(channel.createdAt) : undefined}
+        value={channel.createdAt != null ? <RelativeTime ts={channel.createdAt} /> : 'unknown'}
+        title={channel.createdAt != null ? fmtDate(channel.createdAt) : undefined}
       />
-      <KeyValueRow label="Last active" value={lastActiveTs ? <RelativeTime ts={lastActiveTs} /> : '—'} />
+      <KeyValueRow label="Last active" value={lastActiveTs != null ? <RelativeTime ts={lastActiveTs} /> : '—'} />
     </div>
   );
 }
