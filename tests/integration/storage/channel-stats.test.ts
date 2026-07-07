@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { stateHolder } from '../../../src/main/state/holder';
 import { messagesStore } from '../../../src/main/storage/messages';
 import type { Message } from '../../../src/shared/types';
 
@@ -55,5 +56,18 @@ describe('messagesStore.statsByKey', () => {
       roster: [],
       perDay: [0, 0, 0, 0, 0, 0, 0],
     });
+  });
+});
+
+describe('stateHolder().getChannelStats', () => {
+  it('delegates to statsByKey for a channel', () => {
+    const ts = 1_700_000_000_000;
+    seed('ch:Holder', ts, 'name:alice', 'h1');
+    seed('ch:Holder', ts - 1000, undefined, 'h2');
+    const s = stateHolder().getChannelStats('ch:Holder');
+    expect(s.count).toBe(2);
+    expect(s.roster).toHaveLength(2);
+    expect(s.firstTs).toBe(ts - 1000);
+    expect(s.lastTs).toBe(ts);
   });
 });
