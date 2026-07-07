@@ -5,7 +5,10 @@ import type { RepeaterAdminTab } from '../../lib/store';
 import { SettingsJumpRail } from '../SettingsJumpRail';
 import { Placeholder } from './atoms';
 import { viewKindFor } from './helpers';
+import { ChannelActivitySection } from './sections/ChannelActivity';
 import { ChannelInfoSection } from './sections/ChannelInfo';
+import { ChannelPeopleSection } from './sections/ChannelPeople';
+import { ChannelShareSection } from './sections/ChannelShare';
 import { ContactDetail } from './sections/ContactDetail';
 import { ContactManagerRailBody, DiscoverySettings } from './sections/ContactManagerRail';
 import { HeardViaSection } from './sections/HeardVia';
@@ -170,17 +173,45 @@ export function sectionsFor(
   // present, so the selected neighbour's card is visible below the list.
   const baseDefaultOpen = messageSections.length === 0 && mentionedSections.length === 0;
   switch (viewKindFor(activeKey)) {
-    case 'channel':
-      return [
-        ...mentionedSections,
-        ...messageSections,
-        {
-          id: 'rail.channel.info',
-          label: 'Channel info',
-          defaultOpen: baseDefaultOpen,
-          body: () => <ChannelInfoSection channel={data.channel} client={actions.client} />,
-        },
-      ];
+    case 'channel': {
+      const ch = data.channel;
+      const channelSections: RailSection[] = ch
+        ? [
+            {
+              id: 'rail.channel.info',
+              label: 'Channel info',
+              defaultOpen: baseDefaultOpen,
+              body: () => <ChannelInfoSection channel={ch} client={actions.client} />,
+            },
+            {
+              id: 'rail.channel.activity',
+              label: 'Activity',
+              defaultOpen: false,
+              body: () => <ChannelActivitySection channel={ch} client={actions.client} />,
+            },
+            {
+              id: 'rail.channel.people',
+              label: 'People',
+              defaultOpen: false,
+              body: () => <ChannelPeopleSection channel={ch} client={actions.client} />,
+            },
+            {
+              id: 'rail.channel.share',
+              label: 'Share this channel',
+              defaultOpen: false,
+              body: () => <ChannelShareSection channel={ch} />,
+            },
+          ]
+        : [
+            {
+              id: 'rail.channel.info',
+              label: 'Channel info',
+              defaultOpen: baseDefaultOpen,
+              body: () => <ChannelInfoSection channel={null} client={actions.client} />,
+            },
+          ];
+      return [...mentionedSections, ...messageSections, ...channelSections];
+    }
     case 'dm':
     case 'repeater':
       return [
