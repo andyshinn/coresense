@@ -225,6 +225,11 @@ export function MessageList({
     }
 
     // Same length + same id ordering — likely a state-only update.
+    // Date/divider items are passed through untouched: this path only runs when
+    // ids are unchanged and in the same order, and the update paths that reach
+    // here (message state / path merges) never move a message's ts across a
+    // calendar-day boundary. Any change that reorders messages fails the id
+    // check above and falls to the replace fallback, which rebuilds separators.
     if (visibleMessages.length === prev.length && visibleMessages.every((m, i) => m.id === prev[i].id)) {
       const byId = new Map(visibleMessages.map((m) => [m.id, m]));
       ref.data.map((item) => {
