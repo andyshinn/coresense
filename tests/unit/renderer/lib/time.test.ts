@@ -38,10 +38,26 @@ describe('dayKey', () => {
   });
 });
 
+// dateStyle 'long' carries no time, so same-local-day timestamps format
+// identically and different local days format differently — assertions that
+// hold regardless of the runner's locale or calendar system (unlike a literal
+// year check, which breaks under non-Gregorian calendars or non-Latin digits).
 describe('fmtDate', () => {
-  it('formats a timestamp as a non-empty date string containing the year', () => {
+  it('formats a timestamp as a non-empty string', () => {
     const out = fmtDate(new Date(2026, 6, 2, 12, 0, 0).getTime());
     expect(typeof out).toBe('string');
-    expect(out).toContain('2026');
+    expect(out.length).toBeGreaterThan(0);
+  });
+
+  it('is identical for two times on the same local day', () => {
+    const noon = fmtDate(new Date(2026, 6, 2, 12, 0, 0).getTime());
+    const evening = fmtDate(new Date(2026, 6, 2, 23, 30, 0).getTime());
+    expect(noon).toBe(evening);
+  });
+
+  it('differs for two different local days', () => {
+    const jul2 = fmtDate(new Date(2026, 6, 2, 12, 0, 0).getTime());
+    const jul4 = fmtDate(new Date(2026, 6, 4, 12, 0, 0).getTime());
+    expect(jul2).not.toBe(jul4);
   });
 });

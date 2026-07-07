@@ -29,12 +29,15 @@ export function computeFirstUnreadIdx(messages: Message[], cutoff: number): numb
 // first message.
 export function buildItems(messages: Message[], firstUnreadIdx: number): Item[] {
   const items: Item[] = [];
+  let prevKey = 0;
   for (let i = 0; i < messages.length; i++) {
-    if (i > 0 && dayKey(messages[i].ts) !== dayKey(messages[i - 1].ts)) {
+    const key = dayKey(messages[i].ts);
+    if (i > 0 && key !== prevKey) {
       items.push(dateItem(messages[i].ts));
     }
     if (i === firstUnreadIdx) items.push(UNREAD_DIVIDER);
     items.push({ kind: 'msg', m: messages[i] });
+    prevKey = key;
   }
   return items;
 }
@@ -45,11 +48,12 @@ export function buildItems(messages: Message[], firstUnreadIdx: number): Item[] 
 // never produced here — it stays frozen at its original position above these.
 export function buildAppended(newMsgs: Message[], prevLastMsg: Message): Item[] {
   const items: Item[] = [];
-  let prevTs = prevLastMsg.ts;
+  let prevKey = dayKey(prevLastMsg.ts);
   for (const m of newMsgs) {
-    if (dayKey(m.ts) !== dayKey(prevTs)) items.push(dateItem(m.ts));
+    const key = dayKey(m.ts);
+    if (key !== prevKey) items.push(dateItem(m.ts));
     items.push({ kind: 'msg', m });
-    prevTs = m.ts;
+    prevKey = key;
   }
   return items;
 }
@@ -62,14 +66,17 @@ export function buildAppended(newMsgs: Message[], prevLastMsg: Message): Item[] 
 // it, so prepend never produces a duplicate.
 export function buildPrepended(olderMsgs: Message[], existingHeadMsg: Message): Item[] {
   const items: Item[] = [];
+  let prevKey = 0;
   for (let i = 0; i < olderMsgs.length; i++) {
-    if (i > 0 && dayKey(olderMsgs[i].ts) !== dayKey(olderMsgs[i - 1].ts)) {
+    const key = dayKey(olderMsgs[i].ts);
+    if (i > 0 && key !== prevKey) {
       items.push(dateItem(olderMsgs[i].ts));
     }
     items.push({ kind: 'msg', m: olderMsgs[i] });
+    prevKey = key;
   }
-  const lastOlder = olderMsgs[olderMsgs.length - 1];
-  if (lastOlder && dayKey(existingHeadMsg.ts) !== dayKey(lastOlder.ts)) {
+  // prevKey now holds the last older message's day (when the batch is non-empty).
+  if (olderMsgs.length > 0 && dayKey(existingHeadMsg.ts) !== prevKey) {
     items.push(dateItem(existingHeadMsg.ts));
   }
   return items;
