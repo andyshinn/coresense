@@ -723,11 +723,16 @@ export const useStore = create<CoreState>((set) => ({
       // Idempotent: when the synced subset already matches, return {} so `ui`
       // keeps its object identity and App.tsx's debounced PUT effect doesn't
       // re-fire — otherwise a client would loop forever on its own echo.
+      // Coalesce emojiUsage: a legacy or partial producer may PUT a UiState
+      // that omits it, and Object.keys(undefined) in emojiUsageEqual (or a
+      // downstream topEmojis) would otherwise throw and break the WS handler
+      // for every connected client.
+      const incomingEmojiUsage = incoming.emojiUsage ?? {};
       const same =
         shallowEqualRecord(s.ui.lastReadByKey, incoming.lastReadByKey) &&
         arraysEqual(s.ui.pinned, incoming.pinned) &&
         arraysEqual(s.ui.recentKeys, incoming.recentKeys) &&
-        emojiUsageEqual(s.ui.emojiUsage, incoming.emojiUsage) &&
+        emojiUsageEqual(s.ui.emojiUsage, incomingEmojiUsage) &&
         s.ui.themePref === incoming.themePref;
       if (same) return {};
       return {
@@ -736,7 +741,7 @@ export const useStore = create<CoreState>((set) => ({
           lastReadByKey: incoming.lastReadByKey,
           pinned: incoming.pinned,
           recentKeys: incoming.recentKeys,
-          emojiUsage: incoming.emojiUsage,
+          emojiUsage: incomingEmojiUsage,
           themePref: incoming.themePref,
         },
       };

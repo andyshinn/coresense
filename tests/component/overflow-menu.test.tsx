@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { OverflowMenu } from '@/features/message-actions/OverflowMenu';
 import { useStore } from '@/lib/store';
 import type { Message } from '../../src/shared/types';
@@ -27,6 +27,12 @@ const message: Message = {
 };
 
 describe('OverflowMenu', () => {
+  // Restore the clipboard we stub below so it doesn't leak into later tests.
+  const originalClipboard = navigator.clipboard;
+  afterEach(() => {
+    Object.assign(navigator, { clipboard: originalClipboard });
+  });
+
   test('copies the public key', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useStore } from '../../../../src/renderer/lib/store';
-import { DEFAULT_UI_STATE } from '../../../../src/shared/types';
+import { DEFAULT_UI_STATE, type UiState } from '../../../../src/shared/types';
 
 describe('recordEmojiUse', () => {
   beforeEach(() => {
@@ -35,5 +35,14 @@ describe('applyUiState merges emojiUsage (account-global)', () => {
     const incoming = { ...DEFAULT_UI_STATE, emojiUsage: { '🔥': { count: 3, lastUsedMs: 42 } } };
     useStore.getState().applyUiState(incoming);
     expect(useStore.getState().ui).toBe(before); // identity preserved -> App effect won't re-fire
+  });
+
+  it('tolerates a payload that omits emojiUsage (legacy/partial producer) without throwing', () => {
+    useStore.setState({ ui: { ...DEFAULT_UI_STATE, emojiUsage: { '🔥': { count: 1, lastUsedMs: 1 } } } });
+    const legacy: UiState = { ...DEFAULT_UI_STATE };
+    delete (legacy as { emojiUsage?: unknown }).emojiUsage;
+    expect(() => useStore.getState().applyUiState(legacy)).not.toThrow();
+    // A missing field coalesces to an empty object, never undefined.
+    expect(useStore.getState().ui.emojiUsage).toEqual({});
   });
 });

@@ -45,8 +45,13 @@ export function MessageQuickBar({ message, isSelf, senderName, onReact, onReply 
 
   return (
     <div
+      data-testid="message-quick-bar"
       data-open={open != null}
-      className="absolute right-3 -top-3.5 z-20 flex items-center opacity-0 transition-opacity group-hover:opacity-100 data-[open=true]:opacity-100"
+      // Hidden by default: opacity-0 AND pointer-events-none so the invisible
+      // pill can't capture clicks or trap keyboard focus on every message row.
+      // Revealed on row hover, on focus-within (keyboard reaches it), or while a
+      // popover is pinned open — each restoring pointer events.
+      className="absolute right-3 -top-3.5 z-20 flex items-center opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto data-[open=true]:opacity-100 data-[open=true]:pointer-events-auto"
     >
       <div
         className="flex items-center gap-1 rounded-lg border border-cs-border-strong bg-cs-bg-3 px-1.5 py-1"

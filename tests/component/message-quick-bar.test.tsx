@@ -43,4 +43,11 @@ describe('MessageQuickBar', () => {
     expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Reply' })).toBeNull();
   });
+
+  test('hidden pill is non-interactive (pointer-events-none, not pinned open)', () => {
+    renderBar({ message: other, isSelf: false, senderName: 'K5TH', onReact: () => {}, onReply: () => {} });
+    const bar = screen.getByTestId('message-quick-bar');
+    expect(bar.className).toContain('pointer-events-none');
+    expect(bar.getAttribute('data-open')).toBe('false');
+  });
 });
