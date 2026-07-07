@@ -86,6 +86,10 @@ const config: ForgeConfig = {
       // by this name; older macOS falls back to CFBundleIconFile / build/icon.icns.
       // Must match the `actool --app-icon` value used to build build/Assets.car.
       CFBundleIconName: 'coresense',
+      // Required for notification action buttons (Mark as read / Mute) to appear
+      // on macOS. Must live here — ASAR integrity validation forbids editing the
+      // packaged Info.plist post-build.
+      NSUserNotificationAlertStyle: 'alert',
     },
     osxUniversal: {
       mergeASARs: true,
