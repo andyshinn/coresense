@@ -23,6 +23,10 @@ export interface ActionDeps {
 export function createNotificationActions(deps: ActionDeps): NotificationActions {
   return {
     async reply(key, text) {
+      // The OS inline-reply field can submit empty/whitespace text. Unlike the
+      // HTTP send route (which rejects an empty body), this path would insert a
+      // blank message row — so guard it here.
+      if (!text.trim()) return;
       await deps.sendMessage(key, text);
     },
     markRead(key) {

@@ -47,6 +47,12 @@ describe('notification actions', () => {
     expect(h.deps.sendMessage).toHaveBeenCalledWith('ch:General', 'hello');
   });
 
+  it('reply ignores empty/whitespace text', async () => {
+    const h = harness();
+    await h.actions.reply('ch:General', '   ');
+    expect(h.deps.sendMessage).not.toHaveBeenCalled();
+  });
+
   it('markRead advances lastReadByKey and emits uiState', () => {
     const h = harness();
     h.actions.markRead('ch:General');

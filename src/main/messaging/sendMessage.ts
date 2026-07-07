@@ -1,6 +1,9 @@
 import { emit } from '../events/bus';
+import { child } from '../log';
 import { protocolSession } from '../protocol';
 import { stateHolder } from '../state/holder';
+
+const log = child('messaging');
 
 export interface SendResult {
   ok: boolean;
@@ -27,6 +30,8 @@ export interface SenderDeps {
   emitMessageState(id: string, state: 'sent' | 'failed'): void;
   now(): number;
   genId(): string;
+  /** Optional sink for background DM send failures. */
+  logError?(message: string): void;
 }
 
 // Optimistically records the outgoing message, hands it to the protocol session
@@ -52,9 +57,10 @@ export function createSender(deps: SenderDeps): (key: string, body: string) => P
     }
 
     // DM: return after the first write; the retry loop runs in the background.
-    session.sendDmTextWithRetry(key, body, id).catch(() => {
+    session.sendDmTextWithRetry(key, body, id).catch((err) => {
       holder.setMessageState(id, 'failed');
       deps.emitMessageState(id, 'failed');
+      deps.logError?.(`sendDmTextWithRetry id=${id}: ${(err as Error).message}`);
     });
     return { ok: true, id };
   };
@@ -67,4 +73,5 @@ export const sendMessage = createSender({
   emitMessageState: (id, state) => emit.messageState(id, state),
   now: () => Date.now(),
   genId: () => `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+  logError: (message) => log.warn(message),
 });

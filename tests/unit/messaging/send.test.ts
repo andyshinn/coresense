@@ -50,4 +50,36 @@ describe('createSender', () => {
     expect(res).toEqual({ ok: true, id: 'local-test' });
     expect(h.session.sendDmTextWithRetry).toHaveBeenCalledWith('c:abcd', 'yo', 'local-test');
   });
+
+  it('DM: logs and marks failed when the background retry send rejects', async () => {
+    const logError = vi.fn();
+    const states: Array<{ id: string; state: string }> = [];
+    const session = {
+      sendChannelText: vi.fn(async () => ({ ok: true })),
+      sendDmTextWithRetry: vi.fn(async () => {
+        throw new Error('boom');
+      }),
+      registerChannelSend: vi.fn(),
+    };
+    const holder = {
+      insertMessage: () => {},
+      setMessageState: (id: string, state: string) => states.push({ id, state }),
+      getMessagesForKey: () => [],
+    };
+    const send = createSender({
+      getSession: () => session,
+      getHolder: () => holder,
+      emitMessages: vi.fn(),
+      emitMessageState: vi.fn(),
+      now: () => 1000,
+      genId: () => 'local-test',
+      logError,
+    });
+    await send('c:abcd', 'yo');
+    // The .catch runs on a microtask after the fire-and-forget DM send rejects.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(states).toContainEqual({ id: 'local-test', state: 'failed' });
+    expect(logError).toHaveBeenCalledWith(expect.stringContaining('local-test'));
+  });
 });

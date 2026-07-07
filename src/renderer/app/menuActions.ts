@@ -39,7 +39,10 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         const msgs = st.messagesByKey[action.key] ?? [];
         const lastRead = st.ui.lastReadByKey[action.key] ?? 0;
         const mid = firstUnreadMessageId(msgs, lastRead);
-        if (mid) st.setPendingJump(mid);
+        // Always set — clears any stale pending jump when there is no unread
+        // message (MessageList only clears it after a *resolved* jump, so a
+        // leftover id would otherwise linger and misfire on a later view).
+        st.setPendingJump(mid);
         break;
       }
       case 'toggleLeftNav':

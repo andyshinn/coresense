@@ -38,4 +38,14 @@ describe('menu action jump', () => {
     expect(d.setActiveKey).toHaveBeenCalledWith('ch:General');
     expect(useStore.getState().pendingJumpMid).toBe('b');
   });
+
+  it('focusFirstUnread clears a stale pending jump when there is no unread message', () => {
+    const d = deps();
+    // Uses a fresh key so it doesn't perturb the shared 'ch:General' read state.
+    useStore.getState().applyMessages('ch:Solo', [m('a', 10)]);
+    useStore.getState().markRead('ch:Solo', 100); // everything read
+    useStore.getState().setPendingJump('stale-id'); // a jump left over from before
+    createMenuActionHandler(d)({ kind: 'focusFirstUnread', key: 'ch:Solo' });
+    expect(useStore.getState().pendingJumpMid).toBeNull();
+  });
 });
