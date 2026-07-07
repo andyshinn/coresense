@@ -130,4 +130,28 @@ describe('notification router', () => {
     spec.onAction?.(1);
     expect(h.deps.actions.mute).toHaveBeenCalledWith('ch:General');
   });
+
+  it('clears an individual notification group when its conversation is opened', () => {
+    const h = harness();
+    h.router.handleMessages('ch:General', [chMsg({ id: 'live1' })]);
+    expect(h.shown).toHaveLength(1); // fresh → individual banner, groupId ch:General
+    h.router.handleUiState({ activeKey: 'ch:General', lastReadByKey: {} } as UiState);
+    expect(h.cleared).toContain('ch:General');
+  });
+
+  it('clears a conversation when its lastRead advances even if it is not the active key', () => {
+    const h = harness();
+    // Simulates the "Mark as read" action: lastReadByKey advances, activeKey unchanged.
+    h.router.handleUiState({ activeKey: 'tool:packetlog', lastReadByKey: { 'ch:General': 5000 } } as unknown as UiState);
+    expect(h.cleared).toContain('ch:General');
+  });
+
+  it('does not show a discovered-contact notification when notifications are unsupported', () => {
+    const shown: NotificationSpec[] = [];
+    const h = harness({
+      presenter: { isSupported: () => false, show: (s) => shown.push(s), clearGroup: () => {} },
+    });
+    h.router.handleContactDiscovered({ key: 'c:zz', name: 'Zed', kind: 'chat' });
+    expect(shown).toHaveLength(0);
+  });
 });

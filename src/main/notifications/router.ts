@@ -37,6 +37,10 @@ export interface NotificationRouter {
 export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
   const notifiedIds = new Set<string>();
   const summaryKeys = new Set<string>();
+  // Snapshot of lastReadByKey from the previous uiState push, so handleUiState
+  // can detect which conversations were just marked read (their marker advanced)
+  // and clear their notifications — even when they aren't the active key.
+  let lastReadSnapshot: Record<string, number> = {};
 
   const aggregator = createAggregator({
     now: deps.now,
@@ -60,6 +64,14 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
   function isMuted(key: string): boolean {
     if (key.startsWith('ch:')) return deps.getChannels().some((c) => c.key === key && c.muted);
     return deps.getContacts().some((c) => c.key === key && c.muted);
+  }
+  function clearConversation(key: string): void {
+    // Removes both the individual banners and the summary for this conversation
+    // (all share groupId = key), and resets our per-conversation aggregation
+    // state so a later stale burst starts a fresh count.
+    deps.presenter.clearGroup(key);
+    aggregator.clear(key);
+    summaryKeys.delete(key);
   }
 
   function conversationSpecExtras(
@@ -119,6 +131,7 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
     summaryKeys.add(info.lastKey);
     deps.presenter.show({
       id: 'summary:__all__',
+      groupId: info.lastKey,
       title: 'CoreSense',
       body: `${info.total} messages across ${info.conversationCount} conversations`,
       silent: !deps.getAppSettings().notifications.sound,
@@ -164,13 +177,18 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
       this.recomputeBadge();
     },
     handleUiState(ui) {
-      if (summaryKeys.has(ui.activeKey)) {
-        deps.presenter.clearGroup(ui.activeKey);
-        aggregator.clear(ui.activeKey);
-        summaryKeys.delete(ui.activeKey);
+      // Opening a conversation clears its outstanding notifications (individual
+      // banners + summary) — design §5.6.
+      clearConversation(ui.activeKey);
+      // Marking a conversation read (e.g. the "Mark as read" action button)
+      // advances its lastReadByKey without changing activeKey; clear those too.
+      for (const [key, ts] of Object.entries(ui.lastReadByKey)) {
+        if (ts > (lastReadSnapshot[key] ?? 0)) clearConversation(key);
       }
+      lastReadSnapshot = ui.lastReadByKey;
     },
     handleContactDiscovered(c) {
+      if (!deps.presenter.isSupported()) return;
       // shouldFireDiscovered is applied by index.ts before this is called.
       deps.presenter.show({
         id: `discovered:${c.key}`,
