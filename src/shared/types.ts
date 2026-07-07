@@ -204,6 +204,27 @@ export interface Message {
   meta?: MessageMeta;
 }
 
+export interface ChannelSenderStat {
+  /** Raw from_pk: null=self, 'name:<n>'=channel poster, 'unknown', or hex pubkey. */
+  fromPk: string | null;
+  count: number;
+  lastTs: number;
+}
+
+export interface ChannelStats {
+  count: number;
+  firstTs: number | null;
+  lastTs: number | null;
+  count24h: number;
+  count7d: number;
+  /** Distinct identifiable non-self senders (excludes null self and 'unknown'). */
+  distinctSenders: number;
+  /** Grouped per sender, ordered by most-recently-active first. */
+  roster: ChannelSenderStat[];
+  /** 7 local-day message-count buckets, oldest→newest; index 6 is today. */
+  perDay: number[];
+}
+
 export type BlockRuleType = 'pubkey' | 'pubkeyPrefix' | 'name' | 'nameRegex';
 
 export interface BlockRule {
