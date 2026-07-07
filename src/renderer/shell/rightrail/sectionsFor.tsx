@@ -178,7 +178,7 @@ export function sectionsFor(
           id: 'rail.channel.info',
           label: 'Channel info',
           defaultOpen: baseDefaultOpen,
-          body: () => <ChannelInfoSection channel={data.channel} />,
+          body: () => <ChannelInfoSection channel={data.channel} client={actions.client} />,
         },
       ];
     case 'dm':
