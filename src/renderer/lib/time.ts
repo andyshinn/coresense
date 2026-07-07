@@ -61,8 +61,16 @@ export function fmtRelative(ts: number, now: number = Date.now()): string {
   return 'just now';
 }
 
-// Calendar date without time — "Nov 14, 2023". Used for durable "Added on" /
-// "First seen" anchors where a relative label would read oddly.
+// Local-calendar day identifier (YYYYMMDD) for cheap same-day comparison.
+// Uses the local timezone, consistent with the other formatters here.
+export function dayKey(ts: number): number {
+  const d = new Date(ts);
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
+// Full localized date with no time — used by the conversation date separators
+// and durable "First seen" / created anchors. Date-only, so the 12/24-hour
+// preference does not apply.
 export function fmtDate(ts: number): string {
-  return new Date(ts).toLocaleDateString(undefined, { dateStyle: 'medium' });
+  return new Date(ts).toLocaleDateString(undefined, { dateStyle: 'long' });
 }
