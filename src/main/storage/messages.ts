@@ -1,4 +1,4 @@
-import type { Message, MessageMeta, MessageState } from '../../shared/types';
+import type { ChannelStats, Message, MessageMeta, MessageState } from '../../shared/types';
 import { openDb } from './db';
 
 interface Row {
@@ -84,6 +84,60 @@ export const messagesStore = {
           )
           .all(key, limit) as unknown as Row[]);
     return rows.map(rowToMessage).reverse();
+  },
+
+  statsByKey(key: string, now: number = Date.now()): ChannelStats {
+    const db = openDb();
+    const DAY = 86_400_000;
+    const since24h = now - DAY;
+    const since7d = now - 7 * DAY;
+
+    const agg = db
+      .prepare(`SELECT COUNT(*) AS count, MIN(ts) AS firstTs, MAX(ts) AS lastTs FROM messages WHERE key = ?`)
+      .get(key) as unknown as { count: number; firstTs: number | null; lastTs: number | null };
+
+    const win = db
+      .prepare(
+        `SELECT
+           SUM(CASE WHEN ts >= ? THEN 1 ELSE 0 END) AS c24,
+           SUM(CASE WHEN ts >= ? THEN 1 ELSE 0 END) AS c7
+         FROM messages WHERE key = ?`,
+      )
+      .get(since24h, since7d, key) as unknown as { c24: number | null; c7: number | null };
+
+    const senderRows = db
+      .prepare(
+        `SELECT from_pk AS fromPk, COUNT(*) AS count, MAX(ts) AS lastTs
+         FROM messages WHERE key = ? GROUP BY from_pk ORDER BY lastTs DESC`,
+      )
+      .all(key) as unknown as Array<{ fromPk: string | null; count: number; lastTs: number }>;
+
+    const roster = senderRows.map((r) => ({ fromPk: r.fromPk, count: r.count, lastTs: r.lastTs }));
+    const distinctSenders = roster.filter((r) => r.fromPk !== null && r.fromPk !== 'unknown').length;
+
+    // Bucket the last 7 calendar days (local tz), index 6 = today.
+    const perDay = [0, 0, 0, 0, 0, 0, 0];
+    const tsRows = db.prepare(`SELECT ts FROM messages WHERE key = ? AND ts >= ?`).all(key, since7d) as unknown as Array<{
+      ts: number;
+    }>;
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const startMs = startOfToday.getTime();
+    for (const { ts } of tsRows) {
+      const bucket = 6 + Math.floor((ts - startMs) / DAY);
+      if (bucket >= 0 && bucket < 7) perDay[bucket] += 1;
+    }
+
+    return {
+      count: agg.count,
+      firstTs: agg.firstTs,
+      lastTs: agg.lastTs,
+      count24h: win.c24 ?? 0,
+      count7d: win.c7 ?? 0,
+      distinctSenders,
+      roster,
+      perDay,
+    };
   },
 
   recent(limit = 500): Message[] {

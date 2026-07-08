@@ -4,6 +4,7 @@ import type {
   AutoAddConfig,
   BlockRule,
   Capabilities,
+  ChannelStats,
   Contact,
   DeviceIdentity,
   GpsConfig,
@@ -147,6 +148,7 @@ export const api = {
   clearTileCache: (c: ApiClient) => request<TileCacheInfo>(c, '/api/map/tile-cache', { method: 'DELETE' }),
   openTileCacheFolder: (c: ApiClient) => request<{ ok: true }>(c, '/api/map/tile-cache/open', { method: 'POST' }),
   getMessages: (c: ApiClient, key: string) => request<Message[]>(c, `/api/messages/${encodeURIComponent(key)}`),
+  getChannelStats: (c: ApiClient, key: string) => request<ChannelStats>(c, `/api/channels/${encodeURIComponent(key)}/stats`),
   sendMessage: (c: ApiClient, key: string, body: string) =>
     request<{ ok: true; id: string }>(c, `/api/messages/${encodeURIComponent(key)}`, {
       method: 'POST',

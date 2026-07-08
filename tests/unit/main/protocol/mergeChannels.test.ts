@@ -103,3 +103,33 @@ describe('mergeSyncedChannels', () => {
     expect(beta?.order).toBe(0);
   });
 });
+
+const ch = (over: Partial<Channel> = {}): Channel => ({
+  key: 'ch:General',
+  name: 'General',
+  kind: 'hashtag',
+  ...over,
+});
+
+describe('mergeSyncedChannels createdAt', () => {
+  it('stamps createdAt on a first-seen radio channel', () => {
+    const before = Date.now();
+    const [merged] = mergeSyncedChannels([], [ch()]);
+    expect(typeof merged.createdAt).toBe('number');
+    expect(merged.createdAt as number).toBeGreaterThanOrEqual(before);
+  });
+
+  it('preserves an existing createdAt across a re-sync', () => {
+    const prev = [ch({ createdAt: 1000 })];
+    const [merged] = mergeSyncedChannels(prev, [ch({ name: 'General renamed' })]);
+    expect(merged.createdAt).toBe(1000);
+    expect(merged.name).toBe('General renamed'); // radio-owned field still updates
+  });
+
+  it('carries a not-re-enumerated channel through untouched', () => {
+    const prev = [ch({ key: 'ch:Only', name: 'Only', createdAt: 2000 })];
+    const merged = mergeSyncedChannels(prev, []);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].createdAt).toBe(2000);
+  });
+});

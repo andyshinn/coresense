@@ -80,6 +80,9 @@ export interface Channel {
   /** User-defined sort order in the LeftNav. Seeded from `idx` on first sync;
    *  thereafter set explicitly by drag-reorder. Lower = higher in the list. */
   order?: number;
+  /** App-owned: epoch ms when this channel was first added (user create or
+   *  first radio-sync). Absent on channels created before this field existed. */
+  createdAt?: number;
 }
 
 export type ContactKind = 'chat' | 'repeater' | 'sensor' | 'room';
@@ -199,6 +202,27 @@ export interface Message {
   ts: number;
   state: MessageState;
   meta?: MessageMeta;
+}
+
+export interface ChannelSenderStat {
+  /** Raw from_pk: null=self, 'name:<n>'=channel poster, 'unknown', or hex pubkey. */
+  fromPk: string | null;
+  count: number;
+  lastTs: number;
+}
+
+export interface ChannelStats {
+  count: number;
+  firstTs: number | null;
+  lastTs: number | null;
+  count24h: number;
+  count7d: number;
+  /** Distinct identifiable non-self senders (excludes null self and 'unknown'). */
+  distinctSenders: number;
+  /** Grouped per sender, ordered by most-recently-active first. */
+  roster: ChannelSenderStat[];
+  /** 7 local-day message-count buckets, oldest→newest; index 6 is today. */
+  perDay: number[];
 }
 
 export type BlockRuleType = 'pubkey' | 'pubkeyPrefix' | 'name' | 'nameRegex';

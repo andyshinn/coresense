@@ -435,6 +435,11 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   });
 
   api.get('/api/channels', (c) => c.json(stateHolder().getChannels()));
+  api.get('/api/channels/:key/stats', (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    if (!key.startsWith('ch:')) return c.json({ error: 'not a channel key' }, 400);
+    return c.json(stateHolder().getChannelStats(key));
+  });
   api.put('/api/channels/:key', async (c) => {
     const key = decodeURIComponent(c.req.param('key'));
     const body = (await c.req.json().catch(() => null)) as Channel | null;

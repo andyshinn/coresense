@@ -3,10 +3,10 @@ import type { Message, MessageStyle, TimeFormatPref } from '../../shared/types';
 import { firstPathStats, formatPathStats } from '../lib/messagePath';
 import { fmtDateTime, fmtTime } from '../lib/time';
 import { cn } from '../lib/utils';
+import { ColoredUsername } from './ColoredUsername';
 import { ContactAvatar } from './ContactAvatar';
 import { MessageBody } from './MessageBody';
 import { RssiChip } from './RssiChip';
-import { SenderLabel } from './SenderLabel';
 
 export interface MessageItemProps {
   message: Message;
@@ -85,7 +85,7 @@ export function MessageItem({
         </span>
         {showSenderInlineCompact && (
           <span className="shrink-0">
-            <SenderLabel name={senderName} />
+            <ColoredUsername name={senderName} />
           </span>
         )}
         <span className="min-w-0 flex-1 text-sm leading-snug text-cs-text whitespace-pre-wrap wrap-break-word">
@@ -115,7 +115,7 @@ export function MessageItem({
           </div>
         )}
         <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
-          {showSenderHeaderRich && <SenderLabel name={senderName} />}
+          {showSenderHeaderRich && <ColoredUsername name={senderName} />}
           <div
             className={cn(
               'max-w-full rounded-md px-2.5 py-1 text-sm whitespace-pre-wrap wrap-break-word',
