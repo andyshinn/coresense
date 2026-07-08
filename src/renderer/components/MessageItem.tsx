@@ -1,7 +1,7 @@
 import { AlertCircle, Check, Clock, Reply, Send } from 'lucide-react';
 import type { Message, MessageStyle, TimeFormatPref } from '../../shared/types';
 import { firstPathStats, formatPathStats } from '../lib/messagePath';
-import { fmtDateTime, fmtTime } from '../lib/time';
+import { fmtDateTime, fmtMessageTime } from '../lib/time';
 import { cn } from '../lib/utils';
 import { ColoredUsername } from './ColoredUsername';
 import { ContactAvatar } from './ContactAvatar';
@@ -81,7 +81,7 @@ export function MessageItem({
           title={fmtDateTime(message.ts, timeFormat)}
           className="shrink-0 font-mono text-[10px] text-cs-text-dim tabular-nums"
         >
-          {fmtTime(message.ts, timeFormat)}
+          {fmtMessageTime(message.ts, timeFormat)}
         </span>
         {showSenderInlineCompact && (
           <span className="shrink-0">
@@ -125,7 +125,7 @@ export function MessageItem({
             <MessageBody body={message.body} />
           </div>
           <div className="flex flex-row items-center gap-2 font-mono text-[10px] text-cs-text-dim">
-            <span title={fmtDateTime(message.ts, timeFormat)}>{fmtTime(message.ts, timeFormat)}</span>
+            <span title={fmtDateTime(message.ts, timeFormat)}>{fmtMessageTime(message.ts, timeFormat)}</span>
             <StateChip message={message} />
             {pathLabel && <span className="tabular-nums">{pathLabel}</span>}
             {message.meta?.rssi != null && <RssiChip rssi={message.meta.rssi} showHops={false} />}
