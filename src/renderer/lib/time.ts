@@ -74,3 +74,19 @@ export function dayKey(ts: number): number {
 export function fmtDate(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, { dateStyle: 'long' });
 }
+
+// Discord-style message timestamp: today → time only; yesterday → "Yesterday
+// at <time>"; older → short numeric date + time (e.g. "7/2/26, 1:15 PM"). The
+// time portion goes through fmtTime so the 12/24-hour preference is honored;
+// the full date+time stays available via fmtDateTime on hover. `now` is
+// injectable for deterministic tests. Day boundaries use local midnight
+// (new Date(y, m, d)) so they stay correct across DST transitions.
+export function fmtMessageTime(ts: number, pref: TimeFormatPref, now: number = Date.now()): string {
+  const n = new Date(now);
+  const startOfToday = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
+  const startOfYesterday = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1).getTime();
+  if (ts >= startOfToday) return fmtTime(ts, pref);
+  if (ts >= startOfYesterday) return `Yesterday at ${fmtTime(ts, pref)}`;
+  const date = new Date(ts).toLocaleDateString(undefined, { dateStyle: 'short' });
+  return `${date}, ${fmtTime(ts, pref)}`;
+}

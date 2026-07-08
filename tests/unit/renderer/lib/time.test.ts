@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayKey, fmtDate, fmtRelative } from '../../../../src/renderer/lib/time';
+import { dayKey, fmtDate, fmtMessageTime, fmtRelative, fmtTime } from '../../../../src/renderer/lib/time';
 
 // Only locale-independent branches are asserted here, so the test is stable
 // regardless of the CI runner's locale/timezone.
@@ -59,5 +59,46 @@ describe('fmtDate', () => {
     const jul2 = fmtDate(new Date(2026, 6, 2, 12, 0, 0).getTime());
     const jul4 = fmtDate(new Date(2026, 6, 4, 12, 0, 0).getTime());
     expect(jul2).not.toBe(jul4);
+  });
+});
+
+// now = 2026-07-08 12:00 local. Inputs use the local-time Date constructor so
+// the today/yesterday/older buckets are stable regardless of the runner's TZ.
+describe('fmtMessageTime', () => {
+  const now = new Date(2026, 6, 8, 12, 0, 0).getTime();
+
+  it('shows time only for a message earlier today (equals fmtTime)', () => {
+    const ts = new Date(2026, 6, 8, 9, 30, 0).getTime();
+    expect(fmtMessageTime(ts, 'auto', now)).toBe(fmtTime(ts, 'auto'));
+  });
+
+  it('prefixes "Yesterday at " for a message from the previous day', () => {
+    const ts = new Date(2026, 6, 7, 13, 15, 0).getTime();
+    const out = fmtMessageTime(ts, 'auto', now);
+    expect(out.startsWith('Yesterday at ')).toBe(true);
+    expect(out.endsWith(fmtTime(ts, 'auto'))).toBe(true);
+  });
+
+  it('shows a short date + time for a message older than yesterday', () => {
+    const ts = new Date(2026, 6, 2, 13, 15, 0).getTime();
+    const out = fmtMessageTime(ts, 'auto', now);
+    expect(out.startsWith('Yesterday')).toBe(false);
+    expect(out.includes(fmtTime(ts, 'auto'))).toBe(true);
+    expect(out).not.toBe(fmtTime(ts, 'auto')); // carries a date prefix
+  });
+
+  it('treats local midnight today as "today" and one ms earlier as "Yesterday"', () => {
+    const midnight = new Date(2026, 6, 8, 0, 0, 0).getTime();
+    expect(fmtMessageTime(midnight, 'auto', now)).toBe(fmtTime(midnight, 'auto'));
+    expect(fmtMessageTime(midnight - 1, 'auto', now).startsWith('Yesterday at ')).toBe(true);
+  });
+
+  it('honors the 24-hour preference in each tier', () => {
+    const today = new Date(2026, 6, 8, 13, 15, 0).getTime();
+    const yesterday = new Date(2026, 6, 7, 13, 15, 0).getTime();
+    const older = new Date(2026, 6, 2, 13, 15, 0).getTime();
+    expect(fmtMessageTime(today, '24h', now)).toContain('13:15');
+    expect(fmtMessageTime(yesterday, '24h', now)).toContain('13:15');
+    expect(fmtMessageTime(older, '24h', now)).toContain('13:15');
   });
 });
