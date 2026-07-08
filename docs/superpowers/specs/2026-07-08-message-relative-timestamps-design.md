@@ -49,20 +49,21 @@ time portion matches every other timestamp in the app.
 fmtMessageTime(ts: number, pref: TimeFormatPref, now: number = Date.now()): string
 ```
 
-Compute the local day boundaries from `now` and bucket `ts`:
+Bucket `ts` by **exact local calendar day** using the existing `dayKey` helper
+(the same one the date separators use, so a message's stamp and the separator
+above it always agree):
 
-- `startOfToday   = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime()`
-- `startOfYesterday = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1).getTime()`
-  (`new Date(y, m, d-1)` normalizes month/year rollover and lands on local
-  midnight, so it is correct across DST transitions.)
-
-Return:
-
-- `ts >= startOfToday` → `fmtTime(ts, pref)` (also covers future timestamps).
-- `ts >= startOfYesterday` → `` `Yesterday at ${fmtTime(ts, pref)}` ``.
+- `dayKey(ts) === dayKey(now)` → `fmtTime(ts, pref)`.
+- `dayKey(ts) === dayKey(new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1))`
+  → `` `Yesterday at ${fmtTime(ts, pref)}` `` (`new Date(y, m, d-1)` normalizes
+  month/year rollover to local midnight, correct across DST).
 - else → `` `${new Date(ts).toLocaleDateString(undefined, { dateStyle: 'short' })}, ${fmtTime(ts, pref)}` ``.
 
-`now` is injectable so the buckets are deterministic under test.
+Exact-day matching (rather than "on or after today") means a **future**-dated
+message — `message.ts` is the sending node's clock, which this app treats as
+unreliable (see `shared/contacts/discovered.ts`) — falls to the date+time
+branch and shows its date, rather than masquerading as an unqualified "today"
+time. `now` is injectable so the buckets are deterministic under test.
 
 ### `MessageItem.tsx`
 
@@ -90,8 +91,8 @@ formatting — intended and desirable.
 | ts one ms before local midnight today | `Yesterday at …` |
 | ts anytime yesterday | `Yesterday at …` |
 | ts two+ days ago | `<short date>, <time>` |
-| ts in the future (clock skew) | time only |
-| across a DST boundary | correct (local-midnight day starts) |
+| ts on a future day (peer clock skew) | `<short date>, <time>` — shows the date so the skew is visible rather than masked; keeps the per-message stamp consistent with the date separator above it (both bucket by `dayKey`) |
+| across a DST / month / year boundary | correct (`dayKey` + local-midnight `new Date(y, m, d-1)`) |
 
 ## Testing (TDD)
 

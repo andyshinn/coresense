@@ -101,4 +101,20 @@ describe('fmtMessageTime', () => {
     expect(fmtMessageTime(yesterday, '24h', now)).toContain('13:15');
     expect(fmtMessageTime(older, '24h', now)).toContain('13:15');
   });
+
+  it('resolves "Yesterday" across a month boundary', () => {
+    const firstOfJuly = new Date(2026, 6, 1, 12, 0, 0).getTime();
+    const lastOfJune = new Date(2026, 5, 30, 13, 15, 0).getTime();
+    expect(fmtMessageTime(lastOfJune, 'auto', firstOfJuly).startsWith('Yesterday at ')).toBe(true);
+  });
+
+  it('shows a date (not bare time) for a future-dated message from clock skew', () => {
+    // message.ts is the sending node's clock; a wrong RTC can report the future.
+    // It must not masquerade as an unqualified "today" time.
+    const tomorrow = new Date(2026, 6, 9, 15, 0, 0).getTime();
+    const out = fmtMessageTime(tomorrow, 'auto', now);
+    expect(out.startsWith('Yesterday')).toBe(false);
+    expect(out.includes(fmtTime(tomorrow, 'auto'))).toBe(true);
+    expect(out).not.toBe(fmtTime(tomorrow, 'auto')); // carries a date
+  });
 });
