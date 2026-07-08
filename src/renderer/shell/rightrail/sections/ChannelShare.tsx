@@ -10,21 +10,21 @@ export function ChannelShareSection({ channel }: { channel: Channel }) {
     return <Placeholder label="secret unavailable — cannot generate a share code" />;
   }
   return (
-    <div className="flex flex-col gap-2 text-cs-text-muted">
-      <div className="flex items-center gap-3">
-        <div className="rounded bg-white p-1.5">
-          <QRCode value={uri} size={72} />
-        </div>
-        <div className="flex flex-col gap-1 text-[11px]">
-          <CopyButton value={uri} title="Copy channel link" className="text-cs-accent hover:underline">
-            Copy link
-          </CopyButton>
-          <CopyButton value={channel.secretHex} title="Copy secret" className="text-cs-text-dim hover:text-cs-text">
-            Copy secret
-          </CopyButton>
-        </div>
+    <div className="flex flex-col gap-3 text-cs-text-muted">
+      <div className="flex items-center gap-2 text-[11px]">
+        <CopyButton value={uri} title="Copy channel link" className="text-cs-accent hover:underline">
+          Copy link
+        </CopyButton>
+        <span aria-hidden className="text-cs-text-dim">
+          ·
+        </span>
+        <CopyButton value={channel.secretHex} title="Copy secret" className="text-cs-accent hover:underline">
+          Copy secret
+        </CopyButton>
       </div>
-      <p className="text-[10px] text-cs-text-dim">Anyone with this code can read and post to the channel.</p>
+      <div className="rounded bg-white p-3">
+        <QRCode value={uri} size={256} viewBox="0 0 256 256" style={{ height: 'auto', maxWidth: '100%', width: '100%' }} />
+      </div>
     </div>
   );
 }

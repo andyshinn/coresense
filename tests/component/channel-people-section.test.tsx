@@ -1,7 +1,17 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
-import { ChannelPeopleBody } from '@/shell/rightrail/sections/ChannelPeople';
-import type { ChannelStats } from '../../src/shared/types';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { ChannelPeopleBody, contactKeyForSender } from '@/shell/rightrail/sections/ChannelPeople';
+import type { ChannelStats, Contact } from '../../src/shared/types';
+
+const PK = 'a'.repeat(64);
+
+const contact = (over: Partial<Contact> = {}): Contact => ({
+  key: 'c:abc',
+  publicKeyHex: 'abc',
+  name: 'alice',
+  kind: 'chat',
+  ...over,
+});
 
 const stats = (): ChannelStats => ({
   count: 4,
@@ -15,6 +25,25 @@ const stats = (): ChannelStats => ({
     { fromPk: 'name:alice', count: 3, lastTs: 1_700_000_000_000 },
   ],
   perDay: [0, 0, 0, 0, 0, 0, 0],
+});
+
+describe('contactKeyForSender', () => {
+  it('matches a named channel poster to a saved contact by name', () => {
+    expect(contactKeyForSender('name:alice', [contact()])).toBe('c:abc');
+  });
+
+  it('returns null for a named poster with no matching contact', () => {
+    expect(contactKeyForSender('name:bob', [contact()])).toBeNull();
+  });
+
+  it('returns null for self and unknown senders', () => {
+    expect(contactKeyForSender(null, [contact()])).toBeNull();
+    expect(contactKeyForSender('unknown', [contact()])).toBeNull();
+  });
+
+  it('routes a raw pubkey straight to its contact key', () => {
+    expect(contactKeyForSender(PK, [])).toBe(`c:${PK}`);
+  });
 });
 
 describe('ChannelPeopleBody', () => {
@@ -36,5 +65,30 @@ describe('ChannelPeopleBody', () => {
   it('renders a placeholder while loading', () => {
     render(<ChannelPeopleBody stats={null} loading={true} />);
     expect(screen.getByText('loading…')).toBeTruthy();
+  });
+
+  it('links a poster that resolves to a contact and navigates on click', () => {
+    const onSelectContact = vi.fn();
+    render(
+      <ChannelPeopleBody
+        stats={stats()}
+        loading={false}
+        resolveContactKey={(fromPk) => (fromPk === 'name:alice' ? 'c:abc' : null)}
+        onSelectContact={onSelectContact}
+      />,
+    );
+    // Self (null) is not navigable, so the resolved 'alice' row is the only button.
+    fireEvent.click(screen.getByRole('button'));
+    expect(onSelectContact).toHaveBeenCalledWith('c:abc');
+  });
+
+  it('shows a no-contact hover hint for a named poster we do not have saved', () => {
+    const onSelectContact = vi.fn();
+    const { container } = render(
+      <ChannelPeopleBody stats={stats()} loading={false} resolveContactKey={() => null} onSelectContact={onSelectContact} />,
+    );
+    // 'name:alice' is unresolved: not a navigation button, but a hover-card trigger.
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(container.querySelector('[data-slot="hover-card-trigger"]')).toBeTruthy();
   });
 });

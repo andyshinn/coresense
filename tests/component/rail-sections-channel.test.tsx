@@ -18,7 +18,7 @@ const actions = { clearMentionedContact: () => {}, client: null };
 describe('sectionsFor channel view', () => {
   it('returns the four channel sections in order', () => {
     const ids = sectionsFor('ch:worldcup', data(), actions).map((s) => s.id);
-    expect(ids).toEqual(['rail.channel.info', 'rail.channel.activity', 'rail.channel.people', 'rail.channel.share']);
+    expect(ids).toEqual(['rail.channel.info', 'rail.channel.activity', 'rail.channel.share', 'rail.channel.people']);
   });
 
   it('falls back to a single info section when the channel is missing', () => {

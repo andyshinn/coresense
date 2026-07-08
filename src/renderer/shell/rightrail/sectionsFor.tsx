@@ -190,16 +190,16 @@ export function sectionsFor(
               body: () => <ChannelActivitySection channel={ch} client={actions.client} />,
             },
             {
-              id: 'rail.channel.people',
-              label: 'People',
-              defaultOpen: false,
-              body: () => <ChannelPeopleSection channel={ch} client={actions.client} />,
-            },
-            {
               id: 'rail.channel.share',
               label: 'Share this channel',
               defaultOpen: false,
               body: () => <ChannelShareSection channel={ch} />,
+            },
+            {
+              id: 'rail.channel.people',
+              label: 'People',
+              defaultOpen: false,
+              body: () => <ChannelPeopleSection channel={ch} client={actions.client} />,
             },
           ]
         : [
