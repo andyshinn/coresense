@@ -25,6 +25,8 @@ export interface RouterDeps {
   getContacts(): Contact[];
   getMessagesForKey(key: string): Message[];
   isBlocked(m: Message): boolean;
+  /** Optional diagnostic sink (wired to the main logger in production). */
+  debug?(message: string): void;
 }
 
 export interface NotificationRouter {
@@ -35,6 +37,7 @@ export interface NotificationRouter {
 }
 
 export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
+  const debug = deps.debug ?? (() => {});
   const notifiedIds = new Set<string>();
   const summaryKeys = new Set<string>();
   // Snapshot of lastReadByKey from the previous uiState push, so handleUiState
@@ -64,6 +67,12 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
   function isMuted(key: string): boolean {
     if (key.startsWith('ch:')) return deps.getChannels().some((c) => c.key === key && c.muted);
     return deps.getContacts().some((c) => c.key === key && c.muted);
+  }
+  // Silent when the user turned sound off, or when the app is already focused —
+  // a notification for another conversation shouldn't be loud while you're
+  // sitting in the app.
+  function isSilent(): boolean {
+    return !deps.getAppSettings().notifications.sound || deps.isFocused();
   }
   function clearConversation(key: string): void {
     // Removes both the individual banners and the summary for this conversation
@@ -104,14 +113,17 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
       title: content.title,
       subtitle: content.subtitle,
       body: content.body,
-      silent: !deps.getAppSettings().notifications.sound,
-      onClick: () => deps.emitMenuAction({ kind: 'focusMessage', key: m.key, messageId: m.id }),
+      silent: isSilent(),
+      onClick: () => {
+        debug(`click->focusMessage key=${m.key} messageId=${m.id}`);
+        deps.emitMenuAction({ kind: 'focusMessage', key: m.key, messageId: m.id });
+      },
       ...conversationSpecExtras(m.key),
     });
   }
 
   function presentSummaries(summaries: StaleDescriptor[]): void {
-    const sound = deps.getAppSettings().notifications.sound;
+    const silent = isSilent();
     for (const d of summaries) {
       summaryKeys.add(d.key);
       const isChannel = d.key.startsWith('ch:');
@@ -120,8 +132,11 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
         groupId: d.key,
         title: isChannel ? channelName(d.key) : contactName(d.key),
         body: formatSummaryBody(d.count, d.senders),
-        silent: !sound,
-        onClick: () => deps.emitMenuAction({ kind: 'focusFirstUnread', key: d.key }),
+        silent,
+        onClick: () => {
+          debug(`click->focusFirstUnread key=${d.key}`);
+          deps.emitMenuAction({ kind: 'focusFirstUnread', key: d.key });
+        },
         ...conversationSpecExtras(d.key),
       });
     }
@@ -134,8 +149,11 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
       groupId: info.lastKey,
       title: 'CoreSense',
       body: `${info.total} messages across ${info.conversationCount} conversations`,
-      silent: !deps.getAppSettings().notifications.sound,
-      onClick: () => deps.emitMenuAction({ kind: 'focusFirstUnread', key: info.lastKey }),
+      silent: isSilent(),
+      onClick: () => {
+        debug(`click->focusFirstUnread (global) key=${info.lastKey}`);
+        deps.emitMenuAction({ kind: 'focusFirstUnread', key: info.lastKey });
+      },
     });
   }
 
@@ -152,15 +170,23 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
     }
     const notifications = deps.getAppSettings().notifications;
     const ui = deps.getUiState();
-    const { show } = passesPolicy({
+    const appFocused = deps.isFocused();
+    const muted = isMuted(m.key);
+    const blocked = deps.isBlocked(m);
+    const { show, kind } = passesPolicy({
       msg: m,
       notifications,
       ownerName: deps.getOwner()?.name,
       contactKind: contactKindOf(m.key),
-      muted: isMuted(m.key),
-      blocked: deps.isBlocked(m),
-      focused: deps.isFocused() && ui.activeKey === m.key,
+      muted,
+      blocked,
+      focused: appFocused && ui.activeKey === m.key,
     });
+    debug(
+      `decide id=${m.id} key=${m.key} state=${m.state} kind=${kind} show=${show} ` +
+        `appFocused=${appFocused} activeKey=${ui.activeKey} suppressWhenFocused=${notifications.suppressWhenFocused} ` +
+        `muted=${muted} blocked=${blocked} sound=${notifications.sound}`,
+    );
     if (!show) return;
     if (!deps.presenter.isSupported()) return;
     if (notifications.summarizeBacklog) {

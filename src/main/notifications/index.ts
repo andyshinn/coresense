@@ -1,7 +1,7 @@
 import { app } from 'electron';
 import { isMessageBlocked } from '../../shared/blocking/match';
 import { shouldFireDiscovered } from '../../shared/notifications/discovered';
-import type { ContactKind, Message } from '../../shared/types';
+import type { ContactKind, Message, UiState } from '../../shared/types';
 import { blockingStore } from '../blocking/store';
 import { bus, emit } from '../events/bus';
 import { child } from '../log';
@@ -42,10 +42,14 @@ export function startNotifications(): void {
     caps,
     focusWindow: () => {
       const win = getMainWindow();
-      if (!win) return;
+      if (!win) {
+        log.debug('focusWindow: no main window registered');
+        return;
+      }
       if (win.isMinimized()) win.restore();
       win.focus();
     },
+    debug: (message) => log.debug(message),
   });
 
   const actions = createNotificationActions({
@@ -80,6 +84,7 @@ export function startNotifications(): void {
     getContacts: () => stateHolder().getContacts(),
     getMessagesForKey: (key) => stateHolder().getMessagesForKey(key),
     isBlocked: isBlockedNow,
+    debug: (message) => log.debug(message),
   });
 
   bus.on('messages', (key: string, list: Message[]) => router.handleMessages(key, list));
@@ -87,7 +92,8 @@ export function startNotifications(): void {
     if (!shouldFireDiscovered(stateHolder().getAppSettings().notifications, isMainWindowFocused())) return;
     router.handleContactDiscovered(c);
   });
-  bus.on('uiState', (u) => {
+  bus.on('uiState', (u: UiState) => {
+    log.debug(`uiState activeKey=${u.activeKey}`);
     router.handleUiState(u);
     router.recomputeBadge();
   });

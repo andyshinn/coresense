@@ -154,4 +154,26 @@ describe('notification router', () => {
     h.router.handleContactDiscovered({ key: 'c:zz', name: 'Zed', kind: 'chat' });
     expect(shown).toHaveLength(0);
   });
+
+  it('suppresses the notification when the app is focused on that conversation', () => {
+    const h = harness({ isFocused: () => true });
+    h.setUi({ activeKey: 'ch:General', lastReadByKey: {} } as UiState);
+    h.router.handleMessages('ch:General', [chMsg({ id: 'focused-msg' })]);
+    expect(h.shown).toHaveLength(0);
+  });
+
+  it('is silent when the app is focused but on a different conversation', () => {
+    const h = harness({ isFocused: () => true });
+    h.setUi({ activeKey: 'c:aa', lastReadByKey: {} } as UiState);
+    h.router.handleMessages('ch:General', [chMsg({ id: 'other-convo' })]);
+    expect(h.shown).toHaveLength(1);
+    expect(h.shown[0].silent).toBe(true);
+  });
+
+  it('is not silent when the app is unfocused and sound is enabled', () => {
+    const h = harness({ isFocused: () => false });
+    h.router.handleMessages('ch:General', [chMsg({ id: 'loud-msg' })]);
+    expect(h.shown).toHaveLength(1);
+    expect(h.shown[0].silent).toBe(false);
+  });
 });
