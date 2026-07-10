@@ -158,9 +158,20 @@ jobs:
           # playwright-report artifacts that other jobs upload to the same run.
           pattern: coresense-*
           path: dist-artifacts
+      # Mint a GitHub App installation token so the published release is authored
+      # by the app rather than GITHUB_TOKEN. Events raised by GITHUB_TOKEN don't
+      # trigger other workflows (GitHub's anti-recursion rule), which otherwise
+      # stops homebrew-cask.yml from ever firing on release publish.
+      - name: Mint release token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Create release
         uses: softprops/action-gh-release@v3
         with:
+          token: ${{ steps.app-token.outputs.token }}
           draft: ${{ !contains(github.ref_name, '-') }}
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
