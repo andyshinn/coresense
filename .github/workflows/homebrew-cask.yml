@@ -1,13 +1,14 @@
 name: Homebrew cask
 
 # Keep Casks/coresense.rb and Casks/coresense@dev.rb (version + sha256) in sync
-# with releases. `released` fires only for STABLE, published releases (and
-# prerelease->release promotions); `prereleased` fires for PRERELEASE publishes.
-# Both are post-publish, so the download URL resolves and the sha256 matches the
+# with releases. `published` fires for every release publish — stable AND
+# prerelease — and, unlike `released`/`prereleased`, it also fires when a release
+# is published from a draft (ci.yml drafts stable releases for manual publish).
+# It's post-publish, so the download URL resolves and the sha256 matches the
 # final bytes — no draft-release race.
 on:
   release:
-    types: [released, prereleased]
+    types: [published]
 
 permissions:
   contents: write
