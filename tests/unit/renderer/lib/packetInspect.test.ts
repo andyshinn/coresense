@@ -1,0 +1,46 @@
+import { describe, expect, it } from 'vitest';
+import { inspectPacket } from '../../../../src/renderer/lib/packetInspect';
+import { ACK_HEX, GROUP_TEXT_HEX } from '../../../support/packetFixtures';
+
+describe('inspectPacket', () => {
+  it('decodes packet-level fields with contiguous byte coverage', () => {
+    const r = inspectPacket(GROUP_TEXT_HEX);
+    expect(r.ok).toBe(true);
+    expect(r.size).toBe(10);
+    expect(r.payloadTypeName).toBe('Group Text');
+    expect(r.routeName).toBe('Flood');
+    // Header is byte 0 and carries a bit table (route/payload/version).
+    expect(r.fields[0].start).toBe(0);
+    expect(r.fields[0].end).toBe(0);
+    expect(r.fields[0].bits?.some((b) => /route/i.test(b.field))).toBe(true);
+    // Path-length byte is index 1 and gets a computed bit table (hop count + hash size).
+    const pathLen = r.fields.find((f) => f.start === 1 && f.end === 1);
+    expect(pathLen?.bits?.some((b) => /hop/i.test(b.field))).toBe(true);
+    // Coverage is contiguous 0..size-1.
+    const covered = new Set<number>();
+    for (const f of r.fields) for (let i = f.start; i <= f.end; i++) covered.add(i);
+    expect(covered.size).toBe(r.size);
+    // Each colorIdx is in range.
+    expect(r.fields.every((f) => f.colorIdx >= 0 && f.colorIdx < 7)).toBe(true);
+  });
+
+  it('exposes a normalized payload breakdown starting at byte 0', () => {
+    const r = inspectPacket(GROUP_TEXT_HEX);
+    expect(r.payload).not.toBeNull();
+    const pf = r.payload!.fields;
+    expect(pf[0].start).toBe(0);
+    const last = pf[pf.length - 1];
+    expect(last.end).toBe(r.payload!.bytes.length - 1);
+  });
+
+  it('returns ok:false for junk input instead of throwing', () => {
+    const r = inspectPacket('zz');
+    expect(r.ok).toBe(false);
+  });
+
+  it('handles a payload with no sub-structure (Ack) without crashing', () => {
+    const r = inspectPacket(ACK_HEX);
+    expect(r.ok).toBe(true);
+    expect(r.payloadTypeName).toBe('Ack');
+  });
+});
