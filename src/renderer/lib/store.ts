@@ -92,6 +92,9 @@ export type LivePacket = RawPacket & { id: string };
 let packetSeq = 0;
 const nextPacketId = () => `pkt-${packetSeq++}`;
 
+// Keep only the newest n items. n<=0 → [] (guards against slice(-0) returning the whole array).
+const keepLast = <T>(arr: T[], n: number): T[] => (n <= 0 ? [] : arr.length > n ? arr.slice(-n) : arr);
+
 /** Back-compat: older ui-state.json stored { showCompanion }. */
 export function migratePacketLogFilter(f: unknown): { source: 'both' | 'rf' | 'ble' } {
   if (f && typeof f === 'object' && 'source' in f) return { source: (f as { source: 'both' | 'rf' | 'ble' }).source };
@@ -695,10 +698,8 @@ export const useStore = create<CoreState>((set) => ({
 
   applyPacket: (p) =>
     set((s) => {
-      const cap = s.ui.packetLog.liveBufferSize;
       const withId: LivePacket = { ...p, id: nextPacketId() };
-      const base = s.packets.length >= cap ? s.packets.slice(-(cap - 1)) : s.packets;
-      return { packets: [...base, withId] };
+      return { packets: keepLast([...s.packets, withId], s.ui.packetLog.liveBufferSize) };
     }),
 
   applyTransportState: (state, deviceId) => set(() => ({ transportState: state, connectedDeviceId: deviceId })),
@@ -1012,9 +1013,7 @@ export const useStore = create<CoreState>((set) => ({
   setPacketLogSettings: (patch) =>
     set((s) => {
       const packetLog = { ...s.ui.packetLog, ...patch };
-      const cap = packetLog.liveBufferSize;
-      const packets = s.packets.length > cap ? s.packets.slice(-cap) : s.packets;
-      return { ui: { ...s.ui, packetLog }, packets };
+      return { ui: { ...s.ui, packetLog }, packets: keepLast(s.packets, packetLog.liveBufferSize) };
     }),
   setDecoderOpen: (open) => set((s) => ({ ui: { ...s.ui, decoderOpen: open } })),
   toggleLeftNav: () => set((s) => ({ ui: { ...s.ui, leftOpen: !s.ui.leftOpen } })),
