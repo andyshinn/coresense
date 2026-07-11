@@ -50,6 +50,7 @@ import { startContactAutoRefresh, stopContactAutoRefresh } from './state/contact
 import { endContactWalk } from './state/contactWalk';
 import { stateHolder } from './state/holder';
 import { discoveredStore } from './storage/discoveredContacts';
+import { packetStore } from './storage/packets';
 import { transportManager } from './transport/manager';
 import { currentUpdateState } from './updates/controller';
 import { isMainWindowFocused } from './window/registry';
@@ -202,7 +203,10 @@ export async function startServer(
     ws.on('error', drop);
   });
 
-  const onPacket = (p: RawPacket) => broadcast({ type: 'packet', payload: p });
+  const onPacket = (p: RawPacket) => {
+    packetStore.record(p, stateHolder().getUiState().packetLog.storedHistorySize);
+    broadcast({ type: 'packet', payload: p });
+  };
   const onTransportState = (state: TransportState, deviceId?: string) => {
     transportManager.setState(state, deviceId);
     // The periodic contact re-read only makes sense against a live radio, and
