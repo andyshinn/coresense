@@ -1,8 +1,9 @@
+import type { AdvertPayload, GroupTextPayload } from '@michaelhart/meshcore-decoder';
 import {
   type CryptoKeyStore,
   MeshCoreDecoder,
   type PacketStructure,
-  type PayloadType,
+  PayloadType,
   type RouteType,
   Utils,
 } from '@michaelhart/meshcore-decoder';
@@ -149,7 +150,12 @@ export function inspectPacket(hex: string, opts?: { keyStore?: CryptoKeyStore })
 
     const fields: InspectField[] = struct.segments.map((seg, i) => {
       const bits = seg.headerBreakdown
-        ? seg.headerBreakdown.fields.map((f) => ({ range: f.bits, field: f.field, value: f.value, binary: f.binary }))
+        ? seg.headerBreakdown.fields.map((f) => ({
+            range: f.bits,
+            field: f.field,
+            value: f.field === 'Payload Type' ? spaceWords(f.value) : f.value,
+            binary: f.binary,
+          }))
         : seg.startByte === 1 && seg.endByte === 1
           ? pathLenBits(bytes[1] ?? 0)
           : undefined;
@@ -183,7 +189,7 @@ export function inspectPacket(hex: string, opts?: { keyStore?: CryptoKeyStore })
       ok: decoded.isValid,
       size: struct.totalBytes,
       bytes,
-      routeName: Utils.getRouteTypeName(decoded.routeType as RouteType),
+      routeName: spaceWords(Utils.getRouteTypeName(decoded.routeType as RouteType)),
       payloadTypeName,
       hashFull: struct.messageHash,
       hops: decoded.pathLength,
@@ -211,7 +217,83 @@ export function inspectPacket(hex: string, opts?: { keyStore?: CryptoKeyStore })
   }
 }
 
-// Filled in by Task 6.
-function secondaryFor(_decoded: ReturnType<typeof MeshCoreDecoder.decode>): Secondary | null {
-  return null;
+const CHANNEL_LOCK = "No key for this channel — can't decrypt. Add the channel (with its secret) to decode the message.";
+const DM_LOCK = "This message isn't addressed to us — no shared secret to decrypt.";
+
+function secondaryFor(decoded: ReturnType<typeof MeshCoreDecoder.decode>): Secondary | null {
+  const d = decoded.payload.decoded;
+  switch (decoded.payloadType as PayloadType) {
+    case PayloadType.GroupText:
+    case PayloadType.GroupData: {
+      const g = d as GroupTextPayload | null;
+      if (g?.decrypted) {
+        const { bytes, fields } = buildPlaintextFields(g.decrypted.timestamp, g.decrypted.flags, g.decrypted.message);
+        return { kind: 'decrypted', available: true, bytes, fields };
+      }
+      return { kind: 'encrypted', available: false, note: CHANNEL_LOCK };
+    }
+    case PayloadType.TextMessage:
+    case PayloadType.Request:
+    case PayloadType.Response:
+    case PayloadType.AnonRequest:
+      return { kind: 'encrypted', available: false, note: DM_LOCK };
+    case PayloadType.Advert:
+      return advertAppData(d as AdvertPayload | null);
+    default:
+      return null;
+  }
+}
+
+function advertAppData(a: AdvertPayload | null): Secondary | null {
+  if (!a) return null;
+  const hasLoc = a.appData.hasLocation && a.appData.location;
+  const fields: InspectField[] = [
+    {
+      key: 'aflags',
+      name: 'Flags',
+      start: 0,
+      end: 0,
+      colorIdx: 0,
+      value: a.appData.flags.toString(16).padStart(2, '0').toUpperCase(),
+      desc: `${hasLoc ? 'has location' : 'no location'}${a.appData.hasName ? ' · has name' : ''}`,
+    },
+  ];
+  let p = 1;
+  const bytes = [a.appData.flags & 0xff];
+  if (hasLoc && a.appData.location) {
+    fields.push({
+      key: 'alat',
+      name: 'Latitude',
+      start: p,
+      end: p + 3,
+      colorIdx: 1,
+      value: `${a.appData.location.latitude}`,
+      desc: 'int32 / 1e6',
+    });
+    fields.push({
+      key: 'alon',
+      name: 'Longitude',
+      start: p + 4,
+      end: p + 7,
+      colorIdx: 2,
+      value: `${a.appData.location.longitude}`,
+      desc: 'int32 / 1e6',
+    });
+    for (let i = 0; i < 8; i++) bytes.push(0);
+    p += 8;
+  }
+  if (a.appData.name) {
+    const nm = Array.from(new TextEncoder().encode(a.appData.name));
+    fields.push({
+      key: 'aname',
+      name: 'Node Name',
+      start: p,
+      end: p + nm.length - 1,
+      colorIdx: 3,
+      value: a.appData.name,
+      desc: 'UTF-8',
+    });
+    bytes.push(...nm);
+  }
+  return { kind: 'appdata', available: true, title: 'Advert App-Data', bytes, fields };
 }

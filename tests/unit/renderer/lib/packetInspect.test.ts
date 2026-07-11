@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { inspectPacket } from '../../../../src/renderer/lib/packetInspect';
-import { ACK_HEX, GROUP_TEXT_HEX } from '../../../support/packetFixtures';
+import { buildPlaintextFields, inspectPacket } from '../../../../src/renderer/lib/packetInspect';
+import { ACK_HEX, GROUP_TEXT_HEX, TEXT_MESSAGE_HEX } from '../../../support/packetFixtures';
 
 describe('inspectPacket', () => {
   it('decodes packet-level fields with contiguous byte coverage', () => {
@@ -42,5 +42,28 @@ describe('inspectPacket', () => {
     const r = inspectPacket(ACK_HEX);
     expect(r.ok).toBe(true);
     expect(r.payloadTypeName).toBe('Ack');
+  });
+});
+
+describe('inspectPacket secondary sections', () => {
+  it('marks a GroupText with no key as an unavailable channel lock note', () => {
+    const r = inspectPacket(GROUP_TEXT_HEX); // no keyStore
+    expect(r.payload?.secondary?.kind).toBe('encrypted');
+    expect(r.payload?.secondary && 'available' in r.payload.secondary && r.payload.secondary.available).toBe(false);
+  });
+
+  it('marks a DM (TextMessage) as an unavailable "not addressed to us" note', () => {
+    const r = inspectPacket(TEXT_MESSAGE_HEX);
+    expect(r.payload?.secondary?.kind).toBe('encrypted');
+  });
+
+  it('builds a plaintext strip: timestamp(4) · flags(1) · message', () => {
+    const { bytes, fields } = buildPlaintextFields(0x01020304, 0x00, 'hi');
+    expect(bytes.slice(0, 4)).toEqual([0x04, 0x03, 0x02, 0x01]); // little-endian
+    expect(fields.map((f) => [f.start, f.end])).toEqual([
+      [0, 3],
+      [4, 4],
+      [5, 6],
+    ]);
   });
 });
