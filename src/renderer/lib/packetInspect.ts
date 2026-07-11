@@ -196,7 +196,12 @@ export function inspectPacket(hex: string, opts?: { keyStore?: CryptoKeyStore })
       pathArrows: decoded.path?.length ? decoded.path.join(' → ') : null,
       fields,
       payload: payloadBytes.length
-        ? { typeName: payloadTypeName, bytes: payloadBytes, fields: payloadFields, secondary: secondaryFor(decoded) }
+        ? {
+            typeName: payloadTypeName,
+            bytes: payloadBytes,
+            fields: payloadFields,
+            secondary: secondaryFor(decoded, payloadBytes),
+          }
         : null,
       ...(decoded.isValid ? {} : { lowConfidence: decoded.errors?.[0] ?? 'Decoder reported an invalid packet.' }),
     };
@@ -220,7 +225,7 @@ export function inspectPacket(hex: string, opts?: { keyStore?: CryptoKeyStore })
 const CHANNEL_LOCK = "No key for this channel — can't decrypt. Add the channel (with its secret) to decode the message.";
 const DM_LOCK = "This message isn't addressed to us — no shared secret to decrypt.";
 
-function secondaryFor(decoded: ReturnType<typeof MeshCoreDecoder.decode>): Secondary | null {
+function secondaryFor(decoded: ReturnType<typeof MeshCoreDecoder.decode>, payloadBytes: number[]): Secondary | null {
   const d = decoded.payload.decoded;
   switch (decoded.payloadType as PayloadType) {
     case PayloadType.GroupText:
@@ -238,14 +243,19 @@ function secondaryFor(decoded: ReturnType<typeof MeshCoreDecoder.decode>): Secon
     case PayloadType.AnonRequest:
       return { kind: 'encrypted', available: false, note: DM_LOCK };
     case PayloadType.Advert:
-      return advertAppData(d as AdvertPayload | null);
+      return advertAppData(d as AdvertPayload | null, payloadBytes);
     default:
       return null;
   }
 }
 
-function advertAppData(a: AdvertPayload | null): Secondary | null {
+// Advert payload layout: publicKey(32) · timestamp(4) · signature(64) · appData(rest).
+// App-data starts at absolute payload offset 100; slicing there gives the REAL bytes so
+// the byte strip (hover) always matches the decoded decimal values shown alongside it.
+function advertAppData(a: AdvertPayload | null, payloadBytes: number[]): Secondary | null {
   if (!a) return null;
+  const app = payloadBytes.slice(100);
+  if (app.length === 0) return null;
   const hasLoc = a.appData.hasLocation && a.appData.location;
   const fields: InspectField[] = [
     {
@@ -254,18 +264,17 @@ function advertAppData(a: AdvertPayload | null): Secondary | null {
       start: 0,
       end: 0,
       colorIdx: 0,
-      value: a.appData.flags.toString(16).padStart(2, '0').toUpperCase(),
+      value: (app[0] ?? 0).toString(16).padStart(2, '0').toUpperCase(),
       desc: `${hasLoc ? 'has location' : 'no location'}${a.appData.hasName ? ' · has name' : ''}`,
     },
   ];
-  let p = 1;
-  const bytes = [a.appData.flags & 0xff];
+  let nameStart = 1;
   if (hasLoc && a.appData.location) {
     fields.push({
       key: 'alat',
       name: 'Latitude',
-      start: p,
-      end: p + 3,
+      start: 1,
+      end: 4,
       colorIdx: 1,
       value: `${a.appData.location.latitude}`,
       desc: 'int32 / 1e6',
@@ -273,27 +282,24 @@ function advertAppData(a: AdvertPayload | null): Secondary | null {
     fields.push({
       key: 'alon',
       name: 'Longitude',
-      start: p + 4,
-      end: p + 7,
+      start: 5,
+      end: 8,
       colorIdx: 2,
       value: `${a.appData.location.longitude}`,
       desc: 'int32 / 1e6',
     });
-    for (let i = 0; i < 8; i++) bytes.push(0);
-    p += 8;
+    nameStart = 9;
   }
   if (a.appData.name) {
-    const nm = Array.from(new TextEncoder().encode(a.appData.name));
     fields.push({
       key: 'aname',
       name: 'Node Name',
-      start: p,
-      end: p + nm.length - 1,
+      start: nameStart,
+      end: app.length - 1,
       colorIdx: 3,
       value: a.appData.name,
       desc: 'UTF-8',
     });
-    bytes.push(...nm);
   }
-  return { kind: 'appdata', available: true, title: 'Advert App-Data', bytes, fields };
+  return { kind: 'appdata', available: true, title: 'Advert App-Data', bytes: app, fields };
 }

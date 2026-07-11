@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildPlaintextFields, inspectPacket } from '../../../../src/renderer/lib/packetInspect';
-import { ACK_HEX, GROUP_TEXT_HEX, TEXT_MESSAGE_HEX } from '../../../support/packetFixtures';
+import { ACK_HEX, ADVERT_HEX, GROUP_TEXT_HEX, TEXT_MESSAGE_HEX } from '../../../support/packetFixtures';
 
 describe('inspectPacket', () => {
   it('decodes packet-level fields with contiguous byte coverage', () => {
@@ -50,11 +50,15 @@ describe('inspectPacket secondary sections', () => {
     const r = inspectPacket(GROUP_TEXT_HEX); // no keyStore
     expect(r.payload?.secondary?.kind).toBe('encrypted');
     expect(r.payload?.secondary && 'available' in r.payload.secondary && r.payload.secondary.available).toBe(false);
+    const note = r.payload?.secondary && 'note' in r.payload.secondary ? r.payload.secondary.note : '';
+    expect(note).toContain('channel');
   });
 
   it('marks a DM (TextMessage) as an unavailable "not addressed to us" note', () => {
     const r = inspectPacket(TEXT_MESSAGE_HEX);
     expect(r.payload?.secondary?.kind).toBe('encrypted');
+    const note = r.payload?.secondary && 'note' in r.payload.secondary ? r.payload.secondary.note : '';
+    expect(note).toContain('addressed to us');
   });
 
   it('builds a plaintext strip: timestamp(4) · flags(1) · message', () => {
@@ -65,5 +69,30 @@ describe('inspectPacket secondary sections', () => {
       [4, 4],
       [5, 6],
     ]);
+  });
+
+  it('builds a byte-accurate Advert app-data strip with real lat/lon bytes', () => {
+    const r = inspectPacket(ADVERT_HEX);
+    expect(r.ok).toBe(true);
+    expect(r.payload?.secondary?.kind).toBe('appdata');
+    const secondary = r.payload?.secondary;
+    if (secondary?.kind !== 'appdata') throw new Error('expected appdata secondary');
+
+    const [flags, lat, lon, name] = secondary.fields;
+    expect([flags.start, flags.end]).toEqual([0, 0]);
+    expect([lat.start, lat.end]).toEqual([1, 4]);
+    expect([lon.start, lon.end]).toEqual([5, 8]);
+    expect(name.name).toBe('Node Name');
+    expect([name.start, name.end]).toEqual([9, secondary.bytes.length - 1]);
+    expect(name.value).toBe('TestNode');
+    expect(lat.value).toBe('51.5074');
+    expect(lon.value).toBe('-0.1278');
+
+    // Byte-accurate: the strip covers exactly through the last field's end byte.
+    expect(secondary.bytes.length).toBe(name.end + 1);
+    // The latitude/longitude bytes in the strip are the REAL app-data bytes, not zeros.
+    expect(secondary.bytes.slice(1, 5)).toEqual([0xc8, 0xf0, 0x11, 0x03]);
+    expect(secondary.bytes.slice(1, 5)).not.toEqual([0, 0, 0, 0]);
+    expect(secondary.bytes.slice(5, 9)).toEqual([0xc8, 0x0c, 0xfe, 0xff]);
   });
 });
