@@ -49,6 +49,12 @@ describe('packetStore', () => {
     expect(packetStore.recent(10)).toEqual([]);
   });
 
+  it('returns [] for a non-positive limit', () => {
+    packetStore.record(mk(1), 100);
+    expect(packetStore.recent(0)).toEqual([]);
+    expect(packetStore.recent(-1)).toEqual([]);
+  });
+
   it('clear empties the table', () => {
     packetStore.record(mk(1), 100);
     packetStore.clear();
