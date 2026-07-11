@@ -23,7 +23,7 @@ The breakdown is adapted from the letsmesh packet analyzer, narrowed to what a *
 - Byte strip + field cards + collapsible bit tables with **bidirectional, strip-scoped hover**.
 - **Live decrypt of channel packets** (GroupText/GroupData) using held `channel.secretHex`; DMs degrade to a lock note.
 - **Standalone decoder**: command-palette dialog + in-rail BYON panel; input **auto-detects hex / base64 / `meshcore://`**.
-- **Packet persistence across reload** via a SQLite `packets` table; hydrate recent history into the live view on connect.
+- **Packet persistence across reload** via a SQLite `packets` table; hydrate recent history into the live view on connect. **Live-buffer and stored-history sizes are tunable in Settings** (account-synced).
 - **Light + dark theme** support (derive light-mode variants of the field/route/BLE colors).
 
 ### Out of scope (this pass)
@@ -43,6 +43,7 @@ The breakdown is adapted from the letsmesh packet analyzer, narrowed to what a *
 | Live decrypt (channel packets) | **In scope** |
 | Persist packets across reload | **In scope** |
 | Wire "Trace path" | **Deferred** — render disabled |
+| Retention / buffer sizes | **User-tunable in Settings** (account-synced via `UiState`), not hard-coded |
 
 ## 4. Architecture
 
@@ -93,10 +94,17 @@ CREATE INDEX IF NOT EXISTS idx_packets_ts ON packets(ts);
 
 New `storage/packets.ts` exposes `insertPacket(p)`, `recentPackets(limit)` (most-recent, returned ascending by `ts`), `prunePackets(keep)`, `clearPackets()`. `bytes`/`payloadBytes` are re-derived from hex on read (not stored twice).
 
-### 5.3 Retention & hydration (tunable constants, called out for review)
-- **Persist cap:** keep the newest **20,000** packets; prune on insert (batched, e.g. every 200 inserts delete `WHERE id <= max_id - 20000`).
-- **Hydrate-on-connect:** renderer fetches the newest **1,000** via a new `GET /api/packets?limit=1000` and seeds `store.packets`.
-- **In-memory working cap:** raise `MAX_PACKETS` **500 → 2,000** (`store.ts:59`); live WS packets append and slice to the cap as today.
+### 5.3 Retention & hydration — user-tunable settings
+Two account-synced settings on `UiState` (defaults below; `mergeDefaults` backfills them for older persisted state):
+
+| Setting | `UiState` field | Default | Bounds | Effect |
+|---|---|---|---|---|
+| **Live buffer** | `packetLog.liveBufferSize` | **2,000** | 200–20,000 | Packets kept in memory / shown in the list. Lowering it trims the store to the new cap immediately. |
+| **Stored history** | `packetLog.storedHistorySize` | **20,000** | 0–200,000 | Packets persisted on disk (survive reload). `0` = persistence off (skip inserts, prune to empty). Takes effect on the next prune. |
+
+- **Persist cap** = `storedHistorySize`. Main reads it from the UiState it already holds (`state/holder.ts:164 getUiState()`); `storage/packets.ts` prunes on insert (batched, e.g. every 200 inserts, `prunePackets(storedHistorySize)`).
+- **In-memory working cap** = `liveBufferSize`, replacing the fixed `MAX_PACKETS = 500` at `store.ts:59` (that constant is removed; the cap's **default 2,000** lives in `DEFAULT_UI_STATE`). Live WS packets append and slice to this cap.
+- **Hydrate-on-connect:** renderer fetches the newest **`min(liveBufferSize, storedHistorySize)`** via `GET /api/packets?limit=` and seeds `store.packets`. (No separate hydrate knob — it's derived.)
 - **Toolbar `total`** = current in-memory working-set size (`packets.length`); **`shown`** = after source + text filter. History beyond the working set is retained on disk but not shown (future "load older" / export).
 
 Wiring:
@@ -108,6 +116,7 @@ Wiring:
 - Add `selectedPacketId: string | null` + `setSelectedPacket(id)` mirroring `selectedMessageId`/`setSelectedMessage` (`store.ts:309,838`); clear it in `navStateUpdate` (`store.ts:479`) exactly like `selectedMessageId`.
   - **Packet identity:** live `RawPacket` has no id. The **renderer** assigns one monotonic client id (`pktSeq++`) to **every** packet as it enters `store.packets` — both live-appended and hydrated — so list keys and selection never collide regardless of source. The SQLite `id` stays server-side only.
 - Extend `ui.packetLogFilter` (`shared/types.ts:776`) from `{ showCompanion }` to `{ source: 'both'|'rf'|'ble' }` (migrate the boolean; default `'both'`). Keep it in persisted `UiState`.
+- Add `ui.packetLog: { liveBufferSize: number; storedHistorySize: number }` to `UiState` (with matching entries in main's `DEFAULT_UI_STATE`, `src/main/storage/settings.ts`). The store caps `packets` at `ui.packetLog.liveBufferSize` (not the constant); on the setting decreasing, `applyPacket`/a small effect trims to the new cap.
 - Standalone decoder dialog open/close state: `ui.decoderOpen: boolean` + toggle (session-only or persisted-closed).
 
 ## 6. Decode adapter — `src/renderer/lib/packetInspect.ts` (the riskiest piece; built test-first)
@@ -208,13 +217,18 @@ Replace the two `packetlog` placeholders. When `selectedPacketId` resolves to a 
 - Both: textarea (auto-detect hex/base64/`meshcore://` via `detectAndDecode`, reusing `lib/meshcoreUri.ts` for the URI case), RF/BLE toggle, live byte counter, Decode → renders the same `ByteStrip`/`FieldCard` output. A pasted packet has no RSSI/SNR/radio, so the DETAILS card shows only derivable fields.
 - Icons (lucide): `Binary`/`Braces` (hex/decode), `Copy`, `Lock`/`Unlock`, `ChevronRight`/`ChevronDown`, `PanelRightClose`, `Route`, `X`, `Info`.
 
-## 9. Testing
+### 8.5 Settings — "Packet Log" section
+A new settings section (registered like the existing ones via `components/settings/SettingsSection.tsx` under the **Extra** tab, `SettingsTab = 'extra'`) with two numeric fields bound to `ui.packetLog`:
+- **Live buffer** (`liveBufferSize`) — number input, min 200 / max 20,000 / step 100, help text "Packets kept in memory and shown in the list."
+- **Stored history** (`storedHistorySize`) — number input, min 0 / max 200,000 / step 1,000, help text "Packets saved to disk so the log survives a reload. 0 turns off saving."
+Edits go through the existing settings save flow (dirty-tracking + `api.putUiState`), so they persist to main and sync across windows like every other pref. Values clamp to bounds on save; the store/prune read the clamped values.
 
 - **Adapter offsets (unit, `tests/unit/`):** `inspectPacket`/`inspectBleFrame` against the ported `pl-data.js` fixtures — assert field names + exact `start`/`end` per payload type, header/path-len bit tables, channel-decrypt path (with a fixture secret) vs lock note, advert app-data, and the `0x84` low-confidence flag.
 - **`sectionsFor` packetlog branch (dom, no render):** mirrors `tests/component/rail-sections-channel.test.tsx` — assert section ids/order with and without a selected packet.
 - **Selection render (dom):** mount list + rail, drive `useStore.getState().setSelectedPacket(...)`, assert the breakdown renders and the row shows selected styling; reuse the **`flushSync` harness trick** from `tests/component/deselect-on-outside-click.test.tsx` for the chevron/hex-icon swaps and `composedPath()` deselect semantics.
 - **Persistence (integration/unit):** `insertPacket`/`recentPackets`/`prunePackets` round-trip + cap enforcement against an in-memory SQLite db.
 - **Store migration (unit):** `packetLogFilter` boolean→`source` migration; `selectedPacketId` cleared on nav.
+- **Retention settings (unit):** `mergeDefaults` backfills `ui.packetLog` for older persisted state; the store caps at `liveBufferSize` and trims when it decreases; `prunePackets` honors `storedHistorySize` (incl. `0` = off); hydrate limit = `min(liveBufferSize, storedHistorySize)`.
 
 Commands: `pnpm test:unit`, `pnpm test:dom`, focused: `pnpm exec vitest run --project dom <file>`.
 
@@ -224,15 +238,19 @@ Commands: `pnpm test:unit`, `pnpm test:dom`, focused: `pnpm exec vitest run --pr
 - `src/renderer/lib/packetInspect.ts` — decode adapter (view-model).
 - `src/renderer/lib/bleFrameLayouts.ts` — companion-frame byte layouts.
 - `src/renderer/components/packet/ByteStrip.tsx`, `FieldCard.tsx`, `BitTable.tsx`, `PacketDetail.tsx` (rail body), `ByonPanel.tsx`, `PacketDecoderDialog.tsx`.
-- `src/main/storage/packets.ts` — table CRUD + prune.
+- `src/renderer/panels/settings/PacketLogSettings.tsx` (or a section under the Extra tab) — live-buffer + stored-history inputs.
+- `src/main/storage/packets.ts` — table CRUD + prune (`prunePackets(keep)`).
 - `tests/unit/fixtures/packets.ts`, `tests/unit/packetInspect.test.ts`, `tests/unit/storagePackets.test.ts`, `tests/component/packet-log-select.test.tsx`, `tests/component/rail-sections-packetlog.test.tsx`.
 
 **Changed**
 - `src/renderer/components/PacketLog.tsx` — rewrite (columns, badge, source control, selection).
 - `src/renderer/shell/rightrail/sectionsFor.tsx` — fill packetlog sections.
 - `src/renderer/shell/useDeselectOnOutsideClick.ts` — keep-selection selectors.
-- `src/renderer/lib/store.ts` — `selectedPacketId`/`setSelectedPacket`, `MAX_PACKETS`→2000, filter migration, hydrate action, packet id assignment, decoder-dialog state, `clearPackets` extension.
-- `src/shared/types.ts` — `packetLogFilter.source`, `ui.decoderOpen`, WS/route types for hydrate + clear.
+- `src/renderer/lib/store.ts` — `selectedPacketId`/`setSelectedPacket`, cap driven by `ui.packetLog.liveBufferSize` (default 2,000; old `MAX_PACKETS = 500` constant removed), filter migration, hydrate action, packet id assignment, decoder-dialog state, `clearPackets` extension.
+- `src/shared/types.ts` — `packetLogFilter.source`, `ui.packetLog` retention settings, `ui.decoderOpen`, WS/route types for hydrate + clear.
+- `src/main/storage/settings.ts` — add `packetLog` defaults to `DEFAULT_UI_STATE` (`mergeDefaults` backfills older state).
+- `src/main/storage/packets.ts` reads the prune cap from `getUiState().packetLog.storedHistorySize` (via `state/holder.ts`).
+- Settings panel registration (`src/renderer/panels/settings/SettingsPanel.tsx` + `shell/SettingsJumpRail.tsx`) — add the Packet Log section.
 - `src/renderer/index.css` + `src/renderer/lib/theme.ts` — field/route/ble tokens (light + dark).
 - `src/main/storage/db.ts` — create `packets` table.
 - `src/main/server.ts` — persist subscription.
@@ -245,7 +263,7 @@ Commands: `pnpm test:unit`, `pnpm test:dom`, focused: `pnpm exec vitest run --pr
 - **Adapter/decoder field-semantics mismatch** (michaelhart vs firmware/letsmesh interpretation). → Golden fixtures pin offsets; low-confidence flag on ambiguous raw pushes; bit-table math computed locally where the decoder is silent.
 - **Channel decrypt not lighting up** if a channel's `secretHex` is absent (public/hashtag channels). → Graceful lock note; only private channels with a secret decrypt.
 - **Light-theme field colors** losing contrast. → Derive and eyeball against both surfaces; treat as a small bounded palette task.
-- **Persistence growth** — bounded by the 20k prune; index on `ts`.
+- **Persistence growth** — bounded by the `storedHistorySize` setting (default 20k, `0` disables); index on `ts`.
 - **Packet identity** for selection across live+hydrated sets — one renderer-assigned monotonic id scheme for all packets (§5.4); DB id never leaks into selection, so hydrate/live can't collide.
 
 ## 12. Verification (before "done")
