@@ -398,4 +398,5 @@ export const api = {
       placeholder?: string;
     },
   ) => request<RenderResult>(c, '/api/macros/render', { method: 'POST', body: JSON.stringify(body) }),
+  clearPackets: (c: ApiClient) => request<{ ok: true }>(c, '/api/packets/clear', { method: 'POST' }),
 };

@@ -39,6 +39,7 @@ import { noteHeard, scheduleDiscoveredEmit } from '../state/contactSync';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { messagesStore } from '../storage/messages';
+import { packetStore } from '../storage/packets';
 import { searchMessages } from '../storage/search';
 import { transportManager } from '../transport/manager';
 import { updatesController } from '../updates/controller';
@@ -159,6 +160,9 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       deviceCapabilities: holder.getDeviceCapabilities(),
       blockRules: holder.getBlockRules(),
       macros: macrosStore.list(),
+      packets: packetStore.recent(
+        Math.min(holder.getUiState().packetLog.liveBufferSize, holder.getUiState().packetLog.storedHistorySize),
+      ),
     };
     return c.json(payload);
   });
@@ -938,6 +942,11 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     } catch (err) {
       return c.json({ error: (err as Error).message }, 503);
     }
+  });
+
+  api.post('/api/packets/clear', (c) => {
+    packetStore.clear();
+    return c.json({ ok: true } as const);
   });
 
   api.get('/api/transport/state', (c) => c.json(transportManager.getState()));
