@@ -121,6 +121,20 @@ export function openDb(): DatabaseSync {
       mid TEXT PRIMARY KEY,
       ts  INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS packets (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts          INTEGER NOT NULL,
+      transport   TEXT    NOT NULL,
+      kind        TEXT    NOT NULL,
+      hex         TEXT    NOT NULL,
+      payload_hex TEXT    NOT NULL,
+      snr         REAL,
+      rssi        REAL,
+      code        INTEGER,
+      code_name   TEXT
+    );
+    CREATE INDEX IF NOT EXISTS packets_by_ts ON packets (ts);
   `);
 
   // The observed_* columns above were added after the app shipped (#45 item 7),
