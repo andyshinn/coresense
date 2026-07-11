@@ -82,8 +82,23 @@ const HISTORY_KEEP = 4000;
 
 const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null };
 
-const MAX_PACKETS = 500;
 const MAX_LOGS = 5000;
+
+export type LivePacket = RawPacket & { id: string };
+
+// Monotonic id for live + hydrated packets so list keys and selection never
+// collide regardless of source. Not persisted; a reload restarts the counter
+// and re-ids the hydrated set.
+let packetSeq = 0;
+const nextPacketId = () => `pkt-${packetSeq++}`;
+
+/** Back-compat: older ui-state.json stored { showCompanion }. */
+export function migratePacketLogFilter(f: unknown): { source: 'both' | 'rf' | 'ble' } {
+  if (f && typeof f === 'object' && 'source' in f) return { source: (f as { source: 'both' | 'rf' | 'ble' }).source };
+  if (f && typeof f === 'object' && 'showCompanion' in f)
+    return { source: (f as { showCompanion: boolean }).showCompanion ? 'both' : 'rf' };
+  return { source: 'both' };
+}
 
 export interface SearchFilters {
   categories: SearchCategory[];
@@ -240,7 +255,7 @@ interface CoreState {
   wsClients: number;
 
   // Live packet log (capped ring buffer)
-  packets: RawPacket[];
+  packets: LivePacket[];
 
   // Live log entries from main, mirrored over WS (capped ring buffer).
   logs: LogEntry[];
@@ -361,6 +376,8 @@ interface CoreState {
    *  confirm popover anchored to itself, so only an id is needed. */
   pendingDeleteMessageId: string | null;
   setPendingDeleteMessageId: (id: string | null) => void;
+  // ID of the packet currently inspected in the right rail. Cleared on nav.
+  selectedPacketId: string | null;
   // Cmd+K palette open state. Not persisted across reloads.
   paletteOpen: boolean;
   // Keyboard-shortcuts help overlay open state. Not persisted across reloads.
@@ -386,6 +403,9 @@ interface CoreState {
   // Hydration helpers
   hydrate: (snapshot: StateSnapshot) => void;
   applyPacket: (p: RawPacket) => void;
+  setSelectedPacket: (id: string | null) => void;
+  setPacketLogSettings: (patch: Partial<UiState['packetLog']>) => void;
+  setDecoderOpen: (open: boolean) => void;
   applyTransportState: (state: TransportState, deviceId?: string) => void;
   applySyncProgress: (progress: SyncProgress) => void;
   applyDevices: (devices: BleDevice[]) => void;
@@ -538,6 +558,7 @@ function navStateUpdate(
       recentKeys,
     },
     selectedMessageId: null,
+    selectedPacketId: null,
   };
   if (historyDelta?.navPast !== undefined) out.navPast = historyDelta.navPast;
   if (historyDelta?.navFuture !== undefined) out.navFuture = historyDelta.navFuture;
@@ -621,6 +642,7 @@ export const useStore = create<CoreState>((set) => ({
 
   busy: false,
   selectedMessageId: null,
+  selectedPacketId: null,
   paletteOpen: false,
   helpOpen: false,
   addChannelOpen: false,
@@ -660,10 +682,11 @@ export const useStore = create<CoreState>((set) => ({
       mapSettings: { ...DEFAULT_MAP_SETTINGS, ...snapshot.mapSettings },
       mapManifest: snapshot.mapManifest,
       mapTileStatus: snapshot.mapTileStatus ?? DEFAULT_MAP_TILE_STATUS,
-      ui: snapshot.uiState,
+      ui: { ...snapshot.uiState, packetLogFilter: migratePacketLogFilter(snapshot.uiState.packetLogFilter) },
       // `??` for the same reason the fields above use it: an older main
       // serving a newer renderer during dev has no drafts in its snapshot.
       drafts: snapshot.drafts ?? {},
+      packets: (snapshot.packets ?? []).map((p) => ({ ...p, id: nextPacketId() })),
       // Seed in-session sort from the persisted default so an existing user
       // preference takes effect immediately on launch.
       searchSort: snapshot.appSettings.search?.defaultSort ?? 'recency',
@@ -672,8 +695,10 @@ export const useStore = create<CoreState>((set) => ({
 
   applyPacket: (p) =>
     set((s) => {
-      const next = s.packets.length >= MAX_PACKETS ? s.packets.slice(-(MAX_PACKETS - 1)) : s.packets;
-      return { packets: [...next, p] };
+      const cap = s.ui.packetLog.liveBufferSize;
+      const withId: LivePacket = { ...p, id: nextPacketId() };
+      const base = s.packets.length >= cap ? s.packets.slice(-(cap - 1)) : s.packets;
+      return { packets: [...base, withId] };
     }),
 
   applyTransportState: (state, deviceId) => set(() => ({ transportState: state, connectedDeviceId: deviceId })),
@@ -983,6 +1008,15 @@ export const useStore = create<CoreState>((set) => ({
     })),
   setSelectedMessage: (id) => set(() => ({ selectedMessageId: id })),
   setPendingDeleteMessageId: (id) => set(() => ({ pendingDeleteMessageId: id })),
+  setSelectedPacket: (id) => set(() => ({ selectedPacketId: id })),
+  setPacketLogSettings: (patch) =>
+    set((s) => {
+      const packetLog = { ...s.ui.packetLog, ...patch };
+      const cap = packetLog.liveBufferSize;
+      const packets = s.packets.length > cap ? s.packets.slice(-cap) : s.packets;
+      return { ui: { ...s.ui, packetLog }, packets };
+    }),
+  setDecoderOpen: (open) => set((s) => ({ ui: { ...s.ui, decoderOpen: open } })),
   toggleLeftNav: () => set((s) => ({ ui: { ...s.ui, leftOpen: !s.ui.leftOpen } })),
   toggleRightRail: () => set((s) => ({ ui: { ...s.ui, rightOpen: !s.ui.rightOpen } })),
   setRightWidth: (w) => set((s) => ({ ui: { ...s.ui, rightWidth: w } })),
