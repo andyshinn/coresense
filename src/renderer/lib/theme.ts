@@ -39,6 +39,16 @@ interface Palette {
   online: string;
   warn: string;
   danger: string;
+  field0: string;
+  field1: string;
+  field2: string;
+  field3: string;
+  field4: string;
+  field5: string;
+  field6: string;
+  routeDirect: string;
+  routeFlood: string;
+  ble: string;
 }
 
 // Field Console — warm wood/amber. Values are RGB triplets ("r g b") so they
@@ -58,6 +68,16 @@ const DARK: Palette = {
   online: '132 204 22',
   warn: '245 158 11',
   danger: '220 38 38',
+  field0: '232 163 61',
+  field1: '110 161 230',
+  field2: '155 207 90',
+  field3: '229 140 110',
+  field4: '70 183 174',
+  field5: '185 138 224',
+  field6: '212 180 74',
+  routeDirect: '127 184 77',
+  routeFlood: '110 161 230',
+  ble: '185 138 224',
 };
 
 const LIGHT: Palette = {
@@ -74,6 +94,16 @@ const LIGHT: Palette = {
   online: '101 163 13',
   warn: '217 119 6',
   danger: '185 28 28',
+  field0: '176 110 20',
+  field1: '43 96 179',
+  field2: '90 130 40',
+  field3: '190 90 60',
+  field4: '25 120 112',
+  field5: '120 78 160',
+  field6: '150 120 30',
+  routeDirect: '78 130 40',
+  routeFlood: '43 96 179',
+  ble: '120 78 160',
 };
 
 const PALETTES: Record<ThemeMode, Palette> = { dark: DARK, light: LIGHT };
