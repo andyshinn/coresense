@@ -4,7 +4,6 @@ import { extname, join, normalize } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { type WebSocket, WebSocketServer } from 'ws';
-import type { DiscoveredContact } from '../shared/contacts/discovered';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -45,7 +44,7 @@ import type { BridgeHandle } from './bridge';
 import { bus } from './events/bus';
 import { listenOnPort } from './http-listen';
 import { resolveHttpPort } from './http-port';
-import { getLogBuffer } from './log';
+import { child, getLogBuffer } from './log';
 import { startContactAutoRefresh, stopContactAutoRefresh } from './state/contactRefresh';
 import { endContactWalk } from './state/contactWalk';
 import { stateHolder } from './state/holder';
@@ -85,6 +84,7 @@ export async function startServer(
   const bindAddress = opts.bindAddress ?? '127.0.0.1';
   const app = new Hono();
   const clients = new Set<WebSocket>();
+  const log = child('server');
 
   // The renderer is served from Vite's dev server (a different origin) during
   // development, and any external browser client lives on a different origin too.
@@ -204,7 +204,12 @@ export async function startServer(
   });
 
   const onPacket = (p: RawPacket) => {
-    packetStore.record(p, stateHolder().getUiState().packetLog.storedHistorySize);
+    try {
+      packetStore.record(p, stateHolder().getUiState().packetLog.storedHistorySize);
+    } catch (err) {
+      // Persistence is best-effort: a bad DB write must not crash main or drop the live broadcast.
+      log.warn(`packet persist failed: ${(err as Error).message}`);
+    }
     broadcast({ type: 'packet', payload: p });
   };
   const onTransportState = (state: TransportState, deviceId?: string) => {
