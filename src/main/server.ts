@@ -4,6 +4,7 @@ import { extname, join, normalize } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { type WebSocket, WebSocketServer } from 'ws';
+import type { DiscoveredContact } from '../shared/contacts/discovered';
 import type {
   AppSettings,
   AutoAddConfig,
