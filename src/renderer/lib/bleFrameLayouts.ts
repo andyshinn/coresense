@@ -48,7 +48,7 @@ export function inspectBleFrame(payloadHex: string, codeName?: string): { codeNa
   const layout = codeName ? LAYOUTS[codeName] : undefined;
   if (!layout) {
     return {
-      codeName: codeName ?? 'frame',
+      codeName: codeName || 'frame',
       bytes,
       fields: bytes.length ? [{ key: 'body', name: 'Body', start: 0, end: last, colorIdx: 0, value: hx(bytes, 0, last), desc: 'Raw frame body.' }] : [],
     };
@@ -62,5 +62,5 @@ export function inspectBleFrame(payloadHex: string, codeName?: string): { codeNa
     fields.push({ key: seg.key, name: seg.name, start: cursor, end, colorIdx: fieldColorIdx(i), value: hx(bytes, cursor, end), desc: seg.desc });
     cursor = end + 1;
   });
-  return { codeName: codeName ?? 'frame', bytes, fields };
+  return { codeName: codeName || 'frame', bytes, fields };
 }

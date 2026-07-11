@@ -16,6 +16,10 @@ export function normalizeToHex(raw: string): { hex: string; kind: PacketInputKin
   const compact = trimmed.replace(/[\s:,-]/g, '');
   if (isHexBody(compact)) return { hex: compact.toLowerCase(), kind: 'hex' };
 
+  // An all-hex-alphabet string that failed the even-length hex check above is a
+  // truncated/garbled hex paste, not base64 — don't silently reinterpret it.
+  if (/^[0-9a-fA-F]+$/.test(compact)) return null;
+
   // base64 → hex
   try {
     const bin = atob(trimmed.replace(/\s/g, ''));

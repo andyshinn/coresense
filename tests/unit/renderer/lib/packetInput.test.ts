@@ -15,4 +15,11 @@ describe('normalizeToHex', () => {
   it('returns null for garbage', () => {
     expect(normalizeToHex('!!!')).toBeNull();
   });
+  it('classifies an all-hex string as hex, never base64', () => {
+    expect(normalizeToHex('deadbeef')).toEqual({ hex: 'deadbeef', kind: 'hex' });
+  });
+  it('returns null for a truncated (odd-length) hex paste instead of decoding garbage', () => {
+    expect(normalizeToHex('2a01aabbccdd686')).toBeNull();
+    expect(normalizeToHex('deadbee')).toBeNull();
+  });
 });
