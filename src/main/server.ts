@@ -48,6 +48,7 @@ import { stateHolder } from './state/holder';
 import { discoveredStore } from './storage/discoveredContacts';
 import { transportManager } from './transport/manager';
 import { currentUpdateState } from './updates/controller';
+import { isMainWindowFocused } from './window/registry';
 
 const DEFAULT_PORT_PROD = 7654;
 const DEFAULT_PORT_DEV = 7754;
@@ -176,6 +177,7 @@ export async function startServer(
       }),
     );
     ws.send(JSON.stringify({ type: 'updateState', payload: currentUpdateState() } satisfies WsMessage));
+    ws.send(JSON.stringify({ type: 'windowFocus', payload: { focused: isMainWindowFocused() } } satisfies WsMessage));
     // Other clients should learn that the population just grew/shrank too.
     broadcastClientCount();
     const drop = () => {
@@ -222,6 +224,7 @@ export async function startServer(
   const onDeviceCapabilities = (caps: DeviceCapabilities) => broadcast({ type: 'deviceCapabilities', payload: caps });
   const onBlockRules = (rules: BlockRule[]) => broadcast({ type: 'blockRules', payload: rules });
   const onUiState = (state: UiState) => broadcast({ type: 'uiState', payload: state });
+  const onWindowFocus = (focused: boolean) => broadcast({ type: 'windowFocus', payload: { focused } });
   const onUpdateState = (state: UpdateState) => broadcast({ type: 'updateState', payload: state });
   const onLogEntry = (entry: LogEntry) => broadcast({ type: 'log', payload: entry });
 
@@ -257,6 +260,7 @@ export async function startServer(
   bus.on('deviceCapabilities', onDeviceCapabilities);
   bus.on('blockRules', onBlockRules);
   bus.on('uiState', onUiState);
+  bus.on('windowFocus', onWindowFocus);
   bus.on('updateState', onUpdateState);
   bus.on('log:entry', onLogEntry);
   bridge.on('statusChanged', onBridgeStatus);
@@ -294,6 +298,7 @@ export async function startServer(
     bus.off('deviceCapabilities', onDeviceCapabilities);
     bus.off('blockRules', onBlockRules);
     bus.off('uiState', onUiState);
+    bus.off('windowFocus', onWindowFocus);
     bus.off('updateState', onUpdateState);
     bus.off('log:entry', onLogEntry);
     bridge.off('statusChanged', onBridgeStatus);

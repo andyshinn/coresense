@@ -200,6 +200,11 @@ interface CoreState {
   // mode — e.g. MapCanvas swapping basemap flavors.
   systemDark: boolean;
 
+  // Authoritative window focus, pushed from main's BrowserWindow focus/blur.
+  // Gates view-driven auto-mark-read (see MessageList) so messages arriving
+  // while the app is backgrounded stay unread until the user looks at the app.
+  windowFocused: boolean;
+
   // Connection
   transportState: TransportState;
   connectedDeviceId: string | undefined;
@@ -365,6 +370,7 @@ interface CoreState {
   applyPathLearned: (event: PathLearnedEvent) => void;
   setBusy: (b: boolean) => void;
   setSystemDark: (dark: boolean) => void;
+  applyWindowFocus: (focused: boolean) => void;
   // A path-learn event waiting for a user verdict (Keep mine / Accept new).
   // Only populated when previousManual=true; auto-learn over an empty or
   // already-learned slot is applied silently with a toast.
@@ -498,6 +504,8 @@ const RECENT_KEYS_MAX = 10;
 export const useStore = create<CoreState>((set) => ({
   systemDark:
     typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : false,
+  // Assume focused at startup; the connect-time windowFocus frame corrects it.
+  windowFocused: true,
   transportState: 'idle',
   connectedDeviceId: undefined,
   syncProgress: DEFAULT_SYNC_PROGRESS,
@@ -749,6 +757,7 @@ export const useStore = create<CoreState>((set) => ({
 
   setBusy: (b) => set(() => ({ busy: b })),
   setSystemDark: (dark) => set(() => ({ systemDark: dark })),
+  applyWindowFocus: (focused) => set(() => ({ windowFocused: focused })),
   setWsClients: (n) => set(() => ({ wsClients: n })),
 
   setActiveKey: (key, opts) =>

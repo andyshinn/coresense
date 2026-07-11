@@ -1055,6 +1055,11 @@ export type WsMessage =
   | { type: 'deviceInfo'; payload: DeviceInfo }
   | { type: 'deviceCapabilities'; payload: DeviceCapabilities }
   | { type: 'uiState'; payload: UiState }
+  // Authoritative window focus, sourced from BrowserWindow focus/blur events in
+  // main. The renderer gates view-driven auto-mark-read on this so messages
+  // arriving while the window is backgrounded stay unread (and their
+  // notifications stay standing) until the user actually looks at the app.
+  | { type: 'windowFocus'; payload: { focused: boolean } }
   | { type: 'wsClients'; payload: { count: number } }
   | { type: 'blockRules'; payload: BlockRule[] }
   | { type: 'log'; payload: LogEntry }

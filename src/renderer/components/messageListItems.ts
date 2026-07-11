@@ -12,6 +12,22 @@ function dateItem(ts: number): DateItem {
   return { kind: 'date', id: `date-${dayKey(ts)}`, ts };
 }
 
+// The read cursor should only advance for messages the user has actually seen —
+// i.e. while the app window has focus. A message that arrives in the active
+// conversation while the window is in the background must stay unread so its
+// notification persists (otherwise the banner would flash and immediately clear
+// when the auto-mark-read pushed uiState back to main). Given the currently
+// rendered range, returns the max message ts to mark read, or null when nothing
+// should advance (window unfocused, or no newer message on screen).
+export function computeMarkReadTs(range: Item[], lastMarked: number, focused: boolean): number | null {
+  if (!focused) return null;
+  let maxTs = 0;
+  for (const it of range) {
+    if (it.kind === 'msg' && it.m.ts > maxTs) maxTs = it.m.ts;
+  }
+  return maxTs > lastMarked ? maxTs : null;
+}
+
 // Index of the first message newer than the unread cutoff that wasn't sent by
 // the owner (self-sent messages never count as "unread"). -1 when none.
 export function computeFirstUnreadIdx(messages: Message[], cutoff: number): number {
