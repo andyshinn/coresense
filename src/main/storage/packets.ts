@@ -8,9 +8,12 @@ function hexToBytes(hex: string): number[] {
   return out;
 }
 
-// Prune runs on a modulo so we don't DELETE on every insert.
-let sinceLastPrune = 0;
-const PRUNE_EVERY = 1;
+// Prune eagerly after each insert. Until the table exceeds keep, the SELECT MAX(id) + DELETE is a cheap no-op on the id primary key.
+function prune(keep: number): void {
+  openDb()
+    .prepare(`DELETE FROM packets WHERE id <= (SELECT MAX(id) FROM packets) - ?`)
+    .run(keep);
+}
 
 export const packetStore = {
   /** Persist a packet, then prune to the newest `keep`. `keep <= 0` disables persistence. */
@@ -31,20 +34,7 @@ export const packetStore = {
       p.code ?? null,
       p.codeName ?? null,
     );
-    if (++sinceLastPrune >= PRUNE_EVERY) {
-      sinceLastPrune = 0;
-      this.prune(keep);
-    }
-  },
-
-  prune(keep: number): void {
-    if (keep <= 0) {
-      this.clear();
-      return;
-    }
-    openDb()
-      .prepare(`DELETE FROM packets WHERE id <= (SELECT MAX(id) FROM packets) - ?`)
-      .run(keep);
+    prune(keep);
   },
 
   /** Newest `limit` rows, returned oldest→newest so the live list appends in order. */
