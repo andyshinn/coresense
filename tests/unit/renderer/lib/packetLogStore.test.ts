@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { migratePacketLogFilter, useStore } from '../../../../src/renderer/lib/store';
-import { DEFAULT_UI_STATE } from '../../../../src/shared/types';
+import { DEFAULT_UI_STATE, type RawPacket } from '../../../../src/shared/types';
 
 const reset = () => useStore.setState({ packets: [], selectedPacketId: null, ui: structuredClone(DEFAULT_UI_STATE) });
 
@@ -8,7 +8,7 @@ beforeEach(reset);
 
 describe('packet log store', () => {
   it('assigns a stable unique id to each applied packet', () => {
-    const p = {
+    const p: RawPacket = {
       timestamp: 1,
       transportType: 'ble',
       kind: 'mesh',
@@ -16,7 +16,7 @@ describe('packet log store', () => {
       bytes: [0x88],
       payloadHex: '15',
       payloadBytes: [0x15],
-    } as const;
+    };
     useStore.getState().applyPacket({ ...p });
     useStore.getState().applyPacket({ ...p });
     const ids = useStore.getState().packets.map((x) => x.id);
