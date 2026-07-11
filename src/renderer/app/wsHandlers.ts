@@ -100,6 +100,9 @@ export function createWsMessageHandler(deps: WsMessageHandlerDeps): (msg: WsMess
       case 'uiState':
         s.applyUiState(msg.payload);
         break;
+      case 'windowFocus':
+        s.applyWindowFocus(msg.payload.focused);
+        break;
       case 'repeaterStatus':
         s.applyRepeaterStatus(msg.payload);
         break;

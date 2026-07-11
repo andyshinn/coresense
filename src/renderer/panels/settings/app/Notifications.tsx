@@ -19,7 +19,8 @@ const eqNotifications = (a: AppSettingsType, b: AppSettingsType) => {
     x.discoveredContact === y.discoveredContact &&
     x.sound === y.sound &&
     x.suppressWhenFocused === y.suppressWhenFocused &&
-    x.dockBadge === y.dockBadge
+    x.dockBadge === y.dockBadge &&
+    x.summarizeBacklog === y.summarizeBacklog
   );
 };
 
@@ -96,6 +97,12 @@ export function NotificationsSection({ client }: SectionProps) {
         description="Unread count on the app icon."
         changed={n.dockBadge !== s0.dockBadge}
         control={<Toggle checked={n.dockBadge} onChange={(v) => setN({ dockBadge: v })} />}
+      />
+      <Row
+        label="Summarize while away"
+        description="Fold messages received while disconnected into one summary per conversation."
+        changed={n.summarizeBacklog !== s0.summarizeBacklog}
+        control={<Toggle checked={n.summarizeBacklog} onChange={(v) => setN({ summarizeBacklog: v })} />}
       />
     </SettingsSection>
   );

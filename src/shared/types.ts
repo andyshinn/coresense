@@ -381,6 +381,9 @@ export interface AppSettings {
     sound: boolean;
     suppressWhenFocused: boolean;
     dockBadge: boolean;
+    /** Fold messages received while disconnected (stale ts) into a single
+     *  per-conversation summary instead of one banner each. */
+    summarizeBacklog: boolean;
   };
   proxy: {
     enabled: boolean;
@@ -476,6 +479,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     sound: true,
     suppressWhenFocused: true,
     dockBadge: true,
+    summarizeBacklog: true,
   },
   proxy: {
     enabled: true,
@@ -876,6 +880,10 @@ export type MenuAction =
   | { kind: 'cyclePinned'; direction: 'prev' | 'next' }
   | { kind: 'sendAdvert' }
   | { kind: 'focusKey'; key: string }
+  // Notification click → open a conversation and scroll to a specific message.
+  | { kind: 'focusMessage'; key: string; messageId: string }
+  // Summary-notification click → open a conversation at its first unread message.
+  | { kind: 'focusFirstUnread'; key: string }
   | { kind: 'newChannel' }
   | { kind: 'addContact' }
   | { kind: 'pinToggle' }
@@ -1047,6 +1055,11 @@ export type WsMessage =
   | { type: 'deviceInfo'; payload: DeviceInfo }
   | { type: 'deviceCapabilities'; payload: DeviceCapabilities }
   | { type: 'uiState'; payload: UiState }
+  // Authoritative window focus, sourced from BrowserWindow focus/blur events in
+  // main. The renderer gates view-driven auto-mark-read on this so messages
+  // arriving while the window is backgrounded stay unread (and their
+  // notifications stay standing) until the user actually looks at the app.
+  | { type: 'windowFocus'; payload: { focused: boolean } }
   | { type: 'wsClients'; payload: { count: number } }
   | { type: 'blockRules'; payload: BlockRule[] }
   | { type: 'log'; payload: LogEntry }

@@ -350,6 +350,13 @@ function createWindow() {
   trackWindow(mainWindow);
   setMainWindow(mainWindow);
 
+  // Broadcast authoritative window focus to the renderer. The notification
+  // router reads BrowserWindow.isFocused() directly (freshest at send time);
+  // the renderer needs a pushed signal to gate view-driven auto-mark-read so a
+  // message arriving while backgrounded doesn't clear its own notification.
+  mainWindow.on('focus', () => emit.windowFocus(true));
+  mainWindow.on('blur', () => emit.windowFocus(false));
+
   // Defer the close button so the renderer can prompt about unsaved Settings
   // changes. It replies via POST /api/app/quit, which re-issues the close.
   mainWindow.on('close', (event) => {

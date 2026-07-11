@@ -19,11 +19,11 @@ import type {
 import { adminSessions } from '../bridge/adminSession';
 import { APP_VERSION, GIT_SHA } from '../build-info';
 import { emit } from '../events/bus';
-import { child } from '../log';
 import { applyLoggingSettings } from '../logging/apply';
 import { currentPath, folderPath } from '../logging/fileSink';
 import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
 import { clampTileCacheMaxBytes, getTileCache } from '../map/tile-cache';
+import { sendMessage } from '../messaging/sendMessage';
 import { protocolSession } from '../protocol';
 import { ContactTableFullError, UnknownContactError } from '../protocol/errors';
 import { appLifecycle } from '../runtime/appLifecycle';
@@ -35,8 +35,6 @@ import { updatesController } from '../updates/controller';
 import { markQuitConfirmed } from '../window/quit';
 import { getConfigPath } from './middleware/auth';
 import { buildTileManifest, registerTileRoutes } from './tiles';
-
-const log = child('api');
 
 interface RoutesDeps {
   port: () => number;
@@ -628,48 +626,11 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     if (!body || typeof body.body !== 'string' || body.body.length === 0) {
       return c.json({ error: 'body is required' }, 400);
     }
-    const holder = stateHolder();
-    const id = `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-
-    // Record the message locally first so the UI sees it immediately, then
-    // hand to the protocol session for TX. The state starts as 'sending' and
-    // flips to 'sent' on a successful write, 'failed' if the transport rejects.
-    holder.insertMessage({
-      id,
-      key,
-      body: body.body,
-      ts: Date.now(),
-      state: 'sending',
-    });
-    emit.messages(key, holder.getMessagesForKey(key));
-
+    const result = await sendMessage(key, body.body);
     if (key.startsWith('ch:')) {
-      const result = await protocolSession().sendChannelText(key, body.body);
-      const nextState = result.ok ? 'sent' : 'failed';
-      holder.setMessageState(id, nextState);
-      emit.messageState(id, nextState);
-      // Register the send so repeater relays we hear over the air (0x88) are
-      // attributed back to this message — the lib then emits `messagePathHeard`,
-      // which drives the green ✓×N "heard by N repeaters" counter.
-      if (result.ok && result.channelHash != null) {
-        protocolSession().registerChannelSend({ messageId: id, channelHash: result.channelHash });
-      }
-      return result.ok ? c.json({ ok: true, id }) : c.json({ error: result.error }, 503);
+      return result.ok ? c.json({ ok: true, id: result.id }) : c.json({ error: result.error }, 503);
     }
-
-    // DM: returns immediately after the first transport-level write so the UI
-    // can render the optimistic message; sendDmTextWithRetry then drives the
-    // 3-known-path + 2-flood retry loop in the background, transitioning the
-    // message state via emit.messageState and emitting `pathLearned` if the
-    // radio discovers a new out_path during fallback.
-    protocolSession()
-      .sendDmTextWithRetry(key, body.body, id)
-      .catch((err) => {
-        holder.setMessageState(id, 'failed');
-        emit.messageState(id, 'failed');
-        log.warn(`sendDmTextWithRetry id=${id}: ${(err as Error).message}`);
-      });
-    return c.json({ ok: true, id });
+    return c.json({ ok: true, id: result.id });
   });
 
   // ---- Per-contact path ------------------------------------------------

@@ -4,6 +4,8 @@ import {
   buildItems,
   buildPrepended,
   computeFirstUnreadIdx,
+  computeMarkReadTs,
+  type Item,
 } from '../../../../src/renderer/components/messageListItems';
 import type { Message } from '../../../../src/shared/types';
 
@@ -61,6 +63,34 @@ describe('computeFirstUnreadIdx', () => {
   it('skips self-sent messages (no fromPublicKeyHex)', () => {
     const msgs = [msg('a', JUL2), msg('b', JUL4, { fromPublicKeyHex: undefined })];
     expect(computeFirstUnreadIdx(msgs, JUL2)).toBe(-1);
+  });
+});
+
+describe('computeMarkReadTs', () => {
+  const range: Item[] = [
+    { kind: 'msg', m: msg('a', JUL2) },
+    { kind: 'date', id: 'date-x', ts: JUL4 },
+    { kind: 'msg', m: msg('b', JUL4) },
+  ];
+
+  it('returns null when the window is unfocused, even with newer messages on screen', () => {
+    // The core of the flash-then-vanish fix: a message arriving in the active
+    // conversation while the window is in the background must NOT advance the
+    // read cursor, or its just-shown notification gets cleared.
+    expect(computeMarkReadTs(range, 0, false)).toBeNull();
+  });
+
+  it('returns the max message ts when focused and it advances the cursor', () => {
+    expect(computeMarkReadTs(range, 0, true)).toBe(JUL4);
+  });
+
+  it('returns null when focused but nothing is newer than the cursor', () => {
+    expect(computeMarkReadTs(range, JUL4, true)).toBeNull();
+  });
+
+  it('ignores non-message items when finding the max ts', () => {
+    const onlySeparators: Item[] = [{ kind: 'divider', id: '__unread__' }];
+    expect(computeMarkReadTs(onlySeparators, 0, true)).toBeNull();
   });
 });
 

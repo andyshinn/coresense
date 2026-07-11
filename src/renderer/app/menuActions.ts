@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import { loadLastDevice } from '../lib/lastDevice';
 import { notify } from '../lib/notify';
 import { useStore } from '../lib/store';
+import { firstUnreadMessageId } from '../lib/utils';
 
 export interface MenuActionHandlerDeps {
   baseUrl: string | null;
@@ -28,6 +29,22 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
       case 'focusKey':
         setActiveKey(action.key);
         break;
+      case 'focusMessage':
+        setActiveKey(action.key);
+        useStore.getState().setPendingJump(action.messageId);
+        break;
+      case 'focusFirstUnread': {
+        setActiveKey(action.key);
+        const st = useStore.getState();
+        const msgs = st.messagesByKey[action.key] ?? [];
+        const lastRead = st.ui.lastReadByKey[action.key] ?? 0;
+        const mid = firstUnreadMessageId(msgs, lastRead);
+        // Always set — clears any stale pending jump when there is no unread
+        // message (MessageList only clears it after a *resolved* jump, so a
+        // leftover id would otherwise linger and misfire on a later view).
+        st.setPendingJump(mid);
+        break;
+      }
       case 'toggleLeftNav':
         toggleLeftNav();
         break;

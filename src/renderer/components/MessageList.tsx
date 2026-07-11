@@ -5,7 +5,7 @@ import {
   type VirtuosoMessageListMethods,
 } from '@virtuoso.dev/message-list';
 import { Copy, RotateCw, ShieldOff, User } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Contact, Message, MessageStyle, Owner } from '../../shared/types';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
@@ -16,7 +16,14 @@ import { BlockSenderDialog, type BlockSenderDialogPrefill } from './BlockSenderD
 import { ContextMenu, type ContextMenuEntry, copyToClipboard, menuItem, menuSeparator } from './ContextMenu';
 import { MessageDivider } from './MessageDivider';
 import { MessageRow } from './MessageRow';
-import { buildAppended, buildItems, buildPrepended, computeFirstUnreadIdx, type Item } from './messageListItems';
+import {
+  buildAppended,
+  buildItems,
+  buildPrepended,
+  computeFirstUnreadIdx,
+  computeMarkReadTs,
+  type Item,
+} from './messageListItems';
 
 interface Props {
   conversationKey: string;
@@ -112,6 +119,7 @@ export function MessageList({
   onJumpConsumed,
 }: Props) {
   const setActiveKey = useStore((s) => s.setActiveKey);
+  const windowFocused = useStore((s) => s.windowFocused);
   const listRef = useRef<VirtuosoMessageListMethods<Item, RowContext>>(null);
   const [menu, setMenu] = useState<MessageMenuState | null>(null);
   const [flashId, setFlashId] = useState<string | null>(null);
@@ -260,21 +268,37 @@ export function MessageList({
     return () => clearTimeout(t);
   }, [jumpToId, onJumpConsumed]);
 
-  // Mark-read driven by what's actually on screen. Walk the rendered items,
-  // take the max message ts, and report it if it advances the cursor. This
+  // Latest rendered range, captured so a window-focus regain can re-run
+  // mark-read against what's currently on screen — Virtuoso won't re-fire
+  // onRenderedDataChange just because the OS window regained focus.
+  const lastRangeRef = useRef<Item[]>([]);
+
+  // Mark-read driven by what's actually on screen, but only while the app
+  // window is focused. Walking the rendered items and taking the max message ts
   // covers initial render (no scroll event), incremental scroll-through-unread,
-  // and new arrivals while pinned to the bottom — all without depending on
-  // at-bottom edge transitions.
+  // and new arrivals while pinned to the bottom. Gating on focus is the fix for
+  // the flash-then-vanish bug: a message arriving in the active conversation
+  // while the window is backgrounded must stay unread so its notification isn't
+  // cleared out from under the user (auto-mark-read → uiState → clear-on-read).
+  const maybeMarkRead = useCallback(() => {
+    const ts = computeMarkReadTs(lastRangeRef.current, lastMarkedReadRef.current, windowFocused);
+    if (ts !== null) {
+      lastMarkedReadRef.current = ts;
+      onMarkRead(ts);
+    }
+  }, [onMarkRead, windowFocused]);
+
   const handleRenderedDataChange = (range: Item[]) => {
-    let maxTs = 0;
-    for (const it of range) {
-      if (it.kind === 'msg' && it.m.ts > maxTs) maxTs = it.m.ts;
-    }
-    if (maxTs > lastMarkedReadRef.current) {
-      lastMarkedReadRef.current = maxTs;
-      onMarkRead(maxTs);
-    }
+    lastRangeRef.current = range;
+    maybeMarkRead();
   };
+
+  // Regaining focus is the user actually looking at the conversation: mark read
+  // whatever is on screen now, clearing notifications that were intentionally
+  // left standing while the window was backgrounded.
+  useEffect(() => {
+    if (windowFocused) maybeMarkRead();
+  }, [windowFocused, maybeMarkRead]);
 
   const handleContextMenu = (m: Message, e: React.MouseEvent) => {
     e.preventDefault();
