@@ -16,6 +16,7 @@ import {
 } from './app';
 import { BlockedSection } from './blocked';
 import { DangerZoneSection, ImportExportSection, MaintenanceSection } from './ExtraSections';
+import { PacketLogSection } from './PacketLogSection';
 import { type PillTab, PillTabs } from './PillTabs';
 import { QuickActionsTab } from './quick-actions/QuickActionsTab';
 import {
@@ -63,6 +64,7 @@ const TAB_SECTIONS: Record<SettingsTab, SettingsSectionMeta[]> = {
   ],
   blocked: [{ id: 'blocked-rules', title: 'Blocked Senders', tab: 'blocked' }],
   extra: [
+    { id: 'extra-packetlog', title: 'Packet Log', tab: 'extra' },
     { id: 'extra-maintenance', title: 'Maintenance', tab: 'extra' },
     { id: 'extra-import-export', title: 'Import / Export', tab: 'extra' },
     { id: 'extra-danger', title: 'Danger Zone', tab: 'extra' },
@@ -218,6 +220,7 @@ function BlockedTab({ client }: { client: ApiClient | null }) {
 function ExtraTab({ client }: { client: ApiClient | null }) {
   return (
     <>
+      <PacketLogSection />
       <MaintenanceSection client={client} />
       <ImportExportSection />
       <DangerZoneSection />
