@@ -24,6 +24,18 @@ const mk = (ts: number): RawPacket => ({
   rssi: -80,
 });
 
+const mkCompanion = (ts: number): RawPacket => ({
+  timestamp: ts,
+  transportType: 'ble',
+  kind: 'companion',
+  hex: '83',
+  bytes: [0x83],
+  payloadHex: '2a01aabbccdd6869',
+  payloadBytes: [0x2a, 0x01, 0xaa, 0xbb, 0xcc, 0xdd, 0x68, 0x69],
+  code: 0x83,
+  codeName: 'RESP_CHANNEL_MSG_RECV',
+});
+
 afterEach(() => {
   packetStore.clear();
 });
@@ -58,6 +70,17 @@ describe('packetStore', () => {
     packetStore.record(mk(1), 100);
     packetStore.clear();
     expect(packetStore.recent(10)).toEqual([]);
+  });
+
+  it('round-trips a companion-shaped packet with code/codeName and no snr/rssi', () => {
+    packetStore.record(mkCompanion(5000), 100);
+    const rows = packetStore.recent(10);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind).toBe('companion');
+    expect(rows[0].code).toBe(0x83);
+    expect(rows[0].codeName).toBe('RESP_CHANNEL_MSG_RECV');
+    expect(rows[0]).not.toHaveProperty('snr');
+    expect(rows[0]).not.toHaveProperty('rssi');
   });
 });
 

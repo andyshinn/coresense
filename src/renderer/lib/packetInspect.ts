@@ -49,6 +49,11 @@ export interface PacketInspection {
 const NUM_FIELD_COLORS = 7;
 export const fieldColorIdx = (i: number) => ((i % NUM_FIELD_COLORS) + NUM_FIELD_COLORS) % NUM_FIELD_COLORS;
 
+// Shared by ByteStrip and FieldCard so the byte-strip highlight and the field
+// card's accent always resolve to the same CSS custom property for a given
+// `colorIdx` (0..NUM_FIELD_COLORS-1, from `fieldColorIdx`).
+export const fieldColorVar = (idx: number) => `rgb(var(--cs-field${idx}))`;
+
 const hexToBytes = (hex: string): number[] => {
   const clean = hex.replace(/[^0-9a-fA-F]/g, '');
   const out: number[] = [];

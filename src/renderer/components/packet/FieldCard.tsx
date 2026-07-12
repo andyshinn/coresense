@@ -1,9 +1,7 @@
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
-import type { InspectField } from '../../lib/packetInspect';
+import { fieldColorVar, type InspectField } from '../../lib/packetInspect';
 import { BitTable } from './BitTable';
-
-const colorVar = (idx: number) => `rgb(var(--cs-field${idx}))`;
 
 interface Props {
   field: InspectField;
@@ -14,7 +12,7 @@ interface Props {
 
 export function FieldCard({ field, scope, hovered, setHovered }: Props) {
   const id = `${scope}:${field.key}`;
-  const color = colorVar(field.colorIdx);
+  const color = fieldColorVar(field.colorIdx);
   const active = hovered === id;
   const dimmed = hovered != null && hovered !== id;
   const [openBits, setOpenBits] = useState(true);
