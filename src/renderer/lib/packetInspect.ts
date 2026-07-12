@@ -58,10 +58,12 @@ const hexToBytes = (hex: string): number[] => {
 const bin = (v: number, w: number) => (v >>> 0).toString(2).padStart(w, '0');
 
 // Utils.getPayloadTypeName returns compact PascalCase ("GroupText", "TextMessage",
-// "AnonRequest"); the UI convention (see PacketLog.tsx's typeColor map) is word-spaced
-// ("Group Text", "Text Message", "Anon Request"). Space it here so every consumer of
-// this adapter gets the display-ready form.
-const spaceWords = (s: string) => s.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+// "AnonRequest"); the UI convention is word-spaced ("Group Text", "Text Message",
+// "Anon Request"). Space it here so every consumer of this adapter gets the
+// display-ready form. Exported so PacketLog.tsx's list row can apply the same
+// spacing to decodePacket.ts's summarizePacket().typeName, keeping the list and
+// the right-rail detail (which uses this module) in agreement.
+export const spaceWords = (s: string) => s.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
 
 // path_len byte → hop-count + hash-size bit rows (fallback for decoder versions that
 // don't already bit-break the path-length byte themselves).
