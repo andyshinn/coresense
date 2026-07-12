@@ -1,6 +1,7 @@
 import { PanelRightClose } from 'lucide-react';
 import { useMemo } from 'react';
 import { Collapsible } from '../../components/Collapsible';
+import { PacketDetailsRail } from '../../components/packet/PacketDetailsRail';
 import type { ApiClient } from '../../lib/api';
 import { resolveNeighbourPublicKey } from '../../lib/neighbours';
 import { useStore } from '../../lib/store';
@@ -110,6 +111,13 @@ export function RightRail({ client }: RightRailProps) {
           // site card on selection) — bypass the standard Collapsible
           // sections so it matches the design's spec sheet.
           <MapDetailsRail client={client} />
+        ) : activeKey === 'tool:packetlog' ? (
+          // Same rationale as the map bypass above: the packet log's right
+          // pane is a fully custom byte-level breakdown, not a stack of
+          // collapsible label/value sections.
+          <div className="h-full overflow-y-auto">
+            <PacketDetailsRail client={client} />
+          </div>
         ) : activeKey === 'tool:macros' ? (
           // The Macros tool's right pane is the authoring Reference (variables
           // & filters) for the open studio — a full-height panel, not sections.
