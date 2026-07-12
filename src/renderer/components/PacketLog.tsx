@@ -20,10 +20,11 @@ const GRID = 'grid-cols-[70px_112px_minmax(0,1fr)_92px_30px]';
 // buffer never blocks the initial paint on thousands of synchronous DOM nodes.
 const INITIAL_RENDER_COUNT = 40;
 
-function badge(p: LivePacket): { letter: string; varName: string } {
-  if (p.kind === 'companion') return { letter: 'B', varName: '--cs-ble' };
-  const route = summarizePacket(p.payloadHex).routeName;
-  return route === 'Direct' ? { letter: 'D', varName: '--cs-route-direct' } : { letter: 'F', varName: '--cs-route-flood' };
+function badge(packet: LivePacket, summary: PacketSummary): { letter: string; varName: string } {
+  if (packet.kind === 'companion') return { letter: 'B', varName: '--cs-ble' };
+  return summary.routeName.includes('Direct')
+    ? { letter: 'D', varName: '--cs-route-direct' }
+    : { letter: 'F', varName: '--cs-route-flood' };
 }
 
 function rssiClass(rssi?: number): string {
@@ -36,7 +37,7 @@ function rssiClass(rssi?: number): string {
 function Row({ packet, selected, onSelect }: { packet: LivePacket; selected: boolean; onSelect: () => void }) {
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
   const summary: PacketSummary = useMemo(() => summarizePacket(packet.payloadHex), [packet.payloadHex]);
-  const b = badge(packet);
+  const b = badge(packet, summary);
   const typeName =
     packet.kind === 'companion' ? (packet.codeName ?? 'BLE').replace(/_/g, ' ') : spaceWords(summary.typeName);
   return (
@@ -58,9 +59,11 @@ function Row({ packet, selected, onSelect }: { packet: LivePacket; selected: boo
         </span>
         <span className="truncate text-[12.5px] text-cs-text">{typeName}</span>
       </span>
-      <span className="truncate text-[12.5px] text-cs-text-muted">{summary.detail ?? ''}</span>
+      <span className="truncate text-[12.5px] text-cs-text-muted">
+        {packet.kind === 'companion' ? '—' : (summary.detail ?? '')}
+      </span>
       <span className={`truncate font-mono text-[11px] ${rssiClass(packet.rssi)}`}>
-        {packet.rssi == null ? '—' : `${packet.rssi} / ${packet.snr}`}
+        {packet.rssi == null || packet.snr == null ? '—' : `${packet.rssi} / ${packet.snr}`}
       </span>
       <span className="text-right font-mono text-[11px] text-cs-text-muted">
         {packet.kind === 'companion' ? '—' : (summary.decoded?.pathLength ?? 0)}

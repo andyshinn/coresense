@@ -37,4 +37,14 @@ describe('PacketLog list', () => {
     render(<PacketLog packets={[pkt('pkt-0'), pkt('pkt-1', { kind: 'companion', codeName: 'PUSH_ADVERT' })]} />);
     expect(screen.getAllByTestId('packet-row')).toHaveLength(1);
   });
+
+  it('shows a humanized type name for a GroupText mesh packet', () => {
+    render(<PacketLog packets={[pkt('pkt-0', { payloadHex: '1501782abbcc00112233' })]} />);
+    expect(screen.getByText('Group Text')).toBeTruthy();
+  });
+
+  it('does not show a mesh-decode error in DETAILS for a companion row', () => {
+    render(<PacketLog packets={[pkt('pkt-1', { kind: 'companion', codeName: 'PUSH_ADVERT', payloadHex: 'deadbeef' })]} />);
+    expect(screen.queryByText(/too short|invalid|error/i)).toBeNull();
+  });
 });
