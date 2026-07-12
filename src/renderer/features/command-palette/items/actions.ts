@@ -1,5 +1,6 @@
 import {
   ArrowUpCircle,
+  Binary,
   CheckCheck,
   Clipboard,
   Eraser,
@@ -17,6 +18,7 @@ import type { Contact, Owner, RawPacket, TransportState } from '../../../../shar
 import { type ApiClient, api } from '../../../lib/api';
 import type { LastDevice } from '../../../lib/lastDevice';
 import { notify } from '../../../lib/notify';
+import { useStore } from '../../../lib/store';
 import type { PaletteItem } from '../types';
 
 export interface BuildActionsArgs {
@@ -289,6 +291,19 @@ export function buildActionItems({
       clearPackets();
       if (client) void api.clearPackets(client).catch(() => {});
       notify.success('Packet log cleared');
+      close();
+    },
+  });
+  list.push({
+    id: 'action:decodePacket',
+    label: 'Decode packet…',
+    hint: 'hex / base64 / meshcore://',
+    group: 'action',
+    groupLabel: 'Actions',
+    icon: Binary,
+    keywords: 'decode packet hex base64 byon inspector',
+    run: () => {
+      useStore.getState().setDecoderOpen(true);
       close();
     },
   });

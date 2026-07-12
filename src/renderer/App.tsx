@@ -6,6 +6,7 @@ import { useUiStatePersistence } from './app/useUiStatePersistence';
 import { createWsMessageHandler } from './app/wsHandlers';
 import { ApiKeyGate } from './components/ApiKeyGate';
 import { PacketLogHost, PathLearnedDialogHost, StatusBarHost } from './components/AppHosts';
+import { PacketDecoderDialog } from './components/packet/PacketDecoderDialog';
 import { Toaster } from './components/ui/sonner';
 import { CommandPalette } from './features/command-palette';
 import { ShortcutsHelpDialog } from './features/help-overlay';
@@ -263,6 +264,7 @@ export function App() {
       <Toaster richColors closeButton position="bottom-right" />
       <CommandPalette client={client} cycleThemePref={cycleThemePref} />
       <ShortcutsHelpDialog />
+      <PacketDecoderDialog />
       <PathLearnedDialogHost client={client} />
       <div className="flex h-full flex-1 flex-col">
         <div className="flex-1 overflow-hidden">
