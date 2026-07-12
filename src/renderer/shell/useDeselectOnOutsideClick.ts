@@ -2,13 +2,14 @@ import { useEffect } from 'react';
 import { useStore } from '../lib/store';
 
 // Selectors that mean "this click is on/inside something we must NOT deselect
-// for": a message row (its own onClick handles selecting it) and anywhere inside
-// the detail rail (so reading/acting on the detail doesn't dismiss it).
-const KEEP_SELECTION_SELECTORS = ['[data-testid="message-row"]', '[aria-label="Detail rail"]'];
+// for": a message row (its own onClick handles selecting it), a packet row
+// (same), and anywhere inside the detail rail (so reading/acting on the detail
+// doesn't dismiss it).
+const KEEP_SELECTION_SELECTORS = ['[data-testid="message-row"]', '[data-testid="packet-row"]', '[aria-label="Detail rail"]'];
 
-// Deselect the active message when the user clicks anywhere off it — empty
-// space, the composer, the left nav, etc. Read/write the store via getState() so
-// this listener never re-subscribes.
+// Deselect the active message/packet when the user clicks anywhere off it —
+// empty space, the composer, the left nav, etc. Read/write the store via
+// getState() so this listener never re-subscribes.
 //
 // We decide inside/outside from event.composedPath() rather than
 // target.closest(). This document "click" listener fires after React has handled
@@ -24,7 +25,8 @@ const KEEP_SELECTION_SELECTORS = ['[data-testid="message-row"]', '[aria-label="D
 export function useDeselectOnOutsideClick() {
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
-      if (useStore.getState().selectedMessageId == null) return;
+      const st = useStore.getState();
+      if (st.selectedMessageId == null && st.selectedPacketId == null) return;
       for (const node of e.composedPath()) {
         // composedPath() includes non-Element targets (window, document) that
         // have no matches() — skip them.
@@ -32,7 +34,9 @@ export function useDeselectOnOutsideClick() {
         const el = node as Element;
         if (KEEP_SELECTION_SELECTORS.some((sel) => el.matches(sel))) return;
       }
-      useStore.getState().setSelectedMessage(null);
+      const st2 = useStore.getState();
+      st2.setSelectedMessage(null);
+      st2.setSelectedPacket(null);
     };
     document.addEventListener('click', onDocClick);
     return () => document.removeEventListener('click', onDocClick);

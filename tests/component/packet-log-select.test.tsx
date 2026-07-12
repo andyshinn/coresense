@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { PacketLog } from '@/components/PacketLog';
 import type { LivePacket } from '@/lib/store';
 import { useStore } from '@/lib/store';
+import { useDeselectOnOutsideClick } from '@/shell/useDeselectOnOutsideClick';
 
 const pkt = (id: string, over: Partial<LivePacket> = {}): LivePacket => ({
   id,
@@ -46,5 +47,34 @@ describe('PacketLog list', () => {
   it('does not show a mesh-decode error in DETAILS for a companion row', () => {
     render(<PacketLog packets={[pkt('pkt-1', { kind: 'companion', codeName: 'PUSH_ADVERT', payloadHex: 'deadbeef' })]} />);
     expect(screen.queryByText(/too short|invalid|error/i)).toBeNull();
+  });
+});
+
+function Harness() {
+  useDeselectOnOutsideClick();
+  return (
+    <div>
+      <button type="button" data-testid="packet-row" onClick={() => useStore.getState().setSelectedPacket('pkt-9')}>
+        row
+      </button>
+      <button type="button" data-testid="outside">
+        outside
+      </button>
+    </div>
+  );
+}
+
+describe('packet deselect-on-outside-click', () => {
+  it('clears selectedPacketId when clicking outside', () => {
+    useStore.getState().setSelectedPacket('pkt-1');
+    render(<Harness />);
+    fireEvent.click(screen.getByTestId('outside'));
+    expect(useStore.getState().selectedPacketId).toBeNull();
+  });
+
+  it('keeps the selection when clicking a packet row', () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByTestId('packet-row'));
+    expect(useStore.getState().selectedPacketId).toBe('pkt-9');
   });
 });
