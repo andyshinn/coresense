@@ -10,9 +10,7 @@ function hexToBytes(hex: string): number[] {
 
 // Prune eagerly after each insert. Until the table exceeds keep, the SELECT MAX(id) + DELETE is a cheap no-op on the id primary key.
 function prune(keep: number): void {
-  openDb()
-    .prepare(`DELETE FROM packets WHERE id <= (SELECT MAX(id) FROM packets) - ?`)
-    .run(keep);
+  openDb().prepare(`DELETE FROM packets WHERE id <= (SELECT MAX(id) FROM packets) - ?`).run(keep);
 }
 
 export const packetStore = {

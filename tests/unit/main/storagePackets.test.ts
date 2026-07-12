@@ -1,17 +1,16 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
 // packetStore uses openDb() → a real on-disk sqlite file. Point userDataDir at a
 // fresh temp dir per test run so we exercise the real DDL + statements.
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const dir = mkdtempSync(join(tmpdir(), 'cs-packets-'));
 vi.mock('../../../src/main/runtime/userData', () => ({ userDataDir: () => dir }));
 
-import type { RawPacket } from '../../../src/shared/types';
 import { closeDb } from '../../../src/main/storage/db';
 import { packetStore } from '../../../src/main/storage/packets';
+import type { RawPacket } from '../../../src/shared/types';
 
 const mk = (ts: number): RawPacket => ({
   timestamp: ts,

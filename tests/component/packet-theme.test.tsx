@@ -10,6 +10,8 @@ describe('inspector theme tokens', () => {
     const light = getComputedStyle(document.documentElement).getPropertyValue('--cs-field0').trim();
     expect(light.length).toBeGreaterThan(0);
     expect(light).not.toBe(dark);
-    expect(getComputedStyle(document.documentElement).getPropertyValue('--cs-route-direct').trim().length).toBeGreaterThan(0);
+    expect(getComputedStyle(document.documentElement).getPropertyValue('--cs-route-direct').trim().length).toBeGreaterThan(
+      0,
+    );
   });
 });
