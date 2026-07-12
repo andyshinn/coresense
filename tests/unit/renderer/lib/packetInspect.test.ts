@@ -26,11 +26,13 @@ describe('inspectPacket', () => {
 
   it('exposes a normalized payload breakdown starting at byte 0', () => {
     const r = inspectPacket(GROUP_TEXT_HEX);
-    expect(r.payload).not.toBeNull();
-    const pf = r.payload!.fields;
+    const { payload } = r;
+    expect(payload).not.toBeNull();
+    if (!payload) return;
+    const pf = payload.fields;
     expect(pf[0].start).toBe(0);
     const last = pf[pf.length - 1];
-    expect(last.end).toBe(r.payload!.bytes.length - 1);
+    expect(last.end).toBe(payload.bytes.length - 1);
   });
 
   it('returns ok:false for junk input instead of throwing', () => {

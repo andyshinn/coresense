@@ -1,4 +1,4 @@
-import { type InspectField, fieldColorIdx } from './packetInspect';
+import { fieldColorIdx, type InspectField } from './packetInspect';
 
 interface Seg {
   key: string;
@@ -42,7 +42,10 @@ const hx = (b: number[], a: number, z: number) => {
   return s.toUpperCase();
 };
 
-export function inspectBleFrame(payloadHex: string, codeName?: string): { codeName: string; fields: InspectField[]; bytes: number[] } {
+export function inspectBleFrame(
+  payloadHex: string,
+  codeName?: string,
+): { codeName: string; fields: InspectField[]; bytes: number[] } {
   const bytes = hexToBytes(payloadHex);
   const last = bytes.length - 1;
   const layout = codeName ? LAYOUTS[codeName] : undefined;
@@ -50,7 +53,19 @@ export function inspectBleFrame(payloadHex: string, codeName?: string): { codeNa
     return {
       codeName: codeName || 'frame',
       bytes,
-      fields: bytes.length ? [{ key: 'body', name: 'Body', start: 0, end: last, colorIdx: 0, value: hx(bytes, 0, last), desc: 'Raw frame body.' }] : [],
+      fields: bytes.length
+        ? [
+            {
+              key: 'body',
+              name: 'Body',
+              start: 0,
+              end: last,
+              colorIdx: 0,
+              value: hx(bytes, 0, last),
+              desc: 'Raw frame body.',
+            },
+          ]
+        : [],
     };
   }
   const fields: InspectField[] = [];
@@ -59,7 +74,15 @@ export function inspectBleFrame(payloadHex: string, codeName?: string): { codeNa
     if (cursor > last) return;
     const len = seg.len === 'rest' ? last - cursor + 1 : seg.len;
     const end = Math.min(cursor + len - 1, last);
-    fields.push({ key: seg.key, name: seg.name, start: cursor, end, colorIdx: fieldColorIdx(i), value: hx(bytes, cursor, end), desc: seg.desc });
+    fields.push({
+      key: seg.key,
+      name: seg.name,
+      start: cursor,
+      end,
+      colorIdx: fieldColorIdx(i),
+      value: hx(bytes, cursor, end),
+      desc: seg.desc,
+    });
     cursor = end + 1;
   });
   return { codeName: codeName || 'frame', bytes, fields };
