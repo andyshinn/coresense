@@ -32,7 +32,7 @@ export function ByteStrip({ bytes, fields, scope, hovered, setHovered }: Props) 
         const runStart = !prev || prev.key !== info?.key;
         const runEnd = !next || next.key !== info?.key;
         return (
-          // biome-ignore lint/a11y/noStaticElementInteractions: hover-only highlight, mirrors selection driven by the field cards elsewhere
+          // biome-ignore lint/a11y/noStaticElementInteractions: byte cells are a mouse-hover spotlight enhancement; per-byte focus would add dozens of tab stops. Keyboard users get the same byte↔field highlight by focusing the field cards, and all field data is always rendered in the cards regardless of hover.
           <span
             // biome-ignore lint/suspicious/noArrayIndexKey: byte position is the identity
             key={i}
@@ -48,7 +48,7 @@ export function ByteStrip({ bytes, fields, scope, hovered, setHovered }: Props) 
               borderBottomLeftRadius: runStart ? 4 : 0,
               borderTopRightRadius: runEnd ? 4 : 0,
               borderBottomRightRadius: runEnd ? 4 : 0,
-              cursor: id ? 'pointer' : 'default',
+              cursor: 'default',
             }}
           >
             {hx(b)}
