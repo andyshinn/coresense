@@ -50,7 +50,7 @@ import { startContactAutoRefresh, stopContactAutoRefresh } from './state/contact
 import { endContactWalk } from './state/contactWalk';
 import { stateHolder } from './state/holder';
 import { discoveredStore } from './storage/discoveredContacts';
-import { packetStore } from './storage/packets';
+import { clampRetention, packetStore } from './storage/packets';
 import { transportManager } from './transport/manager';
 import { currentUpdateState } from './updates/controller';
 import { isMainWindowFocused } from './window/registry';
@@ -206,7 +206,7 @@ export async function startServer(
 
   const onPacket = (p: RawPacket) => {
     try {
-      packetStore.record(p, stateHolder().getUiState().packetLog.storedHistorySize);
+      packetStore.record(p, clampRetention(stateHolder().getUiState().packetLog).storedHistorySize);
     } catch (err) {
       // Persistence is best-effort: a bad DB write must not crash main or drop the live broadcast.
       log.warn(`packet persist failed: ${(err as Error).message}`);

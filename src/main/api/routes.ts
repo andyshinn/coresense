@@ -39,7 +39,7 @@ import { noteHeard, scheduleDiscoveredEmit } from '../state/contactSync';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { messagesStore } from '../storage/messages';
-import { packetStore } from '../storage/packets';
+import { clampRetention, packetStore } from '../storage/packets';
 import { searchMessages } from '../storage/search';
 import { transportManager } from '../transport/manager';
 import { updatesController } from '../updates/controller';
@@ -134,6 +134,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   api.get('/api/state/snapshot', async (c) => {
     const t = transportManager.getState();
     const holder = stateHolder();
+    const retention = clampRetention(holder.getUiState().packetLog);
     const payload: StateSnapshot = {
       capabilities: buildCapabilities(),
       bridge: bridgeStatus(),
@@ -160,9 +161,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       deviceCapabilities: holder.getDeviceCapabilities(),
       blockRules: holder.getBlockRules(),
       macros: macrosStore.list(),
-      packets: packetStore.recent(
-        Math.min(holder.getUiState().packetLog.liveBufferSize, holder.getUiState().packetLog.storedHistorySize),
-      ),
+      packets: packetStore.recent(Math.min(retention.liveBufferSize, retention.storedHistorySize)),
     };
     return c.json(payload);
   });

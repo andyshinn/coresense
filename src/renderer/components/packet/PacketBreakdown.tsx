@@ -15,10 +15,12 @@ interface Props {
 export function PacketBreakdown({ title, count, bytes, fields, scope, hovered, setHovered }: Props) {
   return (
     <div>
-      <div className="mt-5 mb-2.5 flex items-baseline gap-2">
-        <span className="text-[13.5px] font-bold text-cs-text">{title}</span>
-        {count != null && <span className="font-mono text-[11px] text-cs-text-dim">({count} bytes)</span>}
-      </div>
+      {(title || count != null) && (
+        <div className="mt-5 mb-2.5 flex items-baseline gap-2">
+          <span className="text-[13.5px] font-bold text-cs-text">{title}</span>
+          {count != null && <span className="font-mono text-[11px] text-cs-text-dim">({count} bytes)</span>}
+        </div>
+      )}
       <ByteStrip bytes={bytes} fields={fields} scope={scope} hovered={hovered} setHovered={setHovered} />
       <div className="mt-2.5 flex flex-col gap-2">
         {fields.map((f) => (

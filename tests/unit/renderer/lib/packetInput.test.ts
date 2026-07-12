@@ -22,4 +22,10 @@ describe('normalizeToHex', () => {
     expect(normalizeToHex('2a01aabbccdd686')).toBeNull();
     expect(normalizeToHex('deadbee')).toBeNull();
   });
+  it('returns null for input that would decode past the 64 KiB cap', () => {
+    // 131074 hex chars → 65537 bytes, one over the 64*1024 cap.
+    expect(normalizeToHex('ab'.repeat(65537))).toBeNull();
+    // Not hex (contains '/'), long enough to exceed the base64 char cap.
+    expect(normalizeToHex('A/'.repeat(45000))).toBeNull();
+  });
 });
