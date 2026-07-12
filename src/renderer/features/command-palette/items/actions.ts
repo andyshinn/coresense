@@ -287,6 +287,7 @@ export function buildActionItems({
     keywords: 'clear packet log',
     run: () => {
       clearPackets();
+      if (client) void api.clearPackets(client).catch(() => {});
       notify.success('Packet log cleared');
       close();
     },
