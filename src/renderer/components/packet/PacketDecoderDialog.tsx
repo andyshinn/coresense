@@ -1,28 +1,20 @@
-import { MeshCoreDecoder } from '@michaelhart/meshcore-decoder';
 import { Binary } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { inspectBleFrame } from '../../lib/bleFrameLayouts';
 import { normalizeToHex } from '../../lib/packetInput';
 import { inspectPacket, type PacketInspection } from '../../lib/packetInspect';
 import { useStore } from '../../lib/store';
+import { useChannelKeyStore } from '../../lib/useChannelKeyStore';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../ui/dialog';
 import { PacketBreakdown } from './PacketBreakdown';
 import { PacketSecondary } from './PacketSecondary';
-
-function useKeyStore() {
-  const channels = useStore((s) => s.channels);
-  return useMemo(() => {
-    const secrets = channels.map((c) => c.secretHex).filter((x): x is string => !!x);
-    return secrets.length ? MeshCoreDecoder.createKeyStore({ channelSecrets: secrets }) : undefined;
-  }, [channels]);
-}
 
 type DecodeResult = { kind: 'rf'; d: PacketInspection } | { kind: 'ble'; b: ReturnType<typeof inspectBleFrame> };
 
 export function PacketDecoderDialog() {
   const open = useStore((s) => s.ui.decoderOpen);
   const setDecoderOpen = useStore((s) => s.setDecoderOpen);
-  const keyStore = useKeyStore();
+  const keyStore = useChannelKeyStore();
   const [raw, setRaw] = useState('');
   const [kind, setKind] = useState<'rf' | 'ble'>('rf');
   const [result, setResult] = useState<DecodeResult | null>(null);
@@ -85,7 +77,7 @@ export function PacketDecoderDialog() {
             value={raw}
             onChange={(e) => setRaw(e.target.value)}
             placeholder="Paste hex, base64, or meshcore://…"
-            className="min-h-24 w-full resize-y rounded-md border border-cs-border bg-cs-bg px-2.5 py-2 font-mono text-[12px] text-cs-text outline-none"
+            className="min-h-24 w-full resize-y rounded-md border border-cs-border bg-cs-bg px-2.5 py-2 font-mono text-[12px] text-cs-text outline-none focus:border-cs-accent"
           />
           <div className="mt-2.5 flex items-center gap-2.5">
             <span className="font-mono text-[10.5px] text-cs-text-dim">

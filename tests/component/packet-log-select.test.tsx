@@ -39,6 +39,14 @@ describe('PacketLog list', () => {
     expect(screen.getAllByTestId('packet-row')).toHaveLength(1);
   });
 
+  it('filters to BLE (companion) only when source=ble', () => {
+    useStore.getState().setPacketLogFilter({ source: 'ble' });
+    render(<PacketLog packets={[pkt('pkt-0'), pkt('pkt-1', { kind: 'companion', codeName: 'PUSH_ADVERT' })]} />);
+    const rows = screen.getAllByTestId('packet-row');
+    expect(rows).toHaveLength(1);
+    expect(screen.getByText('PUSH ADVERT')).toBeTruthy();
+  });
+
   it('shows a humanized type name for a GroupText mesh packet', () => {
     render(<PacketLog packets={[pkt('pkt-0', { payloadHex: '1501782abbcc00112233' })]} />);
     expect(screen.getByText('Group Text')).toBeTruthy();

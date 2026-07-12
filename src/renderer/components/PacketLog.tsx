@@ -127,7 +127,7 @@ export function PacketLog({ packets }: Props) {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="filter by kind, hex, RSSI…"
-            className="h-7 w-52 rounded border border-cs-border bg-cs-bg-2 pr-2.5 pl-7 text-[12px] text-cs-text outline-none"
+            className="h-7 w-52 rounded border border-cs-border bg-cs-bg-2 pr-2.5 pl-7 text-[12px] text-cs-text outline-none focus:border-cs-accent"
           />
         </div>
         <div className="inline-flex gap-0.5 rounded-md border border-cs-border bg-cs-bg-3 p-0.5">

@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
-import type { InspectField } from '../../lib/packetInspect';
+import { fieldColorVar, type InspectField } from '../../lib/packetInspect';
 
 const hx = (b: number) => b.toString(16).toUpperCase().padStart(2, '0');
-const colorVar = (idx: number) => `rgb(var(--cs-field${idx}))`;
 
 interface Props {
   bytes: number[];
@@ -24,7 +23,7 @@ export function ByteStrip({ bytes, fields, scope, hovered, setHovered }: Props) 
       {bytes.map((b, i) => {
         const info = map[i];
         const id = info ? `${scope}:${info.key}` : null;
-        const color = info ? colorVar(info.colorIdx) : 'rgb(var(--cs-text-dim))';
+        const color = info ? fieldColorVar(info.colorIdx) : 'rgb(var(--cs-text-dim))';
         const active = id != null && hovered === id;
         const dimmed = hovered != null && id != null && hovered !== id;
         const prev = map[i - 1];
