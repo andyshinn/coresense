@@ -1,9 +1,9 @@
 import { MeshCoreDecoder } from '@michaelhart/meshcore-decoder';
 import { Binary, Copy, Route, Unlock } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ApiClient } from '../../lib/api';
 import { inspectBleFrame } from '../../lib/bleFrameLayouts';
-import { inspectPacket, type PacketInspection } from '../../lib/packetInspect';
+import { inspectPacket } from '../../lib/packetInspect';
 import { useStore } from '../../lib/store';
 import { fmtDateTime } from '../../lib/time';
 import { KeyValueRow } from '../ui/KeyValueRow';
@@ -45,6 +45,21 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
   const keyStore = useKeyStore();
   const [hovered, setHovered] = useState<string | null>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedId is the reset trigger, not read in the body — field keys (pk0, pl0, …) repeat across packets so hover state must clear on selection change.
+  useEffect(() => setHovered(null), [selectedId]);
+
+  // Decode once per selected packet (not on every hover) — packet reference
+  // is stable across hovers and only changes when the selection changes.
+  const d = useMemo(
+    () =>
+      packet && packet.kind !== 'companion' ? inspectPacket(packet.payloadHex, keyStore ? { keyStore } : undefined) : null,
+    [packet, keyStore],
+  );
+  const ble = useMemo(
+    () => (packet && packet.kind === 'companion' ? inspectBleFrame(packet.payloadHex, packet.codeName) : null),
+    [packet],
+  );
+
   if (!packet) {
     return (
       <div className="flex flex-col items-center gap-3.5 px-5 py-12 text-center">
@@ -64,7 +79,7 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
   }
 
   if (packet.kind === 'companion') {
-    const ble = inspectBleFrame(packet.payloadHex, packet.codeName);
+    if (!ble) return null;
     return (
       <div className="px-3.5 py-3.5" key={selectedId}>
         <div className="mb-1 font-mono text-[10px] tracking-wide text-cs-text-dim">DETAILS</div>
@@ -87,7 +102,7 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
     );
   }
 
-  const d: PacketInspection = inspectPacket(packet.payloadHex, keyStore ? { keyStore } : undefined);
+  if (!d) return null;
   const sec = d.payload?.secondary ?? null;
 
   return (
@@ -96,7 +111,11 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
       <div className="rounded-lg border border-cs-border bg-cs-bg-2 px-3 py-2">
         <KeyValueRow label="Type" value={d.payloadTypeName} />
         <KeyValueRow label="Route" value={d.routeName} mono />
-        <KeyValueRow label="RSSI / SNR" value={packet.rssi == null ? '—' : `${packet.rssi} dBm · ${packet.snr} dB`} mono />
+        <KeyValueRow
+          label="RSSI / SNR"
+          value={packet.rssi == null || packet.snr == null ? '—' : `${packet.rssi} dBm · ${packet.snr} dB`}
+          mono
+        />
         <KeyValueRow label="Hops" value={d.hops === 0 ? '0 · direct' : String(d.hops)} mono />
         {d.pathArrows && <KeyValueRow label="Path" value={d.pathArrows} mono />}
         <KeyValueRow label="Size" value={`${d.size} bytes`} mono />
