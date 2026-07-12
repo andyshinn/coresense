@@ -95,11 +95,20 @@ const nextPacketId = () => `pkt-${packetSeq++}`;
 // Keep only the newest n items. n<=0 → [] (guards against slice(-0) returning the whole array).
 const keepLast = <T>(arr: T[], n: number): T[] => (n <= 0 ? [] : arr.length > n ? arr.slice(-n) : arr);
 
-/** Back-compat: older ui-state.json stored { showCompanion }. */
+/**
+ * Back-compat: older ui-state.json stored { showCompanion }. By the time this
+ * runs at hydrate, `f` has already been through main's deep mergeDefaults,
+ * which injects a fresh `source: 'both'` alongside any legacy
+ * `showCompanion` that was actually on disk — so a plain `'source' in f`
+ * check would win over the legacy key and silently discard the user's real
+ * preference (e.g. an old "hide BLE" of showCompanion:false would come back
+ * as 'both' instead of 'rf'). Check `showCompanion` FIRST so a legacy value,
+ * when present, always takes precedence over an injected default `source`.
+ */
 export function migratePacketLogFilter(f: unknown): { source: 'both' | 'rf' | 'ble' } {
-  if (f && typeof f === 'object' && 'source' in f) return { source: (f as { source: 'both' | 'rf' | 'ble' }).source };
   if (f && typeof f === 'object' && 'showCompanion' in f)
     return { source: (f as { showCompanion: boolean }).showCompanion ? 'both' : 'rf' };
+  if (f && typeof f === 'object' && 'source' in f) return { source: (f as { source: 'both' | 'rf' | 'ble' }).source };
   return { source: 'both' };
 }
 

@@ -1,5 +1,5 @@
 import { MeshCoreDecoder } from '@michaelhart/meshcore-decoder';
-import { Binary, Copy, Route, Unlock } from 'lucide-react';
+import { Binary, Copy, Route } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { ApiClient } from '../../lib/api';
 import { inspectBleFrame } from '../../lib/bleFrameLayouts';
@@ -8,6 +8,7 @@ import { useStore } from '../../lib/store';
 import { fmtDateTime } from '../../lib/time';
 import { KeyValueRow } from '../ui/KeyValueRow';
 import { PacketBreakdown } from './PacketBreakdown';
+import { PacketSecondary } from './PacketSecondary';
 
 function useKeyStore() {
   const channels = useStore((s) => s.channels);
@@ -103,6 +104,22 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
   }
 
   if (!d) return null;
+
+  // A hard decode failure (the catch branch in inspectPacket) comes back
+  // `ok:false` with no fields to show — render an error notice instead of an
+  // empty "Packet Byte Breakdown (0 bytes)". This is distinct from a
+  // low-confidence decode (`ok:false` but fields populated), which still has
+  // a usable breakdown and is flagged below via `d.lowConfidence` instead.
+  if (!d.ok && d.fields.length === 0) {
+    return (
+      <div className="px-3.5 py-3.5" key={selectedId}>
+        <div className="mb-1 font-mono text-[10px] tracking-wide text-cs-text-dim">DETAILS</div>
+        <div className="rounded-md border border-cs-warn/25 bg-cs-warn/10 px-3 py-2 text-[11.5px] text-cs-text-muted">
+          {d.error ?? 'Could not decode this packet.'}
+        </div>
+      </div>
+    );
+  }
   const sec = d.payload?.secondary ?? null;
 
   return (
@@ -169,42 +186,7 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
             setHovered={setHovered}
           />
 
-          {sec?.kind === 'decrypted' && (
-            <>
-              <div className="mt-5 flex items-center gap-2">
-                <span className="text-[13.5px] font-bold text-cs-text">Decrypted Plaintext</span>
-                <span className="inline-flex items-center gap-1 rounded border border-cs-online/35 bg-cs-online/10 px-1.5 py-0.5 font-mono text-[9.5px] text-cs-online">
-                  <Unlock size={11} /> key held
-                </span>
-              </div>
-              <div className="mt-2.5">
-                <PacketBreakdown
-                  title=""
-                  bytes={sec.bytes}
-                  fields={sec.fields}
-                  scope="plain"
-                  hovered={hovered}
-                  setHovered={setHovered}
-                />
-              </div>
-            </>
-          )}
-          {sec?.kind === 'appdata' && (
-            <PacketBreakdown
-              title={sec.title}
-              count={sec.bytes.length}
-              bytes={sec.bytes}
-              fields={sec.fields}
-              scope="appdata"
-              hovered={hovered}
-              setHovered={setHovered}
-            />
-          )}
-          {sec?.kind === 'encrypted' && (
-            <div className="mt-3 rounded-md border border-cs-accent/25 bg-cs-accent/10 px-3 py-2.5 text-[11.5px] text-cs-text-muted">
-              {sec.note}
-            </div>
-          )}
+          <PacketSecondary secondary={sec} hovered={hovered} setHovered={setHovered} />
         </>
       )}
     </div>
