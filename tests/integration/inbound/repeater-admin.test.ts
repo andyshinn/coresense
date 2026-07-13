@@ -34,8 +34,17 @@ function respSent(tagHex: string): Buffer {
   return f;
 }
 // PUSH_BINARY_RESPONSE: [0x8c][0][tag u32][payload].
-function binaryResponse(tagHex: string, body: string): Buffer {
-  return Buffer.concat([Buffer.from([0x8c, 0x00]), Buffer.from(tagHex, 'hex'), Buffer.from(body, 'utf8')]);
+function binaryResponse(tagHex: string, body: Buffer | string): Buffer {
+  const b = typeof body === 'string' ? Buffer.from(body, 'utf8') : body;
+  return Buffer.concat([Buffer.from([0x8c, 0x00]), Buffer.from(tagHex, 'hex'), b]);
+}
+// Anon OWNER response body after the tag: [now u32 LE][node_name "\n" owner\0].
+function ownerAnonBody(now: number, name: string, owner: string): Buffer {
+  const text = Buffer.from(`${name}\n${owner}\0`, 'utf8');
+  const body = Buffer.alloc(4 + text.length);
+  body.writeUInt32LE(now >>> 0, 0);
+  text.copy(body, 4);
+  return body;
 }
 // PUSH_STATUS_RESPONSE: [0x87][0][6B prefix][stats…].
 function statusResponse(prefixHex: string): Buffer {
@@ -84,7 +93,7 @@ describe('repeater administration', () => {
     adapter.session.state.upsertContact(repeater());
 
     const p = adapter.repeaterLogin(`c:${PK}`, 'pw');
-    expect(transport.sent[0][0]).toBe(0x39); // CMD_SEND_ANON_REQ (mesh login)
+    expect(transport.sent[0][0]).toBe(0x1a); // CMD_SEND_LOGIN — radio floods it on a flood contact
     receive(loginSuccess(PREFIX));
     const result = await p;
 
@@ -94,22 +103,27 @@ describe('repeater administration', () => {
     expect(adminSessions.getSession(`c:${PK}`)?.role).toBe('admin');
   });
 
-  it('round-trips owner-info via the admin tag seam (RESP_SENT → BINARY_RESPONSE)', async () => {
-    const { adapter, receive } = makeTestSession();
+  it('round-trips owner-info via the public anon OWNER request (RESP_SENT → BINARY_RESPONSE)', async () => {
+    const { adapter, transport, receive } = makeTestSession();
     adapter.session.state.upsertContact(repeater());
 
     const p = adapter.repeaterRequestOwnerInfo(`c:${PK}`);
     await tick();
+    // Owner info now goes out as a PUBLIC anon request (CMD_SEND_ANON_REQ = 0x39),
+    // not the login-gated binary req (a flood contact first gets a transient
+    // zero-hop path so the request routes direct).
+    expect(transport.sent.some((f) => f[0] === 0x39)).toBe(true);
     // RESP_SENT hands back the tag — consumed by the admin queue (onSentTag),
     // NOT the DM FIFO.
     receive(respSent('deadbeef'));
     await tick();
-    // The tagged response wakes the awaiter.
-    receive(binaryResponse('deadbeef', 'fw-1.2\nNode A\nowner notes'));
+    // The tagged anon OWNER response ([now u32][name\nowner]) wakes the awaiter.
+    receive(binaryResponse('deadbeef', ownerAnonBody(1_700_000_000, 'Node A', 'owner notes')));
     const owner = await p;
 
+    // Anon OWNER carries no firmware version — it maps to an empty string.
     expect(owner).toEqual({
-      firmwareVersion: 'fw-1.2',
+      firmwareVersion: '',
       nodeName: 'Node A',
       ownerInfo: 'owner notes',
     });
