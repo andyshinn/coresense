@@ -11,15 +11,22 @@ interface Props {
   onSession: (s: RepeaterAdminSession | null) => void;
 }
 
-/** Compute the live login-button label from the contact's path state. Matches
- *  the official client's "Log In · Direct / Flood / N hops" suffix. */
-function deriveLoginLabel(contact: Contact): string {
-  if (contact.preferDirect) return 'Log In · Direct';
+/** The reach suffix from the contact's path state — matches the official
+ *  client's "Direct / Flood / N hops". */
+function deriveReach(contact: Contact): string {
+  if (contact.preferDirect) return 'Direct';
   const path = contact.outPathHex ?? '';
   const hashSize = contact.outPathHashSize ?? 2;
-  if (!path || path.length === 0) return 'Log In · Flood';
+  if (!path || path.length === 0) return 'Flood';
   const hops = Math.max(1, Math.floor(path.length / 2 / hashSize));
-  return `Log In · ${hops} hop${hops === 1 ? '' : 's'}`;
+  return `${hops} hop${hops === 1 ? '' : 's'}`;
+}
+
+/** Live login-button label. A blank password is a guest login — on a
+ *  flood-routed contact that's the bootstrap that installs the out_path and
+ *  adds us to the repeater's ACL. */
+function deriveLoginLabel(contact: Contact, isGuest: boolean): string {
+  return `${isGuest ? 'Log In as Guest' : 'Log In'} · ${deriveReach(contact)}`;
 }
 
 export function LoginTab({ contact, client, session, onSession }: Props) {
@@ -89,26 +96,26 @@ export function LoginTab({ contact, client, session, onSession }: Props) {
 
         <input
           type="password"
-          required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
+          placeholder="Password (blank = guest)"
           className="rounded border border-cs-border bg-cs-bg-2 px-2 py-1 font-mono text-[12px] text-cs-text"
         />
 
         <button
           type="submit"
-          disabled={!client || busy || password.length === 0}
+          disabled={!client || busy}
           className="self-start rounded border border-cs-border bg-cs-accent-soft/30 px-3 py-1 text-[12px] text-cs-text transition-colors hover:bg-cs-accent-soft/50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {busy ? 'Logging in…' : deriveLoginLabel(contact)}
+          {busy ? 'Logging in…' : deriveLoginLabel(contact, password.length === 0)}
         </button>
       </form>
 
       <p className="max-w-prose text-[11px] text-cs-text-dim">
-        The wire mode is derived from this contact's Path settings: Direct uses the companion-side CMD_SEND_LOGIN (no mesh
-        routing); Flood and N-hop both wrap the password in a CMD_SEND_ANON_REQ that the radio routes per the contact's
-        current out_path. Admin grants ACL editing + setperm; guest grants status/telemetry/neighbours only.
+        Login always goes out as CMD_SEND_LOGIN — the radio routes it Direct when this contact has an out_path and Floods it
+        when it doesn't, so a flood-routed repeater's reply installs the multi-hop path and adds us to its ACL. Leave the
+        password blank for a guest login: guest grants status/telemetry/neighbours; an admin password additionally grants ACL
+        editing + setperm.
       </p>
     </div>
   );
