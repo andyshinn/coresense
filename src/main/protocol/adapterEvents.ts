@@ -94,7 +94,7 @@ function wireContacts(session: MeshCoreSession): void {
       discoveredStore.setFavourite(r.publicKeyHex, r.favourite);
     }
     const holder = stateHolder();
-    emit.discovered(discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()));
+    emit.discovered(discoveredStore.list(holder.getBlockRules()));
   });
   // Note: contactDiscovered is emitted by ingestObservedContact for genuinely-new
   // discoveries (with blocking-aware naming). The lib's contactDiscovered fires

@@ -93,7 +93,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       channelPresence: protocolSession().getDevicePresence(),
       syncProgress: protocolSession().getSyncProgress(),
       contacts: holder.getContacts(),
-      discoveredContacts: discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
+      discoveredContacts: discoveredStore.list(holder.getBlockRules()),
       messages: holder.getRecentMessages(),
       appSettings: holder.getAppSettings(),
       radioSettings: holder.getRadioSettings(),
@@ -554,7 +554,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // ---- Discovered-contacts pool ---------------------------------------
   api.get('/api/discovered-contacts', (c) => {
     const holder = stateHolder();
-    return c.json(discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()));
+    return c.json(discoveredStore.list(holder.getBlockRules()));
   });
 
   // Commit a discovered contact to the radio's store.
@@ -606,7 +606,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   api.post('/api/discovered-contacts/clear', (c) => {
     discoveredStore.clearDiscoveredOnly();
     const holder = stateHolder();
-    emit.discovered(discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()));
+    emit.discovered(discoveredStore.list(holder.getBlockRules()));
     return c.json({ ok: true });
   });
 

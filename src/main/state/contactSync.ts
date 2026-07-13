@@ -17,7 +17,7 @@ export function ingestObservedContact(record: Models.ContactRecord, source: Mode
   const isNewDiscovery = source === 'advert' && discoveredStore.get(record.publicKeyHex) === null;
 
   discoveredStore.upsert(record, { onRadio, nowMs: Date.now(), heardLive: source === 'advert' });
-  emit.discovered(discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()));
+  emit.discovered(discoveredStore.list(holder.getBlockRules()));
 
   if (isNewDiscovery) {
     emit.contactDiscovered({
