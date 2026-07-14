@@ -40,9 +40,14 @@ export function hopsFromOutPathLen(outPathLen: number): number | undefined {
 /** Bytes-per-hop for a contact's stored path, derived from the same packed
  *  out_path_len byte (bits 7-6 + 1). Lets callers split a learned out_path into
  *  hops using the contact's OWN hash size rather than assuming the radio's
- *  current path-hash mode. 0xFF (OUT_PATH_UNKNOWN) → undefined (no path). */
+ *  current path-hash mode. 0xFF (OUT_PATH_UNKNOWN) → undefined (no path). The
+ *  top bit-pair only encodes hashSize 1/2/3 (firmware never emits 0b11 → 4), so
+ *  a 4 means a malformed byte — return undefined rather than leak an invalid
+ *  PathHashSize into the hop-splitting logic. */
 export function hashSizeFromOutPathLen(outPathLen: number): PathHashSize | undefined {
-  return outPathLen === 0xff ? undefined : (((outPathLen >> 6) + 1) as PathHashSize);
+  if (outPathLen === 0xff) return undefined;
+  const size = (outPathLen >> 6) + 1;
+  return size === 1 || size === 2 || size === 3 ? (size as PathHashSize) : undefined;
 }
 
 /** Map a MeshCore ADV_TYPE byte (1 chat, 2 repeater, 3 room, 4 sensor) to the
