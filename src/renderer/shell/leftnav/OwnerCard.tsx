@@ -1,6 +1,7 @@
 import { Copy, Radio } from 'lucide-react';
 import type { Owner } from '../../../shared/types';
 import { CopyButton } from '../../components/CopyButton';
+import { PathHashBadge } from '../../components/PathHashBadge';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
 import { SidebarMenu, SidebarMenuItem } from '../../components/ui/sidebar';
 import { Identicon } from '../../features/quick-actions/Identicon';
@@ -53,12 +54,7 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
                         <span className="truncate">{owner.publicKeyHex.slice(0, 6)}</span>
                         <Copy aria-hidden="true" className="size-2.5 shrink-0" />
                       </CopyButton>
-                      <span
-                        title={`Path hash size: ${pathHashMode} byte${pathHashMode > 1 ? 's' : ''} per hop`}
-                        className="rounded-sm bg-cs-bg-3 px-1 font-mono text-[9px] uppercase tracking-wide text-cs-text-dim"
-                      >
-                        {pathHashMode}b
-                      </span>
+                      <PathHashBadge bytes={pathHashMode} />
                     </div>
                   ) : (
                     <span className="truncate font-mono text-[10px] tracking-wide text-cs-text-dim">
