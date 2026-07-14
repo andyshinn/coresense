@@ -37,4 +37,10 @@ describe('hashSizeFromOutPathLen', () => {
   it('returns 3 for a 3-byte-mode path (0x83)', () => {
     expect(hashSizeFromOutPathLen(0x83)).toBe(3);
   });
+  it('returns undefined for a malformed 0b11 top-pair (size 4), e.g. 0xC0/0xC3', () => {
+    // Firmware only encodes hashSize 1/2/3; a 0b11 top-pair would decode to 4,
+    // which is outside PathHashSize — it must not leak into hop splitting.
+    expect(hashSizeFromOutPathLen(0xc0)).toBeUndefined();
+    expect(hashSizeFromOutPathLen(0xc3)).toBeUndefined();
+  });
 });
