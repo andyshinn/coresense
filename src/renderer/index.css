@@ -43,6 +43,18 @@
   --sidebar-width: 15rem;
 }
 
+/* Path-hash mode tints have no runtime Palette entry, so applyTheme() (which
+   themes the Palette keys via inline styles) never overrides them. The dark
+   values live in :root above; give light mode its own accessible override
+   here. applyTheme() toggles `.dark` on <html>, so `:root:not(.dark)` matches
+   only in light mode. Light values are the deeper cousins of each hue, ≥4.5:1
+   text contrast on the light bg (#FBF9F3). */
+:root:not(.dark) {
+  --cs-hash-1: 15 118 110; /* teal   · 1 byte  (#0F766E) */
+  --cs-hash-2: 146 97 14; /* amber  · 2 bytes (#92610E) */
+  --cs-hash-3: 109 40 217; /* violet · 3 bytes (#6D28D9) */
+}
+
 /* Map shadcn's semantic color tokens to the cs-* palette so primitives
    (Dialog, Popover, Command, Input, etc.) render with the field-console theme
    instead of falling through to transparent / unset Tailwind defaults. */
