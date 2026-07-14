@@ -54,24 +54,24 @@ describe('firstPathStats', () => {
   });
 });
 
-describe('formatPathStats', () => {
-  it('joins hops and hashMode', () => {
-    expect(formatPathStats({ hops: 2, hashMode: 1 })).toBe('2h · 1b');
+describe('formatPathStats (hops label)', () => {
+  it('formats the hop count, ignoring hash mode (now shown as a badge)', () => {
+    expect(formatPathStats({ hops: 2, hashMode: 1 })).toBe('2h');
   });
 
-  it('shows hops only when hashMode null', () => {
+  it('formats hops even when the hash mode is null', () => {
     expect(formatPathStats({ hops: 3, hashMode: null })).toBe('3h');
   });
 
-  it('shows hash only when hops null', () => {
-    expect(formatPathStats({ hops: null, hashMode: 2 })).toBe('2b');
+  it('returns empty when hops is null regardless of hash mode', () => {
+    expect(formatPathStats({ hops: null, hashMode: 2 })).toBe('');
   });
 
-  it('returns empty string when both null', () => {
+  it('returns empty when both are null', () => {
     expect(formatPathStats({ hops: null, hashMode: null })).toBe('');
   });
 
-  it('renders 0 hops rather than blank', () => {
-    expect(formatPathStats({ hops: 0, hashMode: 1 })).toBe('0h · 1b');
+  it('keeps a 0-hop (direct) message as 0h', () => {
+    expect(formatPathStats({ hops: 0, hashMode: 1 })).toBe('0h');
   });
 });
