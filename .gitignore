@@ -174,8 +174,15 @@ tmbootpicker.efi
 *.af~lock~
 
 .pnpm-store/
-.design-sync/
+# design-sync: ignore machine-generated subpaths only; the durable inputs
+# (config.json, NOTES.md, conventions.md, previews/, fonts/, build scripts,
+# ui-entry.ts, tsconfig.dts.json) are committed.
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
 .ds-sync/
+# design-sync generated .d.ts barrel (emitted by cfg.buildCmd)
+/index.d.ts
 
 # Claude Code worktrees (local branch checkouts nested in the repo)
 .claude/worktrees/
@@ -219,3 +226,5 @@ tmbootpicker.efi
 
 # Temporary design docs
 docs/design/
+# design-sync build output
+ds-bundle/

@@ -1,0 +1,33 @@
+/* Inter (latin subset, weights 400/500/600/700) — the CoreSense UI's preferred
+   sans family (first in --font-sans). The app itself ships no font files and
+   falls back to system fonts; design-sync vendors Inter so designs render
+   on-brand in Claude Design regardless of host OS. Files from @fontsource/inter
+   (Inter is licensed OFL-1.1). */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./inter-latin-400-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url(./inter-latin-500-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(./inter-latin-600-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(./inter-latin-700-normal.woff2) format('woff2');
+}
