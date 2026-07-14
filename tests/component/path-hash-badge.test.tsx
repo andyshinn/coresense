@@ -40,4 +40,15 @@ describe('PathHashBadge', () => {
     const { container } = render(<PathHashBadge bytes={2} className="ml-2" />);
     expect(badgeEl(container).className).toContain('ml-2');
   });
+
+  // Regression: the number and unit must be one flex child so the badge's
+  // gap-1 spaces only the icon — otherwise "2b" renders as "2 b". Assert the
+  // "2b" text lives in a single element that does NOT contain the icon.
+  it('groups the number and unit so the gap does not split "2b"', () => {
+    const { container } = render(<PathHashBadge bytes={2} />);
+    const badge = badgeEl(container);
+    const group = Array.from(badge.querySelectorAll('span')).find((s) => s.textContent === '2b');
+    expect(group).toBeDefined();
+    expect(group?.querySelector('svg')).toBeNull();
+  });
 });

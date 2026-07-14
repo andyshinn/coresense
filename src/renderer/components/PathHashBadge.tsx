@@ -30,8 +30,12 @@ export function PathHashBadge({ bytes, className }: { bytes: number; className?:
       )}
     >
       <TrendingUpDown className="size-3" aria-hidden />
-      {bytes}
-      <span className="font-normal opacity-55">b</span>
+      {/* Number + unit are one flex child so the badge's gap-1 spaces only the
+          icon; the "b" stays tight to the number ("2b", not "2 b"). */}
+      <span>
+        {bytes}
+        <span className="font-normal opacity-55">b</span>
+      </span>
     </Badge>
   );
 }
