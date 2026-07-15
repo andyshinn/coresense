@@ -11,15 +11,15 @@ interface Props {
   onSession: (s: RepeaterAdminSession | null) => void;
 }
 
-/** The reach suffix from the contact's path state — matches the official
- *  client's "Direct / Flood / N hops". */
+/** The reach suffix from the contact's path state — matches meshcore_py's
+ *  effective ("Direct / Flood / N hops"). Keyed off `contact.hops` (the value
+ *  meshcore-ts derives from out_path): undefined = out_path unknown (0xFF) →
+ *  Flood, 0 = a known direct route → Direct, N ≥ 1 → N hops. */
 function deriveReach(contact: Contact): string {
   if (contact.preferDirect) return 'Direct';
-  const path = contact.outPathHex ?? '';
-  const hashSize = contact.outPathHashSize ?? 2;
-  if (!path || path.length === 0) return 'Flood';
-  const hops = Math.max(1, Math.floor(path.length / 2 / hashSize));
-  return `${hops} hop${hops === 1 ? '' : 's'}`;
+  if (contact.hops === undefined) return 'Flood';
+  if (contact.hops === 0) return 'Direct';
+  return `${contact.hops} hop${contact.hops === 1 ? '' : 's'}`;
 }
 
 /** Live login-button label. A blank password is a guest login — on a
