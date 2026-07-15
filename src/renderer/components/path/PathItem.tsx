@@ -2,6 +2,7 @@ import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { useMemo } from 'react';
 import type { Contact, MessageHop, MessagePath } from '../../../shared/types';
 import { cn } from '../../lib/utils';
+import { PathHashBadge } from '../PathHashBadge';
 import { HopAvatar } from './HopAvatar';
 import { PathTimeline } from './PathTimeline';
 import { candidatesFor } from './resolveRepeater';
@@ -54,7 +55,8 @@ export function PathItem({
           <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-cs-text-dim">
             <span>{hopCount} hops</span>
             <span aria-hidden>·</span>
-            <span title="Bytes of each hop's pubkey carried in the routing path">{path.hashMode}-byte path</span>
+            <PathHashBadge bytes={path.hashMode} />
+            <span>path</span>
             {conflictCount > 0 && (
               <>
                 <span aria-hidden>·</span>

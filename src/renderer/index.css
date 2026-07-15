@@ -29,6 +29,9 @@
   --cs-online: 132 204 22;
   --cs-warn: 245 158 11;
   --cs-danger: 220 38 38;
+  --cs-hash-1: 70 183 174; /* teal   · 1 byte  (#46B7AE) */
+  --cs-hash-2: 232 163 61; /* amber  · 2 bytes (#E8A33D) */
+  --cs-hash-3: 185 138 224; /* violet · 3 bytes (#B98AE0) */
   --sidebar: rgb(var(--cs-bg-2));
   --sidebar-foreground: rgb(var(--cs-text));
   --sidebar-primary: rgb(var(--cs-accent));
@@ -38,6 +41,18 @@
   --sidebar-border: rgb(var(--cs-border));
   --sidebar-ring: rgb(var(--cs-accent));
   --sidebar-width: 15rem;
+}
+
+/* Path-hash mode tints have no runtime Palette entry, so applyTheme() (which
+   themes the Palette keys via inline styles) never overrides them. The dark
+   values live in :root above; give light mode its own accessible override
+   here. applyTheme() toggles `.dark` on <html>, so `:root:not(.dark)` matches
+   only in light mode. Light values are the deeper cousins of each hue, ≥4.5:1
+   text contrast on the light bg (#FBF9F3). */
+:root:not(.dark) {
+  --cs-hash-1: 15 118 110; /* teal   · 1 byte  (#0F766E) */
+  --cs-hash-2: 146 97 14; /* amber  · 2 bytes (#92610E) */
+  --cs-hash-3: 109 40 217; /* violet · 3 bytes (#6D28D9) */
 }
 
 /* Map shadcn's semantic color tokens to the cs-* palette so primitives
@@ -79,6 +94,9 @@
   --color-cs-online: rgb(var(--cs-online));
   --color-cs-warn: rgb(var(--cs-warn));
   --color-cs-danger: rgb(var(--cs-danger));
+  --color-cs-hash-1: rgb(var(--cs-hash-1));
+  --color-cs-hash-2: rgb(var(--cs-hash-2));
+  --color-cs-hash-3: rgb(var(--cs-hash-3));
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
 }

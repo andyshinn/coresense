@@ -1,11 +1,12 @@
 import { AlertCircle, Check, Clock, Reply, Send } from 'lucide-react';
 import type { Message, MessageStyle, TimeFormatPref } from '../../shared/types';
-import { firstPathStats, formatPathStats } from '../lib/messagePath';
+import { firstPathStats, formatPathStats, type PathStats } from '../lib/messagePath';
 import { fmtDateTime, fmtMessageTime } from '../lib/time';
 import { cn } from '../lib/utils';
 import { ColoredUsername } from './ColoredUsername';
 import { ContactAvatar } from './ContactAvatar';
 import { MessageBody } from './MessageBody';
+import { PathHashBadge } from './PathHashBadge';
 import { RssiChip } from './RssiChip';
 
 export interface MessageItemProps {
@@ -62,7 +63,7 @@ export function MessageItem({
   // Reply-by-mention only makes sense when there's an addressable name, the
   // message isn't from us, and the caller wired a reply handler (Unreads doesn't).
   const canReply = !isSelf && senderName !== '' && onReply != null;
-  const pathLabel = formatPathStats(firstPathStats(message));
+  const stats = firstPathStats(message);
 
   const boxClass = cn(
     'w-full rounded-md border px-2 py-1 text-left transition-colors',
@@ -91,7 +92,7 @@ export function MessageItem({
         <span className="min-w-0 flex-1 text-sm leading-snug text-cs-text whitespace-pre-wrap wrap-break-word">
           <MessageBody body={message.body} />
         </span>
-        <TrailingMeta message={message} pathLabel={pathLabel} />
+        <TrailingMeta message={message} stats={stats} />
       </>
     ) : (
       <>
@@ -127,7 +128,7 @@ export function MessageItem({
           <div className="flex flex-row items-center gap-2 font-mono text-[10px] text-cs-text-dim">
             <span title={fmtDateTime(message.ts, timeFormat)}>{fmtMessageTime(message.ts, timeFormat)}</span>
             <StateChip message={message} />
-            {pathLabel && <span className="tabular-nums">{pathLabel}</span>}
+            <PathStatsMeta stats={stats} />
             {message.meta?.rssi != null && <RssiChip rssi={message.meta.rssi} showHops={false} />}
           </div>
         </div>
@@ -167,13 +168,27 @@ export function MessageItem({
 /** Trailing meta for the compact one-line layout: state + path stats (the
  *  timestamp leads the line, so it isn't repeated here). Renders nothing when
  *  there's neither a non-received state nor path data. */
-function TrailingMeta({ message, pathLabel }: { message: Message; pathLabel: string }) {
-  if (message.state === 'received' && !pathLabel) return null;
+function TrailingMeta({ message, stats }: { message: Message; stats: PathStats }) {
+  const hasPath = stats.hops != null || stats.hashMode != null;
+  if (message.state === 'received' && !hasPath) return null;
   return (
     <div className="flex shrink-0 flex-row items-center gap-2 font-mono text-[10px] text-cs-text-dim">
       <StateChip message={message} />
-      {pathLabel && <span className="tabular-nums">{pathLabel}</span>}
+      <PathStatsMeta stats={stats} />
     </div>
+  );
+}
+
+/** Hop count as text plus the path-hash mode as a badge. Renders nothing when
+ *  neither hops nor mode is known. */
+function PathStatsMeta({ stats }: { stats: PathStats }) {
+  const hopsLabel = formatPathStats(stats);
+  if (!hopsLabel && stats.hashMode == null) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {hopsLabel && <span className="tabular-nums">{hopsLabel}</span>}
+      {stats.hashMode != null && <PathHashBadge bytes={stats.hashMode} />}
+    </span>
   );
 }
 

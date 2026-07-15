@@ -2,6 +2,7 @@ import { Ban, MapPin, MessageSquare, Minus, Plus, Radio, Share2, ShieldCheck, St
 import { useState } from 'react';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import { copyToClipboard } from '../../../components/ContextMenu';
+import { PathHashBadge } from '../../../components/PathHashBadge';
 import { SetPathEditor } from '../../../components/path/SetPathEditor';
 import {
   Dialog,
@@ -245,7 +246,9 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
           value={rc.hops == null ? 'Flood' : `${rc.hops} hop${rc.hops === 1 ? '' : 's'}`}
           mono
         />
-        {rc.outPathHashSize != null && <KeyValueRow label="Path hash size" value={`${rc.outPathHashSize}-byte`} mono />}
+        {rc.outPathHashSize != null && (
+          <KeyValueRow label="Path hash size" value={<PathHashBadge bytes={rc.outPathHashSize} />} />
+        )}
         {rc.rssi != null && <KeyValueRow label="RSSI" value={`${rc.rssi} dBm`} mono />}
       </div>
 

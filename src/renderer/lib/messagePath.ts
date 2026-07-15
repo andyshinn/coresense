@@ -32,13 +32,10 @@ export function firstPathStats(message: Message): PathStats {
 }
 
 /**
- * Compact label for the meta row: e.g. "2h · 1b" | "3h" | "1b" | "". Uses
- * `!= null` checks throughout so a direct (0-hop) message renders "0h" rather
- * than collapsing to an empty string.
+ * Compact hop label for the meta row: e.g. "2h" | "0h" | "". The path-hash mode
+ * is no longer part of this string — it renders as a <PathHashBadge> alongside.
+ * Uses `!= null` so a direct (0-hop) message renders "0h" rather than "".
  */
 export function formatPathStats(stats: PathStats): string {
-  const parts: string[] = [];
-  if (stats.hops != null) parts.push(`${stats.hops}h`);
-  if (stats.hashMode != null) parts.push(`${stats.hashMode}b`);
-  return parts.join(' · ');
+  return stats.hops != null ? `${stats.hops}h` : '';
 }

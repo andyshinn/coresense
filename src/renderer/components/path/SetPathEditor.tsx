@@ -22,7 +22,7 @@ import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 import { ContactAvatar } from '../ContactAvatar';
-import { Badge } from '../ui/badge';
+import { PathHashBadge } from '../PathHashBadge';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
@@ -172,9 +172,10 @@ export function SetPathEditor({ contact, client }: Props) {
           <span className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">Path</span>
           <span className="font-mono text-[13px] text-cs-text">{pathSummary}</span>
         </div>
-        <Badge variant="secondary" className="font-mono">
-          {hashSize}-byte hops · radio default
-        </Badge>
+        <div className="flex items-center gap-1.5">
+          <PathHashBadge bytes={hashSize} />
+          <span className="font-mono text-[11px] text-cs-text-dim">hops · radio default</span>
+        </div>
       </div>
 
       <Separator />
