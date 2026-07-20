@@ -47,12 +47,18 @@
    themes the Palette keys via inline styles) never overrides them. The dark
    values live in :root above; give light mode its own accessible override
    here. applyTheme() toggles `.dark` on <html>, so `:root:not(.dark)` matches
-   only in light mode. Light values are the deeper cousins of each hue, ≥4.5:1
-   text contrast on the light bg (#FBF9F3). */
+   only in light mode. Light values are the deeper cousins of each hue.
+
+   Contrast is measured against the tint's OWN `/15` fill composited over the
+   panel, NOT against the page background — the badge paints a fill behind its
+   text, so the fill is the effective background. Measuring against the page
+   overstates it by ~1 point and is how the previous values (#0F766E / #92610E,
+   3.33-4.23:1) passed review while failing AA in practice. The worst substrate
+   is bg-3 (#E6DEC8); these clear 4.5:1 on bg, bg-2 and bg-3 alike. */
 :root:not(.dark) {
-  --cs-hash-1: 15 118 110; /* teal   · 1 byte  (#0F766E) */
-  --cs-hash-2: 146 97 14; /* amber  · 2 bytes (#92610E) */
-  --cs-hash-3: 109 40 217; /* violet · 3 bytes (#6D28D9) */
+  --cs-hash-1: 19 78 74; /* teal   · 1 byte  (#134E4A) — 7.01 / 6.45 / 5.58 */
+  --cs-hash-2: 120 53 15; /* amber  · 2 bytes (#78350F) — 6.71 / 6.18 / 5.36 */
+  --cs-hash-3: 91 33 182; /* violet · 3 bytes (#5B21B6) — 6.56 / 6.03 / 5.22 */
 }
 
 /* Map shadcn's semantic color tokens to the cs-* palette so primitives

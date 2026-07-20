@@ -32,7 +32,7 @@ describe('PathHashBadge', () => {
     const { container } = render(<PathHashBadge bytes={4} />);
     const badge = badgeEl(container);
     expect(badge.textContent).toBe('4b');
-    expect(badge.className).toContain('text-cs-text-dim');
+    expect(badge.className).toContain('text-cs-text-muted');
     expect(badge.className).not.toMatch(/text-cs-hash-/);
   });
 
@@ -42,7 +42,7 @@ describe('PathHashBadge', () => {
   });
 
   // Regression: the number and unit must be one flex child so the badge's
-  // gap-1 spaces only the icon — otherwise "2b" renders as "2 b". Assert the
+  // gap spaces only the icon — otherwise "2b" renders as "2 b". Assert the
   // "2b" text lives in a single element that does NOT contain the icon.
   it('groups the number and unit so the gap does not split "2b"', () => {
     const { container } = render(<PathHashBadge bytes={2} />);
@@ -50,5 +50,24 @@ describe('PathHashBadge', () => {
     const group = Array.from(badge.querySelectorAll('span')).find((s) => s.textContent === '2b');
     expect(group).toBeDefined();
     expect(group?.querySelector('svg')).toBeNull();
+  });
+
+  // Regression: `text-[10px]` is an arbitrary value, so Tailwind emits no
+  // line-height and the badge would inherit a unitless one from whichever
+  // ancestor it lands under — rendering three different heights across the five
+  // call sites. `leading-none` is what keeps it 16px everywhere.
+  it('pins its own line-height so ancestors cannot inflate it', () => {
+    const { container } = render(<PathHashBadge bytes={2} />);
+    expect(badgeEl(container).className).toContain('leading-none');
+  });
+
+  // Regression: badgeVariants ships `[&>svg]:size-3`, which outspecifies a bare
+  // `size-*` on the icon itself. The 10px override only works from the parent,
+  // where tailwind-merge can displace it — assert it survives the merge.
+  it('sizes the icon from the badge so the base [&>svg]:size-3 is displaced', () => {
+    const { container } = render(<PathHashBadge bytes={2} />);
+    const badge = badgeEl(container);
+    expect(badge.className).toContain('[&>svg]:size-2.5');
+    expect(badge.className).not.toContain('[&>svg]:size-3');
   });
 });
