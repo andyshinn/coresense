@@ -44,17 +44,7 @@ export function ChannelView({ channel, client }: Props) {
   const onDevice = channelPresence.has(channel.key);
   const connected = transportState === 'connected';
   const [pushing, setPushing] = useState(false);
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const composerRef = useRef<ComposerHandle>(null);
-
-  // MainPane re-renders this component in place across conversation switches
-  // (no `key` prop, by design — see Composer's own focus-on-navigate effect),
-  // so component-local state like `replyingTo` would otherwise leak from one
-  // channel to the next. Reset it whenever the active channel changes.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: channel.key is the conversation-change trigger, not read inside the effect
-  useEffect(() => {
-    setReplyingTo(null);
-  }, [channel.key]);
 
   // Fetch history on activate.
   useEffect(() => {
@@ -78,7 +68,6 @@ export function ChannelView({ channel, client }: Props) {
       if (!client) return;
       try {
         await api.sendMessage(client, channel.key, body);
-        setReplyingTo(null);
       } catch (err) {
         notify.error(`Send failed: ${(err as Error).message}`, err);
       }
@@ -87,12 +76,10 @@ export function ChannelView({ channel, client }: Props) {
   );
 
   const handleReply = (name: string) => {
-    setReplyingTo(name);
     composerRef.current?.insertMention(name);
   };
 
   const handleReact = (name: string, emoji: string) => {
-    setReplyingTo(name);
     composerRef.current?.insertReaction(name, emoji);
   };
 
@@ -176,8 +163,6 @@ export function ChannelView({ channel, client }: Props) {
         autoFocus={appSettings.composer.autoFocus}
         disabled={composerDisabled}
         draftKey={channel.key}
-        replyingTo={replyingTo}
-        onClearReply={() => setReplyingTo(null)}
       />
     </div>
   );

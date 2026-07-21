@@ -1,8 +1,9 @@
-import { Loader2, Reply, Send, X } from 'lucide-react';
+import { Loader2, Send } from 'lucide-react';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { RadioSettings } from '../../shared/types';
 import { loraAirtimeMs } from '../lib/airtime';
 import { shouldSendOnKey } from '../lib/composerKeys';
+import { mentionedNames } from '../lib/messageContent';
 import { useStore } from '../lib/store';
 import { cn } from '../lib/utils';
 
@@ -31,23 +32,10 @@ interface Props {
   // When true, focus the textarea on mount and whenever the conversation
   // (draftKey) changes, so the user can start typing immediately on navigate.
   autoFocus?: boolean;
-  /** Sender name being replied to; shows the reply-context chip when set. */
-  replyingTo?: string | null;
-  onClearReply?: () => void;
 }
 
 export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
-  {
-    onSend,
-    disabled,
-    returnToSend,
-    radioSettings,
-    placeholder = 'Send a message…',
-    draftKey,
-    autoFocus,
-    replyingTo,
-    onClearReply,
-  },
+  { onSend, disabled, returnToSend, radioSettings, placeholder = 'Send a message…', draftKey, autoFocus },
   ref,
 ) {
   const draft = useStore((s) => (draftKey ? (s.ui.drafts[draftKey] ?? '') : ''));
@@ -62,6 +50,8 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
       setLocalValue((prev) => (typeof v === 'function' ? v(prev) : v));
     }
   };
+  const contacts = useStore((s) => s.contacts);
+  const mentions = mentionedNames(value);
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -141,20 +131,21 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
 
   return (
     <div className="flex shrink-0 flex-col gap-1 border-t border-cs-border bg-cs-bg-2 px-3 py-2">
-      {replyingTo && (
-        <div className="mb-1 flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-md bg-cs-accent-soft/40 px-2 py-1 text-[11px] text-cs-accent">
-            <Reply size={12} aria-hidden="true" />
-            Replying to <span className="font-semibold">{replyingTo}</span>
-          </span>
-          <button
-            type="button"
-            onClick={onClearReply}
-            aria-label="Cancel reply"
-            className="text-cs-text-dim hover:text-cs-text"
-          >
-            <X size={13} aria-hidden="true" />
-          </button>
+      {mentions.length > 0 && (
+        <div data-testid="composer-mentions" className="mb-1 flex flex-wrap items-center gap-1">
+          {mentions.map((name) => (
+            <span
+              key={name}
+              className={cn(
+                'rounded px-1.5 py-0.5 text-[11px]',
+                contacts.some((c) => c.name === name)
+                  ? 'bg-cs-accent-soft/20 font-medium text-cs-text'
+                  : 'bg-cs-bg-3 text-cs-text-dim',
+              )}
+            >
+              @{name}
+            </span>
+          ))}
         </div>
       )}
       <div className="flex items-end gap-2">

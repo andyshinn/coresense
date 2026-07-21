@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import { Activity, DoorOpen, MessageCircle, Radio } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { Contact } from '../../shared/types';
 import { Composer, type ComposerHandle } from '../components/Composer';
 import { MessageList } from '../components/MessageList';
@@ -40,17 +40,7 @@ export function DMView({ contact, client }: Props) {
   const rightOpen = useStore((s) => s.ui.rightOpen);
   const lastReadMs = useStore((s) => s.ui.lastReadByKey[contact.key] ?? 0);
   const markRead = useStore((s) => s.markRead);
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const composerRef = useRef<ComposerHandle>(null);
-
-  // MainPane re-renders this component in place across conversation switches
-  // (no `key` prop, by design — see Composer's own focus-on-navigate effect),
-  // so component-local state like `replyingTo` would otherwise leak from one
-  // contact to the next. Reset it whenever the active contact changes.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: contact.key is the conversation-change trigger, not read inside the effect
-  useEffect(() => {
-    setReplyingTo(null);
-  }, [contact.key]);
 
   useEffect(() => {
     if (!client) return;
@@ -73,7 +63,6 @@ export function DMView({ contact, client }: Props) {
       if (!client) return;
       try {
         await api.sendMessage(client, contact.key, body);
-        setReplyingTo(null);
       } catch (err) {
         notify.error(`Send failed: ${(err as Error).message}`, err);
       }
@@ -82,12 +71,10 @@ export function DMView({ contact, client }: Props) {
   );
 
   const handleReply = (name: string) => {
-    setReplyingTo(name);
     composerRef.current?.insertMention(name);
   };
 
   const handleReact = (name: string, emoji: string) => {
-    setReplyingTo(name);
     composerRef.current?.insertReaction(name, emoji);
   };
 
@@ -139,8 +126,6 @@ export function DMView({ contact, client }: Props) {
         autoFocus={appSettings.composer.autoFocus}
         disabled={!client}
         draftKey={contact.key}
-        replyingTo={replyingTo}
-        onClearReply={() => setReplyingTo(null)}
       />
     </div>
   );
