@@ -71,7 +71,10 @@ export function MessageItem({
     interactive
       ? selected
         ? 'cursor-pointer border-cs-accent bg-cs-accent-soft/15'
-        : 'cursor-pointer border-transparent hover:border-cs-border hover:bg-cs-bg-2'
+        : // Highlight follows group-hover (not the box's own :hover) so it
+          // persists while the cursor is over the overhanging quick-action bar,
+          // which is a descendant of the .group wrapper but sits outside the box.
+          'cursor-pointer border-transparent group-hover:border-cs-border group-hover:bg-cs-bg-2'
       : 'border-transparent',
   );
 
