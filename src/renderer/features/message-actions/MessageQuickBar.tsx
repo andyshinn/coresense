@@ -76,7 +76,7 @@ export function MessageQuickBar({ message, isSelf, senderName, onReact, onReply 
               onClick={reply}
               className="flex h-7 items-center gap-1.5 rounded-md border border-cs-border bg-cs-bg-2 px-2.5 text-[12px] text-cs-text-muted hover:text-cs-text"
             >
-              <Reply size={14} aria-hidden="true" /> Reply
+              <Reply size={14} aria-hidden="true" />
             </button>
             <div className="flex items-center gap-1 pl-1">
               {SEED_MACROS.slice(0, 2).map((m) => (
