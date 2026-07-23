@@ -763,12 +763,12 @@ export type LeftNavGroupId = 'channels' | 'contacts' | 'chat' | 'repeater' | 'ro
 
 export type ThemePref = 'auto' | 'dark' | 'light';
 
-/** Per-emoji usage for frecency-based quick-react pinning. Account-global. */
-export interface EmojiUse {
+/** One entity's usage tally for frecency ranking (an emoji, a macro id, …). */
+export interface UsageEntry {
   count: number;
   lastUsedMs: number;
 }
-export type EmojiUsage = Record<string, EmojiUse>;
+export type UsageMap = Record<string, UsageEntry>;
 
 export interface UiState {
   activeKey: string;
@@ -817,7 +817,10 @@ export interface UiState {
   recentKeys: string[];
   // Per-emoji usage counts driving quick-react auto-pinning. Account-global
   // (synced via applyUiState like pinned/recentKeys).
-  emojiUsage: EmojiUsage;
+  emojiUsage: UsageMap;
+  // Per-macro usage counts (macro id → tally) driving the quick bar's two
+  // auto-pinned macro chips. Account-global, synced alongside emojiUsage.
+  macroUsage: UsageMap;
 }
 
 export const DEFAULT_UI_STATE: UiState = {
@@ -851,6 +854,7 @@ export const DEFAULT_UI_STATE: UiState = {
   lastReadByKey: {},
   recentKeys: [],
   emojiUsage: {},
+  macroUsage: {},
 };
 
 export interface StateSnapshot {
