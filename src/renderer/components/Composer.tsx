@@ -5,12 +5,11 @@ import { loraAirtimeMs } from '../lib/airtime';
 import type { ApiClient } from '../lib/api';
 import { shouldSendOnKey } from '../lib/composerKeys';
 import { mentionedNames } from '../lib/messageContent';
+import { MAX_MESSAGE_LENGTH } from '../lib/messageLimits';
 import { useStore } from '../lib/store';
 import { cn } from '../lib/utils';
 import { ComposerMacroPopover, type ComposerMacroPopoverHandle } from '../panels/macros/inchat/ComposerMacroPopover';
 
-// MeshCore caps an outgoing text message body at 132 characters.
-export const MAX_MESSAGE_LENGTH = 132;
 // Counter turns yellow once this few characters remain before the cap.
 const WARN_REMAINING = 20;
 

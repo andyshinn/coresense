@@ -29,6 +29,20 @@ export async function expandMacro(
   return null;
 }
 
+/** Render a macro against a received message's reply context, for insertion
+ *  into the composer. Returns null and surfaces a toast on render failure. */
+export async function expandMacroReply(
+  client: ApiClient | null,
+  macro: MacroTemplate,
+  message: { id: string },
+): Promise<string | null> {
+  if (!client) return null;
+  const res = await api.renderMacro(client, { macroId: macro.id, mode: 'reply', messageId: message.id, placeholder: '?' });
+  if (res.ok) return res.text;
+  notify.error(`Couldn’t expand “${macro.name}”: ${res.error.message}`);
+  return null;
+}
+
 /** Render a macro against a received message's reply context and send it to
  *  that conversation. Returns true on success. */
 export async function sendMacroReply(
