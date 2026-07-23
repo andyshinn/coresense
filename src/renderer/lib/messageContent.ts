@@ -92,3 +92,16 @@ export function parseMessageContent(body: string): ContentToken[] {
   if (cursor < body.length) tokens.push({ type: 'text', value: body.slice(cursor) });
   return tokens;
 }
+
+/**
+ * Ordered, de-duplicated names of every well-formed `@[Name]` mention in a
+ * body. Only complete `@[…]` tokens are recognized, so a partially-typed or
+ * broken mention (e.g. `@[TLF` with no closing bracket) is simply absent.
+ */
+export function mentionedNames(body: string): string[] {
+  const seen = new Set<string>();
+  for (const token of parseMessageContent(body)) {
+    if (token.type === 'mention') seen.add(token.name);
+  }
+  return [...seen];
+}

@@ -25,6 +25,7 @@ import {
   type DeviceCapabilities,
   type DeviceIdentity,
   type DeviceInfo,
+  type EmojiUsage,
   type GpsConfig,
   type LeftNavGroupId,
   type LogEntry,
@@ -51,6 +52,7 @@ import {
   type UiState,
   type UpdateState,
 } from '../../shared/types';
+import { recordUsage } from '../features/message-actions/frecency';
 import { setRendererLogLevel, setRendererLogSink } from './logger';
 import type { NeighbourSortKey } from './neighbours';
 
@@ -405,6 +407,7 @@ interface CoreState {
   setRailSection: (id: string, open: boolean) => void;
   setLeftNavGroup: (id: LeftNavGroupId, open: boolean) => void;
   setDraft: (key: string, text: string) => void;
+  recordEmojiUse: (emoji: string) => void;
   setPacketLogFilter: (patch: Partial<UiState['packetLogFilter']>) => void;
   appendLog: (entry: LogEntry) => void;
   appendRendererLog: (entry: LogEntry) => void;
@@ -720,10 +723,16 @@ export const useStore = create<CoreState>((set) => ({
       // Idempotent: when the synced subset already matches, return {} so `ui`
       // keeps its object identity and App.tsx's debounced PUT effect doesn't
       // re-fire — otherwise a client would loop forever on its own echo.
+      // Coalesce emojiUsage: a legacy or partial producer may PUT a UiState
+      // that omits it, and Object.keys(undefined) in emojiUsageEqual (or a
+      // downstream topEmojis) would otherwise throw and break the WS handler
+      // for every connected client.
+      const incomingEmojiUsage = incoming.emojiUsage ?? {};
       const same =
         shallowEqualRecord(s.ui.lastReadByKey, incoming.lastReadByKey) &&
         arraysEqual(s.ui.pinned, incoming.pinned) &&
         arraysEqual(s.ui.recentKeys, incoming.recentKeys) &&
+        emojiUsageEqual(s.ui.emojiUsage, incomingEmojiUsage) &&
         s.ui.themePref === incoming.themePref;
       if (same) return {};
       return {
@@ -732,6 +741,7 @@ export const useStore = create<CoreState>((set) => ({
           lastReadByKey: incoming.lastReadByKey,
           pinned: incoming.pinned,
           recentKeys: incoming.recentKeys,
+          emojiUsage: incomingEmojiUsage,
           themePref: incoming.themePref,
         },
       };
@@ -849,6 +859,7 @@ export const useStore = create<CoreState>((set) => ({
       else delete next[key];
       return { ui: { ...s.ui, drafts: next } };
     }),
+  recordEmojiUse: (emoji) => set((s) => ({ ui: { ...s.ui, emojiUsage: recordUsage(s.ui.emojiUsage, emoji, Date.now()) } })),
   setPacketLogFilter: (patch) => set((s) => ({ ui: { ...s.ui, packetLogFilter: { ...s.ui.packetLogFilter, ...patch } } })),
   appendLog: (entry) =>
     set((s) => {
@@ -995,11 +1006,23 @@ function arraysEqual(a: string[], b: string[]): boolean {
   return a.every((v, i) => v === b[i]);
 }
 
-function shallowEqualRecord(a: Record<string, number>, b: Record<string, number>): boolean {
+function shallowEqualRecord<T>(a: Record<string, T>, b: Record<string, T>): boolean {
   if (a === b) return true;
   const ak = Object.keys(a);
   if (ak.length !== Object.keys(b).length) return false;
   return ak.every((k) => a[k] === b[k]);
+}
+
+// `emojiUsage` values are per-emoji objects ({count, lastUsedMs}), not
+// primitives, so `shallowEqualRecord`'s reference equality is always false
+// once a broadcast round-trips through JSON (fresh object refs even when the
+// values match). Compare one level deeper so an echo of unchanged counts is
+// recognized as "same" and doesn't re-trigger the debounced PUT in App.tsx.
+function emojiUsageEqual(a: EmojiUsage, b: EmojiUsage): boolean {
+  if (a === b) return true;
+  const ak = Object.keys(a);
+  if (ak.length !== Object.keys(b).length) return false;
+  return ak.every((k) => b[k] != null && a[k].count === b[k].count && a[k].lastUsedMs === b[k].lastUsedMs);
 }
 
 // Useful narrow selectors for components.

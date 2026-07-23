@@ -758,6 +758,13 @@ export type LeftNavGroupId = 'channels' | 'contacts' | 'chat' | 'repeater' | 'ro
 
 export type ThemePref = 'auto' | 'dark' | 'light';
 
+/** Per-emoji usage for frecency-based quick-react pinning. Account-global. */
+export interface EmojiUse {
+  count: number;
+  lastUsedMs: number;
+}
+export type EmojiUsage = Record<string, EmojiUse>;
+
 export interface UiState {
   activeKey: string;
   pinned: string[]; // keys in pin order (channel + contact keys)
@@ -803,6 +810,9 @@ export interface UiState {
   // section. Capped at RECENT_KEYS_MAX entries; persisted across sessions
   // so a relaunch resumes the same jump list.
   recentKeys: string[];
+  // Per-emoji usage counts driving quick-react auto-pinning. Account-global
+  // (synced via applyUiState like pinned/recentKeys).
+  emojiUsage: EmojiUsage;
 }
 
 export const DEFAULT_UI_STATE: UiState = {
@@ -835,6 +845,7 @@ export const DEFAULT_UI_STATE: UiState = {
   selectedSiteKey: null,
   lastReadByKey: {},
   recentKeys: [],
+  emojiUsage: {},
 };
 
 export interface StateSnapshot {

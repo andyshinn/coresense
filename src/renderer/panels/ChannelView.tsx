@@ -75,6 +75,14 @@ export function ChannelView({ channel, client }: Props) {
     [client, channel.key],
   );
 
+  const handleReply = (name: string) => {
+    composerRef.current?.insertMention(name);
+  };
+
+  const handleReact = (name: string, emoji: string) => {
+    composerRef.current?.insertReaction(name, emoji);
+  };
+
   const onSelectMessage = (id: string) => {
     setSelectedMessage(selectedId === id ? null : id);
     if (!rightOpen) toggleRightRail();
@@ -133,7 +141,8 @@ export function ChannelView({ channel, client }: Props) {
           lastReadMs={lastReadMs}
           onMarkRead={(ts) => markRead(channel.key, ts)}
           onResend={(m) => onSend(m.body)}
-          onReply={(name) => composerRef.current?.insertMention(name)}
+          onReply={handleReply}
+          onReact={handleReact}
           client={client}
           jumpToId={pendingJumpMid}
           onJumpConsumed={() => setPendingJump(null)}

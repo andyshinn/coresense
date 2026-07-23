@@ -70,6 +70,14 @@ export function DMView({ contact, client }: Props) {
     [client, contact.key],
   );
 
+  const handleReply = (name: string) => {
+    composerRef.current?.insertMention(name);
+  };
+
+  const handleReact = (name: string, emoji: string) => {
+    composerRef.current?.insertReaction(name, emoji);
+  };
+
   const onSelectMessage = (id: string) => {
     setSelectedMessage(selectedId === id ? null : id);
     if (!rightOpen) toggleRightRail();
@@ -102,7 +110,8 @@ export function DMView({ contact, client }: Props) {
           lastReadMs={lastReadMs}
           onMarkRead={(ts) => markRead(contact.key, ts)}
           onResend={(m) => onSend(m.body)}
-          onReply={(name) => composerRef.current?.insertMention(name)}
+          onReply={handleReply}
+          onReact={handleReact}
           client={client}
           jumpToId={pendingJumpMid}
           onJumpConsumed={() => setPendingJump(null)}

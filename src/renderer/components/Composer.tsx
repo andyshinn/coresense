@@ -3,6 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import type { RadioSettings } from '../../shared/types';
 import { loraAirtimeMs } from '../lib/airtime';
 import { shouldSendOnKey } from '../lib/composerKeys';
+import { mentionedNames } from '../lib/messageContent';
 import { useStore } from '../lib/store';
 import { cn } from '../lib/utils';
 
@@ -13,6 +14,7 @@ const WARN_REMAINING = 20;
 
 export interface ComposerHandle {
   insertMention: (name: string) => void;
+  insertReaction: (name: string, content: string) => void;
 }
 
 interface Props {
@@ -48,13 +50,14 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
       setLocalValue((prev) => (typeof v === 'function' ? v(prev) : v));
     }
   };
+  const contacts = useStore((s) => s.contacts);
+  const mentions = mentionedNames(value);
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useImperativeHandle(ref, () => ({
-    insertMention: (name: string) => {
+  useImperativeHandle(ref, () => {
+    const insertAtCaret = (token: string) => {
       const ta = textareaRef.current;
-      const token = `@[${name}] `;
       setValue((prev) => {
         const start = ta?.selectionStart ?? prev.length;
         const end = ta?.selectionEnd ?? prev.length;
@@ -72,8 +75,12 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
         });
         return next;
       });
-    },
-  }));
+    };
+    return {
+      insertMention: (name: string) => insertAtCaret(`@[${name}] `),
+      insertReaction: (name: string, content: string) => insertAtCaret(`@[${name}] ${content} `),
+    };
+  });
   // Focus the field on navigate. Keyed on draftKey so switching between
   // conversations (which re-renders rather than remounts this component)
   // still re-focuses. Skipped while disabled — nothing to type into.
@@ -124,6 +131,23 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
 
   return (
     <div className="flex shrink-0 flex-col gap-1 border-t border-cs-border bg-cs-bg-2 px-3 py-2">
+      {mentions.length > 0 && (
+        <div data-testid="composer-mentions" className="mb-1 flex flex-wrap items-center gap-1">
+          {mentions.map((name) => (
+            <span
+              key={name}
+              className={cn(
+                'rounded px-1.5 py-0.5 text-[11px]',
+                contacts.some((c) => c.name === name)
+                  ? 'bg-cs-accent-soft/20 font-medium text-cs-text'
+                  : 'bg-cs-bg-3 text-cs-text-dim',
+              )}
+            >
+              @{name}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="flex items-end gap-2">
         <textarea
           data-testid="message-composer-input"
