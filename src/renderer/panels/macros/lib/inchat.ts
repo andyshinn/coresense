@@ -47,26 +47,3 @@ export async function expandMacroReply(
     return null;
   }
 }
-
-/** Render a macro against a received message's reply context and send it to
- *  that conversation. Returns true on success. */
-export async function sendMacroReply(
-  client: ApiClient | null,
-  macro: MacroTemplate,
-  message: { id: string; key: string },
-): Promise<boolean> {
-  if (!client) return false;
-  const res = await api.renderMacro(client, { macroId: macro.id, mode: 'reply', messageId: message.id, placeholder: '?' });
-  if (!res.ok) {
-    notify.error(`Couldn’t expand “${macro.name}”: ${res.error.message}`);
-    return false;
-  }
-  try {
-    await api.sendMessage(client, message.key, res.text);
-    notify.success('Reply sent');
-    return true;
-  } catch (err) {
-    notify.error(`Send failed: ${(err as Error).message}`, err);
-    return false;
-  }
-}
