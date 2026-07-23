@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { Message } from '../../../shared/types';
 import { copyToClipboard } from '../../components/ContextMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
+import type { ApiClient } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 import { EmojiPickerPopover } from './EmojiPickerPopover';
@@ -18,12 +19,15 @@ interface Props {
   message: Message;
   isSelf: boolean;
   senderName: string;
+  client: ApiClient | null;
   onReact: (name: string, emoji: string) => void;
   onReply: (name: string) => void;
+  /** Insert rendered macro text into the composer as `@[name] <text> `. */
+  onMacro?: (name: string, text: string) => void;
 }
 
 /** Discord-style hover action pill anchored to the top-right of a message row. */
-export function MessageQuickBar({ message, isSelf, senderName, onReact, onReply }: Props) {
+export function MessageQuickBar({ message, isSelf, senderName, client, onReact, onReply }: Props) {
   const [open, setOpen] = useState<PopKey>(null);
   const recordEmojiUse = useStore((s) => s.recordEmojiUse);
   const P = (key: Exclude<PopKey, null>) => ({ open: open === key, onOpenChange: (o: boolean) => setOpen(o ? key : null) });
@@ -78,20 +82,22 @@ export function MessageQuickBar({ message, isSelf, senderName, onReact, onReply 
             >
               <Reply size={14} aria-hidden="true" />
             </button>
-            <div className="flex items-center gap-1 pl-1">
-              {SEED_MACROS.slice(0, 2).map((m) => (
-                <MacroChip key={m.label} label={m.label} />
-              ))}
-              <MacroPanel {...P('macro')}>
-                <button
-                  type="button"
-                  aria-label="All macros"
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text"
-                >
-                  <MoreHorizontal size={14} aria-hidden="true" />
-                </button>
-              </MacroPanel>
-            </div>
+            {client != null && (
+              <div className="flex items-center gap-1 pl-1">
+                {SEED_MACROS.slice(0, 2).map((m) => (
+                  <MacroChip key={m.label} label={m.label} />
+                ))}
+                <MacroPanel {...P('macro')}>
+                  <button
+                    type="button"
+                    aria-label="All macros"
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text"
+                  >
+                    <MoreHorizontal size={14} aria-hidden="true" />
+                  </button>
+                </MacroPanel>
+              </div>
+            )}
             <span className="mx-1 h-6 w-px bg-cs-border" />
             <IconBtn label="Copy text" onClick={copyText}>
               <Copy size={16} aria-hidden="true" />

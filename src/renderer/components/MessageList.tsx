@@ -38,6 +38,7 @@ interface Props {
   onResend?: (message: Message) => void;
   onReply?: (senderName: string) => void;
   onReact?: (name: string, emoji: string) => void;
+  onMacro?: (name: string, text: string) => void;
   client: ApiClient | null;
   /** When set, scroll the row whose message.id matches into view and apply a
    *  brief highlight, then call onJumpConsumed so the parent clears state. */
@@ -54,6 +55,7 @@ interface RowContext {
   onSelect: (id: string) => void;
   onReply?: (name: string) => void;
   onReact?: (name: string, emoji: string) => void;
+  onMacro?: (name: string, text: string) => void;
   onContextMenu: (m: Message, e: React.MouseEvent) => void;
   client: ApiClient | null;
 }
@@ -96,6 +98,8 @@ const ItemRow: ItemContent<Item, RowContext> = ({ data, context }) => {
       senderName={senderName}
       onReply={context.onReply}
       onReact={context.onReact}
+      client={context.client}
+      onMacro={context.onMacro}
     />
   );
 };
@@ -119,6 +123,7 @@ export function MessageList({
   onResend,
   onReply,
   onReact,
+  onMacro,
   client,
   jumpToId,
   onJumpConsumed,
@@ -319,6 +324,7 @@ export function MessageList({
     onSelect,
     onReply,
     onReact,
+    onMacro,
     onContextMenu: handleContextMenu,
     client,
   };

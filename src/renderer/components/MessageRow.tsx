@@ -1,4 +1,5 @@
 import type { Message, MessageStyle } from '../../shared/types';
+import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
 import { MessageItem } from './MessageItem';
 
@@ -13,8 +14,10 @@ interface Props {
   style: MessageStyle;
   /** Caller-resolved sender display name ('' for self / unknown). */
   senderName: string;
+  client: ApiClient | null;
   onReply?: (name: string) => void;
   onReact?: (name: string, emoji: string) => void;
+  onMacro?: (name: string, text: string) => void;
 }
 
 /**
@@ -32,8 +35,10 @@ export function MessageRow({
   onContextMenu,
   style,
   senderName,
+  client,
   onReply,
   onReact,
+  onMacro,
 }: Props) {
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
   return (
@@ -45,10 +50,12 @@ export function MessageRow({
       timeFormat={timeFormat}
       selected={selected}
       flash={flash}
+      client={client}
       onSelect={onSelect}
       onContextMenu={onContextMenu}
       onReply={onReply}
       onReact={onReact}
+      onMacro={onMacro}
     />
   );
 }
