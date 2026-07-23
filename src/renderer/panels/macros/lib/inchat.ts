@@ -37,10 +37,15 @@ export async function expandMacroReply(
   message: { id: string },
 ): Promise<string | null> {
   if (!client) return null;
-  const res = await api.renderMacro(client, { macroId: macro.id, mode: 'reply', messageId: message.id, placeholder: '?' });
-  if (res.ok) return res.text;
-  notify.error(`Couldn’t expand “${macro.name}”: ${res.error.message}`);
-  return null;
+  try {
+    const res = await api.renderMacro(client, { macroId: macro.id, mode: 'reply', messageId: message.id, placeholder: '?' });
+    if (res.ok) return res.text;
+    notify.error(`Couldn’t expand “${macro.name}”: ${res.error.message}`);
+    return null;
+  } catch (err) {
+    notify.error(`Couldn’t expand “${macro.name}”: ${(err as Error).message}`, err);
+    return null;
+  }
 }
 
 /** Render a macro against a received message's reply context and send it to

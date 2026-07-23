@@ -118,6 +118,27 @@ describe('MessageQuickBar', () => {
     expect(useStore.getState().ui.macroUsage.a).toBeUndefined();
   });
 
+  test('a thrown render releases the busy flag so a retry click still works', async () => {
+    const spy = vi.spyOn(api, 'renderMacro').mockRejectedValueOnce(new Error('network down'));
+    useStore.setState({
+      macros: [{ id: 'a', name: 'Relaying', template: 'relaying now', scope: 'global', createdAt: 0, updatedAt: 0 }],
+      ui: { ...DEFAULT_UI_STATE },
+    });
+    const onMacro = vi.fn();
+    renderBar({ ...base, onMacro });
+
+    fireEvent.click(screen.getByText('Relaying'));
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+    // Let the rejection settle (caught inside expandMacroReply, toasted, busy released).
+    await waitFor(() => expect(onMacro).not.toHaveBeenCalled());
+    expect(useStore.getState().ui.macroUsage.a).toBeUndefined();
+
+    spy.mockResolvedValueOnce({ ok: true, text: 'ok now' });
+    fireEvent.click(screen.getByText('Relaying'));
+    await waitFor(() => expect(onMacro).toHaveBeenCalledWith('K5TH', 'ok now'));
+    expect(useStore.getState().ui.macroUsage.a.count).toBe(1);
+  });
+
   test('a contact-scoped macro does not appear on a channel message', () => {
     useStore.setState({
       macros: [

@@ -59,8 +59,12 @@ export function MessageQuickBar({ message, isSelf, senderName, client, onReact, 
     // Same guard as pick/reply: an unresolved sender would insert `@[] `.
     if (!hasSender || macroBusy) return;
     setMacroBusy(true);
-    const text = cachedText ?? (await expandMacroReply(client, macro, message));
-    setMacroBusy(false);
+    let text: string | null;
+    try {
+      text = cachedText ?? (await expandMacroReply(client, macro, message));
+    } finally {
+      setMacroBusy(false);
+    }
     if (text == null) return; // render failed and already toasted
     recordMacroUse(macro.id);
     onMacro?.(senderName, text);

@@ -60,6 +60,22 @@ describe('MacroPanel', () => {
     expect(count.className).toContain('text-cs-danger');
   });
 
+  test('exactly 132 chars (the cap) stays dim, not danger', async () => {
+    vi.spyOn(api, 'renderMacro').mockResolvedValue({ ok: true, text: 'x'.repeat(132) });
+    renderPanel([signal]);
+    const count = await screen.findByText('132c');
+    expect(count.className).toContain('text-cs-text-dim');
+    expect(count.className).not.toContain('text-cs-danger');
+  });
+
+  test('133 chars (one over the cap) flips to danger', async () => {
+    vi.spyOn(api, 'renderMacro').mockResolvedValue({ ok: true, text: 'x'.repeat(133) });
+    renderPanel([signal]);
+    const count = await screen.findByText('133c');
+    expect(count.className).toContain('text-cs-danger');
+    expect(count.className).not.toContain('text-cs-text-dim');
+  });
+
   test('a row click reports the already-rendered text and issues no second render', async () => {
     const spy = vi.spyOn(api, 'renderMacro').mockResolvedValue({ ok: true, text: '6.5 snr' });
     const onPick = renderPanel([signal]);

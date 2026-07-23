@@ -63,4 +63,10 @@ describe('expandMacroReply', () => {
     await expect(expandMacroReply(null, macro, { id: 'msg1' })).resolves.toBeNull();
     expect(spy).not.toHaveBeenCalled();
   });
+
+  it('returns null and toasts when the API call throws (network/transport error)', async () => {
+    vi.spyOn(api, 'renderMacro').mockRejectedValue(new Error('network down'));
+    await expect(expandMacroReply(client, macro, { id: 'msg1' })).resolves.toBeNull();
+    expect(notify.error).toHaveBeenCalledTimes(1);
+  });
 });
