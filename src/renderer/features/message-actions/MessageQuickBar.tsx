@@ -65,9 +65,9 @@ export function MessageQuickBar({ message, isSelf, senderName, client, onReact, 
     } finally {
       setMacroBusy(false);
     }
-    if (text == null) return; // render failed and already toasted
+    if (text == null || !onMacro) return; // render failed (toasted) or nothing to insert into
     recordMacroUse(macro.id);
-    onMacro?.(senderName, text);
+    onMacro(senderName, text);
     setOpen(null);
   };
   const copyText = () => copyToClipboard(message.body, () => notify.success('Copied message text'));

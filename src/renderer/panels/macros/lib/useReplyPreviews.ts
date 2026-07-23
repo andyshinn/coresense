@@ -9,10 +9,13 @@ export type PreviewState =
 
 /** Render every macro against one message's reply context, keyed by macro id.
  *
- *  Fetches when the panel opens and whenever the message or the macro set
- *  changes while open; never caches across opens, because reply context holds
- *  time-varying values (`received_ago`, `peer_last_seen`) and a stale preview
- *  would disagree with the text actually inserted. */
+ *  Fetches when the panel opens, when `messageId` changes while open, or when
+ *  the applicable-macro *id list* changes (add/remove/reorder) while open.
+ *  Editing a macro's template in place (same id) does not refresh an
+ *  already-open panel — that's picked up on the next open. Never caches
+ *  across opens, because reply context holds time-varying values
+ *  (`received_ago`, `peer_last_seen`) and a stale preview would disagree with
+ *  the text actually inserted. */
 export function useReplyPreviews(
   client: ApiClient | null,
   messageId: string,

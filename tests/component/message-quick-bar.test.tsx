@@ -139,6 +139,22 @@ describe('MessageQuickBar', () => {
     expect(useStore.getState().ui.macroUsage.a.count).toBe(1);
   });
 
+  test('an unresolved sender (senderName === "") makes a macro click a no-op', async () => {
+    const renderSpy = vi.spyOn(api, 'renderMacro');
+    useStore.setState({
+      macros: [{ id: 'a', name: 'Relaying', template: 'relaying now', scope: 'global', createdAt: 0, updatedAt: 0 }],
+      ui: { ...DEFAULT_UI_STATE },
+    });
+    const onMacro = vi.fn();
+    renderBar({ ...base, senderName: '', onMacro });
+    fireEvent.click(screen.getByText('Relaying'));
+    // Give any (erroneous) async render a chance to fire before asserting it did not.
+    await Promise.resolve();
+    expect(renderSpy).not.toHaveBeenCalled();
+    expect(onMacro).not.toHaveBeenCalled();
+    expect(useStore.getState().ui.macroUsage.a).toBeUndefined();
+  });
+
   test('a contact-scoped macro does not appear on a channel message', () => {
     useStore.setState({
       macros: [
