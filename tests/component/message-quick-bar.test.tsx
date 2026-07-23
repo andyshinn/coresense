@@ -1,8 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+
+vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { MessageQuickBar } from '@/features/message-actions/MessageQuickBar';
-import type { ApiClient } from '@/lib/api';
+import { type ApiClient, api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { DEFAULT_UI_STATE, type Message } from '../../src/shared/types';
 
@@ -25,7 +28,10 @@ function renderBar(props: React.ComponentProps<typeof MessageQuickBar>) {
 const base = { message: other, isSelf: false, senderName: 'K5TH', client, onReact: () => {}, onReply: () => {} };
 
 describe('MessageQuickBar', () => {
-  beforeEach(() => useStore.setState({ ui: { ...DEFAULT_UI_STATE }, macros: [] }));
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    useStore.setState({ ui: { ...DEFAULT_UI_STATE }, macros: [] });
+  });
 
   test('others: quick-react records usage and calls onReact', () => {
     const onReact = vi.fn();
@@ -65,5 +71,61 @@ describe('MessageQuickBar', () => {
     expect(screen.queryByRole('button', { name: 'All macros' })).toBeNull();
     // The rest of the bar is unaffected.
     expect(screen.getByRole('button', { name: 'Reply' })).toBeTruthy();
+  });
+
+  test('chips are the two most-frecent applicable macros', () => {
+    useStore.setState({
+      macros: [
+        { id: 'a', name: 'Alpha', template: 'a', scope: 'global', createdAt: 0, updatedAt: 0 },
+        { id: 'b', name: 'Bravo', template: 'b', scope: 'global', createdAt: 0, updatedAt: 0 },
+        { id: 'c', name: 'Charlie', template: 'c', scope: 'global', createdAt: 0, updatedAt: 0 },
+      ],
+      ui: { ...DEFAULT_UI_STATE, macroUsage: { c: { count: 9, lastUsedMs: Date.now() } } },
+    });
+    renderBar(base);
+    expect(screen.getByText('Charlie')).toBeTruthy(); // most-frecent leads
+    expect(screen.getByText('Alpha')).toBeTruthy(); // then store order
+    expect(screen.queryByText('Bravo')).toBeNull(); // only two chips
+  });
+
+  test('a chip click renders, records usage, and inserts into the composer', async () => {
+    vi.spyOn(api, 'renderMacro').mockResolvedValue({ ok: true, text: 'relaying now' });
+    useStore.setState({
+      macros: [{ id: 'a', name: 'Relaying', template: 'relaying now', scope: 'global', createdAt: 0, updatedAt: 0 }],
+      ui: { ...DEFAULT_UI_STATE },
+    });
+    const onMacro = vi.fn();
+    renderBar({ ...base, onMacro });
+    fireEvent.click(screen.getByText('Relaying'));
+    await waitFor(() => expect(onMacro).toHaveBeenCalledWith('K5TH', 'relaying now'));
+    expect(useStore.getState().ui.macroUsage.a.count).toBe(1);
+  });
+
+  test('a failed render neither inserts nor records usage', async () => {
+    vi.spyOn(api, 'renderMacro').mockResolvedValue({
+      ok: false,
+      error: { kind: 'render', message: 'boom' },
+    });
+    useStore.setState({
+      macros: [{ id: 'a', name: 'Relaying', template: 'relaying now', scope: 'global', createdAt: 0, updatedAt: 0 }],
+      ui: { ...DEFAULT_UI_STATE },
+    });
+    const onMacro = vi.fn();
+    renderBar({ ...base, onMacro });
+    fireEvent.click(screen.getByText('Relaying'));
+    await waitFor(() => expect(api.renderMacro).toHaveBeenCalled());
+    expect(onMacro).not.toHaveBeenCalled();
+    expect(useStore.getState().ui.macroUsage.a).toBeUndefined();
+  });
+
+  test('a contact-scoped macro does not appear on a channel message', () => {
+    useStore.setState({
+      macros: [
+        { id: 'c1', name: 'ForKarin', template: 'x', scope: 'contact', contactKey: 'c:7b21', createdAt: 0, updatedAt: 0 },
+      ],
+      ui: { ...DEFAULT_UI_STATE },
+    });
+    renderBar(base); // message.key is 'ch:x'
+    expect(screen.queryByText('ForKarin')).toBeNull();
   });
 });

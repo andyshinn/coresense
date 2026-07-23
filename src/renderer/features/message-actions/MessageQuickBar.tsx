@@ -1,16 +1,18 @@
 import { Copy, Info, MoreHorizontal, Plus, Reply, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import type { MacroTemplate } from '../../../shared/macros/types';
 import type { Message } from '../../../shared/types';
 import { copyToClipboard } from '../../components/ContextMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import type { ApiClient } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
+import { expandMacroReply } from '../../panels/macros/lib/inchat';
 import { EmojiPickerPopover } from './EmojiPickerPopover';
 import { MacroChip, MacroPanel } from './MacroPanel';
 import { MessageInfoPopover } from './MessageInfoPopover';
+import { applicableMacros, topMacros } from './macroPicks';
 import { OverflowMenu } from './OverflowMenu';
-import { SEED_MACROS } from './quickBarData';
 import { ReactionRow } from './ReactionRow';
 
 type PopKey = 'emoji' | 'macro' | 'info' | 'more' | null;
@@ -27,9 +29,16 @@ interface Props {
 }
 
 /** Discord-style hover action pill anchored to the top-right of a message row. */
-export function MessageQuickBar({ message, isSelf, senderName, client, onReact, onReply }: Props) {
+export function MessageQuickBar({ message, isSelf, senderName, client, onReact, onReply, onMacro }: Props) {
   const [open, setOpen] = useState<PopKey>(null);
   const recordEmojiUse = useStore((s) => s.recordEmojiUse);
+  const macros = useStore((s) => s.macros);
+  const macroUsage = useStore((s) => s.ui.macroUsage);
+  const recordMacroUse = useStore((s) => s.recordMacroUse);
+  const [macroBusy, setMacroBusy] = useState(false);
+  // Recomputed per render like ReactionRow's emoji row — both lists are tiny.
+  const conversationMacros = applicableMacros(macros, message.key);
+  const chipMacros = topMacros(conversationMacros, macroUsage, Date.now(), 2);
   const P = (key: Exclude<PopKey, null>) => ({ open: open === key, onOpenChange: (o: boolean) => setOpen(o ? key : null) });
 
   // An unresolved sender (e.g. a channel message whose origin name wasn't
@@ -44,6 +53,18 @@ export function MessageQuickBar({ message, isSelf, senderName, client, onReact, 
   const reply = () => {
     if (!hasSender) return;
     onReply(senderName);
+  };
+  // Named pickMacro, not useMacro: a `use*` name would be treated as a hook.
+  const pickMacro = async (macro: MacroTemplate, cachedText?: string) => {
+    // Same guard as pick/reply: an unresolved sender would insert `@[] `.
+    if (!hasSender || macroBusy) return;
+    setMacroBusy(true);
+    const text = cachedText ?? (await expandMacroReply(client, macro, message));
+    setMacroBusy(false);
+    if (text == null) return; // render failed and already toasted
+    recordMacroUse(macro.id);
+    onMacro?.(senderName, text);
+    setOpen(null);
   };
   const copyText = () => copyToClipboard(message.body, () => notify.success('Copied message text'));
 
@@ -84,10 +105,16 @@ export function MessageQuickBar({ message, isSelf, senderName, client, onReact, 
             </button>
             {client != null && (
               <div className="flex items-center gap-1 pl-1">
-                {SEED_MACROS.slice(0, 2).map((m) => (
-                  <MacroChip key={m.label} label={m.label} />
+                {chipMacros.map((m) => (
+                  <MacroChip key={m.id} macro={m} onPick={(macro) => void pickMacro(macro)} />
                 ))}
-                <MacroPanel {...P('macro')}>
+                <MacroPanel
+                  {...P('macro')}
+                  macros={conversationMacros}
+                  client={client}
+                  message={message}
+                  onPick={(macro, text) => void pickMacro(macro, text)}
+                >
                   <button
                     type="button"
                     aria-label="All macros"
