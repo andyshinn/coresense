@@ -173,7 +173,7 @@ export async function startServer(
     ws.send(
       JSON.stringify({
         type: 'discovered',
-        payload: discoveredStore.list(holder.getRadioSettings().pathHashMode, holder.getBlockRules()),
+        payload: discoveredStore.list(holder.getBlockRules()),
       }),
     );
     ws.send(JSON.stringify({ type: 'updateState', payload: currentUpdateState() } satisfies WsMessage));

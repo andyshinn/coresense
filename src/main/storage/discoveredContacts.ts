@@ -3,9 +3,10 @@ import {
   advTypeToKind,
   contactMatchesAnyBlockRule,
   type DiscoveredContact,
+  hashSizeFromOutPathLen,
   hopsFromOutPathLen,
 } from '../../shared/contacts/discovered';
-import type { BlockRule, PathHashSize } from '../../shared/types';
+import type { BlockRule } from '../../shared/types';
 import { openDb } from './db';
 
 interface Row {
@@ -25,9 +26,13 @@ interface Row {
   favourite: number;
 }
 
-function rowToDiscovered(row: Row, hashSize: PathHashSize, blockRules: BlockRule[]): DiscoveredContact {
+function rowToDiscovered(row: Row, blockRules: BlockRule[]): DiscoveredContact {
   const hasFix = row.gps_lat !== 0 || row.gps_lon !== 0;
-  const hasPath = row.out_path_len !== 0xff && row.out_path_len > 0;
+  // A path exists only when the packed out_path_len carries a non-zero hop
+  // count. A direct contact (0 hops, e.g. 0x40 in 2-byte mode) and 0xFF (flood)
+  // both have no path bytes to show. hashSize comes from the contact's OWN
+  // out_path_len byte, never the radio's current path-hash mode.
+  const hasPath = row.out_path_len !== 0xff && (row.out_path_len & 0x3f) > 0;
   return {
     key: `c:${row.pubkey}`,
     publicKeyHex: row.pubkey,
@@ -35,7 +40,7 @@ function rowToDiscovered(row: Row, hashSize: PathHashSize, blockRules: BlockRule
     kind: advTypeToKind(row.type),
     hops: hopsFromOutPathLen(row.out_path_len),
     outPathHex: hasPath ? row.out_path_hex : undefined,
-    outPathHashSize: hasPath ? hashSize : undefined,
+    outPathHashSize: hasPath ? hashSizeFromOutPathLen(row.out_path_len) : undefined,
     gpsLat: hasFix ? row.gps_lat : undefined,
     gpsLon: hasFix ? row.gps_lon : undefined,
     lastAdvertMs: row.last_advert_unix > 0 ? row.last_advert_unix * 1000 : undefined,
@@ -94,10 +99,10 @@ export const discoveredStore = {
     );
   },
 
-  list(hashSize: PathHashSize, blockRules: BlockRule[]): DiscoveredContact[] {
+  list(blockRules: BlockRule[]): DiscoveredContact[] {
     const db = openDb();
     const rows = db.prepare(`SELECT * FROM discovered_contacts ORDER BY last_advert_unix DESC`).all() as unknown as Row[];
-    return rows.map((r) => rowToDiscovered(r, hashSize, blockRules));
+    return rows.map((r) => rowToDiscovered(r, blockRules));
   },
 
   get(pubkey: string): Row | null {
