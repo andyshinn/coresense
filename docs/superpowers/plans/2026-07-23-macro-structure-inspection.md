@@ -37,6 +37,7 @@
 | --- | --- |
 | `src/shared/macros/structure.ts` | Derive a shape tree from a runtime value; resolve dotted paths against it. Pure. |
 | `src/shared/macros/lint.ts` | Walk a template for property names that don't exist in the sample shape. Pure + liquidjs. |
+| `src/renderer/panels/macros/studio/hoverAtoms.tsx` | `Head` + `typeLabel`, shared by both hover cards and the Context tree. |
 | `src/renderer/panels/macros/studio/VariableHoverCard.tsx` | Prop-driven hover body for a variable row. |
 | `src/renderer/panels/macros/studio/FilterHoverCard.tsx` | Prop-driven hover body for a filter row. |
 | `src/renderer/panels/macros/studio/ContextTree.tsx` | Prop-driven expandable tree of a sample context. |
@@ -1171,7 +1172,8 @@ function checkVariablePaths(eng: Liquid, template: string, root: StructureNode):
     if (typeof bad !== 'string') continue;
     const available = fieldsAt(root, path.slice(0, r.failedAt)) ?? [];
     const full = path.slice(0, r.failedAt + 1).join('.');
-    out.push({ ...warn(bad, available), name: full, message: `${full} — ${warn(bad, available).message}` });
+    const base = warn(bad, available);
+    out.push({ ...base, name: full, message: `${full} — ${base.message}` });
   }
   return out;
 }
@@ -1709,6 +1711,7 @@ EOF
 ### Task 9: Hover cards on Reference rows
 
 **Files:**
+- Create: `src/renderer/panels/macros/studio/hoverAtoms.tsx`
 - Create: `src/renderer/panels/macros/studio/VariableHoverCard.tsx`
 - Create: `src/renderer/panels/macros/studio/FilterHoverCard.tsx`
 - Modify: `src/renderer/panels/macros/studio/ReferencePanel.tsx:69-84`, `:107-118`, `:176-199`
@@ -1816,11 +1819,34 @@ Append to `tests/component/macros/MacroReferenceRail.test.tsx`:
 Run: `npx vitest run --project dom tests/component/macros/VariableHoverCard.test.tsx`
 Expected: FAIL — modules not found.
 
-- [ ] **Step 3: Create `VariableHoverCard.tsx`**
+- [ ] **Step 3: Create the shared atoms both cards and the Context tree use**
+
+Create `src/renderer/panels/macros/studio/hoverAtoms.tsx`:
 
 ```tsx
-import type { MacroVariable } from '../../../../shared/macros/types';
 import type { StructureNode } from '../../../../shared/macros/structure';
+
+/** Section heading, shared by both hover cards. */
+export function Head({ label }: { label: string }) {
+  return <div className="font-mono text-[10px] uppercase tracking-wider text-cs-text-muted">{label}</div>;
+}
+
+/** Human label for a node's shape — `string`, or `string|null` when the sample
+ *  proves the field can be absent. `withLength` adds an array's sample count:
+ *  useful in the browsable Context tree, noise in a hover card. */
+export function typeLabel(node: StructureNode, opts: { withLength?: boolean } = {}): string {
+  if (node.kind === 'array') return opts.withLength ? `array[${node.length}]` : 'array';
+  if (node.kind === 'object') return 'object';
+  return node.nullable ? `${node.type}|null` : node.type;
+}
+```
+
+- [ ] **Step 4: Create `VariableHoverCard.tsx`**
+
+```tsx
+import type { StructureNode } from '../../../../shared/macros/structure';
+import type { MacroVariable } from '../../../../shared/macros/types';
+import { Head, typeLabel } from './hoverAtoms';
 
 const TYPE_LABEL: Record<MacroVariable['type'], string> = {
   string: 'string',
@@ -1829,17 +1855,6 @@ const TYPE_LABEL: Record<MacroVariable['type'], string> = {
   array: 'array',
   boolean: 'boolean',
 };
-
-/** `string`, or `string|null` when the sample proves the field can be absent. */
-function scalarLabel(node: StructureNode): string {
-  if (node.kind === 'array') return 'array';
-  if (node.kind === 'object') return 'object';
-  return node.nullable ? `${node.type}|null` : node.type;
-}
-
-function Head({ label }: { label: string }) {
-  return <div className="font-mono text-[10px] uppercase tracking-wider text-cs-text-muted">{label}</div>;
-}
 
 /** Field names + types, two levels deep. Arrays show their element's fields —
  *  one level of `paths` would only say `hops: array`, which is exactly the dead
@@ -1856,7 +1871,7 @@ function Fields({ node, depth = 0 }: { node: StructureNode; depth?: number }) {
           <div key={f.name} className="flex flex-col" style={{ paddingLeft: depth * 10 }}>
             <div className="flex items-baseline gap-3">
               <span className="font-mono text-[11px] text-cs-text">{f.name}</span>
-              <span className="font-mono text-[11px] text-cs-text-muted">{scalarLabel(f.node)}</span>
+              <span className="font-mono text-[11px] text-cs-text-muted">{typeLabel(f.node)}</span>
             </div>
             {nested && <Fields node={f.node} depth={depth + 1} />}
           </div>
@@ -1900,12 +1915,10 @@ export function VariableHoverCard({ variable, structure }: { variable: MacroVari
 }
 ```
 
-- [ ] **Step 4: Create `FilterHoverCard.tsx`**
+- [ ] **Step 5: Create `FilterHoverCard.tsx`**
 
 ```tsx
-function Head({ label }: { label: string }) {
-  return <div className="font-mono text-[10px] uppercase tracking-wider text-cs-text-muted">{label}</div>;
-}
+import { Head } from './hoverAtoms';
 
 /** `example` is optional: MeshCore filters are MacroFilterDoc and carry one, the
  *  seven standard-filter rows use a local shape that has no example field. */
@@ -1943,7 +1956,7 @@ export function FilterHoverCard({
 }
 ```
 
-- [ ] **Step 5: Wire the trigger into `InsertRow`**
+- [ ] **Step 6: Wire the trigger into `InsertRow`**
 
 In `src/renderer/panels/macros/studio/ReferencePanel.tsx`, add these imports at the top:
 
@@ -1997,7 +2010,7 @@ function InsertRow({
 }
 ```
 
-- [ ] **Step 6: Pass the card bodies from each row**
+- [ ] **Step 7: Pass the card bodies from each row**
 
 In `ReferencePanel`, add above `const renderVar = …` (line 107):
 
@@ -2041,7 +2054,7 @@ In the standard filter rows (lines 190-199), add:
                 hoverCard={<FilterHoverCard name={f.name} description={f.description} signature={f.signature} />}
 ```
 
-- [ ] **Step 7: Add hover cards to the Studio quick-var chips**
+- [ ] **Step 8: Add hover cards to the Studio quick-var chips**
 
 Append to `tests/component/macros/MacroStudio.test.tsx`:
 
@@ -2111,15 +2124,15 @@ Replace the quick-chip block (the `{QUICK_VARS.map(…)}` body added at lines 18
 
 `side="top"` here, not `"left"` — the chips sit at the bottom of the editor column, so the card opens upward into free space rather than over the template.
 
-- [ ] **Step 8: Run tests to verify they pass**
+- [ ] **Step 9: Run tests to verify they pass**
 
 Run: `npx vitest run --project dom tests/component/macros && npx tsc --noEmit && npx biome check src tests`
 Expected: PASS, clean.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add src/renderer/panels/macros/studio/VariableHoverCard.tsx src/renderer/panels/macros/studio/FilterHoverCard.tsx src/renderer/panels/macros/studio/ReferencePanel.tsx src/renderer/panels/macros/MacroStudio.tsx tests/component/macros/VariableHoverCard.test.tsx tests/component/macros/MacroReferenceRail.test.tsx tests/component/macros/MacroStudio.test.tsx
+git add src/renderer/panels/macros/studio/hoverAtoms.tsx src/renderer/panels/macros/studio/VariableHoverCard.tsx src/renderer/panels/macros/studio/FilterHoverCard.tsx src/renderer/panels/macros/studio/ReferencePanel.tsx src/renderer/panels/macros/MacroStudio.tsx tests/component/macros/VariableHoverCard.test.tsx tests/component/macros/MacroReferenceRail.test.tsx tests/component/macros/MacroStudio.test.tsx
 git commit -m "$(cat <<'EOF'
 feat(macros): hover cards on reference variable and filter rows
 
@@ -2193,12 +2206,7 @@ Expected: FAIL — no Context tab.
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import type { StructureField, StructureNode } from '../../../../shared/macros/structure';
-
-function typeLabel(node: StructureNode): string {
-  if (node.kind === 'array') return `array[${node.length}]`;
-  if (node.kind === 'object') return 'object';
-  return node.nullable ? `${node.type}|null` : node.type;
-}
+import { typeLabel } from './hoverAtoms';
 
 function isExpandable(node: StructureNode): boolean {
   if (node.kind === 'object') return node.fields.length > 0;
@@ -2244,7 +2252,7 @@ function Row({ field, path, depth, onInsertPath }: { field: StructureField; path
         >
           <span className="font-mono text-[11px] text-cs-accent">{field.name}</span>
           <span className="shrink-0 rounded bg-cs-bg-3 px-1 font-mono text-[9px] text-cs-text-muted">
-            {typeLabel(field.node)}
+            {typeLabel(field.node, { withLength: true })}
           </span>
           {field.sample !== undefined && (
             <span className="truncate font-mono text-[11px] text-cs-text-muted">{field.sample}</span>
