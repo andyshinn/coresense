@@ -51,6 +51,13 @@ describe('buildSendContext', () => {
 });
 
 describe('buildReplyContext', () => {
+  const pathHops = [
+    { kind: 'origin' as const, shortId: 'aa', name: 'Alice', pk: 'alicepk' },
+    { kind: 'hop' as const, shortId: 'a1', name: null, pk: null },
+    { kind: 'hop' as const, shortId: '37', name: null, pk: null },
+    { kind: 'sink' as const, shortId: 'bb', name: 'Me', pk: 'aabbccdd' },
+  ];
+
   const message: Message = {
     id: 'm1',
     key: 'ch:General',
@@ -63,22 +70,37 @@ describe('buildReplyContext', () => {
       snr: 5.5,
       hops: 2,
       timesHeard: 3,
-      paths: [
-        {
-          id: 'p1',
-          hashMode: 1,
-          finalSnr: 6,
-          hops: [
-            { kind: 'origin', shortId: 'aa', name: 'Alice', pk: 'alicepk' },
-            { kind: 'sink', shortId: 'bb', name: 'Me', pk: 'aabbccdd' },
-          ],
-        },
-      ],
+      paths: [{ id: 'p1', hashMode: 1, finalSnr: 6, hops: pathHops }],
     },
   };
 
+  const directMessage: Message = {
+    ...message,
+    meta: {
+      ...message.meta,
+      paths: [{ id: 'p2', hashMode: 1, finalSnr: 6, hops: [pathHops[0], pathHops[3]] }],
+    },
+  };
+
+  const repeater = (name: string, publicKeyHex: string): Contact => ({
+    key: `c:${publicKeyHex}`,
+    publicKeyHex,
+    name,
+    kind: 'repeater',
+  });
+
+  const reply = (over: { message?: Message; repeaters?: Contact[] } = {}) =>
+    buildReplyContext({
+      self,
+      message: over.message ?? message,
+      senderContact: alice,
+      channelName: 'General',
+      repeaters: over.repeaters ?? [],
+      now: 1700000300000,
+    });
+
   it('maps message signal, sender, and peer-from-sender on a channel', () => {
-    const ctx = buildReplyContext({ self, message, senderContact: alice, channelName: 'General', now: 1700000300000 });
+    const ctx = reply();
     expect(ctx.message_body).toBe('hi');
     expect(ctx.rssi).toBe(-95);
     expect(ctx.times_heard).toBe(3);
@@ -88,17 +110,72 @@ describe('buildReplyContext', () => {
     expect(ctx.received_ago).toBe('5m');
     expect(ctx.paths).toHaveLength(1);
     expect(ctx.paths[0].final_snr).toBe(6);
-    expect(ctx.paths[0].hops.map((h) => h.name)).toEqual(['Alice', 'Me']);
   });
 
-  it('exposes short_id per hop and never copies the wire-null pk', () => {
-    // Input hops carry pk (lib may set it), but pk is unreliable/always-null in
-    // practice — the context must surface short_id (the real per-hop key prefix)
-    // and must NOT expose pk, so macros don't silently render empties.
-    const ctx = buildReplyContext({ self, message, senderContact: alice, channelName: 'General', now: 1700000300000 });
-    expect(ctx.paths[0].hops.map((h) => h.short_id)).toEqual(['aa', 'bb']);
-    for (const hop of ctx.paths[0].hops) {
-      expect((hop as unknown as Record<string, unknown>).pk).toBeUndefined();
-    }
+  it('exposes only relay hops in hops, and the full timeline in all_hops', () => {
+    const ctx = reply();
+    expect(ctx.paths[0].hops.map((h) => h.short_id)).toEqual(['a1', '37']);
+    expect(ctx.paths[0].hops.every((h) => h.kind === 'hop')).toBe(true);
+    expect(ctx.paths[0].all_hops.map((h) => h.short_id)).toEqual(['aa', 'a1', '37', 'bb']);
+    expect(ctx.paths[0].all_hops.map((h) => h.name)).toEqual(['Alice', null, null, 'Me']);
+  });
+
+  it('reports length as the relay count, not the timeline length', () => {
+    expect(reply().paths[0].length).toBe(2);
+  });
+
+  it('reports length 0 and empty hops for a direct path', () => {
+    const ctx = reply({ message: directMessage });
+    expect(ctx.paths[0].length).toBe(0);
+    expect(ctx.paths[0].hops).toEqual([]);
+    expect(ctx.paths[0].all_hops).toHaveLength(2);
+  });
+
+  it('resolves a relay hop name and pk from an unambiguous repeater match', () => {
+    const ctx = reply({ repeaters: [repeater('Tarrytown East Solar', 'a137f2aa')] });
+    expect(ctx.paths[0].hops[0]).toMatchObject({
+      short_id: 'a1',
+      name: 'Tarrytown East Solar',
+      pk: 'a137f2aa',
+    });
+    expect(ctx.paths[0].hops[1]).toMatchObject({ short_id: '37', name: null, pk: null });
+  });
+
+  it('leaves name and pk null when two repeaters share the prefix', () => {
+    const ctx = reply({ repeaters: [repeater('One', 'a137f2aa'), repeater('Two', 'a1ff0000')] });
+    expect(ctx.paths[0].hops[0]).toMatchObject({ name: null, pk: null });
+  });
+
+  it('ignores a non-repeater contact whose pubkey matches the prefix', () => {
+    // A phone must never be named as a mesh relay. resolveHop guards on kind
+    // itself, so this holds even if a caller forgets to pre-filter.
+    const phone: Contact = { key: 'c:a1cafe', publicKeyHex: 'a1cafe22', name: 'Bob (phone)', kind: 'chat' };
+    expect(reply({ repeaters: [phone] }).paths[0].hops[0]).toMatchObject({ name: null, pk: null });
+  });
+
+  it('does not let a non-repeater manufacture ambiguity', () => {
+    // The Path viewer resolves against repeaters only; a chat contact sharing
+    // the prefix must not blank out a name the viewer shows confidently.
+    const phone: Contact = { key: 'c:a1cafe', publicKeyHex: 'a1cafe22', name: 'Bob (phone)', kind: 'chat' };
+    const ctx = reply({ repeaters: [repeater('Tarrytown East Solar', 'a137f2aa'), phone] });
+    expect(ctx.paths[0].hops[0].name).toBe('Tarrytown East Solar');
+  });
+
+  it('leaves name and pk null for an empty short_id', () => {
+    const blank: Message = {
+      ...message,
+      meta: {
+        ...message.meta,
+        paths: [{ id: 'p3', hashMode: 1, finalSnr: 6, hops: [{ kind: 'hop', shortId: '', name: null, pk: null }] }],
+      },
+    };
+    const ctx = reply({ message: blank, repeaters: [repeater('Only', 'deadbeef')] });
+    expect(ctx.paths[0].hops[0]).toMatchObject({ name: null, pk: null });
+  });
+
+  it('origin and sink never carry a resolved pk', () => {
+    const ctx = reply({ repeaters: [repeater('Tarrytown', 'a137f2aa')] });
+    const ends = ctx.paths[0].all_hops.filter((h) => h.kind !== 'hop');
+    expect(ends.map((h) => h.pk)).toEqual([null, null]);
   });
 });

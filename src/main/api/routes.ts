@@ -983,7 +983,8 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       const senderContact = message.fromPublicKeyHex
         ? (holder.getContacts().find((ct) => ct.publicKeyHex === message.fromPublicKeyHex) ?? null)
         : null;
-      context = buildReplyContext({ self, message, senderContact, channelName });
+      const repeaters = holder.getContacts().filter((ct) => ct.kind === 'repeater');
+      context = buildReplyContext({ self, message, senderContact, channelName, repeaters });
     } else {
       const peerContact = body.contactKey ? (holder.getContacts().find((ct) => ct.key === body.contactKey) ?? null) : null;
       context = buildSendContext({ self, peerContact, channelName });

@@ -6,21 +6,33 @@ export interface MacroPosition {
 }
 
 export interface MacroPathHop {
+  /** In `hops` this is always 'hop'. `all_hops` also carries 'origin' and 'sink'. */
   kind: 'origin' | 'hop' | 'sink';
-  // The per-hop key prefix as encoded on the wire (1-3 bytes hex, per the path's
-  // hash_mode). For relay hops (kind 'hop') this is the prefix of the repeater's
-  // pubkey; for 'origin'/'sink' it's a display label. The full pubkey is NOT on
-  // the wire — it's resolved at display time — so no `pk` field is exposed here.
+  /** Relay hops: the per-hop key prefix as encoded on the wire (1-3 bytes hex,
+   *  per the path's hash_mode). Origin/sink in `all_hops`: a lowercased 2-char
+   *  slice of the node name — a display label, NOT wire data. */
   short_id: string;
+  /** The matching repeater's name, resolved locally from short_id. Null when no
+   *  repeater matches or when more than one does. Origin/sink carry the sender /
+   *  owner name as supplied by the library. */
   name: string | null;
+  /** The matching repeater's full pubkey, same resolution rules as `name`. Never
+   *  on the wire — only the prefix is — so this is a local resolution, and null
+   *  whenever ambiguous, unknown, or for origin/sink. */
+  pk: string | null;
 }
 
 export interface MacroPath {
   id: string;
+  /** Number of RELAY hops between the sender and us. 0 on a direct path. */
   length: number;
   hash_mode: number;
   final_snr: number;
+  /** Relay hops only — the repeaters between the sender and us. Empty on a
+   *  direct path. */
   hops: MacroPathHop[];
+  /** The full timeline: origin (sender), every relay, then sink (us). */
+  all_hops: MacroPathHop[];
 }
 
 export interface MacroContext {

@@ -1,5 +1,5 @@
 // src/main/macros/contextBuilder.ts
-import type { MacroContext, MacroPath, MacroPosition } from '../../shared/macros/types';
+import type { MacroContext, MacroPath, MacroPathHop, MacroPosition } from '../../shared/macros/types';
 import type { Contact, DeviceIdentity, DeviceInfo, Message, MessagePath, Owner } from '../../shared/types';
 
 export interface SelfState {
@@ -20,15 +20,39 @@ function humanizeAgo(ms: number): string {
   return `${Math.floor(ms / 86_400_000)}d`;
 }
 
-function mapPaths(paths: MessagePath[] | undefined): MacroPath[] {
+/** Resolve a relay hop's wire prefix against known repeaters. Demands exactly
+ *  one match: at hash_mode 1 a prefix is two hex chars, so collisions are
+ *  ordinary, and macro output is transmitted — a wrong operator name is worse
+ *  than a blank. Mirrors candidatesFor() in the renderer's path viewer, which is
+ *  likewise only ever fed contacts of kind 'repeater'. */
+function resolveHop(shortId: string, repeaters: Contact[]): { name: string | null; pk: string | null } {
+  if (shortId.length === 0) return { name: null, pk: null }; // startsWith('') matches everything
+  const prefix = shortId.toLowerCase();
+  // The kind guard is defence in depth — callers pass a pre-filtered list, but a
+  // chat contact leaking in here would name someone's phone as a mesh relay.
+  const matches = repeaters.filter((c) => c.kind === 'repeater' && c.publicKeyHex.toLowerCase().startsWith(prefix));
+  if (matches.length !== 1) return { name: null, pk: null }; // unknown OR ambiguous
+  return { name: matches[0].name, pk: matches[0].publicKeyHex };
+}
+
+function mapPaths(paths: MessagePath[] | undefined, repeaters: Contact[]): MacroPath[] {
   if (!paths) return [];
-  return paths.map((p) => ({
-    id: p.id,
-    length: p.hops.length,
-    hash_mode: p.hashMode,
-    final_snr: p.finalSnr,
-    hops: p.hops.map((h) => ({ kind: h.kind, short_id: h.shortId, name: h.name ?? null })),
-  }));
+  return paths.map((p) => {
+    const all: MacroPathHop[] = p.hops.map((h) =>
+      h.kind === 'hop'
+        ? { kind: h.kind, short_id: h.shortId, ...resolveHop(h.shortId, repeaters) }
+        : { kind: h.kind, short_id: h.shortId, name: h.name ?? null, pk: null },
+    );
+    const relays = all.filter((h) => h.kind === 'hop');
+    return {
+      id: p.id,
+      length: relays.length,
+      hash_mode: p.hashMode,
+      final_snr: p.finalSnr,
+      hops: relays,
+      all_hops: all,
+    };
+  });
 }
 
 function selfFields(self: SelfState) {
@@ -91,6 +115,8 @@ export function buildReplyContext(args: {
   message: Message;
   senderContact: Contact | null;
   channelName: string | null;
+  /** Contacts of kind 'repeater' only — see resolveHop. */
+  repeaters: Contact[];
   now?: number;
 }): MacroContext {
   const now = args.now ?? Date.now();
@@ -109,6 +135,6 @@ export function buildReplyContext(args: {
     snr: m.meta?.snr ?? null,
     hops: m.meta?.hops ?? null,
     times_heard: m.meta?.timesHeard ?? null,
-    paths: mapPaths(m.meta?.paths),
+    paths: mapPaths(m.meta?.paths, args.repeaters),
   };
 }
