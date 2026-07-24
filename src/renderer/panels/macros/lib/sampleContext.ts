@@ -17,17 +17,22 @@ export function sendContext(): MacroContext {
   return ctx as unknown as MacroContext;
 }
 
+const WORST_CASE_HOPS = [
+  { kind: 'hop' as const, short_id: 'a1', name: 'Tarrytown East Solar', pk: 'a137f2aa' },
+  { kind: 'hop' as const, short_id: '37', name: 'SOCO RAK Repeater 🛒', pk: '37c0dd01' },
+  { kind: 'hop' as const, short_id: 'a8', name: 'Mt. Bonnell 🗻', pk: 'a8be1100' },
+];
+
 const WORST_CASE_PATH: MacroPath = {
   id: 'x',
-  length: 4,
+  length: WORST_CASE_HOPS.length,
   hash_mode: 1,
   final_snr: 11,
-  hops: [
-    { kind: 'origin', short_id: 'c5', name: 'EDM9/R Edwards Mtn' },
-    { kind: 'hop', short_id: 'a1', name: 'Tarrytown East Solar' },
-    { kind: 'hop', short_id: '37', name: 'SOCO RAK Repeater 🛒' },
-    { kind: 'hop', short_id: 'a8', name: 'Mt. Bonnell 🗻' },
-    { kind: 'sink', short_id: 'eH', name: 'egrme.sh Hand' },
+  hops: WORST_CASE_HOPS,
+  all_hops: [
+    { kind: 'origin', short_id: 'c5', name: 'EDM9/R Edwards Mtn', pk: null },
+    ...WORST_CASE_HOPS,
+    { kind: 'sink', short_id: 'eH', name: 'egrme.sh Hand', pk: null },
   ],
 };
 

@@ -28,14 +28,24 @@ describe('sample contexts', () => {
     expect(String(worst.peer_name).length).toBeGreaterThan(String(reply.peer_name).length);
   });
 
-  it('path hops never carry pk, so preview matches live (pk is always null on the wire)', () => {
+  it('sample paths expose relay hops with pk, and a full all_hops timeline', () => {
     for (const ctx of [replyContext(), worstCaseContext()]) {
-      const hops = ctx.paths[0].hops;
-      expect(hops.length).toBeGreaterThan(0);
-      for (const hop of hops) {
-        expect((hop as unknown as Record<string, unknown>).pk).toBeUndefined();
+      const path = ctx.paths[0];
+      expect(path.hops.length).toBeGreaterThan(0);
+      expect(path.length).toBe(path.hops.length);
+      for (const hop of path.hops) {
+        expect(hop.kind).toBe('hop');
         expect(hop.short_id).toBeTruthy();
       }
+      expect(path.all_hops[0].kind).toBe('origin');
+      expect(path.all_hops[path.all_hops.length - 1].kind).toBe('sink');
+      expect(path.all_hops.length).toBe(path.hops.length + 2);
     }
+  });
+
+  it('reply sample has one resolved and one unresolved relay hop', () => {
+    const hops = replyContext().paths[0].hops;
+    expect(hops.some((h) => h.pk !== null)).toBe(true);
+    expect(hops.some((h) => h.pk === null)).toBe(true);
   });
 });

@@ -77,9 +77,9 @@ export const MACRO_VARIABLES: MacroVariable[] = [
   {
     name: 'paths',
     description:
-      'Relay paths this message took. Each hop has kind/short_id/name; short_id is the per-hop key prefix (relay hops only — origin/sink are labels)',
+      'Relay paths this message took. `hops` is the repeaters between the sender and you (empty when direct); `all_hops` adds the sender and your radio at the ends. `length` is the relay count. Each hop has kind/short_id/name/pk — name and pk resolve only when exactly one known repeater matches the prefix.',
     type: 'array',
-    example: '{{ paths.first.hops | where: "kind", "hop" | map: "short_id" | join: "," }}',
+    example: '{{ paths.first.hops | map: "short_id" | join: " → " | default: "direct" }}',
     available: 'reply',
   },
 ];
@@ -143,8 +143,14 @@ export function buildSampleContext(): MacroContext {
         hash_mode: 1,
         final_snr: 6.5,
         hops: [
-          { kind: 'origin', short_id: 'aa', name: 'Alice' },
-          { kind: 'sink', short_id: 'bb', name: 'Me' },
+          { kind: 'hop', short_id: 'a1', name: 'Tarrytown East Solar', pk: 'a137f2aa' },
+          { kind: 'hop', short_id: '37', name: null, pk: null },
+        ],
+        all_hops: [
+          { kind: 'origin', short_id: 'al', name: 'Alice', pk: null },
+          { kind: 'hop', short_id: 'a1', name: 'Tarrytown East Solar', pk: 'a137f2aa' },
+          { kind: 'hop', short_id: '37', name: null, pk: null },
+          { kind: 'sink', short_id: 'me', name: 'Me', pk: null },
         ],
       },
     ],

@@ -13,10 +13,21 @@ describe('macro manifest', () => {
     expect(getManifest().filters.map((f) => f.name)).toEqual(expect.arrayContaining(['distance', 'bearing', 'unit']));
   });
 
-  it('documents short_id (not pk) as the usable per-hop field', () => {
+  it('documents the relay-only hops example with a direct fallback', () => {
     const paths = MACRO_VARIABLES.find((v) => v.name === 'paths');
     expect(paths?.example).toContain('short_id');
-    expect(paths?.example).not.toContain('pk');
+    expect(paths?.example).toContain('default: "direct"');
+    expect(paths?.description).toContain('all_hops');
+  });
+
+  it('sample path carries relay hops, one resolved and one not', () => {
+    const path = buildSampleContext().paths[0];
+    expect(path.hops.length).toBe(2);
+    expect(path.length).toBe(2);
+    expect(path.hops.every((h) => h.kind === 'hop')).toBe(true);
+    expect(path.hops.map((h) => h.name)).toEqual(['Tarrytown East Solar', null]);
+    expect(path.hops.map((h) => h.pk)).toEqual(['a137f2aa', null]);
+    expect(path.all_hops.map((h) => h.kind)).toEqual(['origin', 'hop', 'hop', 'sink']);
   });
 
   it('sample context populates every manifest variable (no nulls)', () => {
