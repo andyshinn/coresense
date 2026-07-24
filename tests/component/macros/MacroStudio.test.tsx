@@ -58,6 +58,32 @@ describe('MacroStudio', () => {
     expect((screen.getByTestId('macro-editor') as HTMLTextAreaElement).value).toBe('{{ peer_last_seen }}');
   });
 
+  it('keeps the ArrowDown-selected autocomplete item instead of snapping back to the top', () => {
+    render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
+    const editor = screen.getByTestId('macro-editor');
+    fireEvent.change(editor, { target: { value: '{{ ', selectionStart: 3, selectionEnd: 3 } });
+
+    // The selected row carries a bare `bg-cs-bg-3` token; unselected rows carry
+    // `hover:bg-cs-bg-3`, so a token-exact check distinguishes them.
+    const selected = (name: RegExp) => screen.getByRole('button', { name }).className.split(/\s+/).includes('bg-cs-bg-3');
+
+    expect(selected(/^my_name/)).toBe(true); // first item highlighted on open
+
+    fireEvent.keyDown(editor, { key: 'ArrowDown' });
+    fireEvent.keyUp(editor, { key: 'ArrowDown' }); // keyUp must NOT reset the selection
+
+    expect(selected(/^my_name/)).toBe(false);
+    expect(selected(/^my_callsign/)).toBe(true);
+  });
+
+  it('links the LiquidJS label to the docs', () => {
+    render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
+    const link = screen.getByRole('link', { name: /liquidjs/i }) as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('https://liquidjs.com/');
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+  });
+
   it('disables Save when the template is invalid', () => {
     render(<MacroStudio client={client} macro={existing} onClose={vi.fn()} />);
     fireEvent.change(screen.getByTestId('macro-editor'), { target: { value: '{{ not_a_real_var }}' } });

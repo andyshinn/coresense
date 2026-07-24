@@ -59,7 +59,19 @@ export function MacroEditor({ value, onChange, taRef, mode, variables, placehold
       setAc(null);
       return;
     }
-    setAc({ partial: open.partial, start: open.start, end: caret, items, sel: 0 });
+    setAc((prev) => {
+      // Preserve the keyboard selection when the menu is unchanged. ArrowUp/Down
+      // are handled in onKeyDown, but their onKeyUp re-runs this with the same
+      // caret — without this guard it would snap the highlight back to the top,
+      // making every item below the first unreachable by keyboard.
+      const sameMenu =
+        prev !== null &&
+        prev.start === open.start &&
+        prev.items.length === items.length &&
+        prev.items.every((it, i) => it.name === items[i].name);
+      const sel = sameMenu ? Math.min(prev.sel, items.length - 1) : 0;
+      return { partial: open.partial, start: open.start, end: caret, items, sel };
+    });
   };
 
   const complete = (variable: MacroVariable) => {

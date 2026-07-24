@@ -172,8 +172,7 @@ export function ReferencePanel({ mode, onInsertVar, onInsertFilter }: ReferenceP
     <div className="flex h-full min-h-0 flex-col bg-cs-bg-2">
       <div className="shrink-0 border-b border-cs-border px-3 py-2">
         <div className="flex items-center gap-2">
-          <Braces className="size-4 text-cs-accent" aria-hidden="true" />
-          <span className="text-[12px] font-semibold text-cs-text">Reference</span>
+          <Braces className="size-4 shrink-0 text-cs-accent" aria-hidden="true" />
           <div className="ml-auto inline-flex rounded-md border border-cs-border bg-cs-bg p-0.5" role="tablist">
             {(['vars', 'filters', 'context'] as Tab[]).map((t) => (
               <button

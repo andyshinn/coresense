@@ -1,4 +1,4 @@
-import { ArrowLeft, Check } from 'lucide-react';
+import { ArrowLeft, Check, Info } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
@@ -180,7 +180,17 @@ export function MacroStudio({ client, macro, onClose }: MacroStudioProps) {
           <div className="flex items-center justify-between">
             <span className="font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">Template</span>
             <span className="font-mono text-[10px] text-cs-text-dim">
-              LiquidJS · type <span className="text-cs-text-muted">{'{{'}</span> to insert
+              <a
+                href="https://liquidjs.com/"
+                target="_blank"
+                rel="noreferrer noopener"
+                title="LiquidJS template docs"
+                className="inline-flex items-center gap-0.5 text-cs-text-muted hover:text-cs-accent"
+              >
+                LiquidJS
+                <Info className="size-3" aria-hidden="true" />
+              </a>{' '}
+              · type <span className="text-cs-text-muted">{'{{'}</span> to insert
               {st.dirty && <span className="ml-2 text-cs-warn">● unsaved</span>}
             </span>
           </div>
