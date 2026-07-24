@@ -28,6 +28,22 @@ export function PreviewPane({ value, mode, onModeChange, distanceUnit, validatio
   const result = useMemo(() => renderPreview(engine, value, ctx), [engine, value, ctx]);
   const worst = useMemo(() => renderPreview(engine, value, worstCaseContext()), [engine, value]);
 
+  // Collapse identical warnings to one row, and give each a stable key. Two
+  // distinct variable paths that diverge only past their shared failing segment
+  // both truncate to the same name with no line/col, so a name-only key would
+  // collide; keying on the full message dedupes and disambiguates at once.
+  const uniqueWarnings = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { key: string; message: string }[] = [];
+    for (const w of warnings) {
+      const key = `${w.name}-${w.line ?? 0}-${w.col ?? 0}-${w.message}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ key, message: w.message });
+    }
+    return out;
+  }, [warnings]);
+
   const length = result.length;
   const status = length == null ? null : budgetStatus(length);
   const pct = length == null ? 0 : Math.min(100, (length / MSG_LIMIT) * 100);
@@ -133,13 +149,10 @@ export function PreviewPane({ value, mode, onModeChange, distanceUnit, validatio
           )}
         </div>
 
-        {warnings.length > 0 && (
+        {uniqueWarnings.length > 0 && (
           <div className="mt-3 space-y-1" data-testid="preview-warnings">
-            {warnings.map((w) => (
-              <div
-                key={`${w.name}-${w.line ?? 0}-${w.col ?? 0}`}
-                className="flex items-start gap-1 text-[11px] text-cs-warn"
-              >
+            {uniqueWarnings.map((w) => (
+              <div key={w.key} className="flex items-start gap-1 text-[11px] text-cs-warn">
                 <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
                 <span>{w.message}</span>
               </div>
