@@ -91,4 +91,73 @@ describe('tokenize', () => {
     const res = tokenize('{{ sender_name }} {{ sender_name }} {{ my_pos.lat }}', 'reply', catalog);
     expect(res.varRoots).toEqual(['sender_name', 'my_pos']);
   });
+
+  it('paints a tag keyword and records variable roots used inside a tag', () => {
+    const res = tokenize('{% if paths %}hi{% endif %}', 'reply', catalog);
+    expect(res.runs.some((r) => r.type === 'tag' && r.text === 'if')).toBe(true);
+    expect(res.runs.some((r) => r.type === 'variable' && r.text === 'paths')).toBe(true);
+    expect(res.varRoots).toEqual(['paths']);
+    expect(res.errors).toEqual([]);
+  });
+
+  it('treats a for-loop variable as a local, not an unknown variable', () => {
+    const res = tokenize('{% for h in paths %}{{ h }}{% endfor %}', 'reply', catalog);
+    expect(res.errors).toEqual([]);
+    expect(res.runs.some((r) => r.type === 'error')).toBe(false);
+    expect(res.varRoots).toEqual(['paths']);
+  });
+
+  it('permits forloop inside a for body', () => {
+    const res = tokenize('{% for h in paths %}{{ forloop.index }}{% endfor %}', 'reply', catalog);
+    expect(res.errors).toEqual([]);
+    expect(res.varRoots).toEqual(['paths']);
+  });
+
+  it('treats an assigned name as a local usable later', () => {
+    const res = tokenize('{% assign z = paths %}{{ z }}', 'reply', catalog);
+    expect(res.errors).toEqual([]);
+    expect(res.varRoots).toEqual(['paths']);
+  });
+
+  it('treats a captured name as a local', () => {
+    const res = tokenize('{% capture c %}x{% endcapture %}{{ c }}', 'reply', catalog);
+    expect(res.errors).toEqual([]);
+  });
+
+  it('still flags a genuinely unknown variable inside a tag', () => {
+    const res = tokenize('{% if nope %}x{% endif %}', 'reply', catalog);
+    expect(res.errors.some((e) => e.kind === 'unknown-var' && e.name === 'nope')).toBe(true);
+  });
+
+  it('derives reply mode from a variable used only inside a tag', () => {
+    const res = tokenize('{% if snr %}x{% endif %}', 'reply', catalog);
+    expect(res.varRoots).toEqual(['snr']);
+  });
+
+  it('greys a reply-only var used inside a tag when in send mode', () => {
+    const res = tokenize('{% if snr %}x{% endif %}', 'send', catalog);
+    expect(res.runs.some((r) => r.type === 'unavail' && r.text === 'snr')).toBe(true);
+  });
+
+  it('does not error on keywords and operators', () => {
+    const res = tokenize('{% if snr > 5 and paths %}x{% endif %}', 'reply', catalog);
+    expect(res.errors).toEqual([]);
+  });
+
+  it('reports an unclosed tag block as a syntax error', () => {
+    const res = tokenize('{% if paths', 'reply', catalog);
+    expect(res.errors.some((e) => e.kind === 'syntax')).toBe(true);
+  });
+
+  it('tiles the source exactly for tag inputs too', () => {
+    for (const src of [
+      '{% if paths %}hi{% endif %}',
+      '{% for h in paths %}{{ h.x }}{% endfor %}',
+      '{% assign z = paths %}{{ z }}',
+      '{% if paths',
+      'a {% if x %} b {{ snr }} c {% endif %} d',
+    ]) {
+      expect(joined(src)).toBe(src);
+    }
+  });
 });

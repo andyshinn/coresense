@@ -12,5 +12,8 @@ export const TOKEN_COLORS: Record<TokenType, string> = {
   custom: '#7fd1c4',
   string: '#c0a578',
   number: '#d8a657',
+  // Control flow reads as a distinct category from data (amber) and transforms
+  // (green/teal), so it gets the palette's only violet.
+  tag: '#b8a1d9',
   error: '#f87171',
 };

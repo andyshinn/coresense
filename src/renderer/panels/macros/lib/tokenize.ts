@@ -1,6 +1,13 @@
-// A focused tokenizer for MeshCore macro templates — output expressions only:
-// literal text interleaved with `{{ variable | filter: arg | … }}` tags (no
-// `{% %}` tags/loops/ifs, since that is all the feature uses).
+// A focused tokenizer for MeshCore macro templates: literal text interleaved
+// with `{{ variable | filter: arg | … }}` output tags and `{% if/for/assign/… %}`
+// block tags. Block tags are painted too, and — importantly — contribute
+// variable roots, so `deriveMacroMode` sees a reply-only variable even when it
+// only appears inside a `{% if %}`. Names a template introduces itself
+// (`{% assign X = … %}`, `{% for X in … %}`, `{% capture X %}`) are treated as
+// locals: collected up front into one flat `Set` across the whole template
+// (not block-scoped — macros are capped at 132 characters, so a scope stack
+// buys nothing real here), then excluded from both `varRoots` and
+// unknown-variable errors when painting.
 //
 // Why a bespoke tokenizer when the app already has a real LiquidJS engine:
 // LiquidJS renders and validates, but it cannot hand back per-character token
@@ -13,7 +20,17 @@
 // filter names it doesn't recognise (it assumes a standard LiquidJS filter and
 // colours it as such rather than erroring).
 
-export type TokenType = 'text' | 'delim' | 'variable' | 'unavail' | 'filter' | 'custom' | 'string' | 'number' | 'error';
+export type TokenType =
+  | 'text'
+  | 'delim'
+  | 'variable'
+  | 'unavail'
+  | 'filter'
+  | 'custom'
+  | 'string'
+  | 'number'
+  | 'tag'
+  | 'error';
 
 export interface TokenRun {
   text: string;
@@ -163,24 +180,38 @@ function parseTag(inner: string, innerStart: number, rawStart: number, rawEnd: n
 type Node =
   | { kind: 'text'; start: number; end: number }
   | { kind: 'unclosed'; start: number; end: number }
-  | { kind: 'tag'; start: number; end: number; ast: TagAst };
+  | { kind: 'tag'; start: number; end: number; ast: TagAst }
+  | { kind: 'block'; start: number; end: number; innerStart: number; inner: string };
 
-/** Split the source into text / tag / unclosed nodes. */
+/** Split the source into text / output-tag / block-tag / unclosed nodes. */
 function scan(src: string): Node[] {
   const nodes: Node[] = [];
   let i = 0;
+  const nextOpen = (from: number) => {
+    const a = src.indexOf('{{', from);
+    const b = src.indexOf('{%', from);
+    if (a === -1) return b;
+    if (b === -1) return a;
+    return Math.min(a, b);
+  };
   while (i < src.length) {
-    if (src[i] === '{' && src[i + 1] === '{') {
-      const close = src.indexOf('}}', i + 2);
+    if (src[i] === '{' && (src[i + 1] === '{' || src[i + 1] === '%')) {
+      const isBlock = src[i + 1] === '%';
+      const closer = isBlock ? '%}' : '}}';
+      const close = src.indexOf(closer, i + 2);
       if (close === -1) {
         nodes.push({ kind: 'unclosed', start: i, end: src.length });
         break;
       }
       const inner = src.slice(i + 2, close);
-      nodes.push({ kind: 'tag', start: i, end: close + 2, ast: parseTag(inner, i + 2, i, close + 2) });
+      nodes.push(
+        isBlock
+          ? { kind: 'block', start: i, end: close + 2, innerStart: i + 2, inner }
+          : { kind: 'tag', start: i, end: close + 2, ast: parseTag(inner, i + 2, i, close + 2) },
+      );
       i = close + 2;
     } else {
-      const next = src.indexOf('{{', i);
+      const next = nextOpen(i);
       const end = next === -1 ? src.length : next;
       nodes.push({ kind: 'text', start: i, end });
       i = end;
@@ -189,11 +220,85 @@ function scan(src: string): Node[] {
   return nodes;
 }
 
+/** Words that are Liquid syntax inside a `{% %}` tag, not variables. */
+const TAG_KEYWORDS = new Set([
+  'if',
+  'elsif',
+  'else',
+  'endif',
+  'unless',
+  'endunless',
+  'case',
+  'when',
+  'endcase',
+  'for',
+  'endfor',
+  'break',
+  'continue',
+  'in',
+  'assign',
+  'capture',
+  'endcapture',
+  'increment',
+  'decrement',
+  'cycle',
+  'tablerow',
+  'endtablerow',
+  'raw',
+  'endraw',
+  'comment',
+  'endcomment',
+  'echo',
+  'liquid',
+  'render',
+  'include',
+  'and',
+  'or',
+  'not',
+  'contains',
+  'true',
+  'false',
+  'nil',
+  'null',
+  'empty',
+  'blank',
+  'limit',
+  'offset',
+  'reversed',
+  'by',
+]);
+
+/** Names a template introduces itself. Collected across the whole template
+ *  before painting, because `{% for h in … %}` introduces `h` for the output
+ *  tags that follow it. Flat rather than block-scoped: macros are capped at 132
+ *  characters, so a scope stack buys nothing real here. */
+function collectLocals(nodes: Node[]): Set<string> {
+  const locals = new Set<string>();
+  for (const node of nodes) {
+    if (node.kind !== 'block') continue;
+    const toks = lex(node.inner, node.innerStart);
+    const kw = toks[0];
+    if (kw?.t !== 'ident') continue;
+    if (kw.v === 'for') {
+      locals.add('forloop');
+      if (toks[1]?.t === 'ident') locals.add(toks[1].v);
+    } else if (kw.v === 'assign' || kw.v === 'capture') {
+      if (toks[1]?.t === 'ident') locals.add(toks[1].v);
+    } else if (kw.v === 'tablerow') {
+      locals.add('tablerowloop');
+      if (toks[1]?.t === 'ident') locals.add(toks[1].v);
+    }
+  }
+  return locals;
+}
+
 export function tokenize(src: string, mode: PreviewMode, catalog: MacroCatalog): TokenizeResult {
   const type: TokenType[] = new Array(src.length).fill('text');
   const errors: LintError[] = [];
   const varRoots: string[] = [];
   const seenRoots = new Set<string>();
+  const nodes = scan(src);
+  const locals = collectLocals(nodes);
 
   const paint = (s: number, e: number, t: TokenType) => {
     for (let k = s; k < e && k < src.length; k++) type[k] = t;
@@ -209,6 +314,10 @@ export function tokenize(src: string, mode: PreviewMode, catalog: MacroCatalog):
   // Classify an ident used in *variable* position (primary or arg).
   const paintVar = (tok: LexTok) => {
     const root = tok.v.split('.')[0];
+    if (locals.has(root)) {
+      paint(tok.start, tok.end, 'variable');
+      return;
+    }
     if (!catalog.variableNames.has(root)) {
       paint(tok.start, tok.end, 'error');
       errors.push({ severity: 'error', kind: 'unknown-var', message: `Unknown variable “${root}”`, name: tok.v });
@@ -233,10 +342,25 @@ export function tokenize(src: string, mode: PreviewMode, catalog: MacroCatalog):
     else paintVar(a);
   };
 
-  for (const node of scan(src)) {
+  for (const node of nodes) {
     if (node.kind === 'unclosed') {
       paint(node.start, node.end, 'error');
-      errors.push({ severity: 'error', kind: 'syntax', message: 'Unclosed “{{” — expected “}}”' });
+      const opener = src.slice(node.start, node.start + 2);
+      const closer = opener === '{%' ? '%}' : '}}';
+      errors.push({ severity: 'error', kind: 'syntax', message: `Unclosed “${opener}” — expected “${closer}”` });
+      continue;
+    }
+    if (node.kind === 'block') {
+      paint(node.start, node.end, 'delim');
+      const toks = lex(node.inner, node.innerStart);
+      for (let k = 0; k < toks.length; k++) {
+        const t = toks[k];
+        if (t.t === 'string') paint(t.start, t.end, 'string');
+        else if (t.t === 'number') paint(t.start, t.end, 'number');
+        else if (t.t === 'bad' || t.t === 'pipe' || t.t === 'colon' || t.t === 'comma') paint(t.start, t.end, 'delim');
+        else if (t.t === 'ident' && (k === 0 || TAG_KEYWORDS.has(t.v))) paint(t.start, t.end, 'tag');
+        else if (t.t === 'ident') paintVar(t);
+      }
       continue;
     }
     if (node.kind !== 'tag') continue;
