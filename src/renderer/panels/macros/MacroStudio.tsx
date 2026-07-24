@@ -99,9 +99,9 @@ export function MacroStudio({ client, macro, onClose }: MacroStudioProps) {
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1.1fr_1fr]">
+      <div className="flex min-h-0 flex-1 flex-col">
         {/* Editor column */}
-        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto border-cs-border p-4 lg:border-r">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <label className="flex-1">
               <span className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">Name</span>
@@ -194,8 +194,10 @@ export function MacroStudio({ client, macro, onClose }: MacroStudioProps) {
           </div>
         </div>
 
-        {/* Preview column — the Reference lives in the right rail. */}
-        <div className="min-h-0">
+        {/* Preview — stacked under the editor. The Reference lives in the right
+            rail; the preview stays here so it keeps receiving validation and
+            lint warnings as props, and can't be unmounted by collapsing the rail. */}
+        <div className="flex max-h-[45%] shrink-0 flex-col border-t border-cs-border">
           <PreviewPane
             value={st.value}
             mode={st.previewMode}

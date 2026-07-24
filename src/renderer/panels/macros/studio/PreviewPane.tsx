@@ -32,7 +32,7 @@ export function PreviewPane({ value, mode, onModeChange, distanceUnit, validatio
   const worstPct = worst.length == null ? null : Math.min(100, (worst.length / MSG_LIMIT) * 100);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-cs-bg-2">
+    <div className="flex min-h-0 flex-col bg-cs-bg-2">
       <div className="flex shrink-0 items-center gap-2 border-b border-cs-border px-3 py-2">
         <Eye className="size-4 text-cs-accent" aria-hidden="true" />
         <span className="text-[12px] font-semibold text-cs-text">Preview</span>

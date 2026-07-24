@@ -94,4 +94,16 @@ describe('MacroStudio', () => {
     expect(spy.mock.calls[0][1]).toMatchObject({ name: 'Beacon', template: '{{ my_name }}', scope: 'global' });
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
+
+  it('renders the editor and the preview in a single stacked column', () => {
+    const { container } = render(<MacroStudio client={client} macro={existing} onClose={vi.fn()} />);
+    expect(screen.getByTestId('macro-editor')).toBeTruthy();
+    expect(screen.getByTestId('preview-output')).toBeTruthy();
+    // No two-column grid: the body is a flex column.
+    expect(container.querySelector('.lg\\:grid-cols-\\[1\\.1fr_1fr\\]')).toBeNull();
+    const editor = screen.getByTestId('macro-editor');
+    const preview = screen.getByTestId('preview-output');
+    // The preview follows the editor in document order.
+    expect(editor.compareDocumentPosition(preview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
