@@ -101,6 +101,7 @@ today** but appears in none of the app's three filter doc lists, so it is undisc
 - A template naming a property that does not exist produces a **warning with a
   suggestion** in the Studio preview, without blocking save.
 - `{{ x | json }}` becomes discoverable and stops lying about absent values.
+- The Studio is one column — preview under the editor — instead of two.
 
 ## Non-goals
 
@@ -153,6 +154,7 @@ today** but appears in none of the app's three filter doc lists, so it is undisc
 | Lint scope | Variable paths anywhere in the template; filter key-args in `{{ }}` output nodes only |
 | Lint context | Always `buildSampleContext()`, taken internally — never the current preview mode |
 | Suggestions | Alias table first, bounded Levenshtein as fallback |
+| Studio layout | One column — preview stacked under the editor, not in the rail |
 | Inspector home | **Third tab in the Reference rail**, not the Preview pane |
 | Inspector contents | Field name, **sample** type, and sample value |
 | Debug filter | Document the existing `json`/`inspect`; add no new filter |
@@ -673,6 +675,61 @@ why `openDelay` stays at 150ms rather than 0.
 
 ## 8. Preview pane
 
+### Layout — one column, preview under the editor
+
+The Studio is currently two columns
+([`MacroStudio.tsx:102`](../../../src/renderer/panels/macros/MacroStudio.tsx#L102)):
+
+```
+grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1.1fr_1fr]
+  ├─ editor column   (…overflow-y-auto p-4 lg:border-r)
+  └─ preview column  (min-h-0 → <PreviewPane/>)
+```
+
+It becomes one column with the preview stacked beneath the editor:
+
+```
+flex min-h-0 flex-1 flex-col
+  ├─ editor   flex-1 min-h-0 overflow-y-auto p-4
+  └─ preview  shrink-0 max-h-[45%] border-t border-cs-border → <PreviewPane/>
+```
+
+The editor takes the remaining height and scrolls; the preview is content-sized,
+capped at 45% so a long render cannot squeeze the editor away, and scrolls internally past
+that (`PreviewPane`'s body is already `min-h-0 flex-1 overflow-y-auto`,
+[`PreviewPane.tsx:62`](../../../src/renderer/panels/macros/studio/PreviewPane.tsx#L62)).
+`PreviewPane`'s root drops `h-full` ([`:35`](../../../src/renderer/panels/macros/studio/PreviewPane.tsx#L35)),
+and the editor column's `lg:border-r` becomes the preview's `border-t`. Vertical order
+inside the studio ends up: name/scope → template editor → quick-var chips → preview.
+
+The right rail keeps the Reference (plus §6's Context tab) and is otherwise untouched.
+
+**Why not put the preview in the rail.** It was considered and rejected on two counts,
+both structural:
+
+1. **It would break the lint wiring below.** `PreviewPane` is a child of `MacroStudio`,
+   which is the only reason `validation` — and §8's new `warnings` — reach it as ordinary
+   props. In the rail it is a sibling of the centre pane and can only be reached through
+   `store.macroStudioBridge`
+   ([`MacroReferenceRail.tsx:8`](../../../src/renderer/shell/rightrail/MacroReferenceRail.tsx#L8),
+   published at `MacroStudio.tsx:39-42`). The bridge deliberately carries no template text:
+   [`useStudio.ts:42-46`](../../../src/renderer/panels/macros/studio/useStudio.ts#L42-L46)
+   routes `value` through a ref precisely "so the insert callbacks stay stable — the
+   right-rail Reference … shouldn't re-register on every keystroke". Preview in the rail
+   means pushing `value` (or the whole render result) into the store on every keystroke,
+   reversing that decision.
+2. **Collapsing the rail would delete the feedback.**
+   [`AppShell.tsx:67`](../../../src/renderer/shell/AppShell.tsx#L67) is
+   `{rightOpen && <RightRail client={client} />}` — ⌘. *unmounts* the rail. The preview,
+   character budget and validation state would vanish mid-edit with nothing left in the
+   studio showing whether the macro renders, which would have needed either a
+   pin-rail-open special case or a second compact preview surface.
+
+Stacking needs neither. It also gives the editor the full centre width, which suits
+templates that run past the 132-char budget, and the rail (240–640px,
+[`ResizeHandle.tsx:3-4`](../../../src/renderer/shell/rightrail/ResizeHandle.tsx#L3-L4))
+stays sized for a reference list rather than having to host a render surface too.
+
 ### Surfacing the lint
 
 `MacroStudio` computes `const warnings = useMemo(() => lintTemplate(st.value), [st.value])`
@@ -710,6 +767,7 @@ at `:26`. Memoise it on `mode`.
 | Context tab | `dom` (jsdom) | extend `tests/component/macros/MacroReferenceRail.test.tsx` |
 | Lint warnings rendered in preview | `dom` (jsdom) | extend `tests/component/macros/MacroStudio.test.tsx` |
 | Preview caption | `dom` (jsdom) | extend `tests/component/macros/MacroStudio.test.tsx` |
+| Single-column layout | `dom` (jsdom) | extend `tests/component/macros/MacroStudio.test.tsx` — `preview-output` and `macro-editor` both present in one column |
 
 `STANDARD_FILTERS` and `FILTER_INSERT` are unexported module-locals of `ReferencePanel.tsx`
 (its only export is `ReferencePanel` itself), so §5 cannot be asserted from the `unit`
