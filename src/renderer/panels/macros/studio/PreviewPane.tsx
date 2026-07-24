@@ -1,6 +1,7 @@
 import { AlertTriangle, Check, Eye } from 'lucide-react';
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import type { MacroWarning } from '../../../../shared/macros/lint';
 import type { DistanceUnit, ValidateResult } from '../../../../shared/macros/types';
 import { type BudgetStatus, budgetStatus, MSG_LIMIT, previewEngine, renderPreview } from '../lib/preview';
 import { replyContext, sendContext, worstCaseContext } from '../lib/sampleContext';
@@ -18,11 +19,12 @@ interface PreviewPaneProps {
   onModeChange: (m: PreviewMode) => void;
   distanceUnit: DistanceUnit;
   validation: ValidateResult;
+  warnings: MacroWarning[];
 }
 
-export function PreviewPane({ value, mode, onModeChange, distanceUnit, validation }: PreviewPaneProps) {
+export function PreviewPane({ value, mode, onModeChange, distanceUnit, validation, warnings }: PreviewPaneProps) {
   const engine = useMemo(() => previewEngine(distanceUnit), [distanceUnit]);
-  const ctx = mode === 'reply' ? replyContext() : sendContext();
+  const ctx = useMemo(() => (mode === 'reply' ? replyContext() : sendContext()), [mode]);
   const result = useMemo(() => renderPreview(engine, value, ctx), [engine, value, ctx]);
   const worst = useMemo(() => renderPreview(engine, value, worstCaseContext()), [engine, value]);
 
@@ -60,10 +62,12 @@ export function PreviewPane({ value, mode, onModeChange, distanceUnit, validatio
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        <p className="mb-2 text-[10px] text-cs-text-dim">
+        <p className="mb-2 text-[10px] text-cs-text-dim" data-testid="preview-caption">
           {mode === 'reply'
-            ? 'Replying to Alice · -95dBm / 5.5 snr · 2 hops'
-            : 'New message to Alice · always-available variables only'}
+            ? `Replying to ${ctx.sender_name ?? '—'} · ${ctx.rssi ?? '—'}dBm / ${ctx.snr ?? '—'} snr · ${
+                ctx.paths[0]?.length ?? 0
+              } hops`
+            : `New message to ${ctx.peer_name ?? '—'} · always-available variables only`}
         </p>
 
         <div
@@ -128,6 +132,20 @@ export function PreviewPane({ value, mode, onModeChange, distanceUnit, validatio
             </div>
           )}
         </div>
+
+        {warnings.length > 0 && (
+          <div className="mt-3 space-y-1" data-testid="preview-warnings">
+            {warnings.map((w) => (
+              <div
+                key={`${w.name}-${w.line ?? 0}-${w.col ?? 0}`}
+                className="flex items-start gap-1 text-[11px] text-cs-warn"
+              >
+                <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+                <span>{w.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

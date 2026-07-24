@@ -106,4 +106,31 @@ describe('MacroStudio', () => {
     // The preview follows the editor in document order.
     expect(editor.compareDocumentPosition(preview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  it('shows a non-blocking warning for an unknown filter key, and still allows saving', () => {
+    render(<MacroStudio client={client} macro={existing} onClose={vi.fn()} />);
+    fireEvent.change(screen.getByTestId('macro-name'), { target: { value: 'Path' } });
+    fireEvent.change(screen.getByTestId('macro-editor'), {
+      target: { value: '{{ paths.first.hops | map: "pubkey" }}' },
+    });
+    expect(screen.getByTestId('preview-warnings').textContent).toContain('pubkey');
+    expect(screen.getByTestId('preview-warnings').textContent).toContain('pk');
+    expect((screen.getByRole('button', { name: /save macro/i }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('shows no warnings panel for a clean template', () => {
+    render(<MacroStudio client={client} macro={existing} onClose={vi.fn()} />);
+    fireEvent.change(screen.getByTestId('macro-editor'), {
+      target: { value: '{{ paths.first.hops | map: "short_id" }}' },
+    });
+    expect(screen.queryByTestId('preview-warnings')).toBeNull();
+  });
+
+  it('derives the preview caption from the sample context instead of hardcoding it', () => {
+    render(<MacroStudio client={client} macro={existing} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('preview-mode-reply'));
+    const caption = screen.getByTestId('preview-caption').textContent ?? '';
+    expect(caption).toContain('Alice');
+    expect(caption).toContain('2 hops'); // the sample path has 2 relay hops
+  });
 });

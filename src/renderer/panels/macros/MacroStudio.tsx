@@ -5,7 +5,7 @@ import { type ApiClient, api } from '@/lib/api';
 import { notify } from '@/lib/notify';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
-import { MACRO_VARIABLES, validateTemplate } from '../../../shared/macros';
+import { lintTemplate, MACRO_VARIABLES, validateTemplate } from '../../../shared/macros';
 import type { MacroScope, MacroTemplate } from '../../../shared/macros/types';
 import { ModeChip } from './components/chips';
 import { MacroEditor } from './studio/MacroEditor';
@@ -42,6 +42,8 @@ export function MacroStudio({ client, macro, onClose }: MacroStudioProps) {
   }, [st.previewMode, st.insertVar, st.insertText, setMacroStudioBridge]);
 
   const validation = useMemo(() => validateTemplate(st.value), [st.value]);
+  // Non-blocking: warnings never gate canSave, unlike `validation`.
+  const warnings = useMemo(() => lintTemplate(st.value), [st.value]);
   const canSave = !!client && !saving && st.name.trim() !== '' && st.value.trim() !== '' && validation.ok;
 
   const save = async () => {
@@ -204,6 +206,7 @@ export function MacroStudio({ client, macro, onClose }: MacroStudioProps) {
             onModeChange={st.setPreviewMode}
             distanceUnit={distanceUnit}
             validation={validation}
+            warnings={warnings}
           />
         </div>
       </div>
