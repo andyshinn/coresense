@@ -133,4 +133,12 @@ describe('MacroStudio', () => {
     expect(caption).toContain('Alice');
     expect(caption).toContain('2 hops'); // the sample path has 2 relay hops
   });
+
+  it('wraps the quick-var chips in a hover-card trigger', () => {
+    const { container } = render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
+    expect(container.querySelectorAll('[data-slot="hover-card-trigger"]').length).toBeGreaterThan(0);
+    // The chip still inserts on click.
+    fireEvent.click(screen.getByRole('button', { name: 'sender_name' }));
+    expect((screen.getByTestId('macro-editor') as HTMLTextAreaElement).value).toBe('{{ sender_name }}');
+  });
 });

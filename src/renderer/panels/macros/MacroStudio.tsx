@@ -1,16 +1,25 @@
 import { ArrowLeft, Check } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { type ApiClient, api } from '@/lib/api';
 import { notify } from '@/lib/notify';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
-import { lintTemplate, MACRO_VARIABLES, validateTemplate } from '../../../shared/macros';
+import {
+  buildSampleContext,
+  lintTemplate,
+  MACRO_VARIABLES,
+  resolvePath,
+  structureOf,
+  validateTemplate,
+} from '../../../shared/macros';
 import type { MacroScope, MacroTemplate } from '../../../shared/macros/types';
 import { ModeChip } from './components/chips';
 import { MacroEditor } from './studio/MacroEditor';
 import { PreviewPane } from './studio/PreviewPane';
 import { useStudio } from './studio/useStudio';
+import { VariableHoverCard } from './studio/VariableHoverCard';
 
 const QUICK_VARS = ['sender_name', 'rssi', 'snr', 'my_pos', 'peer_name'];
 const SCOPES: { value: MacroScope; label: string }[] = [
@@ -44,6 +53,7 @@ export function MacroStudio({ client, macro, onClose }: MacroStudioProps) {
   const validation = useMemo(() => validateTemplate(st.value), [st.value]);
   // Non-blocking: warnings never gate canSave, unlike `validation`.
   const warnings = useMemo(() => lintTemplate(st.value), [st.value]);
+  const structureRoot = useMemo(() => structureOf(buildSampleContext()), []);
   const canSave = !!client && !saving && st.name.trim() !== '' && st.value.trim() !== '' && validation.ok;
 
   const save = async () => {
@@ -183,16 +193,35 @@ export function MacroStudio({ client, macro, onClose }: MacroStudioProps) {
             placeholder="{{ sender_name }} @ {{ snr }}snr — on my way"
           />
           <div className="flex flex-wrap gap-1.5">
-            {QUICK_VARS.map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => st.insertVar(v)}
-                className="rounded-md border border-cs-border bg-cs-bg-2 px-2 py-1 font-mono text-[11px] text-cs-accent hover:bg-cs-bg-3"
-              >
-                {v}
-              </button>
-            ))}
+            {QUICK_VARS.map((v) => {
+              const meta = MACRO_VARIABLES.find((x) => x.name === v);
+              const resolved = resolvePath(structureRoot, [v]);
+              const chip = (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => st.insertVar(v)}
+                  className="rounded-md border border-cs-border bg-cs-bg-2 px-2 py-1 font-mono text-[11px] text-cs-accent hover:bg-cs-bg-3"
+                >
+                  {v}
+                </button>
+              );
+              if (!meta) return chip;
+              return (
+                <HoverCard key={v} openDelay={150} closeDelay={100}>
+                  <HoverCardTrigger asChild>{chip}</HoverCardTrigger>
+                  <HoverCardContent
+                    side="top"
+                    align="start"
+                    sideOffset={8}
+                    collisionPadding={8}
+                    className="w-auto max-w-80 p-3"
+                  >
+                    <VariableHoverCard variable={meta} structure={resolved.ok ? resolved.node : null} />
+                  </HoverCardContent>
+                </HoverCard>
+              );
+            })}
           </div>
         </div>
 

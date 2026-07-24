@@ -55,4 +55,10 @@ describe('MacroReferenceRail', () => {
     fireEvent.click(screen.getByRole('button', { name: /insert map filter/i }));
     expect(insertText).toHaveBeenCalledWith(' | map: "short_id"');
   });
+
+  it('wraps variable rows in a hover-card trigger', () => {
+    useStore.setState({ macroStudioBridge: { previewMode: 'reply', insertVar: vi.fn(), insertText: vi.fn() } });
+    const { container } = render(<MacroReferenceRail />);
+    expect(container.querySelector('[data-slot="hover-card-trigger"]')).toBeTruthy();
+  });
 });

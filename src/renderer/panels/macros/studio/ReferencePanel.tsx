@@ -1,9 +1,12 @@
 import { Braces, Plus, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { cn } from '@/lib/utils';
-import { MACRO_FILTERS, MACRO_VARIABLES } from '../../../../shared/macros';
+import { buildSampleContext, MACRO_FILTERS, MACRO_VARIABLES, resolvePath, structureOf } from '../../../../shared/macros';
 import type { MacroVariable } from '../../../../shared/macros/types';
+import { FilterHoverCard } from './FilterHoverCard';
 import type { PreviewMode } from './useStudio';
+import { VariableHoverCard } from './VariableHoverCard';
 
 /** Ready-to-edit insert text per filter — realistic argument stubs the author
  *  can tweak. Custom filters come from the manifest; these standard ones are a
@@ -78,8 +81,21 @@ function GroupHead({ label, count }: { label: string; count: number }) {
   );
 }
 
-function InsertRow({ label, onInsert, children }: { label: string; onInsert: () => void; children: React.ReactNode }) {
-  return (
+/** The trigger lives INSIDE, wrapping the button: InsertRow spreads no props, so
+ *  an asChild trigger placed around it would silently drop the pointer/focus
+ *  handlers and the card would never open. */
+function InsertRow({
+  label,
+  onInsert,
+  hoverCard,
+  children,
+}: {
+  label: string;
+  onInsert: () => void;
+  hoverCard?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const button = (
     <button
       type="button"
       aria-label={label}
@@ -92,6 +108,15 @@ function InsertRow({ label, onInsert, children }: { label: string; onInsert: () 
         aria-hidden="true"
       />
     </button>
+  );
+  if (!hoverCard) return button;
+  return (
+    <HoverCard openDelay={150} closeDelay={100}>
+      <HoverCardTrigger asChild>{button}</HoverCardTrigger>
+      <HoverCardContent side="left" align="start" sideOffset={8} collisionPadding={8} className="w-auto max-w-80 p-3">
+        {hoverCard}
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 
@@ -116,10 +141,18 @@ export function ReferencePanel({ mode, onInsertVar, onInsertFilter }: ReferenceP
     [q],
   );
 
+  const structureRoot = useMemo(() => structureOf(buildSampleContext()), []);
+
   const renderVar = (v: MacroVariable) => {
     const unavailable = mode === 'send' && v.available === 'reply';
+    const resolved = resolvePath(structureRoot, [v.name]);
     return (
-      <InsertRow key={v.name} label={`Insert ${v.name}`} onInsert={() => onInsertVar(v.name)}>
+      <InsertRow
+        key={v.name}
+        label={`Insert ${v.name}`}
+        onInsert={() => onInsertVar(v.name)}
+        hoverCard={<VariableHoverCard variable={v} structure={resolved.ok ? resolved.node : null} />}
+      >
         <div className={cn('flex items-center gap-2', unavailable && 'opacity-55')}>
           <span className={cn('font-mono text-[12px]', unavailable ? 'text-cs-warn' : 'text-cs-accent')}>{v.name}</span>
           <span className="rounded bg-cs-bg-3 px-1 font-mono text-[9px] text-cs-text-dim">{TYPE_TAG[v.type]}</span>
@@ -190,6 +223,9 @@ export function ReferencePanel({ mode, onInsertVar, onInsertFilter }: ReferenceP
                 key={f.name}
                 label={`Insert ${f.name} filter`}
                 onInsert={() => onInsertFilter(FILTER_INSERT[f.name] ?? ` | ${f.name}`)}
+                hoverCard={
+                  <FilterHoverCard name={f.name} description={f.description} signature={f.signature} example={f.example} />
+                }
               >
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[12px] text-[#7fd1c4]">{f.name}</span>
@@ -204,6 +240,7 @@ export function ReferencePanel({ mode, onInsertVar, onInsertFilter }: ReferenceP
                 key={f.name}
                 label={`Insert ${f.name} filter`}
                 onInsert={() => onInsertFilter(FILTER_INSERT[f.name] ?? ` | ${f.name}`)}
+                hoverCard={<FilterHoverCard name={f.name} description={f.description} signature={f.signature} />}
               >
                 <span className="font-mono text-[12px] text-[#9ed36a]">{f.name}</span>
                 <div className="truncate text-[11px] text-cs-text-muted">{f.description}</div>
