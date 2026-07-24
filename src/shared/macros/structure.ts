@@ -112,9 +112,14 @@ function asIndex(seg: string | number): number | null {
 
 /** One property step. Returns the reached node, or a marker for why it failed. */
 function step(node: StructureNode, seg: string | number): StructureNode | 'missing' | 'empty-sample' {
-  // `size` is a Liquid pseudo-property on arrays, strings and objects alike.
+  // `size` is a Liquid pseudo-property on arrays, strings and objects alike —
+  // but on an object, an own `size` field wins over the synthesized count.
   if (seg === 'size') {
-    if (node.kind === 'array' || node.kind === 'object') return { kind: 'scalar', type: 'number' };
+    if (node.kind === 'object') {
+      const own = node.fields.find((f) => f.name === 'size');
+      return own ? own.node : { kind: 'scalar', type: 'number' };
+    }
+    if (node.kind === 'array') return { kind: 'scalar', type: 'number' };
     if (node.kind === 'scalar' && node.type === 'string') return { kind: 'scalar', type: 'number' };
     return 'missing';
   }

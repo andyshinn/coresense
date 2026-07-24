@@ -86,6 +86,16 @@ describe('resolvePath', () => {
     }
   });
 
+  it('resolves size to the object own field when one exists, not the pseudo-count', () => {
+    const r = resolvePath(structureOf({ size: 'not-a-count', other: 1 }), ['size']);
+    expect(r.ok && r.node).toMatchObject({ kind: 'scalar', type: 'string' });
+  });
+
+  it('still resolves size to a number on an object without a size field', () => {
+    const r = resolvePath(structureOf({ a: 1, b: 2 }), ['size']);
+    expect(r.ok && r.node).toMatchObject({ kind: 'scalar', type: 'number' });
+  });
+
   it('reports the index of the first missing segment', () => {
     const r = resolvePath(root(), ['paths', 'first', 'hops', 'first', 'nope']);
     expect(r).toEqual({ ok: false, reason: 'missing', failedAt: 4 });
