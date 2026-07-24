@@ -61,4 +61,34 @@ describe('MacroReferenceRail', () => {
     const { container } = render(<MacroReferenceRail />);
     expect(container.querySelector('[data-slot="hover-card-trigger"]')).toBeTruthy();
   });
+
+  it('shows a Context tab listing sample fields with type and value', () => {
+    useStore.setState({ macroStudioBridge: { previewMode: 'reply', insertVar: vi.fn(), insertText: vi.fn() } });
+    render(<MacroReferenceRail />);
+    fireEvent.click(screen.getByRole('tab', { name: /context/i }));
+    // Query by row, not by text: my_name and my_callsign share the value
+    // "N0CALL", so getByText would match two elements and throw.
+    const row = screen.getByTestId('ctx-row-my_name');
+    expect(row.textContent).toContain('my_name');
+    expect(row.textContent).toContain('N0CALL');
+    expect(row.textContent).toContain('string');
+  });
+
+  it('expands a nested object and inserts the dotted path', () => {
+    const insertText = vi.fn();
+    useStore.setState({ macroStudioBridge: { previewMode: 'reply', insertVar: vi.fn(), insertText } });
+    render(<MacroReferenceRail />);
+    fireEvent.click(screen.getByRole('tab', { name: /context/i }));
+    fireEvent.click(screen.getByRole('button', { name: /expand my_pos/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Insert my_pos.lat' }));
+    expect(insertText).toHaveBeenCalledWith('{{ my_pos.lat }}');
+  });
+
+  it('reflects the send-mode context, where reply-only variables are null', () => {
+    useStore.setState({ macroStudioBridge: { previewMode: 'send', insertVar: vi.fn(), insertText: vi.fn() } });
+    render(<MacroReferenceRail />);
+    fireEvent.click(screen.getByRole('tab', { name: /context/i }));
+    const row = screen.getByTestId('ctx-row-sender_name');
+    expect(row.textContent).toContain('null');
+  });
 });

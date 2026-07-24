@@ -4,6 +4,8 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/h
 import { cn } from '@/lib/utils';
 import { buildSampleContext, MACRO_FILTERS, MACRO_VARIABLES, resolvePath, structureOf } from '../../../../shared/macros';
 import type { MacroVariable } from '../../../../shared/macros/types';
+import { replyContext, sendContext } from '../lib/sampleContext';
+import { ContextTree } from './ContextTree';
 import { FilterHoverCard } from './FilterHoverCard';
 import type { PreviewMode } from './useStudio';
 import { VariableHoverCard } from './VariableHoverCard';
@@ -64,7 +66,7 @@ const TYPE_TAG: Record<MacroVariable['type'], string> = {
   boolean: 'bool',
 };
 
-type Tab = 'vars' | 'filters';
+type Tab = 'vars' | 'filters' | 'context';
 
 interface ReferencePanelProps {
   mode: PreviewMode;
@@ -143,6 +145,10 @@ export function ReferencePanel({ mode, onInsertVar, onInsertFilter }: ReferenceP
 
   const structureRoot = useMemo(() => structureOf(buildSampleContext()), []);
 
+  // Unlike the lint, the tab follows the preview toggle — its job is to show
+  // what the author will actually get in each mode.
+  const contextRoot = useMemo(() => structureOf(mode === 'reply' ? replyContext() : sendContext()), [mode]);
+
   const renderVar = (v: MacroVariable) => {
     const unavailable = mode === 'send' && v.available === 'reply';
     const resolved = resolvePath(structureRoot, [v.name]);
@@ -169,7 +175,7 @@ export function ReferencePanel({ mode, onInsertVar, onInsertFilter }: ReferenceP
           <Braces className="size-4 text-cs-accent" aria-hidden="true" />
           <span className="text-[12px] font-semibold text-cs-text">Reference</span>
           <div className="ml-auto inline-flex rounded-md border border-cs-border bg-cs-bg p-0.5" role="tablist">
-            {(['vars', 'filters'] as Tab[]).map((t) => (
+            {(['vars', 'filters', 'context'] as Tab[]).map((t) => (
               <button
                 key={t}
                 type="button"
@@ -181,29 +187,33 @@ export function ReferencePanel({ mode, onInsertVar, onInsertFilter }: ReferenceP
                   tab === t ? 'bg-cs-bg-3 text-cs-text' : 'text-cs-text-muted hover:text-cs-text',
                 )}
               >
-                {t === 'vars' ? 'Variables' : 'Filters'}
+                {t === 'vars' ? 'Variables' : t === 'filters' ? 'Filters' : 'Context'}
               </button>
             ))}
           </div>
         </div>
-        <div className="relative mt-2">
-          <Search
-            className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-cs-text-dim"
-            aria-hidden="true"
-          />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={tab === 'vars' ? 'Search variables…' : 'Search filters…'}
-            aria-label="Search reference"
-            className="h-7 w-full rounded-md border border-cs-border bg-cs-bg pl-7 pr-2 text-[11px] text-cs-text outline-none placeholder:text-cs-text-dim focus:border-cs-accent"
-          />
-        </div>
+        {tab !== 'context' && (
+          <div className="relative mt-2">
+            <Search
+              className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-cs-text-dim"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={tab === 'vars' ? 'Search variables…' : 'Search filters…'}
+              aria-label="Search reference"
+              className="h-7 w-full rounded-md border border-cs-border bg-cs-bg pl-7 pr-2 text-[11px] text-cs-text outline-none placeholder:text-cs-text-dim focus:border-cs-accent"
+            />
+          </div>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
-        {tab === 'vars' ? (
+        {tab === 'context' ? (
+          <ContextTree node={contextRoot} onInsertPath={onInsertFilter} />
+        ) : tab === 'vars' ? (
           <>
             {mode === 'send' && (
               <div className="mx-3 mt-3 rounded-md border border-cs-border bg-cs-warn/5 px-2 py-1.5 text-[11px] text-cs-text-muted">
