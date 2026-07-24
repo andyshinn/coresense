@@ -15,10 +15,12 @@ const FILTER_INSERT: Record<string, string> = {
   first: ' | first',
   last: ' | last',
   where: ' | where: "kind", "hop"',
-  map: ' | map: "name"',
+  map: ' | map: "short_id"',
   join: ' | join: " → "',
   sort: ' | sort: "final_snr"',
   size: ' | size',
+  json: ' | json: 2',
+  inspect: ' | inspect',
 };
 
 interface FilterDoc {
@@ -39,6 +41,16 @@ const STANDARD_FILTERS: FilterDoc[] = [
   { name: 'join', signature: '{{ array | join: " → " }}', description: 'Join an array into a string' },
   { name: 'sort', signature: '{{ array | sort: "key" }}', description: 'Sort an array (by key for objects)' },
   { name: 'size', signature: '{{ array | size }}', description: 'Number of items / characters' },
+  {
+    name: 'json',
+    signature: '{{ value | json: 2 }}',
+    description: 'Dump a value as JSON — use it to discover an object’s fields',
+  },
+  {
+    name: 'inspect',
+    signature: '{{ value | inspect }}',
+    description: 'Like json, but prints [Circular] instead of failing on cycles',
+  },
 ];
 
 const TYPE_TAG: Record<MacroVariable['type'], string> = {

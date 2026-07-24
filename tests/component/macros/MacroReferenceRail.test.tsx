@@ -29,4 +29,30 @@ describe('MacroReferenceRail', () => {
     fireEvent.click(screen.getByRole('button', { name: /insert distance filter/i }));
     expect(insertText).toHaveBeenCalledWith(' | distance: peer_pos');
   });
+
+  it('documents the json and inspect debug filters', () => {
+    useStore.setState({ macroStudioBridge: { previewMode: 'reply', insertVar: vi.fn(), insertText: vi.fn() } });
+    render(<MacroReferenceRail />);
+    fireEvent.click(screen.getByRole('tab', { name: /filters/i }));
+    expect(screen.getByRole('button', { name: /insert json filter/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /insert inspect filter/i })).toBeTruthy();
+  });
+
+  it('inserts the json stub with an indent argument', () => {
+    const insertText = vi.fn();
+    useStore.setState({ macroStudioBridge: { previewMode: 'reply', insertVar: vi.fn(), insertText } });
+    render(<MacroReferenceRail />);
+    fireEvent.click(screen.getByRole('tab', { name: /filters/i }));
+    fireEvent.click(screen.getByRole('button', { name: /insert json filter/i }));
+    expect(insertText).toHaveBeenCalledWith(' | json: 2');
+  });
+
+  it('suggests short_id for map, the field that is always populated', () => {
+    const insertText = vi.fn();
+    useStore.setState({ macroStudioBridge: { previewMode: 'reply', insertVar: vi.fn(), insertText } });
+    render(<MacroReferenceRail />);
+    fireEvent.click(screen.getByRole('tab', { name: /filters/i }));
+    fireEvent.click(screen.getByRole('button', { name: /insert map filter/i }));
+    expect(insertText).toHaveBeenCalledWith(' | map: "short_id"');
+  });
 });
