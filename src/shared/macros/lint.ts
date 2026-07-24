@@ -173,8 +173,12 @@ function advance(filterName: string, key: string | null, node: StructureNode | n
     case 'map': {
       const element = elementOf(node);
       if (!key || element?.kind !== 'object') return null;
-      const field = element.fields.find((f) => f.name === key);
-      return field ? { kind: 'array', length: 1, element: field.node } : null;
+      // liquidjs resolves the key through _getFromScope, which splits on '.' and
+      // walks it (node_modules/liquidjs/dist/liquid.node.mjs, _getFromScope) —
+      // `map: "meta.snr"` reads the nested `snr` field, not a literal `meta.snr`
+      // property. resolvePath does the same walk against the sample shape.
+      const r = resolvePath(element, key.split('.'));
+      return r.ok ? { kind: 'array', length: 1, element: r.node } : null;
     }
     case 'group_by': {
       const element = elementOf(node);
@@ -196,6 +200,48 @@ function advance(filterName: string, key: string | null, node: StructureNode | n
   }
 }
 
+/** Minimal shape of liquidjs's `Template` interface we need: an optional
+ *  generator-returning `children()`. Block tags (If/Unless/For/Case/Capture/…)
+ *  implement it; leaf nodes (Output/HTML) and some tags (Comment) do not. */
+interface ChildBearing {
+  children?: (...args: unknown[]) => Generator<unknown, unknown[]>;
+}
+
+/** Flattens a parse tree (top-level nodes plus everything nested inside block
+ *  tags) into a single list, so filter-key checks also reach Output nodes
+ *  written inside {% if %} / {% unless %} / {% for %} / {% case %} / etc.
+ *
+ *  Verified empirically against liquidjs (node_modules/liquidjs): for If,
+ *  Unless, For and Case tags, `children()` is a generator whose body never
+ *  `yield`s — it just `return`s the child Template[] — so draining it with a
+ *  single `.next()` call reliably yields `{ done: true, value: Template[] }`
+ *  on the first step. `children` is optional on the Template interface and
+ *  some tags (e.g. CommentTag) don't implement it at all, and Include/Render
+ *  need a truthy `partials` arg to do anything — called with no arguments
+ *  here, those safely return `[]` rather than touching the filesystem. The
+ *  try/catch is a last-resort guard so a tag type behaving unexpectedly can
+ *  never make lintTemplate throw. */
+function flattenTemplates(templates: readonly unknown[]): unknown[] {
+  const out: unknown[] = [];
+  const stack = [...templates];
+  while (stack.length > 0) {
+    const tpl = stack.shift();
+    out.push(tpl);
+    const childrenFn = (tpl as ChildBearing | undefined)?.children;
+    if (typeof childrenFn !== 'function') continue;
+    try {
+      const gen = childrenFn.call(tpl);
+      let step = gen.next();
+      while (!step.done) step = gen.next();
+      if (Array.isArray(step.value)) stack.push(...step.value);
+    } catch {
+      // A tag whose children() needs args we didn't provide, or that throws
+      // for any other reason, is simply not walked further.
+    }
+  }
+  return out;
+}
+
 function checkFilterKeys(eng: Liquid, template: string, root: StructureNode): MacroWarning[] {
   let templates: ReturnType<Liquid['parse']>;
   try {
@@ -204,7 +250,7 @@ function checkFilterKeys(eng: Liquid, template: string, root: StructureNode): Ma
     return [];
   }
   const out: MacroWarning[] = [];
-  for (const tpl of templates) {
+  for (const tpl of flattenTemplates(templates)) {
     const value = (tpl as unknown as { value?: ParsedValue }).value;
     if (!value || !Array.isArray(value.filters)) continue;
     const segments = initialSegments(value);
@@ -217,10 +263,21 @@ function checkFilterKeys(eng: Liquid, template: string, root: StructureNode): Ma
       if (PROPERTY_FILTERS.has(filter.name) && quoted) {
         const element = elementOf(node);
         if (element?.kind === 'object') {
-          const available = element.fields.map((f) => f.name);
-          if (!available.includes(quoted.key)) {
-            out.push(warn(quoted.key, available, lineCol(template, quoted.begin)));
+          // The quoted key is a dotted PATH against the element shape (liquidjs
+          // splits it on '.' via _getFromScope / readScopeValue), not a single
+          // flat property name — walk it with resolvePath the same way
+          // checkVariablePaths walks a variable path, rather than a flat
+          // includes() that only ever checked the first segment.
+          const segments = quoted.key.split('.');
+          const r = resolvePath(element, segments);
+          if (!r.ok && r.reason === 'missing') {
+            const badSegment = segments[r.failedAt];
+            const available = fieldsAt(element, segments.slice(0, r.failedAt)) ?? [];
+            const base = warn(badSegment, available, lineCol(template, quoted.begin));
+            out.push({ ...base, name: quoted.key, message: `${quoted.key} — ${base.message}` });
           }
+          // 'empty-sample' and 'dynamic' stay silent — the sample can't tell,
+          // same as checkVariablePaths.
         }
       }
       node = advance(filter.name, quoted?.key ?? null, node);
@@ -237,8 +294,10 @@ function checkFilterKeys(eng: Liquid, template: string, root: StructureNode): Ma
  * against sendContext() (where `paths` is []) would flag the manifest's own
  * flagship example the moment the author toggled the preview.
  *
- * Known gaps: dynamic paths (`a[b.c]`) are skipped rather than guessed at;
- * filters inside {% %} tags are not walked; a key present on only some array
+ * Known gaps: dynamic paths (`a[b.c]`) are skipped rather than guessed at; a
+ * filter key resolved through a {% for %} loop-local head (e.g. `p.hops`
+ * inside `{% for p in paths %}`) is not checked, because the loop-local isn't
+ * a path the sample root can resolve; a key present on only some array
  * elements is accepted; an empty sample array disables checking below it.
  */
 export function lintTemplate(template: string): MacroWarning[] {
