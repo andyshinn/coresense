@@ -51,4 +51,16 @@ describe('renderTemplate', () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.kind).toBe('timeout');
   });
+
+  it('serialises an empty value as the placeholder under json, not the drop internals', () => {
+    const c = { ...ctx(), sender_pos: null };
+    const r = renderTemplate(engine, '{{ sender_pos | json }}', c, { placeholder: '?' });
+    expect(r).toEqual({ ok: true, text: '"?"' });
+  });
+
+  it('keeps bare output and property access on an empty value unchanged', () => {
+    const c = { ...ctx(), sender_pos: null };
+    expect(renderTemplate(engine, '{{ sender_pos }}', c, { placeholder: '?' })).toEqual({ ok: true, text: '?' });
+    expect(renderTemplate(engine, '{{ sender_pos.lat }}', c, { placeholder: '?' })).toEqual({ ok: true, text: '?' });
+  });
 });

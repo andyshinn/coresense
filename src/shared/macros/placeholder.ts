@@ -14,6 +14,12 @@ export class PlaceholderDrop extends Drop {
   toString(): string {
     return this.text;
   }
+  // JSON.stringify walks own enumerable fields and would otherwise leak the
+  // `text` field name through the `json` / `inspect` filters. valueOf() is not
+  // consulted by those filters, so toJSON is the only hook that works.
+  toJSON(): string {
+    return this.text;
+  }
 }
 
 export function isPlaceholder(v: unknown): v is PlaceholderDrop {
