@@ -83,6 +83,10 @@ export function ChannelView({ channel, client }: Props) {
     composerRef.current?.insertReaction(name, emoji);
   };
 
+  const handleMacro = (name: string, text: string) => {
+    composerRef.current?.insertReaction(name, text);
+  };
+
   const onSelectMessage = (id: string) => {
     setSelectedMessage(selectedId === id ? null : id);
     if (!rightOpen) toggleRightRail();
@@ -143,6 +147,7 @@ export function ChannelView({ channel, client }: Props) {
           onResend={(m) => onSend(m.body)}
           onReply={handleReply}
           onReact={handleReact}
+          onMacro={handleMacro}
           client={client}
           jumpToId={pendingJumpMid}
           onJumpConsumed={() => setPendingJump(null)}
@@ -163,6 +168,7 @@ export function ChannelView({ channel, client }: Props) {
         autoFocus={appSettings.composer.autoFocus}
         disabled={composerDisabled}
         draftKey={channel.key}
+        client={client}
       />
     </div>
   );

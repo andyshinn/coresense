@@ -19,6 +19,7 @@ const SearchResults = lazy(() => import('../panels/search').then((m) => ({ defau
 const Unreads = lazy(() => import('../panels/Unreads').then((m) => ({ default: m.Unreads })));
 const LogsPanel = lazy(() => import('../panels/logs').then((m) => ({ default: m.LogsPanel })));
 const ContactManager = lazy(() => import('../panels/contacts/ContactManager').then((m) => ({ default: m.ContactManager })));
+const MacrosPanel = lazy(() => import('../panels/macros/MacrosPanel').then((m) => ({ default: m.MacrosPanel })));
 
 interface MainPaneProps {
   client: ApiClient | null;
@@ -89,6 +90,9 @@ function MainPaneInner({ client, onScan, onConnect, onDisconnect, renderPacketLo
   }
   if (activeKey === 'tool:contacts') {
     return <ContactManager client={client} />;
+  }
+  if (activeKey === 'tool:macros') {
+    return <MacrosPanel client={client} />;
   }
 
   if (activeKey.startsWith('ch:')) {

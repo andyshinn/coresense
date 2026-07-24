@@ -25,3 +25,14 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
     dispatchEvent: () => false,
   })) as unknown as typeof window.matchMedia;
 }
+
+// jsdom doesn't implement ResizeObserver, which Radix's Popover/Popper measures
+// with. Any test that opens a Popover (e.g. the macro delete confirmation)
+// needs this stub.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}

@@ -1,6 +1,7 @@
 import { AlertCircle, Check, Clock, Send } from 'lucide-react';
 import type { Message, MessageStyle, TimeFormatPref } from '../../shared/types';
 import { MessageQuickBar } from '../features/message-actions/MessageQuickBar';
+import type { ApiClient } from '../lib/api';
 import { firstPathStats, formatPathStats, type PathStats } from '../lib/messagePath';
 import { fmtDateTime, fmtMessageTime } from '../lib/time';
 import { cn } from '../lib/utils';
@@ -27,6 +28,9 @@ export interface MessageItemProps {
   onContextMenu?: (e: React.MouseEvent) => void;
   onReply?: (name: string) => void;
   onReact?: (name: string, emoji: string) => void;
+  /** Needed by the quick bar's macro affordances; absent ⇒ no macro cluster. */
+  client?: ApiClient | null;
+  onMacro?: (name: string, text: string) => void;
 }
 
 const STATE_LABEL: Record<Message['state'], string> = {
@@ -59,6 +63,8 @@ export function MessageItem({
   onContextMenu,
   onReply,
   onReact,
+  client,
+  onMacro,
 }: MessageItemProps) {
   const interactive = onSelect != null;
   const showSenderHeaderRich = style === 'rich' && !isSelf && senderName !== '';
@@ -135,8 +141,10 @@ export function MessageItem({
           message={message}
           isSelf={isSelf}
           senderName={senderName}
+          client={client ?? null}
           onReact={onReact}
           onReply={(name) => onReply?.(name)}
+          onMacro={onMacro}
         />
       )}
       {interactive ? (

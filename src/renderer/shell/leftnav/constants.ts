@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Activity, Cog, DoorOpen, Map as MapIcon, Radio, ScrollText, Search, Users } from 'lucide-react';
+import { Activity, Braces, Cog, DoorOpen, Map as MapIcon, Radio, ScrollText, Search, Users } from 'lucide-react';
 import type { ContactKind } from '../../../shared/types';
 
 /** Icon used for each contact-kind group header in the nav tree. */
@@ -34,5 +34,6 @@ export const TOOLS: ToolEntry[] = [
   { key: 'tool:packetlog', label: 'Packet Log', icon: ScrollText },
   { key: 'tool:contacts', label: 'Contact Management', icon: Users },
   { key: 'tool:map', label: 'Map', icon: MapIcon },
+  { key: 'tool:macros', label: 'Macros', icon: Braces },
   { key: 'tool:settings:app', label: 'Settings', icon: Cog },
 ];

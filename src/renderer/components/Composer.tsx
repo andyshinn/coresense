@@ -2,13 +2,14 @@ import { Loader2, Send } from 'lucide-react';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { RadioSettings } from '../../shared/types';
 import { loraAirtimeMs } from '../lib/airtime';
+import type { ApiClient } from '../lib/api';
 import { shouldSendOnKey } from '../lib/composerKeys';
 import { mentionedNames } from '../lib/messageContent';
+import { MAX_MESSAGE_LENGTH } from '../lib/messageLimits';
 import { useStore } from '../lib/store';
 import { cn } from '../lib/utils';
+import { ComposerMacroPopover, type ComposerMacroPopoverHandle } from '../panels/macros/inchat/ComposerMacroPopover';
 
-// MeshCore caps an outgoing text message body at 132 characters.
-export const MAX_MESSAGE_LENGTH = 132;
 // Counter turns yellow once this few characters remain before the cap.
 const WARN_REMAINING = 20;
 
@@ -32,10 +33,13 @@ interface Props {
   // When true, focus the textarea on mount and whenever the conversation
   // (draftKey) changes, so the user can start typing immediately on navigate.
   autoFocus?: boolean;
+  // API client + conversation target, used by the `/` macro popover to render a
+  // macro to plain text before it replaces the input.
+  client?: ApiClient | null;
 }
 
 export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
-  { onSend, disabled, returnToSend, radioSettings, placeholder = 'Send a message…', draftKey, autoFocus },
+  { onSend, disabled, returnToSend, radioSettings, placeholder = 'Send a message…', draftKey, autoFocus, client },
   ref,
 ) {
   const draft = useStore((s) => (draftKey ? (s.ui.drafts[draftKey] ?? '') : ''));
@@ -54,6 +58,15 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   const mentions = mentionedNames(value);
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // `/` macro picker. Open while the draft starts with a slash, until dismissed
+  // with Escape or a macro is chosen.
+  const macroRef = useRef<ComposerMacroPopoverHandle>(null);
+  const [macroDismissed, setMacroDismissed] = useState(false);
+  const showMacros = !!client && value.startsWith('/') && !macroDismissed;
+  // Re-arm the picker once the draft no longer starts with a slash.
+  useEffect(() => {
+    if (!value.startsWith('/')) setMacroDismissed(false);
+  }, [value]);
 
   useImperativeHandle(ref, () => {
     const insertAtCaret = (token: string) => {
@@ -108,6 +121,29 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // The `/` macro picker grabs navigation keys while it's open.
+    if (showMacros && (macroRef.current?.count ?? 0) > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        macroRef.current?.move(1);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        macroRef.current?.move(-1);
+        return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        macroRef.current?.choose();
+        return;
+      }
+    }
+    if (showMacros && e.key === 'Escape') {
+      e.preventDefault();
+      setMacroDismissed(true);
+      return;
+    }
     // The macOS emoji/character picker (⌃⌘Space) and IMEs confirm a candidate
     // with Return while the field is mid-composition. The browser flags that
     // keydown via isComposing (keyCode 229 where isComposing is unreliable);
@@ -148,7 +184,21 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           ))}
         </div>
       )}
-      <div className="flex items-end gap-2">
+      <div className="relative flex items-end gap-2">
+        {showMacros && (
+          <ComposerMacroPopover
+            ref={macroRef}
+            query={value.slice(1)}
+            client={client ?? null}
+            targetKey={draftKey}
+            onExpand={(text) => {
+              setValue(text);
+              setMacroDismissed(true);
+              requestAnimationFrame(() => textareaRef.current?.focus());
+            }}
+            onClose={() => setMacroDismissed(true)}
+          />
+        )}
         <textarea
           data-testid="message-composer-input"
           ref={textareaRef}

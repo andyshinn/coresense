@@ -13,6 +13,7 @@ import type {
   DeviceInfo,
   GpsConfig,
   LogEntry,
+  MacroTemplate,
   MapSettings,
   MapTileStatus,
   MenuAction,
@@ -83,6 +84,7 @@ export const emit = {
   deviceInfo: (info: DeviceInfo) => bus.emit('deviceInfo', info),
   deviceCapabilities: (caps: DeviceCapabilities) => bus.emit('deviceCapabilities', caps),
   blockRules: (rules: BlockRule[]) => bus.emit('blockRules', rules),
+  macros: (macros: MacroTemplate[]) => bus.emit('macros', macros),
   logEntry: (entry: LogEntry) => bus.emit('log:entry', entry),
   updateState: (state: UpdateState) => bus.emit('updateState', state),
 };
@@ -123,6 +125,7 @@ export type BusEvents = {
   deviceInfo: (info: DeviceInfo) => void;
   deviceCapabilities: (caps: DeviceCapabilities) => void;
   blockRules: (rules: BlockRule[]) => void;
+  macros: (macros: MacroTemplate[]) => void;
   'log:entry': (entry: LogEntry) => void;
   updateState: (state: UpdateState) => void;
 };
