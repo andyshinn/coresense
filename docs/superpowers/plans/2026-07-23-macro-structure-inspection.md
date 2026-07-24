@@ -2407,3 +2407,327 @@ After Task 10, the original report should be reproducible end to end:
 4. Hover `paths` in the Reference — the card lists `id`, `length`, `hash_mode`, `final_snr`, `hops`, `all_hops`.
 5. Open the Context tab, expand `paths` → `hops` — `short_id`, `name` (`string|null`), `pk` (`string|null`) with their sample values.
 6. Confirm the studio is one column, preview beneath the editor.
+
+---
+
+### Task 11: Widen the tokenizer to `{% %}` tags
+
+**Added after the plan was written.** The spec listed `{% %}` tokenizer support as a
+non-goal; the human chose to close the gap in both the lint (done in Task 5's fix pass)
+and the tokenizer. Without this, a template using `{% if %}`/`{% for %}` paints as
+undifferentiated plain text, and — worse — contributes **no** `varRoots`, so
+`deriveMacroMode` silently mis-derives the macro's reply/send applicability.
+
+**Files:**
+- Modify: `src/renderer/panels/macros/lib/tokenize.ts` (design note `:1-14`, `TokenType` `:16`, `scan()` `:169-190`, `tokenize()` `:192-281`)
+- Modify: `src/renderer/panels/macros/lib/tokenColors.ts:6-16`
+- Test: `tests/unit/renderer/panels/macros/tokenize.test.ts`
+
+**Interfaces:**
+- Consumes: nothing new.
+- Produces: `TokenType` gains `'tag'`. `TokenizeResult` shape is unchanged, but `varRoots`
+  now includes roots referenced only inside `{% %}` tags, and locals introduced by
+  `assign`/`for`/`capture` are excluded from both `varRoots` and unknown-variable errors.
+
+**Design decisions (locked — do not re-litigate):**
+1. **Locals are tracked flat, not block-scoped.** A pre-pass collects every name
+   introduced by `{% assign X = … %}`, `{% for X in … %}` and `{% capture X %}` across the
+   whole template into one `Set`, then painting consults it. Macros are capped at 132
+   characters; a scope stack buys nothing real here. Document this in the module note.
+2. **A local is painted `'variable'`, is NOT recorded in `varRoots`, and never raises an
+   unknown-variable error.** This is what stops `{% for h in paths %}{{ h.x }}` from
+   flagging `h`, and it is why the pre-pass must run before painting — `h` is used after
+   the tag that introduces it.
+3. **`forloop` is always permitted** when the template contains any `{% for %}`.
+4. **Keywords and operators never raise errors.** `in`, `and`, `or`, `not`, `contains`,
+   `true`, `false`, `nil`, `null`, `empty`, `blank` paint as `'tag'`; operator characters
+   (`=`, `<`, `>`, `!`) paint as `'delim'`.
+5. **The tiling invariant is sacred.** `runs.map(r => r.text).join('') === src` must hold
+   for every input, including malformed tags. The existing test asserts it — extend that
+   assertion to `{% %}` inputs rather than replacing it.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `describe('tokenize', …)` in `tests/unit/renderer/panels/macros/tokenize.test.ts`:
+
+```ts
+  it('paints a tag keyword and records variable roots used inside a tag', () => {
+    const res = tokenize('{% if paths %}hi{% endif %}', 'reply', catalog);
+    expect(res.runs.some((r) => r.type === 'tag' && r.text === 'if')).toBe(true);
+    expect(res.runs.some((r) => r.type === 'variable' && r.text === 'paths')).toBe(true);
+    expect(res.varRoots).toEqual(['paths']);
+    expect(res.errors).toEqual([]);
+  });
+
+  it('treats a for-loop variable as a local, not an unknown variable', () => {
+    const res = tokenize('{% for h in paths %}{{ h }}{% endfor %}', 'reply', catalog);
+    expect(res.errors).toEqual([]);
+    expect(res.runs.some((r) => r.type === 'error')).toBe(false);
+    expect(res.varRoots).toEqual(['paths']);
+  });
+
+  it('permits forloop inside a for body', () => {
+    const res = tokenize('{% for h in paths %}{{ forloop.index }}{% endfor %}', 'reply', catalog);
+    expect(res.errors).toEqual([]);
+    expect(res.varRoots).toEqual(['paths']);
+  });
+
+  it('treats an assigned name as a local usable later', () => {
+    const res = tokenize('{% assign z = paths %}{{ z }}', 'reply', catalog);
+    expect(res.errors).toEqual([]);
+    expect(res.varRoots).toEqual(['paths']);
+  });
+
+  it('treats a captured name as a local', () => {
+    const res = tokenize('{% capture c %}x{% endcapture %}{{ c }}', 'reply', catalog);
+    expect(res.errors).toEqual([]);
+  });
+
+  it('still flags a genuinely unknown variable inside a tag', () => {
+    const res = tokenize('{% if nope %}x{% endif %}', 'reply', catalog);
+    expect(res.errors.some((e) => e.kind === 'unknown-var' && e.name === 'nope')).toBe(true);
+  });
+
+  it('derives reply mode from a variable used only inside a tag', () => {
+    const res = tokenize('{% if snr %}x{% endif %}', 'reply', catalog);
+    expect(res.varRoots).toEqual(['snr']);
+  });
+
+  it('greys a reply-only var used inside a tag when in send mode', () => {
+    const res = tokenize('{% if snr %}x{% endif %}', 'send', catalog);
+    expect(res.runs.some((r) => r.type === 'unavail' && r.text === 'snr')).toBe(true);
+  });
+
+  it('does not error on keywords and operators', () => {
+    const res = tokenize('{% if snr > 5 and paths %}x{% endif %}', 'reply', catalog);
+    expect(res.errors).toEqual([]);
+  });
+
+  it('reports an unclosed tag block as a syntax error', () => {
+    const res = tokenize('{% if paths', 'reply', catalog);
+    expect(res.errors.some((e) => e.kind === 'syntax')).toBe(true);
+  });
+
+  it('tiles the source exactly for tag inputs too', () => {
+    for (const src of [
+      '{% if paths %}hi{% endif %}',
+      '{% for h in paths %}{{ h.x }}{% endfor %}',
+      '{% assign z = paths %}{{ z }}',
+      '{% if paths',
+      'a {% if x %} b {{ snr }} c {% endif %} d',
+    ]) {
+      expect(joined(src)).toBe(src);
+    }
+  });
+```
+
+Also add `'tag'` to the colour map assertion if the test file has one (it does not today).
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `npx vitest run --project unit tests/unit/renderer/panels/macros/tokenize.test.ts`
+Expected: FAIL — no `'tag'` runs; `h`, `z`, `c`, `in`, `and` reported as unknown variables.
+
+- [ ] **Step 3: Add the `tag` token type and its colour**
+
+`src/renderer/panels/macros/lib/tokenize.ts:16` — add `'tag'` to the union:
+
+```ts
+export type TokenType =
+  | 'text'
+  | 'delim'
+  | 'variable'
+  | 'unavail'
+  | 'filter'
+  | 'custom'
+  | 'string'
+  | 'number'
+  | 'tag'
+  | 'error';
+```
+
+`src/renderer/panels/macros/lib/tokenColors.ts` — add to `TOKEN_COLORS`, after `number`:
+
+```ts
+  // Control flow reads as a distinct category from data (amber) and transforms
+  // (green/teal), so it gets the palette's only violet.
+  tag: '#b8a1d9',
+```
+
+- [ ] **Step 4: Teach `scan()` about `{% %}`**
+
+Replace the `Node` union and `scan()` (`tokenize.ts:163-190`) with:
+
+```ts
+type Node =
+  | { kind: 'text'; start: number; end: number }
+  | { kind: 'unclosed'; start: number; end: number }
+  | { kind: 'tag'; start: number; end: number; ast: TagAst }
+  | { kind: 'block'; start: number; end: number; innerStart: number; inner: string };
+
+/** Split the source into text / output-tag / block-tag / unclosed nodes. */
+function scan(src: string): Node[] {
+  const nodes: Node[] = [];
+  let i = 0;
+  const nextOpen = (from: number) => {
+    const a = src.indexOf('{{', from);
+    const b = src.indexOf('{%', from);
+    if (a === -1) return b;
+    if (b === -1) return a;
+    return Math.min(a, b);
+  };
+  while (i < src.length) {
+    if (src[i] === '{' && (src[i + 1] === '{' || src[i + 1] === '%')) {
+      const isBlock = src[i + 1] === '%';
+      const closer = isBlock ? '%}' : '}}';
+      const close = src.indexOf(closer, i + 2);
+      if (close === -1) {
+        nodes.push({ kind: 'unclosed', start: i, end: src.length });
+        break;
+      }
+      const inner = src.slice(i + 2, close);
+      nodes.push(
+        isBlock
+          ? { kind: 'block', start: i, end: close + 2, innerStart: i + 2, inner }
+          : { kind: 'tag', start: i, end: close + 2, ast: parseTag(inner, i + 2, i, close + 2) },
+      );
+      i = close + 2;
+    } else {
+      const next = nextOpen(i);
+      const end = next === -1 ? src.length : next;
+      nodes.push({ kind: 'text', start: i, end });
+      i = end;
+    }
+  }
+  return nodes;
+}
+```
+
+The unclosed-tag error message currently says `'Unclosed “{{” — expected “}}”'`. Make it
+reflect which opener was seen — derive it from `src.slice(node.start, node.start + 2)`.
+
+- [ ] **Step 5: Collect locals and paint block tags**
+
+Add above `tokenize()` in `tokenize.ts`:
+
+```ts
+/** Words that are Liquid syntax inside a `{% %}` tag, not variables. */
+const TAG_KEYWORDS = new Set([
+  'if', 'elsif', 'else', 'endif', 'unless', 'endunless', 'case', 'when', 'endcase',
+  'for', 'endfor', 'break', 'continue', 'in', 'assign', 'capture', 'endcapture',
+  'increment', 'decrement', 'cycle', 'tablerow', 'endtablerow', 'raw', 'endraw',
+  'comment', 'endcomment', 'echo', 'liquid', 'render', 'include',
+  'and', 'or', 'not', 'contains', 'true', 'false', 'nil', 'null', 'empty', 'blank',
+  'limit', 'offset', 'reversed', 'by',
+]);
+
+/** Names a template introduces itself. Collected across the whole template
+ *  before painting, because `{% for h in … %}` introduces `h` for the output
+ *  tags that follow it. Flat rather than block-scoped: macros are capped at 132
+ *  characters, so a scope stack buys nothing real. */
+function collectLocals(nodes: Node[]): Set<string> {
+  const locals = new Set<string>();
+  for (const node of nodes) {
+    if (node.kind !== 'block') continue;
+    const toks = lex(node.inner, node.innerStart);
+    const kw = toks[0];
+    if (kw?.t !== 'ident') continue;
+    if (kw.v === 'for') {
+      locals.add('forloop');
+      if (toks[1]?.t === 'ident') locals.add(toks[1].v);
+    } else if (kw.v === 'assign' || kw.v === 'capture') {
+      if (toks[1]?.t === 'ident') locals.add(toks[1].v);
+    } else if (kw.v === 'tablerow') {
+      locals.add('tablerowloop');
+      if (toks[1]?.t === 'ident') locals.add(toks[1].v);
+    }
+  }
+  return locals;
+}
+```
+
+In `tokenize()`, build the node list once, collect locals from it, and make `paintVar`
+consult them. Replace the top of `tokenize()` so `scan(src)` is called once:
+
+```ts
+export function tokenize(src: string, mode: PreviewMode, catalog: MacroCatalog): TokenizeResult {
+  const type: TokenType[] = new Array(src.length).fill('text');
+  const errors: LintError[] = [];
+  const varRoots: string[] = [];
+  const seenRoots = new Set<string>();
+  const nodes = scan(src);
+  const locals = collectLocals(nodes);
+```
+
+In `paintVar`, add the locals check as the FIRST branch — before the catalog lookup — so a
+local is neither an error nor a recorded root:
+
+```ts
+  const paintVar = (tok: LexTok) => {
+    const root = tok.v.split('.')[0];
+    if (locals.has(root)) {
+      paint(tok.start, tok.end, 'variable');
+      return;
+    }
+    if (!catalog.variableNames.has(root)) {
+```
+
+Change the painting loop's header from `for (const node of scan(src))` to
+`for (const node of nodes)`, and add a `block` branch alongside the existing `tag` branch:
+
+```ts
+    if (node.kind === 'block') {
+      paint(node.start, node.end, 'delim');
+      const toks = lex(node.inner, node.innerStart);
+      for (let k = 0; k < toks.length; k++) {
+        const t = toks[k];
+        if (t.t === 'string') paint(t.start, t.end, 'string');
+        else if (t.t === 'number') paint(t.start, t.end, 'number');
+        else if (t.t === 'bad' || t.t === 'pipe' || t.t === 'colon' || t.t === 'comma') paint(t.start, t.end, 'delim');
+        else if (t.t === 'ident' && (k === 0 || TAG_KEYWORDS.has(t.v))) paint(t.start, t.end, 'tag');
+        else if (t.t === 'ident') paintVar(t);
+      }
+      continue;
+    }
+```
+
+Note the `k === 0` clause: the tag keyword paints as `'tag'` even if it is an unrecognised
+tag name, so a typo'd tag never reads as a broken variable.
+
+- [ ] **Step 6: Update the module design note**
+
+`tokenize.ts:1-3` currently says the tokenizer handles "output expressions only … (no
+`{% %}` tags/loops/ifs, since that is all the feature uses)". That is no longer true.
+Replace those three lines with a note that both `{{ }}` output tags and `{% %}` block tags
+are recognised, that block tags contribute variable roots so `deriveMacroMode` sees them,
+and that names introduced by `assign`/`for`/`capture` are treated as locals via a flat,
+template-wide set.
+
+- [ ] **Step 7: Run tests to verify they pass**
+
+Run: `npx vitest run --project unit tests/unit/renderer/panels/macros/tokenize.test.ts`
+Expected: PASS.
+
+Run: `npx vitest run && npx tsc --noEmit && npx biome check src tests`
+Expected: all clean. Pay attention to `tests/unit/renderer/panels/macros/` and
+`tests/component/macros/` — `deriveMacroMode` now sees roots it previously missed, so a
+macro whose only reply-only variable sits inside a `{% %}` tag changes mode. If an
+existing test breaks, that is a real behaviour change: report it rather than papering over
+it.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add src/renderer/panels/macros/lib/tokenize.ts src/renderer/panels/macros/lib/tokenColors.ts tests/unit/renderer/panels/macros/tokenize.test.ts
+git commit -m "$(cat <<'EOF'
+feat(macros): tokenize {% %} tags, with locals from assign/for/capture
+
+Block tags used to paint as plain text and contribute no variable roots, so
+deriveMacroMode silently mis-derived a macro whose only reply-only variable sat
+inside an {% if %}. Names introduced by assign/for/capture are tracked as
+locals so a loop variable is not reported as unknown.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
