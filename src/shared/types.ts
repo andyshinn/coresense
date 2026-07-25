@@ -368,6 +368,11 @@ export interface LogEntry {
 
 export type ThemePrefValue = 'auto' | 'dark' | 'light';
 
+/** How a person's identity colour is derived.
+ *  'byKey'  — hue only when a real pubkey is known; everyone else is neutral.
+ *  'byName' — hue from the display name, so everyone gets one. */
+export type IdentityColorMode = 'byKey' | 'byName';
+
 export type MessageStyle = 'compact' | 'rich';
 
 /** Clock format for rendered timestamps. 'auto' follows the OS locale; the
