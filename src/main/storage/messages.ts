@@ -1,4 +1,4 @@
-import type { ChannelActivity, ChannelStats, Message, MessageMeta, MessageState } from '../../shared/types';
+import type { ActivityBand, ChannelActivity, ChannelStats, Message, MessageMeta, MessageState } from '../../shared/types';
 import { openDb } from './db';
 
 interface Row {
@@ -69,6 +69,26 @@ function edgeIndex(edges: number[], ts: number): number {
     else lo = mid;
   }
   return lo;
+}
+
+/** Below this many messages in the trailing 168h, naming a "peak" is noise. */
+const BAND_MIN_SAMPLES = 8;
+
+/** Best contiguous `width`-hour band on a 24-slot hour-of-day histogram, searched
+ *  circularly so a band may wrap midnight. Strict comparison means ties break
+ *  toward the earlier start hour, which keeps the result deterministic. */
+function bestBand(hist: number[], width: number, pick: 'max' | 'min'): ActivityBand {
+  let bestStart = 0;
+  let bestSum = pick === 'max' ? -1 : Number.POSITIVE_INFINITY;
+  for (let start = 0; start < 24; start++) {
+    let s = 0;
+    for (let k = 0; k < width; k++) s += hist[(start + k) % 24];
+    if (pick === 'max' ? s > bestSum : s < bestSum) {
+      bestSum = s;
+      bestStart = start;
+    }
+  }
+  return { startHour: bestStart, endHour: (bestStart + width) % 24 };
 }
 
 export const messagesStore = {
@@ -203,6 +223,12 @@ export const messagesStore = {
     let prev7 = 0;
     let prev30 = 0;
 
+    // Rhythm bands: an hour-of-day histogram over the trailing 168h (independent
+    // of the day-grid windows above), searched below for the busiest/calmest runs.
+    const bandSince = now - 168 * HOUR_MS;
+    const hourHist = new Array<number>(24).fill(0);
+    let bandSamples = 0;
+
     for (const { ts } of rows) {
       if (ts >= h24Start && ts < h24End) b24[Math.floor((ts - h24Start) / HOUR_MS)] += 1;
       else if (ts >= prev24Start && ts < h24Start) prev24 += 1;
@@ -214,6 +240,11 @@ export const messagesStore = {
       const i30 = edgeIndex(d30, ts);
       if (i30 >= 0) b30[i30] += 1;
       else if (ts >= prev30Start && ts < d30[0]) prev30 += 1;
+
+      if (ts >= bandSince && ts <= now) {
+        hourHist[new Date(ts).getHours()] += 1;
+        bandSamples += 1;
+      }
     }
 
     const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
@@ -227,8 +258,8 @@ export const messagesStore = {
         '7d': { buckets: b7, total: sum(b7), prevTotal: prev7, startMs: d7[0] },
         '30d': { buckets: b30, total: sum(b30), prevTotal: prev30, startMs: d30[0] },
       },
-      peakBand: null,
-      quietBand: null,
+      peakBand: bandSamples >= BAND_MIN_SAMPLES ? bestBand(hourHist, 3, 'max') : null,
+      quietBand: bandSamples >= BAND_MIN_SAMPLES ? bestBand(hourHist, 4, 'min') : null,
       lastTs: lastRow.lastTs ?? null,
     };
   },

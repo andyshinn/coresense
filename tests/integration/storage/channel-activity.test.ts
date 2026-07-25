@@ -108,4 +108,41 @@ describe('messagesStore.activityByKey', () => {
     seed('ch:Yours', now - 1 * HOUR, 'name:b', 'yours');
     expect(messagesStore.activityByKey('ch:Mine', now).windows['24h'].total).toBe(1);
   });
+
+  it('nulls both bands when the trailing 168h is too sparse to name one', () => {
+    const now = noonOf(1_700_000_000_000);
+    for (let i = 0; i < 7; i++) seed('ch:Sparse', now - i * HOUR, 'name:a', `s${i}`);
+    const a = messagesStore.activityByKey('ch:Sparse', now);
+    expect(a.peakBand).toBe(null);
+    expect(a.quietBand).toBe(null);
+  });
+
+  it('picks the busiest 3h peak band and calmest 4h quiet band', () => {
+    const now = noonOf(1_700_000_000_000);
+    // 20:00-22:59 gets 4 messages/hour on each of the last 3 days; the rest of
+    // the clock gets a thin baseline so the total clears the sparsity guard.
+    let n = 0;
+    for (let day = 0; day < 3; day++) {
+      for (const hour of [20, 21, 22]) {
+        for (let k = 0; k < 4; k++) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - day);
+          d.setHours(hour, k * 10, 0, 0);
+          seed('ch:Bands', d.getTime(), 'name:a', `peak${n++}`);
+        }
+      }
+      for (const hour of [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 23]) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - day);
+        d.setHours(hour, 5, 0, 0);
+        seed('ch:Bands', d.getTime(), 'name:a', `base${n++}`);
+      }
+    }
+
+    const a = messagesStore.activityByKey('ch:Bands', now);
+    expect(a.peakBand).toEqual({ startHour: 20, endHour: 23 });
+    // Hours 0-8 are completely empty; the calmest 4h run starts at the
+    // earliest such hour because ties break toward the earlier start.
+    expect(a.quietBand).toEqual({ startHour: 0, endHour: 4 });
+  });
 });
