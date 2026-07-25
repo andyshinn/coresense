@@ -29,6 +29,12 @@
   --cs-online: 132 204 22;
   --cs-warn: 245 158 11;
   --cs-danger: 220 38 38;
+  /* Trend chip. Deliberately not --cs-online/--cs-danger: those fail AA at a 13%
+     fill in dark (3.20 for danger), and danger is the destructive-action red —
+     a quiet channel is not an error. Contrast measured against the chip's own
+     fill over bg/bg-2/bg-3, per the --cs-hash-* note below. */
+  --cs-trend-up: 132 204 22; /* #84CC16 — 8.21 / 7.41 / 6.71 */
+  --cs-trend-down: 232 117 107; /* #E8756B — 5.83 / 5.29 / 4.81 */
   --cs-hash-1: 70 183 174; /* teal   · 1 byte  (#46B7AE) */
   --cs-hash-2: 232 163 61; /* amber  · 2 bytes (#E8A33D) */
   --cs-hash-3: 185 138 224; /* violet · 3 bytes (#B98AE0) */
@@ -59,6 +65,8 @@
   --cs-hash-1: 19 78 74; /* teal   · 1 byte  (#134E4A) — 7.01 / 6.45 / 5.58 */
   --cs-hash-2: 120 53 15; /* amber  · 2 bytes (#78350F) — 6.71 / 6.18 / 5.36 */
   --cs-hash-3: 91 33 182; /* violet · 3 bytes (#5B21B6) — 6.56 / 6.03 / 5.22 */
+  --cs-trend-up: 54 83 20; /* #365314 — 6.75 / 6.21 / 5.37 */
+  --cs-trend-down: 139 37 32; /* #8B2520 — 6.70 / 6.16 / 5.33 */
 }
 
 /* Map shadcn's semantic color tokens to the cs-* palette so primitives
@@ -100,6 +108,8 @@
   --color-cs-online: rgb(var(--cs-online));
   --color-cs-warn: rgb(var(--cs-warn));
   --color-cs-danger: rgb(var(--cs-danger));
+  --color-cs-trend-up: rgb(var(--cs-trend-up));
+  --color-cs-trend-down: rgb(var(--cs-trend-down));
   --color-cs-hash-1: rgb(var(--cs-hash-1));
   --color-cs-hash-2: rgb(var(--cs-hash-2));
   --color-cs-hash-3: rgb(var(--cs-hash-3));
