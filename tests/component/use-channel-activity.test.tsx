@@ -48,4 +48,48 @@ describe('useChannelActivity', () => {
     await waitFor(() => expect(result.current.error).toBe('boom'));
     expect(result.current.loading).toBe(false);
   });
+
+  it('keeps the refresh timer on its own schedule when messages arrive', async () => {
+    vi.useFakeTimers();
+    try {
+      renderHook(() => useChannelActivity('ch:Test', client));
+      await vi.waitFor(() => expect(getChannelActivity).toHaveBeenCalledTimes(1));
+
+      // Four minutes in, a message push forces its own refetch.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(240_000);
+      });
+      await act(async () => {
+        useStore.setState((s) => ({ messagesByKey: { ...s.messagesByKey, 'ch:Test': [] } }));
+      });
+      await vi.waitFor(() => expect(getChannelActivity).toHaveBeenCalledTimes(2));
+
+      // One more minute reaches the 5-minute mark measured from MOUNT. If the
+      // push had re-created the interval, this would not fire until 8 minutes.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(getChannelActivity).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears the refresh interval on unmount', async () => {
+    vi.useFakeTimers();
+    try {
+      const { unmount } = renderHook(() => useChannelActivity('ch:Test', client));
+      await vi.waitFor(() => expect(getChannelActivity).toHaveBeenCalledTimes(1));
+
+      unmount();
+
+      // Well past REFRESH_MS (300_000) — a live interval would have fired again.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(600_000);
+      });
+      expect(getChannelActivity).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

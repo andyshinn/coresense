@@ -40,6 +40,10 @@ export function useChannelActivity(
       },
       (e) => {
         if (!cancelled) {
+          // Deliberately leave `activity` in place on a failed refetch: a transient
+          // API/radio hiccup should not blank a chart that was correct a minute ago.
+          // `error` is only ever surfaced when there is nothing to show — see the
+          // `!activity` branch in the Activity section.
           setError((e as Error).message);
           setLoading(false);
         }
