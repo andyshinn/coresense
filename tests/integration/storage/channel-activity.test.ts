@@ -121,8 +121,11 @@ describe('messagesStore.activityByKey', () => {
     const now = noonOf(1_700_000_000_000);
     // 20:00-22:59 gets 4 messages/hour on each of the last 3 days; the rest of
     // the clock gets a thin baseline so the total clears the sparsity guard.
+    // Days run 1-3 (not 0-3): day 0 would be today, whose afternoon/evening
+    // hours land after `now` (pinned to noon) and get dropped by the <= now
+    // band filter, silently undercounting this fixture.
     let n = 0;
-    for (let day = 0; day < 3; day++) {
+    for (let day = 1; day <= 3; day++) {
       for (const hour of [20, 21, 22]) {
         for (let k = 0; k < 4; k++) {
           const d = new Date(now);
@@ -144,5 +147,44 @@ describe('messagesStore.activityByKey', () => {
     // Hours 0-8 are completely empty; the calmest 4h run starts at the
     // earliest such hour because ties break toward the earlier start.
     expect(a.quietBand).toEqual({ startHour: 0, endHour: 4 });
+  });
+
+  it('counts a message exactly on the 168h band boundary, and excludes one a millisecond older', () => {
+    const now = noonOf(1_700_000_000_000);
+    const bandSince = now - 168 * HOUR;
+    // Seven comfortably inside, plus one exactly on the edge = the 8 samples the
+    // sparsity guard needs. Moving that last one 1ms earlier must starve it.
+    for (let i = 0; i < 7; i++) seed('ch:EdgeIn', now - (i + 1) * HOUR, 'name:a', `in${i}`);
+    seed('ch:EdgeIn', bandSince, 'name:a', 'on-edge');
+    expect(messagesStore.activityByKey('ch:EdgeIn', now).peakBand).not.toBe(null);
+
+    for (let i = 0; i < 7; i++) seed('ch:EdgeOut', now - (i + 1) * HOUR, 'name:a', `in${i}`);
+    seed('ch:EdgeOut', bandSince - 1, 'name:a', 'just-outside');
+    expect(messagesStore.activityByKey('ch:EdgeOut', now).peakBand).toBe(null);
+    expect(messagesStore.activityByKey('ch:EdgeOut', now).quietBand).toBe(null);
+  });
+
+  it('excludes messages timestamped after now from the band histogram', () => {
+    const now = noonOf(1_700_000_000_000);
+    // A clock-skewed node can report a message from the future. Eight of them
+    // must not be enough to name a band.
+    for (let i = 0; i < 8; i++) seed('ch:Future', now + (i + 1) * HOUR, 'name:a', `f${i}`);
+    expect(messagesStore.activityByKey('ch:Future', now).peakBand).toBe(null);
+  });
+
+  it('breaks a peak tie toward the earlier start hour', () => {
+    const now = noonOf(1_700_000_000_000);
+    // Hours 3-5 and 15-17 carry identical weight; the earlier block must win.
+    for (let day = 1; day <= 2; day++) {
+      for (const hour of [3, 4, 5, 15, 16, 17]) {
+        for (let k = 0; k < 3; k++) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - day);
+          d.setHours(hour, k * 10, 0, 0);
+          seed('ch:Tie', d.getTime(), 'name:a', `t${day}-${hour}-${k}`);
+        }
+      }
+    }
+    expect(messagesStore.activityByKey('ch:Tie', now).peakBand).toEqual({ startHour: 3, endHour: 6 });
   });
 });
