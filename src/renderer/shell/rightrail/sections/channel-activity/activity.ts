@@ -1,9 +1,6 @@
 import type { ActivityBand, ActivityWindow, ActivityWindowKey } from '../../../../../shared/types';
 
-/** Rail widths below this drop the section to number + trend + bare sparkline.
- *  Measured against the rail's OUTER width (ui.rightWidth), which is what the
- *  design reference measured. Rail bounds are 240 / 320 default / 640. */
-export const COLLAPSE_WIDTH = 304;
+export { RAIL_COLLAPSE_WIDTH as COLLAPSE_WIDTH } from '../../railWidth';
 
 export type ActivityMode = 'collapsed' | 'full';
 
