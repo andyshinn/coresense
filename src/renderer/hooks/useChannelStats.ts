@@ -26,6 +26,16 @@ function sharedStats(client: ApiClient, key: string, messages: unknown): Promise
   return promise;
 }
 
+/** Test-only escape hatch: clears the module-level in-flight/last-settled
+ *  cache. `inflight` is a module singleton, so it survives across `it()`
+ *  blocks within one test file — without this, two tests reusing the same
+ *  channel key would have the second silently reuse the first's already-
+ *  settled promise instead of hitting the mock, producing a confusing
+ *  pass/fail. Not referenced by any production code path. */
+export function __resetChannelStatsCacheForTests(): void {
+  inflight.clear();
+}
+
 /** Fetches channel stats lazily (the rail only mounts a section's body when it
  *  is expanded) and refetches whenever this channel's message list changes. */
 export function useChannelStats(

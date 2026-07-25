@@ -9,7 +9,7 @@ vi.mock('@/lib/api', async (orig) => {
   return { ...actual, api: { ...actual.api, getChannelStats: (...a: unknown[]) => getChannelStats(...a) } };
 });
 
-import { useChannelStats } from '@/hooks/useChannelStats';
+import { __resetChannelStatsCacheForTests, useChannelStats } from '@/hooks/useChannelStats';
 import { useStore } from '@/lib/store';
 import type { Message } from '../../src/shared/types';
 
@@ -24,45 +24,44 @@ const stats = (count: number): ChannelStats => ({
   roster: [],
   perDay: [0, 0, 0, 0, 0, 0, 0],
 });
-const msg = (id: string, key: string): Message => ({ id, key, ts: 1, body: 'b', state: 'received' });
+const msg = (id: string): Message => ({ id, key: 'ch:X', ts: 1, body: 'b', state: 'received' });
 
 beforeEach(() => {
   getChannelStats.mockReset();
   useStore.setState({ messagesByKey: {} });
+  // useChannelStats shares an in-flight/last-settled request per channel key
+  // at module scope (see the `inflight` cache in useChannelStats.ts). That
+  // cache is a module singleton and survives across `it()` blocks, so without
+  // clearing it here, a later test reusing 'ch:X' would silently reuse an
+  // earlier test's already-settled promise instead of calling the mock.
+  __resetChannelStatsCacheForTests();
 });
 
-// Each test below uses its own channel key. `useChannelStats` now shares an
-// in-flight/last-settled request per channel key at module scope (see the
-// `inflight` cache in useChannelStats.ts), and that cache is NOT reset between
-// tests in this file — so two tests reusing the same key would see the second
-// test's render silently reuse the first test's already-settled promise
-// instead of calling the mock again. Distinct keys keep every test's cache
-// entry independent without needing a test-only reset hook in production code.
 describe('useChannelStats', () => {
   it('fetches on mount and returns stats', async () => {
     getChannelStats.mockResolvedValue(stats(3));
-    const { result } = renderHook(() => useChannelStats('ch:mount', client));
+    const { result } = renderHook(() => useChannelStats('ch:X', client));
     await waitFor(() => expect(result.current.stats?.count).toBe(3));
     expect(getChannelStats).toHaveBeenCalledTimes(1);
   });
 
   it('refetches when messagesByKey[key] changes', async () => {
     getChannelStats.mockResolvedValue(stats(3));
-    renderHook(() => useChannelStats('ch:refetch', client));
+    renderHook(() => useChannelStats('ch:X', client));
     await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(1));
-    act(() => useStore.setState({ messagesByKey: { 'ch:refetch': [msg('m1', 'ch:refetch')] } }));
+    act(() => useStore.setState({ messagesByKey: { 'ch:X': [msg('m1')] } }));
     await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(2));
   });
 
   it('does not fetch without a client', () => {
-    renderHook(() => useChannelStats('ch:noclient', null));
+    renderHook(() => useChannelStats('ch:X', null));
     expect(getChannelStats).not.toHaveBeenCalled();
   });
 
   it('shares one request between two hook instances on the same channel', async () => {
     getChannelStats.mockResolvedValue(stats(3));
-    const a = renderHook(() => useChannelStats('ch:shared', client));
-    const b = renderHook(() => useChannelStats('ch:shared', client));
+    const a = renderHook(() => useChannelStats('ch:X', client));
+    const b = renderHook(() => useChannelStats('ch:X', client));
     await waitFor(() => expect(a.result.current.stats?.count).toBe(3));
     await waitFor(() => expect(b.result.current.stats?.count).toBe(3));
     expect(getChannelStats).toHaveBeenCalledTimes(1);
@@ -70,12 +69,12 @@ describe('useChannelStats', () => {
 
   it('does not cache a rejected request, so the next render retries', async () => {
     getChannelStats.mockRejectedValueOnce(new Error('boom'));
-    const { result, unmount } = renderHook(() => useChannelStats('ch:retry', client));
+    const { result, unmount } = renderHook(() => useChannelStats('ch:X', client));
     await waitFor(() => expect(result.current.error).toBe('boom'));
     unmount();
 
     getChannelStats.mockResolvedValueOnce(stats(5));
-    const retry = renderHook(() => useChannelStats('ch:retry', client));
+    const retry = renderHook(() => useChannelStats('ch:X', client));
     await waitFor(() => expect(retry.result.current.stats?.count).toBe(5));
     expect(getChannelStats).toHaveBeenCalledTimes(2);
   });
