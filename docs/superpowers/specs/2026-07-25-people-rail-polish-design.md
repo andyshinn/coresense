@@ -495,8 +495,11 @@ honoured via Tailwind's `motion-reduce:` variant on any transition added.
 
 ### 7.1 Delivery
 
-25 CSS custom properties as **RGB triplets** in `src/renderer/index.css`:
-`--cs-id-0…11` (dot), `--cs-id-fg-0…11` (text), `--cs-id-neutral`. Defined in
+**37** CSS custom properties as **RGB triplets** in `src/renderer/index.css`:
+`--cs-id-0…11` (dot), `--cs-id-fg-0…11` (text and avatar glyph),
+`--cs-id-bg-0…11` (avatar fill), `--cs-id-neutral`. The avatar fills are
+required, not optional — `getNameColor` returns `{fg, bg, pillBg}` today and
+`ContactAvatar` uses `bg` as the disc fill (§7.4). Defined in
 `:root` (dark) and fully overridden in `:root:not(.dark)` (light), with the
 originating `oklch()` and the `bg / bg-2 / bg-3` contrast ratios in a trailing
 comment per line — exactly the existing `--cs-hash-1/2/3` pattern
@@ -626,7 +629,7 @@ all 12 slots in the real app in both themes and look at them.
 | File | Change |
 |---|---|
 | `src/shared/types.ts` | `+IdentityColorMode`; `+identityColorMode` on `AppSettings`; `+identityColorMode: 'byKey'` in `DEFAULT_APP_SETTINGS`; `+ui.peopleRail` on `UiState` + its default; `DEFAULT_UI_STATE.rightWidth` **320 → 340**. |
-| `src/renderer/index.css` | +25 vars in `:root` and `:root:not(.dark)` with ratio comments; +`@theme` entries. Optionally the avatar fill vars. |
+| `src/renderer/index.css` | +37 vars in `:root` and `:root:not(.dark)` with ratio comments; +`@theme` entries. |
 | `src/renderer/lib/contactColor.ts` | Replace the 10-entry HSL `PALETTE` with the 12-slot var-reference ramp; `getNameColor` becomes slot-based. **Keep `initialsFor` and `djb2` untouched.** |
 | `src/renderer/components/ColoredUsername.tsx` | Read the mode from the store (leaf-level store reads are precedented — `MentionPill.tsx:12`); resolve via `identity.ts` under `byKey`; fall through to the **existing** `neutral` branch when unresolved/ambiguous. |
 | `src/renderer/components/ContactAvatar.tsx` | Same mode read; fill + glyph from the new vars; neutral fill + `cs-text-dim` glyph when unresolved. |
