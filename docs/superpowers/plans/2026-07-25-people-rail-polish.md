@@ -293,7 +293,7 @@ Only the neutral needs a Tailwind colour alias — the 12 slots are consumed thr
 - [ ] **Step 7: Run the tests**
 
 Run: `npx vitest run --project unit tests/unit/renderer/lib/contactColor.test.ts`
-Expected: PASS, 7 tests.
+Expected: PASS, 9 tests.
 
 - [ ] **Step 8: Verify nothing else broke**
 
