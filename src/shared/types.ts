@@ -261,6 +261,15 @@ export interface ChannelActivity {
   lastTs: number | null;
 }
 
+export type PeopleSort = 'recent' | 'loud' | 'name';
+export type PeopleFilter = 'all' | 'contacts';
+
+/** Per-channel People rail view state. Persisted in UiState (Task 8). */
+export interface PeopleRailPrefs {
+  sort: PeopleSort;
+  filter: PeopleFilter;
+}
+
 export type BlockRuleType = 'pubkey' | 'pubkeyPrefix' | 'name' | 'nameRegex';
 
 export interface BlockRule {
