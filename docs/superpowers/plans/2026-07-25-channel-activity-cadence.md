@@ -464,23 +464,37 @@ git commit -m "feat(activity): peak and quiet rhythm bands with sparsity guard"
 
 - [ ] **Step 1: Write the failing test**
 
-Open `tests/integration/api/routes.test.ts` and read the existing `/api/channels/:key/stats` test (~lines 54-75) to copy its request helper and setup exactly. Add alongside it:
+In `tests/integration/api/routes.test.ts`, append a new `describe` block after the existing `describe('GET /api/channels/:key/stats', …)`. It uses the file's existing `app()` helper (there is no `request` helper) and seeds inline with `messagesStore.insert`, exactly as the stats test does. `tests/integration/setup.ts` gives every `it()` a fresh temp userData dir, so the DB starts empty each time.
 
 ```ts
-  it('serves channel activity and rejects non-channel keys', async () => {
-    const res = await request('/api/channels/ch%3AStats/activity');
+describe('GET /api/channels/:key/activity', () => {
+  it('rejects a non-channel key with 400', async () => {
+    const res = await app().request('/api/channels/c%3Aabcd/activity');
+    expect(res.status).toBe(400);
+  });
+
+  it('returns ChannelActivity for a channel key', async () => {
+    messagesStore.insert({
+      id: 'ca1',
+      key: 'ch:Act',
+      ts: Date.now() - 3_600_000,
+      body: 'hi',
+      state: 'received',
+      fromPublicKeyHex: 'name:alice',
+    } as Message);
+    const res = await app().request('/api/channels/ch%3AAct/activity');
     expect(res.status).toBe(200);
     const body = (await res.json()) as ChannelActivity;
     expect(body.windows['24h'].buckets).toHaveLength(24);
     expect(body.windows['7d'].buckets).toHaveLength(7);
     expect(body.windows['30d'].buckets).toHaveLength(30);
-
-    const bad = await request('/api/channels/c%3Aabc/activity');
-    expect(bad.status).toBe(400);
+    expect(body.windows['24h'].total).toBe(1);
+    expect(body.lastTs).toBeTruthy();
   });
+});
 ```
 
-Add `ChannelActivity` to that file's shared-types import. If the existing stats test uses a differently-named helper than `request`, use whatever it uses — match the file, do not introduce a new helper.
+Add `ChannelActivity` to that file's shared-types import.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -1144,7 +1158,8 @@ export function TrendChip({ pct, showVsPrev }: { pct: number; showVsPrev: boolea
     >
       <Icon aria-hidden="true" className="size-2.5" />
       <span className="sr-only">{up ? 'up ' : 'down '}</span>
-      {Math.abs(pct)}%
+      {/* Own element so the percentage is a single matchable text node. */}
+      <span>{Math.abs(pct)}%</span>
       {showVsPrev && <span className="ml-px font-normal opacity-70">vs prev</span>}
     </span>
   );
@@ -1262,6 +1277,10 @@ import type { ActivityWindow, ActivityWindowKey } from '../../../../../shared/ty
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../../components/ui/tooltip';
 import { type ActivityMode, axisTicks, bucketLabel, chartAriaLabel } from './activity';
 
+const CELL = 'flex h-full flex-1 items-end rounded-t-[2px] hover:bg-cs-accent/9';
+const BAR =
+  'min-h-[2px] w-full rounded-t-[2px] bg-cs-accent transition-[height] duration-[180ms] ease-out motion-reduce:transition-none';
+
 /** Plain flex-div bars — no charting library, per the design handoff. The plot is
  *  a single role="img" with a generated label; individual bars are decorative, so
  *  hover tooltips stay a pointer-only enhancement rather than 30 tab stops. */
@@ -1288,21 +1307,24 @@ export function VolumeChart({
         style={{ height: full ? 74 : 30 }}
       >
         {data.buckets.map((v, i) => {
-          const cell = (
-            <div className="flex h-full flex-1 items-end rounded-t-[2px] hover:bg-cs-accent/9">
-              <div
-                data-testid="activity-bar"
-                className="min-h-[2px] w-full rounded-t-[2px] bg-cs-accent transition-[height] duration-[180ms] ease-out motion-reduce:transition-none"
-                style={{ height: `${(v / max) * 100}%` }}
-              />
-            </div>
-          );
-          // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length positional bar chart (see activity.ts)
-          const key = `${winKey}-${i}`;
-          if (!full) return <div key={key} className="flex h-full flex-1 items-end">{cell}</div>;
+          const style = { height: `${(v / max) * 100}%` };
+          if (!full) {
+            // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length positional bar chart; the index is the identity
+            return (
+              <div key={i} className={CELL}>
+                <div data-testid="activity-bar" className={BAR} style={style} />
+              </div>
+            );
+          }
           return (
-            <Tooltip key={key}>
-              <TooltipTrigger asChild>{cell}</TooltipTrigger>
+            // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length positional bar chart; the index is the identity
+            <Tooltip key={i}>
+              {/* asChild needs a real DOM child so Radix can attach its ref. */}
+              <TooltipTrigger asChild>
+                <div className={CELL}>
+                  <div data-testid="activity-bar" className={BAR} style={style} />
+                </div>
+              </TooltipTrigger>
               <TooltipContent side="top">
                 {`${v} msg${v === 1 ? '' : 's'} · ${bucketLabel(winKey, data.startMs, i, data.buckets.length)}`}
               </TooltipContent>
@@ -1325,14 +1347,12 @@ export function VolumeChart({
 }
 ```
 
-Note the `min-h-[2px]` on the bar is what makes a zero bucket visible as a baseline, so the inline height is a plain percentage.
+Note the `min-h-[2px]` on the bar is what makes a zero bucket visible as a baseline, so the inline height is a plain percentage. The two-`div` cell appears twice because `TooltipTrigger asChild` must wrap a real DOM element (a function component would need to forward the ref Radix attaches); the class strings are hoisted to `CELL`/`BAR` so there is no literal duplication.
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run --project dom tests/component/activity-volume-chart.test.tsx`
 Expected: PASS, 6 tests.
-
-If the collapsed-mode wrapper double-nests (the `cell` already carries `flex h-full flex-1`), simplify by returning `cell` directly with the key applied — adjust so exactly one wrapper per bucket exists, then re-run.
 
 - [ ] **Step 5: Typecheck, lint, and commit**
 
@@ -1591,36 +1611,45 @@ export function RhythmFooter({
   mode: ActivityMode;
   now: number;
 }) {
-  const parts: ReactNode[] = [];
+  const parts: Array<{ id: string; node: ReactNode }> = [];
   if (peak) {
-    parts.push(
-      <span key="peak">
-        Peak <Value>{fmtBand(peak)}</Value>
-      </span>,
-    );
+    parts.push({
+      id: 'peak',
+      node: (
+        <>
+          Peak <Value>{fmtBand(peak)}</Value>
+        </>
+      ),
+    });
   }
   if (mode === 'full' && quiet) {
-    parts.push(
-      <span key="quiet">
-        quiet <Value>{fmtBand(quiet)}</Value>
-      </span>,
-    );
+    parts.push({
+      id: 'quiet',
+      node: (
+        <>
+          quiet <Value>{fmtBand(quiet)}</Value>
+        </>
+      ),
+    });
   }
   if (lastTs != null) {
-    parts.push(
-      <span key="last">
-        last msg <Value>{fmtAgoShort(lastTs, now)}</Value>
-      </span>,
-    );
+    parts.push({
+      id: 'last',
+      node: (
+        <>
+          last msg <Value>{fmtAgoShort(lastTs, now)}</Value>
+        </>
+      ),
+    });
   }
   if (parts.length === 0) return null;
 
   return (
     <p data-testid="activity-rhythm" className="mt-[13px] text-[11px] text-cs-text-muted">
       {parts.map((part, i) => (
-        <span key={`part-${part && typeof part === 'object' && 'key' in part ? String(part.key) : i}`}>
+        <span key={part.id}>
           {i > 0 && <span className="mx-[5px] text-cs-text-dim">·</span>}
-          {part}
+          {part.node}
         </span>
       ))}
     </p>
@@ -1753,10 +1782,9 @@ describe('ActivityBody', () => {
   it('hides the trend chip when there is no previous period to compare against', () => {
     const a = activity();
     a.windows['24h'] = { ...a.windows['24h'], total: 40, prevTotal: 0 };
-    body({ activity: a });
+    const { container } = body({ activity: a });
     expect(screen.getByText('40')).toBeTruthy();
-    expect(screen.queryByText('vs prev')).toBe(null);
-    expect(screen.queryByText(/%$/)).toBe(null);
+    expect(container.textContent).not.toContain('%');
   });
 
   it('renders a zero window without NaN', () => {
