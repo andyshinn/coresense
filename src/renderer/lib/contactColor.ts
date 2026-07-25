@@ -41,6 +41,15 @@ export function getNameColor(id: string): NameColor {
   };
 }
 
+/** The 7px identity dot's colour. A different, more saturated ramp than the
+ *  text one — the dot is a graphical object at a 3:1 bar, text is at 4.5:1. */
+export function identityDotVar(id: string): string {
+  return `rgb(var(--cs-id-${identitySlotFor(id)}))`;
+}
+
+/** A keyless identity: a mark without a hue. */
+export const IDENTITY_NEUTRAL_VAR = 'rgb(var(--cs-id-neutral))';
+
 export function initialsFor(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) return '??';
