@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
+import type { MacroTemplate } from '../../shared/macros/types';
 import {
   type AppSettings,
   type AutoAddConfig,
@@ -25,7 +26,6 @@ import {
   type DeviceCapabilities,
   type DeviceIdentity,
   type DeviceInfo,
-  type EmojiUsage,
   type GpsConfig,
   type LeftNavGroupId,
   type LogEntry,
@@ -51,8 +51,10 @@ import {
   type TransportState,
   type UiState,
   type UpdateState,
+  type UsageMap,
 } from '../../shared/types';
 import { recordUsage } from '../features/message-actions/frecency';
+import type { MacroStudioBridge } from '../panels/macros/studio/bridge';
 import { setRendererLogLevel, setRendererLogSink } from './logger';
 import type { NeighbourSortKey } from './neighbours';
 
@@ -254,6 +256,7 @@ interface CoreState {
   appSettings: AppSettings;
   updateState: UpdateState | null;
   blockRules: BlockRule[];
+  macros: MacroTemplate[];
   radioSettings: RadioSettings;
   deviceIdentity: DeviceIdentity;
   autoAddConfig: AutoAddConfig;
@@ -286,6 +289,11 @@ interface CoreState {
   // panel unmounts.
   repeaterAdminActiveTab: RepeaterAdminTab | null;
   setRepeaterAdminActiveTab: (tab: RepeaterAdminTab | null) => void;
+
+  // Live handle published by the open Macro studio so the right-rail Reference
+  // panel can insert into its editor. Null when no studio is open. Not persisted.
+  macroStudioBridge: MacroStudioBridge | null;
+  setMacroStudioBridge: (bridge: MacroStudioBridge | null) => void;
 
   // Repeater Neighbours view (map + rail list) — see NeighboursViewState.
   neighbours: NeighboursViewState;
@@ -353,6 +361,7 @@ interface CoreState {
   applyAppSettings: (settings: AppSettings) => void;
   applyUpdateState: (state: UpdateState | null) => void;
   applyBlockRules: (rules: BlockRule[]) => void;
+  applyMacros: (macros: MacroTemplate[]) => void;
   applyRadioSettings: (settings: RadioSettings) => void;
   applyDeviceIdentity: (identity: DeviceIdentity) => void;
   applyAutoAddConfig: (cfg: AutoAddConfig) => void;
@@ -408,6 +417,7 @@ interface CoreState {
   setLeftNavGroup: (id: LeftNavGroupId, open: boolean) => void;
   setDraft: (key: string, text: string) => void;
   recordEmojiUse: (emoji: string) => void;
+  recordMacroUse: (macroId: string) => void;
   setPacketLogFilter: (patch: Partial<UiState['packetLogFilter']>) => void;
   appendLog: (entry: LogEntry) => void;
   appendRendererLog: (entry: LogEntry) => void;
@@ -533,6 +543,7 @@ export const useStore = create<CoreState>((set) => ({
   appSettings: DEFAULT_APP_SETTINGS,
   updateState: null,
   blockRules: [],
+  macros: [],
   radioSettings: DEFAULT_RADIO_SETTINGS,
   deviceIdentity: DEFAULT_DEVICE_IDENTITY,
   autoAddConfig: DEFAULT_AUTO_ADD_CONFIG,
@@ -548,6 +559,7 @@ export const useStore = create<CoreState>((set) => ({
   repeaterTelemetryByKey: {},
   repeaterAdminTab: null,
   repeaterAdminActiveTab: null,
+  macroStudioBridge: null,
   neighbours: NB_DEFAULTS,
 
   ui: DEFAULT_UI_STATE,
@@ -579,6 +591,7 @@ export const useStore = create<CoreState>((set) => ({
       channelPresence: new Set(snapshot.channelPresence ?? []),
       contacts: snapshot.contacts,
       discovered: snapshot.discoveredContacts ?? [],
+      macros: snapshot.macros ?? [],
       messagesByKey: groupMessagesByKey(snapshot.messages),
       capabilities: snapshot.capabilities,
       appSettings: snapshot.appSettings,
@@ -672,6 +685,13 @@ export const useStore = create<CoreState>((set) => ({
       // make sure the rail is open (open-only — never auto-collapses).
       ui: tab === 'neighbours' ? { ...s.ui, rightOpen: true } : s.ui,
     })),
+  setMacroStudioBridge: (bridge) =>
+    set((s) => ({
+      macroStudioBridge: bridge,
+      // Opening a macro surfaces its Reference in the rail, so make sure the
+      // rail is open (open-only — never auto-collapses).
+      ui: bridge ? { ...s.ui, rightOpen: true } : s.ui,
+    })),
   setNeighboursFor: (key) =>
     set((s) =>
       s.neighbours.forKey === key
@@ -708,6 +728,7 @@ export const useStore = create<CoreState>((set) => ({
   },
   applyUpdateState: (state) => set(() => ({ updateState: state })),
   applyBlockRules: (rules) => set(() => ({ blockRules: rules })),
+  applyMacros: (macros) => set(() => ({ macros })),
   applyRadioSettings: (settings) => set(() => ({ radioSettings: settings })),
   applyDeviceIdentity: (identity) => set(() => ({ deviceIdentity: identity })),
   applyAutoAddConfig: (cfg) => set(() => ({ autoAddConfig: cfg })),
@@ -723,16 +744,18 @@ export const useStore = create<CoreState>((set) => ({
       // Idempotent: when the synced subset already matches, return {} so `ui`
       // keeps its object identity and App.tsx's debounced PUT effect doesn't
       // re-fire — otherwise a client would loop forever on its own echo.
-      // Coalesce emojiUsage: a legacy or partial producer may PUT a UiState
-      // that omits it, and Object.keys(undefined) in emojiUsageEqual (or a
-      // downstream topEmojis) would otherwise throw and break the WS handler
-      // for every connected client.
+      // Coalesce the usage maps: a legacy or partial producer may PUT a UiState
+      // that omits one, and Object.keys(undefined) in usageMapEqual (or a
+      // downstream topIds) would otherwise throw and break the WS handler for
+      // every connected client.
       const incomingEmojiUsage = incoming.emojiUsage ?? {};
+      const incomingMacroUsage = incoming.macroUsage ?? {};
       const same =
         shallowEqualRecord(s.ui.lastReadByKey, incoming.lastReadByKey) &&
         arraysEqual(s.ui.pinned, incoming.pinned) &&
         arraysEqual(s.ui.recentKeys, incoming.recentKeys) &&
-        emojiUsageEqual(s.ui.emojiUsage, incomingEmojiUsage) &&
+        usageMapEqual(s.ui.emojiUsage, incomingEmojiUsage) &&
+        usageMapEqual(s.ui.macroUsage, incomingMacroUsage) &&
         s.ui.themePref === incoming.themePref;
       if (same) return {};
       return {
@@ -742,6 +765,7 @@ export const useStore = create<CoreState>((set) => ({
           pinned: incoming.pinned,
           recentKeys: incoming.recentKeys,
           emojiUsage: incomingEmojiUsage,
+          macroUsage: incomingMacroUsage,
           themePref: incoming.themePref,
         },
       };
@@ -860,6 +884,8 @@ export const useStore = create<CoreState>((set) => ({
       return { ui: { ...s.ui, drafts: next } };
     }),
   recordEmojiUse: (emoji) => set((s) => ({ ui: { ...s.ui, emojiUsage: recordUsage(s.ui.emojiUsage, emoji, Date.now()) } })),
+  recordMacroUse: (macroId) =>
+    set((s) => ({ ui: { ...s.ui, macroUsage: recordUsage(s.ui.macroUsage, macroId, Date.now()) } })),
   setPacketLogFilter: (patch) => set((s) => ({ ui: { ...s.ui, packetLogFilter: { ...s.ui.packetLogFilter, ...patch } } })),
   appendLog: (entry) =>
     set((s) => {
@@ -1013,12 +1039,12 @@ function shallowEqualRecord<T>(a: Record<string, T>, b: Record<string, T>): bool
   return ak.every((k) => a[k] === b[k]);
 }
 
-// `emojiUsage` values are per-emoji objects ({count, lastUsedMs}), not
-// primitives, so `shallowEqualRecord`'s reference equality is always false
-// once a broadcast round-trips through JSON (fresh object refs even when the
-// values match). Compare one level deeper so an echo of unchanged counts is
-// recognized as "same" and doesn't re-trigger the debounced PUT in App.tsx.
-function emojiUsageEqual(a: EmojiUsage, b: EmojiUsage): boolean {
+// Usage-map values are per-id objects ({count, lastUsedMs}), not primitives, so
+// `shallowEqualRecord`'s reference equality is always false once a broadcast
+// round-trips through JSON (fresh object refs even when the values match).
+// Compare one level deeper so an echo of unchanged counts is recognized as
+// "same" and doesn't re-trigger the debounced PUT in App.tsx.
+function usageMapEqual(a: UsageMap, b: UsageMap): boolean {
   if (a === b) return true;
   const ak = Object.keys(a);
   if (ak.length !== Object.keys(b).length) return false;

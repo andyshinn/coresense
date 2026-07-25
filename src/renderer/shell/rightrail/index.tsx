@@ -6,6 +6,7 @@ import { resolveNeighbourPublicKey } from '../../lib/neighbours';
 import { useStore } from '../../lib/store';
 import { MapDetailsRail } from '../../panels/map/MapDetailsRail';
 import { railTitle } from './helpers';
+import { MacroReferenceRail } from './MacroReferenceRail';
 import { ResizeHandle } from './ResizeHandle';
 import { type RailData, sectionsFor } from './sectionsFor';
 
@@ -109,6 +110,10 @@ export function RightRail({ client }: RightRailProps) {
           // site card on selection) — bypass the standard Collapsible
           // sections so it matches the design's spec sheet.
           <MapDetailsRail client={client} />
+        ) : activeKey === 'tool:macros' ? (
+          // The Macros tool's right pane is the authoring Reference (variables
+          // & filters) for the open studio — a full-height panel, not sections.
+          <MacroReferenceRail />
         ) : (
           <div className="h-full overflow-y-auto py-1">
             {sections.map((section) => {

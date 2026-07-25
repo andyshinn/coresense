@@ -85,6 +85,9 @@ export function createWsMessageHandler(deps: WsMessageHandlerDeps): (msg: WsMess
       case 'blockRules':
         s.applyBlockRules(msg.payload);
         break;
+      case 'macros':
+        s.applyMacros(msg.payload);
+        break;
       case 'radioSettings':
         s.applyRadioSettings(msg.payload);
         break;

@@ -1,6 +1,6 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { useStore } from '../../lib/store';
-import { EMOJI_SEED, topEmojis } from './frecency';
+import { EMOJI_SEED, topIds } from './frecency';
 
 interface Props {
   onPick: (emoji: string) => void;
@@ -10,7 +10,7 @@ interface Props {
 /** Inline one-click quick-react emoji, auto-pinned by frecency. */
 export function ReactionRow({ onPick, count = 5 }: Props) {
   const usage = useStore((s) => s.ui.emojiUsage);
-  const emojis = topEmojis(usage, Date.now(), count, EMOJI_SEED);
+  const emojis = topIds(usage, Date.now(), count, EMOJI_SEED);
   return (
     <div className="flex items-center gap-0.5">
       {emojis.map((e) => (

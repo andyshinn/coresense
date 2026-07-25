@@ -16,6 +16,7 @@ export function railTitle(activeKey: string): string {
   if (activeKey.startsWith('tool:settings')) return 'Settings';
   if (activeKey === 'tool:contacts') return 'Contacts';
   if (activeKey === 'tool:map') return 'Map';
+  if (activeKey === 'tool:macros') return 'Reference';
   const kind = viewKindFor(activeKey);
   switch (kind) {
     case 'channel':

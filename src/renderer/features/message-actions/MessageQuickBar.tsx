@@ -1,15 +1,18 @@
 import { Copy, Info, MoreHorizontal, Plus, Reply, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import type { MacroTemplate } from '../../../shared/macros/types';
 import type { Message } from '../../../shared/types';
 import { copyToClipboard } from '../../components/ContextMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
+import type { ApiClient } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
+import { expandMacroReply } from '../../panels/macros/lib/inchat';
 import { EmojiPickerPopover } from './EmojiPickerPopover';
 import { MacroChip, MacroPanel } from './MacroPanel';
 import { MessageInfoPopover } from './MessageInfoPopover';
+import { applicableMacros, topMacros } from './macroPicks';
 import { OverflowMenu } from './OverflowMenu';
-import { SEED_MACROS } from './quickBarData';
 import { ReactionRow } from './ReactionRow';
 
 type PopKey = 'emoji' | 'macro' | 'info' | 'more' | null;
@@ -18,14 +21,24 @@ interface Props {
   message: Message;
   isSelf: boolean;
   senderName: string;
+  client: ApiClient | null;
   onReact: (name: string, emoji: string) => void;
   onReply: (name: string) => void;
+  /** Insert rendered macro text into the composer as `@[name] <text> `. */
+  onMacro?: (name: string, text: string) => void;
 }
 
 /** Discord-style hover action pill anchored to the top-right of a message row. */
-export function MessageQuickBar({ message, isSelf, senderName, onReact, onReply }: Props) {
+export function MessageQuickBar({ message, isSelf, senderName, client, onReact, onReply, onMacro }: Props) {
   const [open, setOpen] = useState<PopKey>(null);
   const recordEmojiUse = useStore((s) => s.recordEmojiUse);
+  const macros = useStore((s) => s.macros);
+  const macroUsage = useStore((s) => s.ui.macroUsage);
+  const recordMacroUse = useStore((s) => s.recordMacroUse);
+  const [macroBusy, setMacroBusy] = useState(false);
+  // Recomputed per render like ReactionRow's emoji row — both lists are tiny.
+  const conversationMacros = applicableMacros(macros, message.key);
+  const chipMacros = topMacros(conversationMacros, macroUsage, Date.now(), 2);
   const P = (key: Exclude<PopKey, null>) => ({ open: open === key, onOpenChange: (o: boolean) => setOpen(o ? key : null) });
 
   // An unresolved sender (e.g. a channel message whose origin name wasn't
@@ -40,6 +53,22 @@ export function MessageQuickBar({ message, isSelf, senderName, onReact, onReply 
   const reply = () => {
     if (!hasSender) return;
     onReply(senderName);
+  };
+  // Named pickMacro, not useMacro: a `use*` name would be treated as a hook.
+  const pickMacro = async (macro: MacroTemplate, cachedText?: string) => {
+    // Same guard as pick/reply: an unresolved sender would insert `@[] `.
+    if (!hasSender || macroBusy) return;
+    setMacroBusy(true);
+    let text: string | null;
+    try {
+      text = cachedText ?? (await expandMacroReply(client, macro, message));
+    } finally {
+      setMacroBusy(false);
+    }
+    if (text == null || !onMacro) return; // render failed (toasted) or nothing to insert into
+    recordMacroUse(macro.id);
+    onMacro(senderName, text);
+    setOpen(null);
   };
   const copyText = () => copyToClipboard(message.body, () => notify.success('Copied message text'));
 
@@ -78,20 +107,28 @@ export function MessageQuickBar({ message, isSelf, senderName, onReact, onReply 
             >
               <Reply size={14} aria-hidden="true" />
             </button>
-            <div className="flex items-center gap-1 pl-1">
-              {SEED_MACROS.slice(0, 2).map((m) => (
-                <MacroChip key={m.label} label={m.label} />
-              ))}
-              <MacroPanel {...P('macro')}>
-                <button
-                  type="button"
-                  aria-label="All macros"
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text"
+            {client != null && (
+              <div className="flex items-center gap-1 pl-1">
+                {chipMacros.map((m) => (
+                  <MacroChip key={m.id} macro={m} onPick={(macro) => void pickMacro(macro)} />
+                ))}
+                <MacroPanel
+                  {...P('macro')}
+                  macros={conversationMacros}
+                  client={client}
+                  message={message}
+                  onPick={(macro, text) => void pickMacro(macro, text)}
                 >
-                  <MoreHorizontal size={14} aria-hidden="true" />
-                </button>
-              </MacroPanel>
-            </div>
+                  <button
+                    type="button"
+                    aria-label="All macros"
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text"
+                  >
+                    <MoreHorizontal size={14} aria-hidden="true" />
+                  </button>
+                </MacroPanel>
+              </div>
+            )}
             <span className="mx-1 h-6 w-px bg-cs-border" />
             <IconBtn label="Copy text" onClick={copyText}>
               <Copy size={16} aria-hidden="true" />
