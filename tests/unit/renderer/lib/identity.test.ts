@@ -73,6 +73,30 @@ describe('resolveIdentity', () => {
     const saved = contact({ key: `c:${PK}`, publicKeyHex: PK, name: 'zed' });
     expect(resolveIdentity(PK, [saved], idx())).toMatchObject({ pubkey: PK, contactKey: `c:${PK}`, source: 'contact' });
   });
+
+  // Regression tests for M-5: the raw-hex branch used to hardcode
+  // `blocked: false` and never consult the discovered pool, contradicting the
+  // spec ("blocked comes from the resolved DiscoveredContact.blocked").
+  // Unreachable from the People rail (channel posts never carry a raw
+  // pubkey), but `useIdentityHash` sends every DM/hex sender through it.
+  it('resolves blocked for a raw pubkey found in the discovered pool, with no saved contact', () => {
+    const heard = disc({ publicKeyHex: PK, name: 'zed', blocked: true });
+    const r = resolveIdentity(PK, [], idx([heard]));
+    expect(r).toMatchObject({ pubkey: PK, contactKey: null, source: 'none', blocked: true });
+  });
+
+  it('resolves blocked for a raw pubkey that is also a saved contact', () => {
+    const saved = contact({ key: `c:${PK}`, publicKeyHex: PK, name: 'zed' });
+    const heard = disc({ publicKeyHex: PK, name: 'zed', blocked: true });
+    const r = resolveIdentity(PK, [saved], idx([heard]));
+    expect(r).toMatchObject({ pubkey: PK, contactKey: `c:${PK}`, source: 'contact', blocked: true });
+  });
+
+  it('defaults blocked to false for a raw pubkey never heard from', () => {
+    const heard = disc({ publicKeyHex: 'someone-else', blocked: true });
+    const r = resolveIdentity(PK, [], idx([heard]));
+    expect(r.blocked).toBe(false);
+  });
 });
 
 describe('identityHashInput', () => {

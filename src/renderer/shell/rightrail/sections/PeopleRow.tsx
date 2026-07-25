@@ -28,25 +28,43 @@ interface PeopleRowProps {
   now: number;
   maxCount: number;
   showVolume: boolean;
+  railWidth: number;
   timeFormat: TimeFormatPref;
   onOpen: (row: RosterRow) => void;
   onMessage: (row: RosterRow) => void;
   onAddContact: (row: RosterRow) => void;
 }
 
-export function PeopleRow({ row, now, maxCount, showVolume, timeFormat, onOpen, onMessage, onAddContact }: PeopleRowProps) {
+export function PeopleRow({
+  row,
+  now,
+  maxCount,
+  showVolume,
+  railWidth,
+  timeFormat,
+  onOpen,
+  onMessage,
+  onAddContact,
+}: PeopleRowProps) {
   const mode = useStore((s) => s.appSettings.identityColorMode ?? 'byKey');
   const hashInput = mode === 'byName' ? row.name : row.pubkey;
   const hue = hashInput === null ? IDENTITY_NEUTRAL_VAR : identityDotVar(hashInput);
 
   // The name tooltip exists only to recover a name the column clipped. Showing
-  // it on every row would fire a tooltip on the whole list.
+  // it on every row would fire a tooltip on the whole list. Rows are keyed by
+  // `r.id`, so an instance survives a rail resize — re-measure whenever
+  // `railWidth` changes (it also crosses the showVolume breakpoint, which
+  // changes the name track's own width by 38px) or the name itself changes,
+  // rather than only once at mount. No ResizeObserver: railWidth already
+  // comes from the store via the body, so this is a plain dependency, not a
+  // new subscription.
   const nameRef = useRef<HTMLButtonElement>(null);
   const [clipped, setClipped] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: row.name/showVolume/railWidth are re-measure triggers, not read inside the effect
   useLayoutEffect(() => {
     const el = nameRef.current;
     if (el) setClipped(el.scrollWidth > el.clientWidth);
-  }, []);
+  }, [row.name, showVolume, railWidth]);
 
   // Three tiers, and they map 1:1 onto what the row can do:
   //   filled + hued  saved contact          -> message

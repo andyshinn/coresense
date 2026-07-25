@@ -13,7 +13,6 @@ import { filterRoster, groupByBucket, maxCount, type RosterRow, sortRoster, toRo
 
 interface BodyProps {
   stats: ChannelStats | null;
-  loading: boolean;
   railWidth: number;
   sort: PeopleSort;
   filter: PeopleFilter;
@@ -29,7 +28,6 @@ interface BodyProps {
 
 export function ChannelPeopleBody({
   stats,
-  loading,
   railWidth,
   sort,
   filter,
@@ -45,7 +43,14 @@ export function ChannelPeopleBody({
   const discovered = useStore((s) => s.discovered);
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
 
-  if (loading && !stats) {
+  // `stats === null` is the single source of truth for "no data yet" — it
+  // covers the in-flight fetch AND the client === null case (which never
+  // fetches, so `loading` never turns true and previously stuck this guard
+  // open forever). Genuine emptiness requires stats to have actually
+  // resolved; otherwise the very first painted frame (loading hasn't flipped
+  // true yet, stats is still null) would flash this same "no one heard"
+  // message before the skeletons ever show.
+  if (stats === null) {
     return (
       <div className="flex flex-col gap-1 px-2.5 py-1">
         <Skeleton className="h-6 w-full" />
@@ -55,7 +60,7 @@ export function ChannelPeopleBody({
     );
   }
 
-  const all = toRosterRows(stats?.roster ?? [], contacts, discovered);
+  const all = toRosterRows(stats.roster, contacts, discovered);
   if (all.length === 0) {
     return <EmptyNote>No one has been heard in this channel yet.</EmptyNote>;
   }
@@ -65,17 +70,23 @@ export function ChannelPeopleBody({
   const max = maxCount(shown);
   const showVolume = wide && sort !== 'name';
 
+  // onOpen and onMessage are the same action today (both just open the
+  // contact), kept as one shared handler rather than two byte-identical
+  // closures — PeopleRow still calls them by their own names since they are
+  // conceptually distinct actions (row click vs. the message affordance) that
+  // simply happen to coincide for now.
+  const onRowAction = (r: RosterRow) => {
+    if (r.contactKey) onOpenContact(r.contactKey);
+  };
+
   const rowProps = {
     now,
     maxCount: max,
     showVolume,
+    railWidth,
     timeFormat,
-    onOpen: (r: RosterRow) => {
-      if (r.contactKey) onOpenContact(r.contactKey);
-    },
-    onMessage: (r: RosterRow) => {
-      if (r.contactKey) onOpenContact(r.contactKey);
-    },
+    onOpen: onRowAction,
+    onMessage: onRowAction,
     onAddContact,
   };
 
@@ -145,7 +156,7 @@ export function ChannelPeopleCount({ channel, client }: { channel: Channel; clie
 }
 
 export function ChannelPeopleSection({ channel, client }: { channel: Channel; client: ApiClient | null }) {
-  const { stats, loading } = useChannelStats(channel.key, client);
+  const { stats } = useChannelStats(channel.key, client);
   const railWidth = useStore((s) => s.ui.rightWidth);
   const query = useStore((s) => s.peopleQuery);
   const setQuery = useStore((s) => s.setPeopleQuery);
@@ -159,6 +170,19 @@ export function ChannelPeopleSection({ channel, client }: { channel: Channel; cl
   useEffect(() => {
     setQuery('');
   }, [channel.key, setQuery]);
+
+  // `peopleQuery` is store-root state, so it outlives this component: the
+  // Collapsible (Collapsible.tsx) only mounts this section's body while open,
+  // but `ChannelPeopleCount` renders the header count from outside that
+  // guard. Without this, collapsing the section (or switching channels, which
+  // also unmounts+remounts this section under the section's constant id)
+  // leaves a stale query in the store with no visible control to clear it —
+  // the header count silently stays narrowed by a search box that is no
+  // longer on screen. This composes with the effect above rather than
+  // fighting it: that one clears on channel-key change while mounted, this
+  // one clears on unmount (collapse), and calling setQuery('') twice is
+  // harmless.
+  useEffect(() => () => setQuery(''), [setQuery]);
 
   // Same call the Contact Manager uses to promote a discovered node to a saved
   // radio contact (ContactDetail.tsx / ContactRows.tsx): only the pubkey is
@@ -180,7 +204,6 @@ export function ChannelPeopleSection({ channel, client }: { channel: Channel; cl
   return (
     <ChannelPeopleBody
       stats={stats}
-      loading={loading}
       railWidth={railWidth}
       sort={prefs?.sort ?? 'recent'}
       filter={prefs?.filter ?? 'all'}

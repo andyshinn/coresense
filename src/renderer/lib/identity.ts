@@ -45,6 +45,21 @@ export function buildDiscoveredNameIndex(rows: DiscoveredContact[]): Map<string,
   return index;
 }
 
+/** Find a discovered row by pubkey rather than name. The name-keyed index is
+ *  the only structure callers build, so this scans its buckets rather than
+ *  asking every call site to also build a pubkey-keyed one for a lookup only
+ *  the raw-hex branch below needs. */
+function findDiscoveredByPubkey(
+  discoveredByName: Map<string, DiscoveredContact[]>,
+  pubkey: string,
+): DiscoveredContact | undefined {
+  for (const rows of discoveredByName.values()) {
+    const hit = rows.find((r) => r.publicKeyHex === pubkey);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
 export function resolveIdentity(
   fromPk: string | null | undefined,
   contacts: Contact[],
@@ -54,15 +69,19 @@ export function resolveIdentity(
 
   if (!fromPk.startsWith('name:')) {
     // A raw hex pubkey. Not currently produced for channel posts, but DMs and
-    // several other call sites pass one.
+    // several other call sites pass one. `blocked` still comes from the
+    // discovered pool — every heard node (saved or not) has a row there — not
+    // from a hardcoded false, so a blocked saved contact or a blocked node we
+    // have no contact for both report correctly.
     const saved = contacts.find((c) => c.publicKeyHex === fromPk);
+    const heard = findDiscoveredByPubkey(discoveredByName, fromPk);
     return {
       name: saved?.name ?? null,
       pubkey: fromPk,
       contactKey: saved?.key ?? null,
       source: saved ? 'contact' : 'none',
       ambiguous: false,
-      blocked: false,
+      blocked: heard?.blocked ?? false,
     };
   }
 

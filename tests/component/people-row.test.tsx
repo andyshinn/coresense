@@ -26,7 +26,7 @@ function baseRow(overrides: Partial<RosterRow> = {}): RosterRow {
   };
 }
 
-function renderRow(row: RosterRow) {
+function renderRow(row: RosterRow, railWidth = 320) {
   return render(
     <TooltipProvider>
       <PeopleRow
@@ -34,6 +34,7 @@ function renderRow(row: RosterRow) {
         now={2_000}
         maxCount={10}
         showVolume={false}
+        railWidth={railWidth}
         timeFormat="auto"
         onOpen={() => {}}
         onMessage={() => {}}

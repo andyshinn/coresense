@@ -1,10 +1,18 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
+
+const getChannelStats = vi.fn();
+vi.mock('@/lib/api', async (orig) => {
+  const actual = (await orig()) as typeof import('@/lib/api');
+  return { ...actual, api: { ...actual.api, getChannelStats: (...a: unknown[]) => getChannelStats(...a) } };
+});
+
+import { __resetChannelStatsCacheForTests } from '@/hooks/useChannelStats';
 import { useStore } from '@/lib/store';
-import { ChannelPeopleBody } from '@/shell/rightrail/sections/ChannelPeople';
-import type { ChannelStats, Contact } from '../../src/shared/types';
+import { ChannelPeopleBody, ChannelPeopleCount, ChannelPeopleSection } from '@/shell/rightrail/sections/ChannelPeople';
+import type { Channel, ChannelStats, Contact } from '../../src/shared/types';
 
 const NOW = Date.now();
 
@@ -40,7 +48,6 @@ const body = (over: Partial<ComponentProps<typeof ChannelPeopleBody>> = {}) => (
   <TooltipProvider>
     <ChannelPeopleBody
       stats={stats()}
-      loading={false}
       railWidth={320}
       sort="recent"
       filter="all"
@@ -115,9 +122,86 @@ describe('ChannelPeopleBody', () => {
     expect(screen.queryByLabelText('Search people')).toBeNull();
   });
 
+  // Regression test for M-1: the old guard was `loading && !stats`. `loading`
+  // starts false, so the very first painted frame (stats still null, loading
+  // not yet flipped true) fell through to `all.length === 0` and flashed the
+  // empty message before the skeletons ever appeared — and showed it
+  // permanently whenever there's no client to fetch with, since `loading`
+  // never turns true in that case either. `stats === null` alone must mean
+  // "no data yet" (skeletons), never the empty message.
+  it('shows skeletons, not the empty message, while stats has not loaded yet', () => {
+    render(body({ stats: null }));
+    expect(screen.queryByText('No one has been heard in this channel yet.')).toBeNull();
+    expect(document.querySelector('[data-slot="skeleton"]')).toBeTruthy();
+  });
+
   it('drops the sort and filter toggles on a narrow rail', () => {
     render(body({ railWidth: 290 }));
     expect(screen.getByLabelText('Search people')).toBeTruthy();
     expect(screen.queryByLabelText('Sort people')).toBeNull();
+  });
+});
+
+const client = { baseUrl: 'http://x', apiKey: 'k' };
+const ch: Channel = { key: 'ch:public', name: 'public', kind: 'public' };
+
+describe('ChannelPeopleCount', () => {
+  beforeEach(() => {
+    getChannelStats.mockReset();
+    __resetChannelStatsCacheForTests();
+    useStore.setState({ contacts: [contact()], discovered: [], peopleQuery: '', messagesByKey: {} });
+  });
+
+  it('shows the plain total with no filter or query', async () => {
+    getChannelStats.mockResolvedValue(stats());
+    render(<ChannelPeopleCount channel={ch} client={client} />);
+    expect(await screen.findByText('2')).toBeTruthy();
+  });
+
+  // Smoke case missing from the spec: the header count switches to
+  // "«n» / «total»" once a query narrows the roster.
+  it('switches to «n» / «total» once a query narrows the roster', async () => {
+    getChannelStats.mockResolvedValue(stats());
+    useStore.setState({ peopleQuery: 'zora' });
+    render(<ChannelPeopleCount channel={ch} client={client} />);
+    expect(await screen.findByText('1 / 2')).toBeTruthy();
+  });
+});
+
+// Regression test for I-3: `peopleQuery` is store-root state, so it outlives
+// `ChannelPeopleSection`, which the rail's Collapsible mounts only while open
+// (Collapsible.tsx: `{open && <div>{children}</div>}`). `ChannelPeopleCount`
+// renders unconditionally from the section header, outside that guard. Before
+// the fix, narrowing the roster then collapsing the section left the header
+// count silently narrowed with no visible search box to explain or clear it.
+describe('ChannelPeopleSection clears the query on unmount (I-3)', () => {
+  beforeEach(() => {
+    getChannelStats.mockReset();
+    __resetChannelStatsCacheForTests();
+    useStore.setState({ contacts: [contact()], discovered: [], peopleQuery: '', messagesByKey: {} });
+  });
+
+  function Harness({ open }: { open: boolean }) {
+    return (
+      <TooltipProvider>
+        <ChannelPeopleCount channel={ch} client={client} />
+        {open && <ChannelPeopleSection channel={ch} client={client} />}
+      </TooltipProvider>
+    );
+  }
+
+  it('collapsing the section clears peopleQuery so the header count stops showing a stale filter', async () => {
+    getChannelStats.mockResolvedValue(stats());
+
+    const { rerender } = render(<Harness open />);
+    fireEvent.change(await screen.findByLabelText('Search people'), { target: { value: 'zora' } });
+    await waitFor(() => expect(screen.getByText('1 / 2')).toBeTruthy());
+
+    // Collapse: ChannelPeopleSection unmounts exactly as it would under the
+    // rail's Collapsible when the user clicks the section header.
+    rerender(<Harness open={false} />);
+
+    await waitFor(() => expect(useStore.getState().peopleQuery).toBe(''));
+    expect(screen.getByText('2')).toBeTruthy();
   });
 });

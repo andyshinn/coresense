@@ -8,7 +8,6 @@ import type { DiscoveredContact } from '../../../../shared/contacts/discovered';
 import type { ChannelSenderStat, Contact, PeopleFilter, PeopleSort } from '../../../../shared/types';
 import { buildDiscoveredNameIndex, type IdentitySource, resolveIdentity } from '../../../lib/identity';
 
-export type { PeopleFilter, PeopleSort };
 export type BucketId = 'today' | 'yesterday' | 'week' | 'earlier';
 
 export interface RosterRow {

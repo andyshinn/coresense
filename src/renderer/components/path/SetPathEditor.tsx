@@ -17,7 +17,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Check, GripVertical, Plus, RotateCcw, Save, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { Contact, PathHashSize } from '../../../shared/types';
+import type { Contact, IdentityColorMode, PathHashSize } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
@@ -303,6 +303,22 @@ interface HopRowProps {
   onRemove: () => void;
 }
 
+// A known repeater always has real key material to hash: under byKey that is
+// its pubkey; under byName we hand back `undefined` so ContactAvatar falls
+// back to hashing the `name` prop, exactly like the Add-hop picker does (see
+// the picker's `identity` prop above). An unknown hop has no name at all (its
+// label literally renders "(unknown)"): under byKey the prefix *is* key
+// material, so hashing it is meaningful; under byName there is nothing
+// legitimate to hash, so it goes neutral.
+function hopAvatarIdentity(
+  mode: IdentityColorMode,
+  knownPublicKeyHex: string | null,
+  prefixHex: string,
+): string | null | undefined {
+  if (knownPublicKeyHex !== null) return mode === 'byName' ? undefined : knownPublicKeyHex;
+  return mode === 'byKey' ? prefixHex : null;
+}
+
 function HopRow({ hop, index, knownName, knownPublicKeyHex, onRemove }: HopRowProps) {
   const identityMode = useStore((s) => s.appSettings.identityColorMode ?? 'byKey');
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -329,13 +345,9 @@ function HopRow({ hop, index, knownName, knownPublicKeyHex, onRemove }: HopRowPr
         <GripVertical size={14} aria-hidden="true" />
       </button>
       <span className="w-4 text-right font-mono text-[11px] text-cs-text-dim">{index + 1}</span>
-      {/* A known repeater hashes its real pubkey. An unknown hop has no name at
-          all (its label literally renders "(unknown)"), so under byName there
-          is nothing legitimate to hash and it goes neutral; under byKey the
-          prefix is key material, so hashing it is meaningful. */}
       <ContactAvatar
         name={knownName ?? hop.prefixHex}
-        identity={knownPublicKeyHex ?? (identityMode === 'byKey' ? hop.prefixHex : null)}
+        identity={hopAvatarIdentity(identityMode, knownPublicKeyHex, hop.prefixHex)}
         size="sm"
       />
       <span className="flex-1 truncate text-[12px] text-cs-text">{knownName ?? '(unknown)'}</span>
