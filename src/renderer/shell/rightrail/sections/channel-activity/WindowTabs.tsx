@@ -29,7 +29,12 @@ export function WindowTabs({ value, onChange }: { value: ActivityWindowKey; onCh
           key={o.value}
           value={o.value}
           aria-label={o.aria}
-          className="h-auto min-w-0 flex-none rounded-[5px] px-[9px] py-1 font-mono text-[10.5px] font-medium text-cs-text-muted hover:bg-transparent hover:text-cs-text data-[state=on]:bg-cs-bg data-[state=on]:text-cs-accent data-[state=on]:shadow-[0_1px_0_rgba(0,0,0,0.3)]"
+          // toggle-group.tsx bakes in `first:rounded-l-md last:rounded-r-md` on the
+          // item. Neither tailwind-merge (different merge group than the unprefixed
+          // `rounded-[5px]` below) nor source order (the modifier selector has one
+          // more specificity component) will let our radius win over those, so the
+          // corners need their own modifier-scoped overrides here.
+          className="h-auto min-w-0 flex-none rounded-[5px] first:rounded-l-[5px] last:rounded-r-[5px] px-[9px] py-1 font-mono text-[10.5px] font-medium text-cs-text-muted hover:bg-transparent hover:text-cs-text data-[state=on]:bg-cs-bg data-[state=on]:text-cs-accent data-[state=on]:shadow-[0_1px_0_rgba(0,0,0,0.3)]"
         >
           {o.label}
         </ToggleGroupItem>
