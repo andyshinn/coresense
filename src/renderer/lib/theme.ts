@@ -101,6 +101,12 @@ export function applyTheme(mode: ThemeMode): void {
   }
 }
 
+// `bg2`/`bg3` need a hyphen before the digit too (→ `bg-2`/`bg-3`) to match the
+// CSS variable names index.css actually defines (`--cs-bg-2`, `--cs-bg-3`).
+// Without it this produced `--cs-bg2`/`--cs-bg3` — variables nothing reads —
+// so applyTheme('light') silently left --cs-bg-2/--cs-bg-3 pinned at their
+// dark-mode :root defaults while --cs-text switched to light-mode's near-black,
+// making rail/card surfaces and their text render at ~1:1 contrast.
 function kebab(camel: string): string {
-  return camel.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+  return camel.replace(/([a-z])(\d)/g, '$1-$2').replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
 }
