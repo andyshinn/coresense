@@ -284,7 +284,12 @@ Hardcoding `M T W T F S S` would be wrong on any day that isn't Sunday.
 (`14 msgs · 6 PM`, `78 msgs · Mon`, `72 msgs · 8d ago`, and `today` for the last 30d bucket).
 `TooltipProvider` is already mounted via `SidebarProvider` in `AppShell.tsx:58`, so the rail
 is covered and no new provider is needed; DOM tests must wrap in their own.
-**Full mode only** — no tooltips in collapsed mode, per the handoff.
+
+**Both width modes.** The handoff specifies tooltips for full mode only, and this section
+originally shipped that way. Reversed after using the collapsed rail: collapsed mode drops
+the axis ticks entirely, so the tooltip is the *only* thing that can identify a bucket there
+— it earns its place more in the narrow mode, not less. Keeping it full-mode-only left the
+collapsed sparkline unreadable in the one respect that matters. See §7.
 
 **Accessibility.** Bars and cells are `aria-hidden`. The plot gets `role="img"` with a
 generated `aria-label` summarizing the window, e.g.
@@ -466,6 +471,12 @@ tooling via `npx`, not `pnpm <script>`, in this worktree.
   so `ui-monospace` (SF Mono) wins on macOS. Pre-existing and repo-wide; not changed here.
 - **Axis tick labels are computed, not hardcoded**, unlike the reference's static index→label
   maps.
+- **Hover read-outs render in collapsed mode too**, where the handoff specified full mode
+  only. Reversed after use: collapsed mode has no axis, so without the tooltip a bucket
+  cannot be identified at all. See §2.3.
+- **Axis ticks use `--cs-text-muted`, not the specified `dim`.** `dim` at 8.5px measures
+  4.05:1 on `cs-bg-2` in dark and 3.46:1 in light — under the 4.5:1 AA floor even in the
+  dark theme the handoff was drawn in. `muted` measures 8.84:1 / 7.02:1 on the same surface.
 
 ## 8. Risks
 

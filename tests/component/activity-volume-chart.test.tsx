@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { VolumeChart } from '@/shell/rightrail/sections/channel-activity/VolumeChart';
@@ -32,6 +32,33 @@ describe('VolumeChart', () => {
     expect(container.querySelector('[data-testid="activity-axis"]')).toBe(null);
     const plot = container.querySelector('[role="img"]') as HTMLElement;
     expect(plot.style.height).toBe('30px');
+  });
+
+  it('keeps a hover read-out on every bucket in BOTH modes', () => {
+    // Collapsed mode drops the axis, so the tooltip is the only way to identify a
+    // bucket there — it matters more at this size, not less. Radix merges
+    // data-slot="tooltip-trigger" onto the asChild cell, so counting those counts
+    // hoverable buckets.
+    const collapsed = renderChart(<VolumeChart winKey="24h" data={win(24, 3)} mode="collapsed" />);
+    expect(collapsed.container.querySelectorAll('[data-slot="tooltip-trigger"]')).toHaveLength(24);
+
+    const full = renderChart(<VolumeChart winKey="24h" data={win(24, 3)} mode="full" />);
+    expect(full.container.querySelectorAll('[data-slot="tooltip-trigger"]')).toHaveLength(24);
+  });
+
+  it('shows the count and bucket label when a collapsed-mode bar is hovered', async () => {
+    const data: ActivityWindow = { buckets: [0, 0, 7], total: 7, prevTotal: 0, startMs: midnight };
+    const { container } = renderChart(<VolumeChart winKey="7d" data={data} mode="collapsed" />);
+    const cells = container.querySelectorAll('[data-slot="tooltip-trigger"]');
+
+    fireEvent.pointerMove(cells[2], { pointerType: 'mouse' });
+
+    // bucketStart('7d', midnight, 2) is two calendar days on from the fixture's
+    // midnight, so the label is that day's short weekday name.
+    const day = new Date(midnight);
+    day.setDate(day.getDate() + 2);
+    const label = day.toLocaleDateString(undefined, { weekday: 'short' });
+    await waitFor(() => expect(screen.getAllByText(`7 msgs · ${label}`).length).toBeGreaterThan(0));
   });
 
   it('renders 7 and 30 bar variants', () => {

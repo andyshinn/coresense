@@ -8,7 +8,13 @@ const BAR =
 
 /** Plain flex-div bars — no charting library, per the design handoff. The plot is
  *  a single role="img" with a generated label; individual bars are decorative, so
- *  hover tooltips stay a pointer-only enhancement rather than 30 tab stops. */
+ *  hover tooltips stay a pointer-only enhancement rather than 30 tab stops.
+ *
+ *  Hover read-outs render in BOTH width modes. The handoff specified them for the
+ *  full mode only, but collapsed mode drops the axis ticks entirely, which leaves
+ *  the tooltip as the sole way to identify a bucket — so it earns its place there
+ *  more than in full mode, not less. Deliberate deviation, requested after seeing
+ *  the collapsed rail in use. */
 export function VolumeChart({
   winKey,
   data,
@@ -31,31 +37,20 @@ export function VolumeChart({
         className="flex items-end gap-0.5"
         style={{ height: full ? 74 : 30 }}
       >
-        {data.buckets.map((v, i) => {
-          const style = { height: `${(v / max) * 100}%` };
-          if (!full) {
-            return (
-              // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length positional bar chart; the index is the identity
-              <div key={i} className={CELL}>
-                <div data-testid="activity-bar" className={BAR} style={style} />
+        {data.buckets.map((v, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length positional bar chart; the index is the identity
+          <Tooltip key={i}>
+            {/* asChild needs a real DOM child so Radix can attach its ref. */}
+            <TooltipTrigger asChild>
+              <div className={CELL}>
+                <div data-testid="activity-bar" className={BAR} style={{ height: `${(v / max) * 100}%` }} />
               </div>
-            );
-          }
-          return (
-            // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length positional bar chart; the index is the identity
-            <Tooltip key={i}>
-              {/* asChild needs a real DOM child so Radix can attach its ref. */}
-              <TooltipTrigger asChild>
-                <div className={CELL}>
-                  <div data-testid="activity-bar" className={BAR} style={style} />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                {`${v} msg${v === 1 ? '' : 's'} · ${bucketLabel(winKey, data.startMs, i, data.buckets.length)}`}
-              </TooltipContent>
-            </Tooltip>
-          );
-        })}
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              {`${v} msg${v === 1 ? '' : 's'} · ${bucketLabel(winKey, data.startMs, i, data.buckets.length)}`}
+            </TooltipContent>
+          </Tooltip>
+        ))}
       </div>
       {ticks && (
         <div data-testid="activity-axis" className="mt-1.5 flex gap-0.5">
