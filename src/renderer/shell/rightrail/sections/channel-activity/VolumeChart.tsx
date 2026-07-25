@@ -59,12 +59,19 @@ export function VolumeChart({
       </div>
       {ticks && (
         <div data-testid="activity-axis" className="mt-1.5 flex gap-0.5">
-          {ticks.map((t, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: positional axis, one tick per bar
-            <span key={`${winKey}-tick-${i}`} className="flex-1 text-center font-mono text-[8.5px] text-cs-text-dim">
-              {t}
-            </span>
-          ))}
+          {
+            // Design handoff specifies "axis 8.5 dim", but --cs-text-dim measures only
+            // 4.05:1 (dark) / 3.46:1 (light) against bg-cs-bg-2 at this size — under the
+            // 4.5:1 AA floor even in the dark theme the handoff was drawn in. --cs-text-muted
+            // measures 8.84:1 dark / 7.02:1 light on the same surface, so ticks use that
+            // instead. Deliberate deviation — do not "restore" this to text-cs-text-dim.
+            ticks.map((t, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: positional axis, one tick per bar
+              <span key={`${winKey}-tick-${i}`} className="flex-1 text-center font-mono text-[8.5px] text-cs-text-muted">
+                {t}
+              </span>
+            ))
+          }
         </div>
       )}
     </div>

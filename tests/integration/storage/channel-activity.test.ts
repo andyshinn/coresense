@@ -187,4 +187,37 @@ describe('messagesStore.activityByKey', () => {
     }
     expect(messagesStore.activityByKey('ch:Tie', now).peakBand).toEqual({ startHour: 3, endHour: 6 });
   });
+
+  it('picks a peak band that wraps past midnight', () => {
+    const now = noonOf(1_700_000_000_000);
+    // Every hour of this fixture lives on a single calendar day strictly before
+    // `now`'s day, so every hour 0-23 of it is unambiguously <= now and inside
+    // the trailing 168h band window — no per-hour "which day does this land on
+    // relative to `now`" bookkeeping needed, unlike seeding across today.
+    const day = new Date(now);
+    day.setDate(day.getDate() - 1);
+
+    let n = 0;
+    const seedHour = (hour: number, count: number) => {
+      for (let k = 0; k < count; k++) {
+        const d = new Date(day);
+        d.setHours(hour, k * 10, 0, 0);
+        seed('ch:Wrap', d.getTime(), 'name:a', `w${n++}`);
+      }
+    };
+
+    // Peak run is 23:00-01:59 (hours 23, 0, 1) at 5 msgs/hour — the band the
+    // circular search must find. Every other hour gets 1 msg/hour baseline so
+    // neighboring bands (22-23-0 -> 11, 0-1-2 -> 11) are real competitors that
+    // still lose, rather than the wrap winning only because its neighbors are
+    // empty. Circular band sums (width 3): start=23 -> 5+5+5=15 (max, unique);
+    // start=22 -> 1+5+5=11; start=0 -> 5+5+1=11; every other start -> 3.
+    seedHour(23, 5);
+    seedHour(0, 5);
+    seedHour(1, 5);
+    for (let hour = 2; hour <= 22; hour++) seedHour(hour, 1);
+
+    const a = messagesStore.activityByKey('ch:Wrap', now);
+    expect(a.peakBand).toEqual({ startHour: 23, endHour: 2 });
+  });
 });

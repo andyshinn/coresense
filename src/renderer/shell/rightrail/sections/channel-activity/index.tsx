@@ -57,7 +57,14 @@ export function ActivityBody({
   const full = mode === 'full';
   // Narrow rails have no room for tabs, so the window is pinned to 24h for
   // display only — the stored preference is untouched and returns on widening.
-  const active: ActivityWindowKey = full ? win : '24h';
+  const requested: ActivityWindowKey = full ? win : '24h';
+  // `win` traces back to ui-state.json's channelActivityWindow. mergeDefaults
+  // (settings.ts) takes stored primitives wholesale with no validation, so a
+  // hand-edited or downgrade-written file can hand us a key outside
+  // {'24h','7d','30d'} — nothing the app itself writes can produce this today.
+  // Without this guard, activity.windows[requested] would be undefined and
+  // `data.total` below would throw, blanking the whole rail section.
+  const active: ActivityWindowKey = activity.windows[requested] ? requested : '24h';
   const data = activity.windows[active];
   const pct = trendPct(data.total, data.prevTotal);
 

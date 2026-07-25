@@ -5,7 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { useStore } from '@/lib/store';
 import { ActivityBody, ChannelActivitySection } from '@/shell/rightrail/sections/channel-activity';
 import { COLLAPSE_WIDTH } from '@/shell/rightrail/sections/channel-activity/activity';
-import type { ActivityWindow, Channel, ChannelActivity } from '../../src/shared/types';
+import type { ActivityWindow, ActivityWindowKey, Channel, ChannelActivity } from '../../src/shared/types';
 
 const NOW = 1_700_000_000_000;
 const midnight = (() => {
@@ -178,6 +178,19 @@ describe('ActivityBody', () => {
     body({ activity: null, loading: false, error: 'network unreachable' });
     expect(screen.getByText('network unreachable')).toBeTruthy();
     expect(screen.queryByText('no activity yet')).toBe(null);
+  });
+
+  it('falls back to the 24h window when the stored window key is out of range', () => {
+    // ui-state.json is user-writable and mergeDefaults (settings.ts) takes stored
+    // primitives wholesale with no validation, so a hand-edited or downgrade-written
+    // file can hand us a channelActivityWindow outside {'24h','7d','30d'}. TypeScript's
+    // ActivityWindowKey can't express that corrupt value, so the cast is narrowly
+    // scoped to this one prop — the point of the test is that the component survives
+    // it at runtime rather than throwing when it indexes activity.windows[win].
+    const { container } = body({ win: '90d' as unknown as ActivityWindowKey });
+    expect(screen.getByText('123')).toBeTruthy();
+    expect(screen.getByText('in 24h')).toBeTruthy();
+    expect(container.querySelectorAll('[data-testid="activity-bar"]')).toHaveLength(24);
   });
 });
 
