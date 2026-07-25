@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { SetPathEditor } from '@/components/path/SetPathEditor';
 import { useStore } from '@/lib/store';
 import type { Contact } from '../../src/shared/types';
+import { DEFAULT_APP_SETTINGS } from '../../src/shared/types';
 
 // The Path editor is the exact UI from the bug report: before the packed
 // out_path_len fix, a direct 2-byte-mode repeater arrived with outPathHex =
@@ -43,5 +44,33 @@ describe('SetPathEditor path rows', () => {
     expect(inputs.map((i) => i.value)).toEqual(['aabb', 'ccdd', 'eeff']);
     // Path summary reflects the real hop count, not a byte length.
     expect(screen.getByText('3 hops')).toBeTruthy();
+  });
+});
+
+describe('SetPathEditor unknown-hop avatar identity', () => {
+  afterEach(() => {
+    useStore.getState().applyContacts([]);
+    useStore.getState().applyAppSettings(DEFAULT_APP_SETTINGS);
+  });
+
+  it('hashes an unknown hop prefix under byKey (default) — the prefix is key material', () => {
+    useStore.getState().applyContacts([]);
+    const contact: Contact = { ...base, hops: 1, outPathHex: 'ab12', outPathHashSize: 2 };
+    const { container } = render(<SetPathEditor contact={contact} client={null} />);
+
+    const avatar = container.querySelector('.rounded-full') as HTMLElement;
+    expect(avatar.className).not.toContain('bg-cs-bg-3');
+    expect(avatar.style.color).toBeTruthy();
+  });
+
+  it('goes neutral for an unknown hop under byName — no name exists to hash', () => {
+    useStore.getState().applyContacts([]);
+    useStore.getState().applyAppSettings({ ...DEFAULT_APP_SETTINGS, identityColorMode: 'byName' });
+    const contact: Contact = { ...base, hops: 1, outPathHex: 'ab12', outPathHashSize: 2 };
+    const { container } = render(<SetPathEditor contact={contact} client={null} />);
+
+    const avatar = container.querySelector('.rounded-full') as HTMLElement;
+    expect(avatar.className).toContain('bg-cs-bg-3');
+    expect(avatar.style.color).toBe('');
   });
 });
