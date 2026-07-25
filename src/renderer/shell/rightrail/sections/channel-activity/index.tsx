@@ -70,7 +70,10 @@ export function ActivityBody({
 
   return (
     <div>
-      {full && <WindowTabs value={win} onChange={onWindow} />}
+      {/* `active`, not `win` — a corrupt stored key would otherwise leave every tab
+          unselected while the chart below rendered the 24h fallback. Clicking a tab
+          then writes a valid key, so the corrupt value self-heals. */}
+      {full && <WindowTabs value={active} onChange={onWindow} />}
       <div className="flex items-baseline gap-2">
         <span
           className={`font-mono font-semibold tabular-nums tracking-[-0.01em] text-cs-text ${full ? 'text-[30px]' : 'text-[21px]'}`}

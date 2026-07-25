@@ -191,6 +191,9 @@ describe('ActivityBody', () => {
     expect(screen.getByText('123')).toBeTruthy();
     expect(screen.getByText('in 24h')).toBeTruthy();
     expect(container.querySelectorAll('[data-testid="activity-bar"]')).toHaveLength(24);
+    // The tabs must agree with the body. Passing the raw stored key here would
+    // leave every tab unselected while the chart below showed 24h data.
+    expect(screen.getByLabelText('Last 24 hours').getAttribute('data-state')).toBe('on');
   });
 });
 
