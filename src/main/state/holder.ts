@@ -4,6 +4,7 @@ import {
   type AutoAddConfig,
   type BlockRule,
   type Channel,
+  type ChannelActivity,
   type ChannelStats,
   type Contact,
   DEFAULT_DEVICE_CAPABILITIES,
@@ -224,6 +225,9 @@ class StateHolder {
   }
   getChannelStats(key: string): ChannelStats {
     return messagesStore.statsByKey(key);
+  }
+  getChannelActivity(key: string): ChannelActivity {
+    return messagesStore.activityByKey(key);
   }
   private annotateBlocked(rows: Message[]): Message[] {
     const rules = blockingStore().list();
