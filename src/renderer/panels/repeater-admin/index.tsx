@@ -136,7 +136,12 @@ export function RepeaterAdmin({ contact, client }: Props) {
         })}
       </nav>
 
-      <div className="flex-1 overflow-hidden">
+      {/* Key the tab body on the contact so switching repeaters remounts the
+          active tab and drops any locally-held fetch state (owner info, ACL,
+          CLI history). Otherwise the same tab instance is reused across
+          repeaters and shows the previous one's data. Tab selection + session
+          live in the parent and survive the switch. */}
+      <div key={contact.key} className="flex-1 overflow-hidden">
         {tab === 'login' && <LoginTab contact={contact} client={client} session={session} onSession={setSession} />}
         {tab === 'path' && <PathTab contact={contact} client={client} />}
         {tab === 'status' && <StatusTab contact={contact} client={client} />}
