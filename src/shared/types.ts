@@ -398,6 +398,8 @@ export interface UpdateState {
 
 export interface AppSettings {
   theme: ThemePrefValue;
+  /** How a person's identity colour is derived — see `IdentityColorMode`. */
+  identityColorMode: IdentityColorMode;
   /** Density for the channel/DM conversation message list. */
   messageStyle: MessageStyle;
   /** Density for the Unreads triage previews — separate from `messageStyle` so
@@ -507,6 +509,7 @@ export type ContactGrouping = 'nested' | 'top-level';
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: 'auto',
+  identityColorMode: 'byKey',
   messageStyle: 'rich',
   unreadsStyle: 'compact',
   timeFormat: 'auto',
