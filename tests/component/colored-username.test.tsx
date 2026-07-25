@@ -56,4 +56,24 @@ describe('ColoredUsername', () => {
       expect(screen.getByText('carol').style.color).toBeTruthy();
     });
   });
+
+  // MessageItem never passes `sender` — it resolves identity itself (once,
+  // shared with ContactAvatar) and passes the result through this prop. These
+  // pin `identity !== undefined` as the override: each case sets up a sender
+  // whose own hook resolution would give the OPPOSITE answer, so the test only
+  // passes if `identity` genuinely wins.
+  describe('explicit identity prop (the path MessageItem depends on)', () => {
+    it('colours when identity resolves, even though sender alone would be neutral', () => {
+      // No saved contact ⇒ resolving from `sender` under byKey would be neutral.
+      render(<ColoredUsername sender="name:alice" identity="abc" />);
+      expect(screen.getByText('alice').style.color).toBeTruthy();
+    });
+
+    it('stays neutral when identity is explicitly null, even though sender alone would resolve', () => {
+      // A saved contact ⇒ resolving from `sender` under byKey would colour.
+      useStore.setState({ contacts: [contact] });
+      render(<ColoredUsername sender="name:alice" identity={null} />);
+      expect(screen.getByText('alice').style.color).toBe('');
+    });
+  });
 });
