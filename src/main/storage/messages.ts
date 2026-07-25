@@ -173,17 +173,16 @@ export const messagesStore = {
   activityByKey(key: string, now: number = Date.now()): ChannelActivity {
     const db = openDb();
 
-    // Hourly window: 24 buckets, each one whole hour "ago" relative to `now`
-    // rather than snapped to the wall-clock hour grid. Grid-snapping (floor
-    // `now` to its containing hour, then slice 24 fixed hour-of-day buckets)
-    // looks appealing but makes the *current* bucket collapse to zero-width
-    // whenever `now` itself lands exactly on an hour boundary — and callers
-    // that pin `now` for determinism (tests, this file's own `noonOf`-style
-    // helpers) do exactly that. Bucketing by "hours elapsed since now" instead
-    // is boundary-stable: a message exactly N hours old always lands in the
-    // bucket for "N hours ago", independent of where `now`'s clock minutes sit.
-    const h24Start = now - 24 * HOUR_MS;
-    const prev24Start = now - 48 * HOUR_MS;
+    // Hourly window: 24 buckets on the wall-clock hour grid, ending with the hour
+    // `now` currently sits in — a partial bucket that fills as the hour progresses.
+    // Grid alignment is load-bearing, not cosmetic: the renderer labels axis ticks
+    // and tooltips from each bucket's start edge via getHours(), which is only
+    // truthful when the edges are real clock hours.
+    const hourStart = new Date(now);
+    hourStart.setMinutes(0, 0, 0);
+    const h24Start = hourStart.getTime() - 23 * HOUR_MS;
+    const h24End = h24Start + 24 * HOUR_MS;
+    const prev24Start = h24Start - 24 * HOUR_MS;
 
     const d7 = localDayEdges(now, 7);
     const d30 = localDayEdges(now, 30);
@@ -205,11 +204,8 @@ export const messagesStore = {
     let prev30 = 0;
 
     for (const { ts } of rows) {
-      // Whole hours elapsed between this message and `now`; 0 = the trailing
-      // hour ending now, 23 = the oldest hour still inside the window.
-      const hoursAgo = Math.floor((now - ts) / HOUR_MS);
-      if (hoursAgo >= 0 && hoursAgo < 24) b24[23 - hoursAgo] += 1;
-      else if (hoursAgo >= 24 && hoursAgo < 48) prev24 += 1;
+      if (ts >= h24Start && ts < h24End) b24[Math.floor((ts - h24Start) / HOUR_MS)] += 1;
+      else if (ts >= prev24Start && ts < h24Start) prev24 += 1;
 
       const i7 = edgeIndex(d7, ts);
       if (i7 >= 0) b7[i7] += 1;

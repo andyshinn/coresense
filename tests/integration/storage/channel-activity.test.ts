@@ -16,6 +16,15 @@ const noonOf = (ms: number): number => {
   return d.getTime();
 };
 
+/** Local 12:30 on the day containing `ms`. Deliberately mid-hour: the 24h window
+ *  ends with the current clock hour, so a `now` sitting exactly on an hour
+ *  boundary would leave that bucket zero-width and impossible to assert on. */
+const halfPastNoon = (ms: number): number => {
+  const d = new Date(ms);
+  d.setHours(12, 30, 0, 0);
+  return d.getTime();
+};
+
 describe('messagesStore.activityByKey', () => {
   it('returns a zero-shaped struct for a channel with no messages', () => {
     const a = messagesStore.activityByKey('ch:Nothing', noonOf(1_700_000_000_000));
@@ -27,22 +36,44 @@ describe('messagesStore.activityByKey', () => {
     expect(a.windows['30d'].prevTotal).toBe(0);
   });
 
-  it('buckets the trailing 24h hourly, with the current hour last', () => {
-    const now = noonOf(1_700_000_000_000);
-    seed('ch:Hourly', now - 30 * 60_000, 'name:a', 'this-hour');
-    seed('ch:Hourly', now - 1 * HOUR, 'name:a', 'prev-hour-1');
-    seed('ch:Hourly', now - 1 * HOUR - 60_000, 'name:a', 'prev-hour-2');
+  it('buckets the trailing 24h on the clock-hour grid, current hour last', () => {
+    const now = halfPastNoon(1_700_000_000_000);
+    seed('ch:Hourly', now - 30 * 60_000, 'name:a', 'this-hour'); // 12:00
+    seed('ch:Hourly', now - 1 * HOUR, 'name:a', 'prev-hour-1'); // 11:30
+    seed('ch:Hourly', now - 1 * HOUR - 60_000, 'name:a', 'prev-hour-2'); // 11:29
 
     const w = messagesStore.activityByKey('ch:Hourly', now).windows['24h'];
     expect(w.buckets).toHaveLength(24);
-    expect(w.buckets[23]).toBe(1); // current partial hour
-    expect(w.buckets[22]).toBe(2); // the hour before it
+    expect(w.buckets[23]).toBe(1); // 12:00-13:00, the current partial hour
+    expect(w.buckets[22]).toBe(2); // 11:00-12:00
     expect(w.total).toBe(3);
     expect(w.total).toBe(w.buckets.reduce((x, y) => x + y, 0));
   });
 
+  it('starts the 24h window on an exact clock hour so ticks can be labelled', () => {
+    const now = halfPastNoon(1_700_000_000_000);
+    const w = messagesStore.activityByKey('ch:GridAlign', now).windows['24h'];
+    const start = new Date(w.startMs);
+    expect(start.getMinutes()).toBe(0);
+    expect(start.getSeconds()).toBe(0);
+    expect(start.getMilliseconds()).toBe(0);
+    expect(w.startMs).toBe(new Date(now).setMinutes(0, 0, 0) - 23 * 3_600_000);
+  });
+
+  it('assigns a message exactly on the window start edge to bucket 0, not prevTotal', () => {
+    const now = halfPastNoon(1_700_000_000_000);
+    const { startMs } = messagesStore.activityByKey('ch:Edge', now).windows['24h'];
+    seed('ch:Edge', startMs, 'name:a', 'on-edge');
+    seed('ch:Edge', startMs - 1, 'name:a', 'one-ms-before');
+
+    const w = messagesStore.activityByKey('ch:Edge', now).windows['24h'];
+    expect(w.buckets[0]).toBe(1);
+    expect(w.total).toBe(1);
+    expect(w.prevTotal).toBe(1);
+  });
+
   it('counts prevTotal from the immediately preceding equal period', () => {
-    const now = noonOf(1_700_000_000_000);
+    const now = halfPastNoon(1_700_000_000_000);
     seed('ch:Prev', now - 2 * HOUR, 'name:a', 'in-window');
     seed('ch:Prev', now - 30 * HOUR, 'name:a', 'in-prev');
     seed('ch:Prev', now - 40 * HOUR, 'name:a', 'in-prev-2');
