@@ -228,6 +228,39 @@ export interface ChannelStats {
   perDay: number[];
 }
 
+/** One window of the channel Activity chart. `total` is always the sum of `buckets`,
+ *  so the lead number can never disagree with the bars drawn under it. */
+export interface ActivityWindow {
+  /** Bucket counts, oldest→newest. Length is 24 (hourly), 7 or 30 (daily). */
+  buckets: number[];
+  /** Sum of `buckets`. */
+  total: number;
+  /** Count over the same-length immediately-preceding period. 0 when no prior history. */
+  prevTotal: number;
+  /** Epoch ms of the first bucket's start edge, so the renderer can label the axis
+   *  from real edges instead of re-deriving them from a possibly-drifted clock. */
+  startMs: number;
+}
+
+/** Hour-of-day band, local time. `startHour` inclusive, `endHour` exclusive and
+ *  modulo 24 — so `endHour <= startHour` means the band wraps past midnight. */
+export interface ActivityBand {
+  startHour: number;
+  endHour: number;
+}
+
+export type ActivityWindowKey = '24h' | '7d' | '30d';
+
+export interface ChannelActivity {
+  windows: Record<ActivityWindowKey, ActivityWindow>;
+  /** Busiest 3h band over the trailing 168h. null when too sparse to name. */
+  peakBand: ActivityBand | null;
+  /** Calmest 4h band over the trailing 168h. null when too sparse to name. */
+  quietBand: ActivityBand | null;
+  /** Epoch ms of the most recent message in this channel; null if it has none. */
+  lastTs: number | null;
+}
+
 export type BlockRuleType = 'pubkey' | 'pubkeyPrefix' | 'name' | 'nameRegex';
 
 export interface BlockRule {

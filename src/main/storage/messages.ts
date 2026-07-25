@@ -1,4 +1,4 @@
-import type { ChannelStats, Message, MessageMeta, MessageState } from '../../shared/types';
+import type { ChannelActivity, ChannelStats, Message, MessageMeta, MessageState } from '../../shared/types';
 import { openDb } from './db';
 
 interface Row {
@@ -39,6 +39,36 @@ function kindFromKey(key: string): 'channel' | 'dm' {
 const SENTINEL_RE = /\u{1F539}(?:START|END)\u{1F539}/gu;
 function sanitizeBody(body: string): string {
   return body.replace(SENTINEL_RE, '');
+}
+
+const HOUR_MS = 3_600_000;
+
+/** Local-midnight edges for `n` calendar days ending with the day containing `now`.
+ *  Returns n+1 timestamps: edges[i] opens bucket i, edges[n] closes the last one.
+ *  Stepped with setDate() rather than ms arithmetic so DST days stay one bucket. */
+function localDayEdges(now: number, n: number): number[] {
+  const edges: number[] = [];
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - (n - 1));
+  for (let i = 0; i <= n; i++) {
+    edges.push(d.getTime());
+    d.setDate(d.getDate() + 1);
+  }
+  return edges;
+}
+
+/** Index of the bucket containing `ts`, or -1 if outside. `edges` is ascending. */
+function edgeIndex(edges: number[], ts: number): number {
+  if (ts < edges[0] || ts >= edges[edges.length - 1]) return -1;
+  let lo = 0;
+  let hi = edges.length - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (ts < edges[mid]) hi = mid;
+    else lo = mid;
+  }
+  return lo;
 }
 
 export const messagesStore = {
@@ -137,6 +167,73 @@ export const messagesStore = {
       distinctSenders,
       roster,
       perDay,
+    };
+  },
+
+  activityByKey(key: string, now: number = Date.now()): ChannelActivity {
+    const db = openDb();
+
+    // Hourly window: 24 buckets, each one whole hour "ago" relative to `now`
+    // rather than snapped to the wall-clock hour grid. Grid-snapping (floor
+    // `now` to its containing hour, then slice 24 fixed hour-of-day buckets)
+    // looks appealing but makes the *current* bucket collapse to zero-width
+    // whenever `now` itself lands exactly on an hour boundary — and callers
+    // that pin `now` for determinism (tests, this file's own `noonOf`-style
+    // helpers) do exactly that. Bucketing by "hours elapsed since now" instead
+    // is boundary-stable: a message exactly N hours old always lands in the
+    // bucket for "N hours ago", independent of where `now`'s clock minutes sit.
+    const h24Start = now - 24 * HOUR_MS;
+    const prev24Start = now - 48 * HOUR_MS;
+
+    const d7 = localDayEdges(now, 7);
+    const d30 = localDayEdges(now, 30);
+
+    // Previous equal periods. The 30d one is the oldest cutoff we need to read.
+    const prev7Start = localDayEdges(d7[0] - 1, 7)[0];
+    const prev30Start = localDayEdges(d30[0] - 1, 30)[0];
+    const since = Math.min(prev24Start, prev7Start, prev30Start);
+
+    const rows = db.prepare(`SELECT ts FROM messages WHERE key = ? AND ts >= ?`).all(key, since) as unknown as Array<{
+      ts: number;
+    }>;
+
+    const b24 = new Array<number>(24).fill(0);
+    const b7 = new Array<number>(7).fill(0);
+    const b30 = new Array<number>(30).fill(0);
+    let prev24 = 0;
+    let prev7 = 0;
+    let prev30 = 0;
+
+    for (const { ts } of rows) {
+      // Whole hours elapsed between this message and `now`; 0 = the trailing
+      // hour ending now, 23 = the oldest hour still inside the window.
+      const hoursAgo = Math.floor((now - ts) / HOUR_MS);
+      if (hoursAgo >= 0 && hoursAgo < 24) b24[23 - hoursAgo] += 1;
+      else if (hoursAgo >= 24 && hoursAgo < 48) prev24 += 1;
+
+      const i7 = edgeIndex(d7, ts);
+      if (i7 >= 0) b7[i7] += 1;
+      else if (ts >= prev7Start && ts < d7[0]) prev7 += 1;
+
+      const i30 = edgeIndex(d30, ts);
+      if (i30 >= 0) b30[i30] += 1;
+      else if (ts >= prev30Start && ts < d30[0]) prev30 += 1;
+    }
+
+    const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+    const lastRow = db.prepare(`SELECT MAX(ts) AS lastTs FROM messages WHERE key = ?`).get(key) as unknown as {
+      lastTs: number | null;
+    };
+
+    return {
+      windows: {
+        '24h': { buckets: b24, total: sum(b24), prevTotal: prev24, startMs: h24Start },
+        '7d': { buckets: b7, total: sum(b7), prevTotal: prev7, startMs: d7[0] },
+        '30d': { buckets: b30, total: sum(b30), prevTotal: prev30, startMs: d30[0] },
+      },
+      peakBand: null,
+      quietBand: null,
+      lastTs: lastRow.lastTs ?? null,
     };
   },
 
