@@ -37,6 +37,7 @@ import {
   type MessageState,
   type Owner,
   type PathLearnedEvent,
+  type PeopleRailPrefs,
   type RadioSettings,
   type RawPacket,
   type RepeaterNeighboursPage,
@@ -237,6 +238,10 @@ interface CoreState {
   contacts: Contact[];
   discovered: DiscoveredContact[];
 
+  /** People rail search box. Deliberately at the store ROOT, not under `ui` —
+   *  App.tsx persists `ui` and a search query should never survive a relaunch. */
+  peopleQuery: string;
+
   // Contact Manager view state (filters, sort, selection, focus)
   contactManager: ContactManagerState;
   setCmFilter: (patch: Partial<ContactManagerState>) => void;
@@ -414,6 +419,8 @@ interface CoreState {
   toggleLeftNav: () => void;
   toggleRightRail: () => void;
   setRightWidth: (w: number) => void;
+  setPeopleQuery: (q: string) => void;
+  setPeopleRail: (channelKey: string, prefs: Partial<PeopleRailPrefs>) => void;
   setRailSection: (id: string, open: boolean) => void;
   setLeftNavGroup: (id: LeftNavGroupId, open: boolean) => void;
   setDraft: (key: string, text: string) => void;
@@ -537,6 +544,7 @@ export const useStore = create<CoreState>((set) => ({
   channelPresence: new Set<string>(),
   contacts: [],
   discovered: [],
+  peopleQuery: '',
   contactManager: CM_DEFAULTS,
   messagesByKey: {},
 
@@ -875,6 +883,21 @@ export const useStore = create<CoreState>((set) => ({
   toggleLeftNav: () => set((s) => ({ ui: { ...s.ui, leftOpen: !s.ui.leftOpen } })),
   toggleRightRail: () => set((s) => ({ ui: { ...s.ui, rightOpen: !s.ui.rightOpen } })),
   setRightWidth: (w) => set((s) => ({ ui: { ...s.ui, rightWidth: w } })),
+  setPeopleQuery: (q) => set(() => ({ peopleQuery: q })),
+  setPeopleRail: (channelKey, prefs) =>
+    set((s) => {
+      const existing: PeopleRailPrefs | undefined = s.ui.peopleRail[channelKey];
+      const merged: PeopleRailPrefs = {
+        sort: prefs.sort ?? existing?.sort ?? 'recent',
+        filter: prefs.filter ?? existing?.filter ?? 'all',
+      };
+      return {
+        ui: {
+          ...s.ui,
+          peopleRail: { ...s.ui.peopleRail, [channelKey]: merged },
+        },
+      };
+    }),
   setRailSection: (id, open) =>
     set((s) => ({ ui: { ...s.ui, openRailSections: { ...s.ui.openRailSections, [id]: open } } })),
   setLeftNavGroup: (id, open) => set((s) => ({ ui: { ...s.ui, leftNavOpen: { ...s.ui.leftNavOpen, [id]: open } } })),

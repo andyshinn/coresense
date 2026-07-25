@@ -875,6 +875,10 @@ export interface UiState {
   // Per-macro usage counts (macro id → tally) driving the quick bar's two
   // auto-pinned macro chips. Account-global, synced alongside emojiUsage.
   macroUsage: UsageMap;
+  // Per-channel People rail sort + filter. Keyed by channel key. Grows
+  // unboundedly, exactly like lastReadByKey. NOT in applyUiState's sync
+  // whitelist, so this persists locally but does not cross-sync.
+  peopleRail: Record<string, PeopleRailPrefs>;
 }
 
 export const DEFAULT_UI_STATE: UiState = {
@@ -910,6 +914,7 @@ export const DEFAULT_UI_STATE: UiState = {
   recentKeys: [],
   emojiUsage: {},
   macroUsage: {},
+  peopleRail: {},
 };
 
 export interface StateSnapshot {
