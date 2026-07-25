@@ -96,3 +96,17 @@ export function fmtMessageTime(ts: number, pref: TimeFormatPref, now: number = D
   const date = new Date(ts).toLocaleDateString(undefined, { dateStyle: 'short' });
   return `${date}, ${fmtTime(ts, pref)}`;
 }
+
+/** Compact age for dense UI: "just now" / "3m ago" / "5h ago" / "2d ago".
+ *  `fmtRelative` produces the long Intl form ("3 minutes ago"), which is too
+ *  wide for the rail. Future timestamps clamp to "just now" — clock skew
+ *  between the radio and the host should never render as a negative age. */
+export function fmtAgoShort(ts: number, now: number = Date.now()): string {
+  const diff = Math.max(0, now - ts);
+  const m = Math.floor(diff / 60_000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
