@@ -38,6 +38,52 @@
   --cs-hash-1: 70 183 174; /* teal   · 1 byte  (#46B7AE) */
   --cs-hash-2: 232 163 61; /* amber  · 2 bytes (#E8A33D) */
   --cs-hash-3: 185 138 224; /* violet · 3 bytes (#B98AE0) */
+  /* Identity ramp — 12 slots, hues 30° apart, all at one low chroma so no
+     identity colour can be mistaken for status (--cs-online, --cs-accent,
+     --cs-danger stay exclusively semantic). Dot = oklch(0.76 0.095 h),
+     text/glyph = oklch(0.84 0.060 h), avatar fill = oklch(0.30 0.050 h).
+     Light-mode counterparts follow L_light = 1.30 - L_dark; see the
+     :root:not(.dark) block below. Ratios are vs bg / bg-2 / bg-3. */
+  --cs-id-0: 231 153 147; /* h=25  #E79993 — 8.83 / 8.24 / 7.60 */
+  --cs-id-1: 224 161 118; /* h=55  #E0A176 — 8.98 / 8.38 / 7.73 */
+  --cs-id-2: 205 173 104; /* h=85  #CDAD68 — 9.21 / 8.60 / 7.93 */
+  --cs-id-3: 175 185 113; /* h=115 #AFB971 — 9.42 / 8.80 / 8.12 */
+  --cs-id-4: 139 193 140; /* h=145 #8BC18C — 9.52 / 8.89 / 8.20 */
+  --cs-id-5: 105 197 174; /* h=175 #69C5AE — 9.61 / 8.97 / 8.28 */
+  --cs-id-6: 94 195 206; /* h=205 #5EC3CE — 9.58 / 8.95 / 8.26 */
+  --cs-id-7: 114 187 229; /* h=235 #72BBE5 — 9.38 / 8.76 / 8.08 */
+  --cs-id-8: 148 176 238; /* h=265 #94B0EE — 9.14 / 8.54 / 7.87 */
+  --cs-id-9: 181 165 232; /* h=295 #B5A5E8 — 8.95 / 8.36 / 7.71 */
+  --cs-id-10: 208 156 211; /* h=325 #D09CD3 — 8.82 / 8.24 / 7.60 */
+  --cs-id-11: 226 152 180; /* h=355 #E298B4 — 8.84 / 8.25 / 7.62 */
+  --cs-id-fg-0: 239 188 183; /* h=25  #EFBCB7 — 11.85 / 11.07 / 10.21 */
+  --cs-id-fg-1: 234 193 166; /* h=55  #EAC1A6 — 11.94 / 11.15 / 10.29 */
+  --cs-id-fg-2: 221 200 158; /* h=85  #DDC89E — 12.08 / 11.29 / 10.41 */
+  --cs-id-fg-3: 201 208 163; /* h=115 #C9D0A3 — 12.28 / 11.47 / 10.58 */
+  --cs-id-fg-4: 179 213 179; /* h=145 #B3D5B3 — 12.33 / 11.51 / 10.62 */
+  --cs-id-fg-5: 162 216 200; /* h=175 #A2D8C8 — 12.43 / 11.60 / 10.71 */
+  --cs-id-fg-6: 156 214 221; /* h=205 #9CD6DD — 12.32 / 11.50 / 10.61 */
+  --cs-id-fg-7: 165 210 237; /* h=235 #A5D2ED — 12.27 / 11.46 / 10.57 */
+  --cs-id-fg-8: 184 203 243; /* h=265 #B8CBF3 — 12.13 / 11.33 / 10.45 */
+  --cs-id-fg-9: 205 195 238; /* h=295 #CDC3EE — 11.90 / 11.12 / 10.25 */
+  --cs-id-fg-10: 223 190 224; /* h=325 #DFBEE0 — 11.85 / 11.07 / 10.21 */
+  --cs-id-fg-11: 236 187 204; /* h=355 #ECBBCC — 11.82 / 11.04 / 10.18 */
+  --cs-id-bg-0: 68 35 33; /* h=25  #442321 — avatar fill */
+  --cs-id-bg-1: 65 39 20; /* h=55  #412714 */
+  --cs-id-bg-2: 57 44 12; /* h=85  #392C0C */
+  --cs-id-bg-3: 45 49 17; /* h=115 #2D3111 */
+  --cs-id-bg-4: 29 52 30; /* h=145 #1D341E */
+  --cs-id-bg-5: 10 54 44; /* h=175 #0A362C */
+  --cs-id-bg-6: 2 53 58; /* h=205 #02353A */
+  --cs-id-bg-7: 16 50 67; /* h=235 #103243 */
+  --cs-id-bg-8: 33 45 71; /* h=265 #212D47 */
+  --cs-id-bg-9: 48 40 68; /* h=295 #302844 */
+  --cs-id-bg-10: 58 37 60; /* h=325 #3A253C */
+  --cs-id-bg-11: 65 35 47; /* h=355 #41232F */
+  /* Keyless identity. Sits INSIDE the coloured dots' band (dark 7.60-8.28 on
+     bg-3) so the dot column reads as an even row of marks — a person without a
+     key is a mark without a hue, not a hole. */
+  --cs-id-neutral: 188 172 141; /* #BCAC8D — 8.88 / 8.29 / 7.65 */
   --sidebar: rgb(var(--cs-bg-2));
   --sidebar-foreground: rgb(var(--cs-text));
   --sidebar-primary: rgb(var(--cs-accent));
@@ -67,6 +113,43 @@
   --cs-hash-3: 91 33 182; /* violet · 3 bytes (#5B21B6) — 6.56 / 6.03 / 5.22 */
   --cs-trend-up: 54 83 20; /* #365314 — 6.75 / 6.21 / 5.37 */
   --cs-trend-down: 139 37 32; /* #8B2520 — 6.70 / 6.16 / 5.33 */
+  --cs-id-0: 156 89 84; /* h=25  #9C5954 — 5.02 / 4.60 / 3.94 */
+  --cs-id-1: 151 96 56; /* h=55  #976038 — 4.93 / 4.51 / 3.87 */
+  --cs-id-2: 135 106 41; /* h=85  #876A29 — 4.84 / 4.43 / 3.79 */
+  --cs-id-3: 109 117 51; /* h=115 #6D7533 — 4.70 / 4.30 / 3.69 */
+  --cs-id-4: 75 124 77; /* h=145 #4B7C4D — 4.65 / 4.26 / 3.65 */
+  --cs-id-5: 36 128 108; /* h=175 #24806C — 4.55 / 4.17 / 3.57 (worst dot) */
+  --cs-id-6: 12 125 135; /* h=205 #0C7D87 — 4.64 / 4.25 / 3.64 */
+  --cs-id-7: 49 119 155; /* h=235 #31779B — 4.70 / 4.30 / 3.69 */
+  --cs-id-8: 85 109 163; /* h=265 #556DA3 — 4.86 / 4.45 / 3.81 */
+  --cs-id-9: 114 100 158; /* h=295 #72649E — 4.96 / 4.54 / 3.89 */
+  --cs-id-10: 137 92 140; /* h=325 #895C8C — 5.03 / 4.60 / 3.94 */
+  --cs-id-11: 152 88 113; /* h=355 #985871 — 5.02 / 4.60 / 3.94 */
+  --cs-id-fg-0: 118 75 71; /* h=25  #764B47 — 6.96 / 6.37 / 5.46 */
+  --cs-id-fg-1: 114 79 55; /* h=55  #724F37 — 6.90 / 6.32 / 5.42 */
+  --cs-id-fg-2: 103 85 47; /* h=85  #67552F — 6.84 / 6.26 / 5.36 */
+  --cs-id-fg-3: 87 92 52; /* h=115 #575C34 — 6.68 / 6.11 / 5.24 */
+  --cs-id-fg-4: 66 97 67; /* h=145 #426143 — 6.60 / 6.04 / 5.18 */
+  --cs-id-fg-5: 47 99 86; /* h=175 #2F6356 — 6.56 / 6.01 / 5.15 */
+  --cs-id-fg-6: 41 98 104; /* h=205 #296268 — 6.56 / 6.00 / 5.14 (worst text) */
+  --cs-id-fg-7: 52 93 117; /* h=235 #345D75 — 6.72 / 6.15 / 5.27 */
+  --cs-id-fg-8: 72 88 122; /* h=265 #48587A — 6.76 / 6.18 / 5.30 */
+  --cs-id-fg-9: 90 81 118; /* h=295 #5A5176 — 6.94 / 6.35 / 5.45 */
+  --cs-id-fg-10: 105 76 107; /* h=325 #694C6B — 7.01 / 6.41 / 5.50 */
+  --cs-id-fg-11: 115 74 90; /* h=355 #734A5A — 6.98 / 6.39 / 5.48 */
+  --cs-id-bg-0: 251 220 217; /* h=25  #FBDCD9 — avatar fill */
+  --cs-id-bg-1: 248 223 207; /* h=55  #F8DFCF */
+  --cs-id-bg-2: 239 227 203; /* h=85  #EFE3CB */
+  --cs-id-bg-3: 227 232 206; /* h=115 #E3E8CE */
+  --cs-id-bg-4: 215 235 215; /* h=145 #D7EBD7 */
+  --cs-id-bg-5: 206 237 227; /* h=175 #CEEDE3 */
+  --cs-id-bg-6: 203 236 240; /* h=205 #CBECF0 */
+  --cs-id-bg-7: 207 233 249; /* h=235 #CFE9F9 */
+  --cs-id-bg-8: 217 229 253; /* h=265 #D9E5FD */
+  --cs-id-bg-9: 230 224 250; /* h=295 #E6E0FA */
+  --cs-id-bg-10: 241 221 242; /* h=325 #F1DDF2 */
+  --cs-id-bg-11: 249 219 230; /* h=355 #F9DBE6 */
+  --cs-id-neutral: 122 108 82; /* #7A6C52 — 4.87 / 4.46 / 3.82 */
 }
 
 /* Map shadcn's semantic color tokens to the cs-* palette so primitives
@@ -113,6 +196,7 @@
   --color-cs-hash-1: rgb(var(--cs-hash-1));
   --color-cs-hash-2: rgb(var(--cs-hash-2));
   --color-cs-hash-3: rgb(var(--cs-hash-3));
+  --color-cs-id-neutral: rgb(var(--cs-id-neutral));
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
 }

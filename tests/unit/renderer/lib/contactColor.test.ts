@@ -1,16 +1,38 @@
 import { describe, expect, it } from 'vitest';
-import { getNameColor, initialsFor } from '../../../../src/renderer/lib/contactColor';
+import { djb2, getNameColor, identitySlotFor, initialsFor } from '../../../../src/renderer/lib/contactColor';
+
+describe('identitySlotFor', () => {
+  it('is deterministic and lands in 0..11', () => {
+    for (const name of ['Alice', 'Bob', 'Carol', '🚀 Rocket', '']) {
+      const slot = identitySlotFor(name);
+      expect(slot).toBe(identitySlotFor(name));
+      expect(slot).toBeGreaterThanOrEqual(0);
+      expect(slot).toBeLessThan(12);
+    }
+  });
+
+  it('uses djb2 modulo 12', () => {
+    expect(identitySlotFor('Alice')).toBe(djb2('Alice') % 12);
+  });
+});
 
 describe('getNameColor', () => {
-  it('is deterministic for the same name', () => {
+  it('is deterministic for the same id', () => {
     expect(getNameColor('Alice')).toEqual(getNameColor('Alice'));
   });
 
-  it('returns hsl foreground/background strings', () => {
+  it('returns css var references, not literal colours', () => {
     const c = getNameColor('Bob');
-    expect(c.fg).toMatch(/^hsl\(/);
-    expect(c.bg).toMatch(/^hsl\(/);
-    expect(c.pillBg).toContain('color-mix');
+    const slot = identitySlotFor('Bob');
+    expect(c.fg).toBe(`rgb(var(--cs-id-fg-${slot}))`);
+    expect(c.bg).toBe(`rgb(var(--cs-id-bg-${slot}))`);
+    expect(c.pillBg).toBe(`color-mix(in srgb, rgb(var(--cs-id-fg-${slot})) 18%, transparent)`);
+  });
+
+  it('never emits an hsl literal', () => {
+    for (const name of ['Alice', 'Bob', 'Carol']) {
+      expect(getNameColor(name).fg).not.toMatch(/^hsl\(/);
+    }
   });
 });
 
