@@ -1,6 +1,7 @@
 import { AlertCircle, Check, Clock, Send } from 'lucide-react';
 import type { Message, MessageStyle, TimeFormatPref } from '../../shared/types';
 import { MessageQuickBar } from '../features/message-actions/MessageQuickBar';
+import { useIdentityHash } from '../hooks/useIdentityHash';
 import type { ApiClient } from '../lib/api';
 import { firstPathStats, formatPathStats, type PathStats } from '../lib/messagePath';
 import { fmtDateTime, fmtMessageTime } from '../lib/time';
@@ -70,6 +71,9 @@ export function MessageItem({
   const showSenderHeaderRich = style === 'rich' && !isSelf && senderName !== '';
   const showSenderInlineCompact = style === 'compact' && !isSelf && senderName !== '';
   const stats = firstPathStats(message);
+  // One resolution per row, shared by the author name and the avatar, so the
+  // two always agree on a person's colour.
+  const identity = useIdentityHash(message.fromPublicKeyHex, senderName);
 
   const boxClass = cn(
     'w-full rounded-md border px-2 py-1 text-left transition-colors',
@@ -95,7 +99,7 @@ export function MessageItem({
         </span>
         {showSenderInlineCompact && (
           <span className="shrink-0">
-            <ColoredUsername name={senderName} />
+            <ColoredUsername name={senderName} identity={identity} />
           </span>
         )}
         <span className="min-w-0 flex-1 text-sm leading-snug text-cs-text whitespace-pre-wrap wrap-break-word">
@@ -107,11 +111,11 @@ export function MessageItem({
       <>
         {showSenderHeaderRich && (
           <div className="flex flex-col items-center gap-1">
-            <ContactAvatar name={senderName} size="sm" className="mt-0.5" />
+            <ContactAvatar name={senderName} identity={identity} size="sm" className="mt-0.5" />
           </div>
         )}
         <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
-          {showSenderHeaderRich && <ColoredUsername name={senderName} />}
+          {showSenderHeaderRich && <ColoredUsername name={senderName} identity={identity} />}
           <div
             className={cn(
               'max-w-full rounded-md px-2.5 py-1 text-sm whitespace-pre-wrap wrap-break-word',
