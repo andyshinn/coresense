@@ -8,6 +8,7 @@ import { RssiChip } from '../components/RssiChip';
 import { type ApiClient, api } from '../lib/api';
 import { notify } from '../lib/notify';
 import { useStore } from '../lib/store';
+import { fmtAgoShort } from '../lib/time';
 
 const CONTACT_ICON: Record<Contact['kind'], LucideIcon> = {
   chat: MessageCircle,
@@ -96,7 +97,7 @@ export function DMView({ contact, client }: Props) {
         <div className="flex flex-col">
           <h2 className="font-medium leading-tight text-cs-text">{contact.name}</h2>
           {contact.lastSeenMs != null && (
-            <span className="font-mono text-[10px] text-cs-text-dim">last seen {fmtAgo(contact.lastSeenMs)}</span>
+            <span className="font-mono text-[10px] text-cs-text-dim">last seen {fmtAgoShort(contact.lastSeenMs)}</span>
           )}
         </div>
         {contact.rssi != null && <RssiChip rssi={contact.rssi} hops={contact.hops} className="ml-auto" />}
@@ -135,14 +136,4 @@ export function DMView({ contact, client }: Props) {
       />
     </div>
   );
-}
-
-function fmtAgo(ms: number): string {
-  const diff = Date.now() - ms;
-  const m = Math.floor(diff / 60_000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
 }

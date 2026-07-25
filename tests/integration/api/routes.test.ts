@@ -3,7 +3,7 @@ import { createRoutes } from '../../../src/main/api/routes';
 import { appLifecycle } from '../../../src/main/runtime/appLifecycle';
 import { stateHolder } from '../../../src/main/state/holder';
 import { messagesStore } from '../../../src/main/storage/messages';
-import type { Message } from '../../../src/shared/types';
+import type { ChannelActivity, Message } from '../../../src/shared/types';
 import type { SpyLifecycle } from '../../support/seams';
 
 function app() {
@@ -72,5 +72,31 @@ describe('GET /api/channels/:key/stats', () => {
     expect(body.count).toBe(1);
     expect(body.roster).toHaveLength(1);
     expect(body.perDay).toHaveLength(7);
+  });
+});
+
+describe('GET /api/channels/:key/activity', () => {
+  it('rejects a non-channel key with 400', async () => {
+    const res = await app().request('/api/channels/c%3Aabcd/activity');
+    expect(res.status).toBe(400);
+  });
+
+  it('returns ChannelActivity for a channel key', async () => {
+    messagesStore.insert({
+      id: 'ca1',
+      key: 'ch:Act',
+      ts: Date.now() - 3_600_000,
+      body: 'hi',
+      state: 'received',
+      fromPublicKeyHex: 'name:alice',
+    } as Message);
+    const res = await app().request('/api/channels/ch%3AAct/activity');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as ChannelActivity;
+    expect(body.windows['24h'].buckets).toHaveLength(24);
+    expect(body.windows['7d'].buckets).toHaveLength(7);
+    expect(body.windows['30d'].buckets).toHaveLength(30);
+    expect(body.windows['24h'].total).toBe(1);
+    expect(body.lastTs).toBeTruthy();
   });
 });

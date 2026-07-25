@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
 import type { MacroTemplate } from '../../shared/macros/types';
 import {
+  type ActivityWindowKey,
   type AppSettings,
   type AutoAddConfig,
   type BleDevice,
@@ -419,6 +420,7 @@ interface CoreState {
   recordEmojiUse: (emoji: string) => void;
   recordMacroUse: (macroId: string) => void;
   setPacketLogFilter: (patch: Partial<UiState['packetLogFilter']>) => void;
+  setChannelActivityWindow: (w: ActivityWindowKey) => void;
   appendLog: (entry: LogEntry) => void;
   appendRendererLog: (entry: LogEntry) => void;
   replaceLogs: (entries: LogEntry[]) => void;
@@ -887,6 +889,7 @@ export const useStore = create<CoreState>((set) => ({
   recordMacroUse: (macroId) =>
     set((s) => ({ ui: { ...s.ui, macroUsage: recordUsage(s.ui.macroUsage, macroId, Date.now()) } })),
   setPacketLogFilter: (patch) => set((s) => ({ ui: { ...s.ui, packetLogFilter: { ...s.ui.packetLogFilter, ...patch } } })),
+  setChannelActivityWindow: (w) => set((s) => ({ ui: { ...s.ui, channelActivityWindow: w } })),
   appendLog: (entry) =>
     set((s) => {
       // snapshot+live can overlap during ws connect, so dedupe by id

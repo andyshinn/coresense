@@ -5,12 +5,12 @@ import type { RepeaterAdminTab } from '../../lib/store';
 import { SettingsJumpRail } from '../SettingsJumpRail';
 import { Placeholder } from './atoms';
 import { viewKindFor } from './helpers';
-import { ChannelActivitySection } from './sections/ChannelActivity';
 import { ChannelInfoSection } from './sections/ChannelInfo';
 import { ChannelPeopleSection } from './sections/ChannelPeople';
 import { ChannelShareSection } from './sections/ChannelShare';
 import { ContactDetail } from './sections/ContactDetail';
 import { ContactManagerRailBody, DiscoverySettings } from './sections/ContactManagerRail';
+import { ChannelActivitySection } from './sections/channel-activity';
 import { HeardViaSection } from './sections/HeardVia';
 import {
   LogsActionsSection,

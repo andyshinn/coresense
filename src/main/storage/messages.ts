@@ -1,4 +1,4 @@
-import type { ChannelStats, Message, MessageMeta, MessageState } from '../../shared/types';
+import type { ActivityBand, ChannelActivity, ChannelStats, Message, MessageMeta, MessageState } from '../../shared/types';
 import { openDb } from './db';
 
 interface Row {
@@ -39,6 +39,56 @@ function kindFromKey(key: string): 'channel' | 'dm' {
 const SENTINEL_RE = /\u{1F539}(?:START|END)\u{1F539}/gu;
 function sanitizeBody(body: string): string {
   return body.replace(SENTINEL_RE, '');
+}
+
+const HOUR_MS = 3_600_000;
+
+/** Local-midnight edges for `n` calendar days ending with the day containing `now`.
+ *  Returns n+1 timestamps: edges[i] opens bucket i, edges[n] closes the last one.
+ *  Stepped with setDate() rather than ms arithmetic so DST days stay one bucket. */
+function localDayEdges(now: number, n: number): number[] {
+  const edges: number[] = [];
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - (n - 1));
+  for (let i = 0; i <= n; i++) {
+    edges.push(d.getTime());
+    d.setDate(d.getDate() + 1);
+  }
+  return edges;
+}
+
+/** Index of the bucket containing `ts`, or -1 if outside. `edges` is ascending. */
+function edgeIndex(edges: number[], ts: number): number {
+  if (ts < edges[0] || ts >= edges[edges.length - 1]) return -1;
+  let lo = 0;
+  let hi = edges.length - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (ts < edges[mid]) hi = mid;
+    else lo = mid;
+  }
+  return lo;
+}
+
+/** Below this many messages in the trailing 168h, naming a "peak" is noise. */
+const BAND_MIN_SAMPLES = 8;
+
+/** Best contiguous `width`-hour band on a 24-slot hour-of-day histogram, searched
+ *  circularly so a band may wrap midnight. Strict comparison means ties break
+ *  toward the earlier start hour, which keeps the result deterministic. */
+function bestBand(hist: number[], width: number, pick: 'max' | 'min'): ActivityBand {
+  let bestStart = 0;
+  let bestSum = pick === 'max' ? -1 : Number.POSITIVE_INFINITY;
+  for (let start = 0; start < 24; start++) {
+    let s = 0;
+    for (let k = 0; k < width; k++) s += hist[(start + k) % 24];
+    if (pick === 'max' ? s > bestSum : s < bestSum) {
+      bestSum = s;
+      bestStart = start;
+    }
+  }
+  return { startHour: bestStart, endHour: (bestStart + width) % 24 };
 }
 
 export const messagesStore = {
@@ -137,6 +187,80 @@ export const messagesStore = {
       distinctSenders,
       roster,
       perDay,
+    };
+  },
+
+  activityByKey(key: string, now: number = Date.now()): ChannelActivity {
+    const db = openDb();
+
+    // Hourly window: 24 buckets on the wall-clock hour grid, ending with the hour
+    // `now` currently sits in — a partial bucket that fills as the hour progresses.
+    // Grid alignment is load-bearing, not cosmetic: the renderer labels axis ticks
+    // and tooltips from each bucket's start edge via getHours(), which is only
+    // truthful when the edges are real clock hours.
+    const hourStart = new Date(now);
+    hourStart.setMinutes(0, 0, 0);
+    const h24Start = hourStart.getTime() - 23 * HOUR_MS;
+    const h24End = h24Start + 24 * HOUR_MS;
+    const prev24Start = h24Start - 24 * HOUR_MS;
+
+    const d7 = localDayEdges(now, 7);
+    const d30 = localDayEdges(now, 30);
+
+    // Previous equal periods. The 30d one is the oldest cutoff we need to read.
+    const prev7Start = localDayEdges(d7[0] - 1, 7)[0];
+    const prev30Start = localDayEdges(d30[0] - 1, 30)[0];
+    const since = Math.min(prev24Start, prev7Start, prev30Start);
+
+    const rows = db.prepare(`SELECT ts FROM messages WHERE key = ? AND ts >= ?`).all(key, since) as unknown as Array<{
+      ts: number;
+    }>;
+
+    const b24 = new Array<number>(24).fill(0);
+    const b7 = new Array<number>(7).fill(0);
+    const b30 = new Array<number>(30).fill(0);
+    let prev24 = 0;
+    let prev7 = 0;
+    let prev30 = 0;
+
+    // Rhythm bands: an hour-of-day histogram over the trailing 168h (independent
+    // of the day-grid windows above), searched below for the busiest/calmest runs.
+    const bandSince = now - 168 * HOUR_MS;
+    const hourHist = new Array<number>(24).fill(0);
+    let bandSamples = 0;
+
+    for (const { ts } of rows) {
+      if (ts >= h24Start && ts < h24End) b24[Math.floor((ts - h24Start) / HOUR_MS)] += 1;
+      else if (ts >= prev24Start && ts < h24Start) prev24 += 1;
+
+      const i7 = edgeIndex(d7, ts);
+      if (i7 >= 0) b7[i7] += 1;
+      else if (ts >= prev7Start && ts < d7[0]) prev7 += 1;
+
+      const i30 = edgeIndex(d30, ts);
+      if (i30 >= 0) b30[i30] += 1;
+      else if (ts >= prev30Start && ts < d30[0]) prev30 += 1;
+
+      if (ts >= bandSince && ts <= now) {
+        hourHist[new Date(ts).getHours()] += 1;
+        bandSamples += 1;
+      }
+    }
+
+    const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+    const lastRow = db.prepare(`SELECT MAX(ts) AS lastTs FROM messages WHERE key = ?`).get(key) as unknown as {
+      lastTs: number | null;
+    };
+
+    return {
+      windows: {
+        '24h': { buckets: b24, total: sum(b24), prevTotal: prev24, startMs: h24Start },
+        '7d': { buckets: b7, total: sum(b7), prevTotal: prev7, startMs: d7[0] },
+        '30d': { buckets: b30, total: sum(b30), prevTotal: prev30, startMs: d30[0] },
+      },
+      peakBand: bandSamples >= BAND_MIN_SAMPLES ? bestBand(hourHist, 3, 'max') : null,
+      quietBand: bandSamples >= BAND_MIN_SAMPLES ? bestBand(hourHist, 4, 'min') : null,
+      lastTs: lastRow.lastTs ?? null,
     };
   },
 
