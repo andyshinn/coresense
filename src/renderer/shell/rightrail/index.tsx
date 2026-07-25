@@ -124,9 +124,12 @@ export function RightRail({ client }: RightRailProps) {
                   label={section.label}
                   open={open}
                   onToggle={() => setRailSection(section.id, !open)}
+                  trailing={section.trailing?.()}
                   className="border-b border-cs-border last:border-b-0"
                 >
-                  <div className="px-3 py-2 text-xs text-cs-text-muted">{section.body()}</div>
+                  <div className={section.bare ? 'text-xs text-cs-text-muted' : 'px-3 py-2 text-xs text-cs-text-muted'}>
+                    {section.body()}
+                  </div>
                 </Collapsible>
               );
             })}

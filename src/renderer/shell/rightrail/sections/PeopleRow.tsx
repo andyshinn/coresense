@@ -74,7 +74,7 @@ export function PeopleRow({ row, now, maxCount, showVolume, timeFormat, onOpen, 
     <div
       className={cn(
         'group relative grid h-6 items-center gap-2 px-2.5',
-        'hover:bg-cs-bg-3 group-has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-ring',
+        'hover:bg-cs-bg-3 has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-ring',
       )}
       style={{
         gridTemplateColumns: showVolume ? '7px 1fr 30px 26px 30px' : '7px 1fr 26px 30px',
@@ -174,6 +174,7 @@ function RowAction({
             fire on exactly the rows whose explanation matters most. Keep it
             enabled and inert instead. */}
         <Button
+          type="button"
           size="icon"
           variant="ghost"
           aria-disabled={disabled}
