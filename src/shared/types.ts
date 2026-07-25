@@ -819,6 +819,10 @@ export interface UiState {
   drafts: Record<string, string>;
   // Packet log view options.
   packetLogFilter: { showCompanion: boolean };
+  /** Selected window in the channel rail's Activity section. Global rather than
+   *  per-channel: it is a reading habit, and a per-channel map would grow one
+   *  entry per channel ever opened. */
+  channelActivityWindow: ActivityWindowKey;
   // Logs panel filter options.
   logsFilter: {
     minLevel: LogLevel;
@@ -873,6 +877,7 @@ export const DEFAULT_UI_STATE: UiState = {
   },
   drafts: {},
   packetLogFilter: { showCompanion: false },
+  channelActivityWindow: '24h',
   logsFilter: {
     minLevel: 'silly',
     showMain: true,
