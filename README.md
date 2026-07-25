@@ -16,7 +16,7 @@ CoreSense ships two Homebrew casks — a **stable** channel and a **development*
 (prerelease) channel:
 
 ```sh
-brew tap andyshinn/coresense https://github.com/andyshinn/coresense
+brew tap andyshinn/coresense
 brew install --cask coresense        # latest stable release
 brew install --cask coresense@dev    # latest development (prerelease) build
 ```
