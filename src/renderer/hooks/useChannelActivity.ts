@@ -16,7 +16,12 @@ export function useChannelActivity(
 ): { activity: ChannelActivity | null; loading: boolean; error: string | null } {
   const messages = useStore((s) => s.messagesByKey[key]);
   const [activity, setActivity] = useState<ChannelActivity | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Starts true: the first render happens before the fetch effect below has run,
+  // so `activity` is still null then too. Defaulting this to false would make that
+  // first frame indistinguishable from "checked, and there truly is no activity" —
+  // an assertion about the channel we have not earned yet, and exactly the kind of
+  // lie this redesign exists to stop telling.
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 

@@ -45,7 +45,11 @@ export function ActivityBody({
   const at = now ?? tick;
 
   if (!activity) {
-    if (error) return <p className="italic text-cs-danger">{error}</p>;
+    // Deliberately --cs-trend-down, not --cs-danger: at 12px on bg-2, --cs-danger
+    // measures 3.83:1 in dark mode, under the 4.5:1 AA floor. --cs-trend-down was
+    // already tuned to clear AA in both themes, so it stands in here too — do not
+    // "correct" this back to --cs-danger.
+    if (error) return <p className="italic text-cs-trend-down">{error}</p>;
     return <Placeholder label={loading ? 'loading…' : 'no activity yet'} />;
   }
   if (activity.lastTs == null) return <Placeholder label="no activity yet" />;

@@ -1,8 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { ActivityBody } from '@/shell/rightrail/sections/channel-activity';
-import type { ActivityWindow, ChannelActivity } from '../../src/shared/types';
+import { useStore } from '@/lib/store';
+import { ActivityBody, ChannelActivitySection } from '@/shell/rightrail/sections/channel-activity';
+import { COLLAPSE_WIDTH } from '@/shell/rightrail/sections/channel-activity/activity';
+import type { ActivityWindow, Channel, ChannelActivity } from '../../src/shared/types';
 
 const NOW = 1_700_000_000_000;
 const midnight = (() => {
@@ -25,6 +28,21 @@ const activity = (over: Partial<ChannelActivity> = {}): ChannelActivity => ({
   lastTs: NOW - 180_000,
   ...over,
 });
+
+// ChannelActivitySection (the store-wired wrapper) needs a live api module to mock,
+// since useChannelActivity calls through it. The mock's inner arrow only closes over
+// `getChannelActivity` — it isn't invoked until a test's fetch actually runs, by which
+// point the const below has been assigned — so this declaration order is safe despite
+// vi.mock's hoisting above the imports.
+const getChannelActivity = vi.fn(async () => activity());
+vi.mock('@/lib/api', () => ({
+  api: {
+    getChannelActivity: (...args: unknown[]) => getChannelActivity(...(args as [])),
+  },
+}));
+
+const client = { baseUrl: 'http://x', apiKey: 'k' };
+const channel: Channel = { key: 'ch:Test', name: 'Test', kind: 'public' };
 
 const body = (props: Partial<React.ComponentProps<typeof ActivityBody>> = {}) =>
   render(
@@ -58,16 +76,25 @@ describe('ActivityBody', () => {
     const { container } = body({ mode: 'collapsed' });
     expect(screen.queryByLabelText('Last 24 hours')).toBe(null);
     expect(screen.getByText('msgs · 24h')).toBeTruthy();
+    // The "mini trend" and "bare sparkline" this test's name promises, actually
+    // checked: suppressing TrendChip or dropping VolumeChart entirely in collapsed
+    // mode would still pass every assertion above this point.
+    expect(screen.getByText('18%')).toBeTruthy();
+    expect(container.querySelectorAll('[data-testid="activity-bar"]')).toHaveLength(24);
     expect(screen.queryByText('vs prev')).toBe(null);
     expect(container.querySelector('[data-testid="activity-axis"]')).toBe(null);
     expect(container.textContent).not.toContain('2–6 AM');
     expect(container.textContent).toContain('3m ago');
   });
 
-  it('pins the collapsed view to 24h even when a wider window is stored', () => {
-    body({ mode: 'collapsed', win: '30d' });
+  it('pins the collapsed view to 24h even when a wider window is stored, without writing back to it', () => {
+    const onWindow = vi.fn();
+    body({ mode: 'collapsed', win: '30d', onWindow });
     expect(screen.getByText('123')).toBeTruthy();
     expect(screen.getByText('msgs · 24h')).toBeTruthy();
+    // The display pin must not be implemented by silently calling back into the
+    // caller's window setter — that would clobber the user's stored '30d' choice.
+    expect(onWindow).not.toHaveBeenCalled();
   });
 
   it('reports tab changes to the caller', () => {
@@ -93,6 +120,17 @@ describe('ActivityBody', () => {
     expect(container.textContent).not.toContain('%');
   });
 
+  it('shows a real 0% chip when the period is flat, distinct from "no previous period"', () => {
+    // total === prevTotal is the one input where `pct !== null` and plain truthiness
+    // (`pct && …`) disagree: trendPct returns 0 here, and 0 is a legitimate value that
+    // must still render — only a null trend (the test above) has no chip at all.
+    const a = activity();
+    a.windows['24h'] = w(24, 104, 104);
+    const { container } = body({ activity: a });
+    expect(screen.getByText('0%')).toBeTruthy();
+    expect(container.textContent).not.toContain('NaN');
+  });
+
   it('renders a zero window without NaN', () => {
     const a = activity();
     a.windows['24h'] = { buckets: new Array(24).fill(0), total: 0, prevTotal: 40, startMs: midnight };
@@ -101,6 +139,19 @@ describe('ActivityBody', () => {
     expect(screen.getByText('100%')).toBeTruthy();
     expect(container.textContent).not.toContain('NaN');
     expect(container.textContent).not.toContain('Infinity');
+    // textContent can't see inline styles, so it would stay green even if the
+    // divide-by-zero guard in VolumeChart (Math.max(1, ...buckets)) were deleted.
+    // Read the bars' own height style directly — checked as "is this a valid CSS
+    // percentage" rather than "does the string contain NaN": the CSSOM silently
+    // discards an invalid value like `height: NaN%` instead of storing the literal
+    // text, so `bar.style.height` reads back as `''`, never as a string containing
+    // "NaN", when the guard is missing. An empty/malformed value is exactly as
+    // wrong as a literal NaN would have been, and this actually catches it.
+    const bars = container.querySelectorAll<HTMLElement>('[data-testid="activity-bar"]');
+    expect(bars.length).toBe(24);
+    for (const bar of bars) {
+      expect(bar.style.height).toMatch(/^\d+(\.\d+)?%$/);
+    }
   });
 
   it('shows a placeholder for a channel that has never had a message', () => {
@@ -117,5 +168,37 @@ describe('ActivityBody', () => {
     body({ activity: null, loading: false, error: 'network unreachable' });
     expect(screen.getByText('network unreachable')).toBeTruthy();
     expect(screen.queryByText('no activity yet')).toBe(null);
+  });
+});
+
+describe('ChannelActivitySection', () => {
+  // Restore the store's rail width so this describe block can't leak a narrowed
+  // rail into any test that happens to run later in the same module instance.
+  afterEach(() => {
+    act(() => {
+      useStore.setState((s) => ({ ui: { ...s.ui, rightWidth: 320 } }));
+    });
+  });
+
+  it('derives full vs collapsed mode from ui.rightWidth in the store, not a fixed prop', async () => {
+    // Inverting `railWidth < COLLAPSE_WIDTH` to `>` puts every width on the wrong
+    // side of the threshold. A test that only ever exercises ActivityBody directly
+    // (passing `mode` as a prop) can't catch that — this has to render the real
+    // wrapper and drive the store, on either side of COLLAPSE_WIDTH itself.
+    act(() => {
+      useStore.setState((s) => ({ ui: { ...s.ui, rightWidth: COLLAPSE_WIDTH + 100 } }));
+    });
+    render(
+      <TooltipProvider>
+        <ChannelActivitySection channel={channel} client={client} />
+      </TooltipProvider>,
+    );
+    await waitFor(() => expect(screen.getByLabelText('Last 24 hours')).toBeTruthy());
+
+    act(() => {
+      useStore.setState((s) => ({ ui: { ...s.ui, rightWidth: COLLAPSE_WIDTH - 50 } }));
+    });
+    await waitFor(() => expect(screen.queryByLabelText('Last 24 hours')).toBe(null));
+    expect(screen.getByText('msgs · 24h')).toBeTruthy();
   });
 });
