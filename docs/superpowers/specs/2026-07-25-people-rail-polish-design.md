@@ -89,7 +89,7 @@ removes the only structural question in the work.
 
 | Fact | Consequence |
 |---|---|
-| `DEFAULT_UI_STATE.rightWidth: 320` (`types.ts:831`) but the handoff's control-bar threshold is 330 | Every existing user would land in degraded narrow mode. §5.5 |
+| `DEFAULT_UI_STATE.rightWidth: 320` but the handoff's control-bar threshold is 330 | Every existing user would land in degraded narrow mode. Resolved by adopting the rail's existing 304 threshold. §5.5 |
 | A `TooltipProvider` is already ambient over the rail (`ui/sidebar.tsx:100`, inside `SidebarProvider`) with `delayDuration={0}` | Do **not** mount a second; set a delay per `<Tooltip>`. §5.6 |
 | `Collapsible` already has a `trailing?: ReactNode` slot, used by nobody | The header count has a home. `RailSection` needs the field plumbed. §5.4 |
 | `<Collapsible key={section.id}>` where id is the constant `'rail.channel.people'` | The section does **not** remount on channel switch; clearing `query` needs an explicit effect. §6 |
@@ -288,7 +288,7 @@ The old `"156 people seen"` sub-line is **removed**.
 
 CSS grid, `gap:8px`, `padding:0 10px`, `height:24px`. Tracks
 `7px 1fr [30px] 26px 30px` — the volume track is omitted (not merely hidden) when
-`rightWidth < 310` or `sort === 'name'`.
+`rightWidth < 304` or `sort === 'name'`.
 
 | # | Slot | Track | Spec |
 |---|---|---|---|
@@ -364,21 +364,27 @@ Row click calls `setActiveKey(contactKey)` — today's behaviour. It is a no-op 
   Ship `All · Contacts`.
 
 **Width mode** derives from `ui.rightWidth`, which is already exact, authoritative,
-reactive store state — **no `ResizeObserver`** (the test stub in
+reactive store state — **no `ResizeObserver`**, matching what the Activity section
+already does (the test stub in
 `tests/component/setup.ts` never fires a callback, so an observer-based mode would
 be untestable).
 
 | Width | Behaviour |
 |---|---|
-| `< 310px` | Search only; control row dropped; no volume track. Columns, buckets and dot unchanged. |
-| `>= 310px` | Full control bar + volume track. |
+| `< 304px` | Search only; control row dropped; no volume track. Columns, buckets and dot unchanged. |
+| `>= 304px` | Full control bar + volume track. |
 | Wider | All extra width goes to the **name** track; the two right columns stay pinned. |
 
-The threshold is **310**, lowered from the handoff's 330, and
-`DEFAULT_UI_STATE.rightWidth` moves **320 → 340** for new profiles only. No
-migration: `mergeDefaults` keeps stored values, so existing 320px users clear the
-lowered threshold and get the full control bar without their layout being
-rewritten.
+The threshold is **304**, lowered from the handoff's 330. It is not a new number:
+the Activity section directly above already collapses at `COLLAPSE_WIDTH = 304`,
+read from `ui.rightWidth` by exactly this mechanism. The constant is hoisted to
+`shell/rightrail/railWidth.ts` as `RAIL_COLLAPSE_WIDTH` and both sections import
+it — two adjacent rail sections collapsing at different widths would be a visible
+inconsistency.
+
+`DEFAULT_UI_STATE.rightWidth` **stays 320**. An earlier draft bumped it to 340 to
+escape the degraded mode; 304 already clears 320, so the bump would change every
+new profile's layout for no benefit.
 
 ### 5.6 Recency buckets
 
@@ -435,6 +441,12 @@ report times in the future or far past, which is why the future guard exists too
 
 Tooltips use the user's locale, timezone and 12/24-hour preference. The row
 **never** prints `"ago"`, `"hours"` or `"days"` — that is what the tooltip is for.
+
+**Not to be confused with `fmtAgoShort`** (`lib/time.ts:104`), added for the
+Activity footer: it renders `"just now" / "3m ago" / "5h ago" / "2d ago"`. It
+prints "ago", has no weeks rung, and has no `—` sentinel, so it cannot serve this
+row. Both are correct for their own callers; comment the distinction at the
+`fmtAge` definition so it does not read as duplication.
 
 Tooltips are needed on: age (absolute), count (`«n» messages seen in this
 channel`), and the name **only when the label is actually clipped**. The ambient
@@ -628,7 +640,7 @@ all 12 slots in the real app in both themes and look at them.
 
 | File | Change |
 |---|---|
-| `src/shared/types.ts` | `+IdentityColorMode`; `+identityColorMode` on `AppSettings`; `+identityColorMode: 'byKey'` in `DEFAULT_APP_SETTINGS`; `+ui.peopleRail` on `UiState` + its default; `DEFAULT_UI_STATE.rightWidth` **320 → 340**. |
+| `src/shared/types.ts` | `+IdentityColorMode`; `+identityColorMode` on `AppSettings`; `+identityColorMode: 'byKey'` in `DEFAULT_APP_SETTINGS`; `+PeopleSort`/`PeopleFilter`/`PeopleRailPrefs`; `+ui.peopleRail` on `UiState` + its default. `rightWidth` unchanged. |
 | `src/renderer/index.css` | +37 vars in `:root` and `:root:not(.dark)` with ratio comments; +`@theme` entries. |
 | `src/renderer/lib/contactColor.ts` | Replace the 10-entry HSL `PALETTE` with the 12-slot var-reference ramp; `getNameColor` becomes slot-based. **Keep `initialsFor` and `djb2` untouched.** |
 | `src/renderer/components/ColoredUsername.tsx` | Read the mode from the store (leaf-level store reads are precedented — `MentionPill.tsx:12`); resolve via `identity.ts` under `byKey`; fall through to the **existing** `neutral` branch when unresolved/ambiguous. |
@@ -671,7 +683,7 @@ assertion in those files must seed state first.
   virtualisation, jsdom renders every row, so these are straightforward.
 - **Real-app check** before locking the ramp (§7.6), following the project's
   existing Playwright + Electron recipe with a seeded SQLite roster: screenshot the
-  section at 300px, 340px and 420px, in both themes, with all 12 hues represented
+  section at 290px, 320px and 420px, in both themes, with all 12 hues represented
   and at least one of each dot tier.
 
 ---

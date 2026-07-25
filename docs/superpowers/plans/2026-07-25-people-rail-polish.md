@@ -25,7 +25,8 @@
 - **The row never prints `"ago"`, `"hours"` or `"days"`.** That is the tooltip's job.
 - **A null / zero / negative `lastSeenAt` renders `—`, never `1970`.**
 - **Default `identityColorMode` is `'byKey'`.**
-- **Width threshold is 310px**, not the handoff's 330. `DEFAULT_UI_STATE.rightWidth` becomes 340.
+- **Width threshold is 304px** — reuse `COLLAPSE_WIDTH`, which the Activity section (PR #19) already established, rather than inventing a second number. `DEFAULT_UI_STATE.rightWidth` stays **320**; 304 clears it, so nobody is stranded in the degraded mode and no existing layout is rewritten.
+- **`fmtAge` is not `fmtAgoShort`.** `src/renderer/lib/time.ts:104` already has `fmtAgoShort` (`"just now" / "3m ago" / "5h ago" / "2d ago"`), added by PR #19 for the Activity footer. It is **not** a substitute: the People row must never print "ago" (spec §5.8), needs a weeks rung, and needs the `—` sentinel for a null/epoch timestamp. Both formatters are correct for their own callers — comment the distinction so it does not read as duplication.
 - **Do not add a second `TooltipProvider`** — one is already ambient in `ui/sidebar.tsx:100` at `delayDuration={0}`. Set the delay per `<Tooltip>`.
 - **Commit after every task.** Conventional-commit prefixes (`feat:`, `fix:`, `refactor:`, `test:`, `style:`).
 
@@ -53,7 +54,7 @@
 |---|---|
 | `src/renderer/index.css` | 37 ramp vars, dark + light, plus `@theme` entries. |
 | `src/renderer/lib/contactColor.ts` | 10-slot HSL palette → 12-slot var references. |
-| `src/shared/types.ts` | `IdentityColorMode`, `AppSettings.identityColorMode`, `UiState.peopleRail`, `rightWidth: 340`. |
+| `src/shared/types.ts` | `IdentityColorMode`, `AppSettings.identityColorMode`, `PeopleSort`/`PeopleFilter`/`PeopleRailPrefs`, `UiState.peopleRail`. |
 | `src/renderer/lib/store.ts` | `peopleQuery` at root; `setPeopleQuery`; `setPeopleRail`. |
 | `src/renderer/components/ColoredUsername.tsx` | Mode-aware identity. |
 | `src/renderer/components/ContactAvatar.tsx` | Mode-aware identity; new optional `identity` prop. |
@@ -1559,13 +1560,8 @@ Add to `DEFAULT_UI_STATE`:
   peopleRail: {},
 ```
 
-And change `rightWidth: 320,` to:
-
-```ts
-  // 340 is the width the People rail's control bar was designed at. Existing
-  // profiles keep whatever they stored — mergeDefaults does not overwrite.
-  rightWidth: 340,
-```
+Leave `rightWidth: 320` alone — `RAIL_COLLAPSE_WIDTH` is 304, so the default
+already clears the threshold and nobody lands in the degraded mode.
 
 - [ ] **Step 2: Add store state, actions and setters**
 
@@ -1613,7 +1609,7 @@ Add the setters near `setRightWidth` (~line 875):
 - [ ] **Step 4: Verify**
 
 Run: `npx tsc --noEmit && npx vitest run`
-Expected: clean. If a test snapshots `DEFAULT_UI_STATE`, update the expected `rightWidth` to 340.
+Expected: clean.
 
 - [ ] **Step 5: Commit**
 
@@ -1623,8 +1619,7 @@ git commit -m "feat(store): per-channel People rail prefs and a non-persisted qu
 
 Sort and filter persist per channel so switching channels doesn't reset
 them; the search query lives at the store root, outside the persisted
-`ui` object, so it can never survive a relaunch. Default rail width moves
-to 340, the width the control bar was designed at."
+`ui` object, so it can never survive a relaunch."
 ```
 
 ---
@@ -1890,21 +1885,49 @@ from, in a fixed column rather than floating after the name."
 ### Task 10: The controls
 
 **Files:**
+- Create: `src/renderer/shell/rightrail/railWidth.ts`
+- Modify: `src/renderer/shell/rightrail/sections/channel-activity/activity.ts:6`
 - Create: `src/renderer/shell/rightrail/sections/PeopleControls.tsx`
 
 **Interfaces:**
 - Consumes: `PeopleSort`, `PeopleFilter` (Task 8).
 - Produces:
   ```tsx
+  // railWidth.ts
+  export const RAIL_COLLAPSE_WIDTH = 304;
+
+  // PeopleControls.tsx
   interface PeopleControlsProps {
     query: string; sort: PeopleSort; filter: PeopleFilter; showToggles: boolean;
     onQuery(q: string): void; onSort(s: PeopleSort): void; onFilter(f: PeopleFilter): void;
   }
   export function PeopleControls(props: PeopleControlsProps): JSX.Element
-  export const PEOPLE_WIDTH_THRESHOLD = 310;
   ```
 
-- [ ] **Step 1: Create the component**
+- [ ] **Step 1: Hoist the shared rail width constant**
+
+The Activity section already collapses at 304px, reading `ui.rightWidth` from the store with no `ResizeObserver` — the same mechanism this section needs. Two rail sections collapsing at different widths would be a visible inconsistency, so share one constant rather than adding a second.
+
+Create `src/renderer/shell/rightrail/railWidth.ts`:
+
+```ts
+/** Rail width (px) below which sections drop their secondary controls and
+ *  switch to a compact layout. Measured against the rail's OUTER width
+ *  (`ui.rightWidth`), which is what the design references measured, and read
+ *  straight from the store — the rail's own px width already lives there, so
+ *  no ResizeObserver or container query is needed. */
+export const RAIL_COLLAPSE_WIDTH = 304;
+```
+
+Then in `src/renderer/shell/rightrail/sections/channel-activity/activity.ts`, replace the literal declaration at line 6 with a re-export so the Activity section and its tests keep importing `COLLAPSE_WIDTH` from where they already do:
+
+```ts
+export { RAIL_COLLAPSE_WIDTH as COLLAPSE_WIDTH } from '../../railWidth';
+```
+
+Preserve the existing doc comment by moving it onto `RAIL_COLLAPSE_WIDTH`. Run `npx vitest run --project dom tests/component/channel-activity-section.test.tsx` after this step — it imports `COLLAPSE_WIDTH` from `activity.ts` and must still pass untouched.
+
+- [ ] **Step 2: Create the component**
 
 ```tsx
 import { Search } from 'lucide-react';
@@ -1912,10 +1935,10 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type { PeopleFilter, PeopleSort } from '../../../../shared/types';
 import { cn } from '../../../lib/utils';
 
-/** Below this rail width the control row is dropped and the volume bar is
- *  omitted; search stands alone. Lowered from the handoff's 330 so an existing
- *  320px rail is not stranded in the degraded mode. */
-export const PEOPLE_WIDTH_THRESHOLD = 310;
+// Below RAIL_COLLAPSE_WIDTH the control row is dropped and the volume bar is
+// omitted; search stands alone. 304 rather than the handoff's 330 so a default
+// 320px rail is not stranded in the degraded mode — and it is the same width
+// the Activity section above already collapses at.
 
 const SORTS: ReadonlyArray<{ value: PeopleSort; label: string }> = [
   { value: 'recent', label: 'Recent' },
@@ -1946,7 +1969,7 @@ interface PeopleControlsProps {
   query: string;
   sort: PeopleSort;
   filter: PeopleFilter;
-  /** False below PEOPLE_WIDTH_THRESHOLD — search stands alone. */
+  /** False below RAIL_COLLAPSE_WIDTH — search stands alone. */
   showToggles: boolean;
   onQuery: (q: string) => void;
   onSort: (s: PeopleSort) => void;
@@ -2016,12 +2039,12 @@ Radix's single-type ToggleGroup emits `''` when the active item is clicked again
 
 The search field is a bare `<input>` rather than the shadcn `Input`: `Input` ships `h-9`, `rounded-md`, `border-input`, `shadow-xs`, `px-3` and `md:text-sm`, every one of which this design overrides. Fighting six classes to reuse a wrapper that adds nothing is worse than the twelve-class input above. The leading icon needs a flex container regardless.
 
-- [ ] **Step 2: Verify**
+- [ ] **Step 3: Verify**
 
 Run: `npx tsc --noEmit && npx biome check src/renderer/shell/rightrail/sections/PeopleControls.tsx`
 Expected: clean.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add src/renderer/shell/rightrail/sections/PeopleControls.tsx
@@ -2030,7 +2053,7 @@ git commit -m "feat(people): search, sort and filter controls
 Two ToggleGroups with the selected item inverted to a darker pill with an
 amber label — the stock data-[state=on]:bg-accent is cs-bg-3 on a cs-bg-2
 rail, about 1.05:1 and invisible. Controls collapse to the search field
-alone below a 310px rail."
+alone below a 304px rail, the same width the Activity section collapses at."
 ```
 
 ---
@@ -2038,6 +2061,7 @@ alone below a 310px rail."
 ### Task 11: Compose the section
 
 **Files:**
+- Modify: `src/renderer/hooks/useChannelStats.ts` (share one request per channel)
 - Modify: `src/renderer/shell/rightrail/sections/ChannelPeople.tsx` (rewrite)
 - Modify: `src/renderer/shell/rightrail/sectionsFor.tsx:27-32` and the People entry ~line 199-204
 - Modify: `src/renderer/shell/rightrail/index.tsx:118-133`
@@ -2093,7 +2117,7 @@ const body = (over: Partial<ComponentProps<typeof ChannelPeopleBody>> = {}) => (
   <ChannelPeopleBody
     stats={stats()}
     loading={false}
-    railWidth={340}
+    railWidth={320}
     sort="recent"
     filter="all"
     query=""
@@ -2166,7 +2190,7 @@ describe('ChannelPeopleBody', () => {
   });
 
   it('drops the sort and filter toggles on a narrow rail', () => {
-    render(body({ railWidth: 300 }));
+    render(body({ railWidth: 290 }));
     expect(screen.getByLabelText('Search people')).toBeTruthy();
     expect(screen.queryByLabelText('Sort people')).toBeNull();
   });
@@ -2188,7 +2212,7 @@ import { useChannelStats } from '../../../hooks/useChannelStats';
 import { useNowTick } from '../../../hooks/useNowTick';
 import type { ApiClient } from '../../../lib/api';
 import { useStore } from '../../../lib/store';
-import { PEOPLE_WIDTH_THRESHOLD, PeopleControls } from './PeopleControls';
+import { PeopleControls } from './PeopleControls';
 import { PeopleRow } from './PeopleRow';
 import { type RosterRow, filterRoster, groupByBucket, maxCount, sortRoster, toRosterRows } from './peopleModel';
 
@@ -2241,7 +2265,7 @@ export function ChannelPeopleBody({
     return <EmptyNote>No one has been heard in this channel yet.</EmptyNote>;
   }
 
-  const wide = railWidth >= PEOPLE_WIDTH_THRESHOLD;
+  const wide = railWidth >= RAIL_COLLAPSE_WIDTH;
   const shown = sortRoster(filterRoster(all, filter, query), sort);
   const max = maxCount(shown);
   const showVolume = wide && sort !== 'name';
@@ -2360,9 +2384,48 @@ export function ChannelPeopleSection({ channel, client }: { channel: Channel; cl
 
 `addContact` is wired in the next step.
 
-Note `useChannelStats` is called in both `ChannelPeopleCount` and `ChannelPeopleSection`. That is two fetches per channel. If the duplicate is objectionable, lift the stats into a small context in a follow-up — do **not** restructure the rail for it here.
+`useChannelStats` is called from both `ChannelPeopleCount` and `ChannelPeopleSection`. Step 4 makes that one HTTP request, not two.
 
-- [ ] **Step 4: Wire "add to contacts"**
+- [ ] **Step 4: Make `useChannelStats` share one request per channel**
+
+`Collapsible` renders `{open && children}`, so today a section body only fetches when expanded — and `rail.channel.people` is `defaultOpen: false`. The header count renders from `trailing`, which is **not** gated on `open`, so stats now load whenever the rail shows a channel. That is the accepted trade for a count that is visible while collapsed. What is *not* acceptable is firing the same request twice when the section is also expanded.
+
+PR #19 moved the Activity section onto its own `useChannelActivity` hook, so `ChannelPeople` is now the only caller of `useChannelStats` — verify before editing:
+
+```bash
+grep -rn "useChannelStats" src/renderer | grep -v "hooks/useChannelStats"
+```
+
+Expected: only `ChannelPeople.tsx`. If anything else appears, stop and report — the hook has another consumer whose fetch cadence this would change.
+
+Add a module-level in-flight cache to `src/renderer/hooks/useChannelStats.ts`. Both callers render in the same React pass with the same `messagesByKey[key]` identity, so they resolve to the same promise and the same single request:
+
+```ts
+// One request per (channel, message-list identity). The header count and the
+// section body both call this hook for the same channel in the same render
+// pass; without sharing, expanding the section would double every fetch.
+// The messages identity doubles as the cache key's version — it is exactly
+// what the effect already refetches on, so a new message invalidates here too.
+const inflight = new Map<string, { messages: unknown; promise: Promise<ChannelStats> }>();
+
+function sharedStats(client: ApiClient, key: string, messages: unknown): Promise<ChannelStats> {
+  const hit = inflight.get(key);
+  if (hit && hit.messages === messages) return hit.promise;
+  const promise = api.getChannelStats(client, key);
+  inflight.set(key, { messages, promise });
+  return promise;
+}
+```
+
+Then have the existing effect call `sharedStats(client, key, messages)` instead of `api.getChannelStats(client, key)`. Everything else in the hook — `cancelled`, `loading`, `error`, the dependency array — stays exactly as it is.
+
+Two details that matter:
+- A rejected promise must not be cached as a permanent failure. Delete the entry on rejection: `promise.catch(() => inflight.delete(key))` before returning it, so the next render retries.
+- The map is keyed by channel key and overwritten per key, so it holds at most one entry per channel visited. No eviction needed.
+
+`tests/component/use-channel-stats.test.tsx` must still pass. If it asserts a fetch count, add a case proving two hook instances on one key produce **one** `getChannelStats` call.
+
+- [ ] **Step 5: Wire "add to contacts"**
 
 `UserPlus` is only enabled for a row that already has a resolved `pubkey` (from the advert-derived discovered pool) and is not yet saved, so the data needed to save is in hand.
 
@@ -2390,7 +2453,7 @@ Match the real signature you found — do **not** invent parameters. If the exis
 
 If no reusable helper exists and the only options are raw `api.*` calls, stop and say so in the task report rather than hand-rolling contact creation here — saving a contact has radio-side consequences and belongs behind whatever the app already does.
 
-- [ ] **Step 5: Plumb `trailing` through the rail**
+- [ ] **Step 6: Plumb `trailing` through the rail**
 
 In `sectionsFor.tsx`, extend the interface (line 27-32):
 
@@ -2437,15 +2500,15 @@ In `rightrail/index.tsx`, pass both through (lines 122-130):
                 </Collapsible>
 ```
 
-- [ ] **Step 6: Run the tests**
+- [ ] **Step 7: Run the tests**
 
 Run: `npx vitest run && npx tsc --noEmit && npx biome check src tests`
 Expected: all green. `rail-sections-channel.test.tsx` asserts section id order and `defaultOpen` — it should pass untouched. If it fails, you changed the order; revert that.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/renderer/shell/rightrail/sections/ChannelPeople.tsx src/renderer/shell/rightrail/sectionsFor.tsx src/renderer/shell/rightrail/index.tsx tests/component/channel-people-section.test.tsx
+git add src/renderer/hooks/useChannelStats.ts src/renderer/shell/rightrail/sections/ChannelPeople.tsx src/renderer/shell/rightrail/sectionsFor.tsx src/renderer/shell/rightrail/index.tsx tests/component/channel-people-section.test.tsx
 git commit -m "feat(people): rebuild the channel roster as a searchable directory
 
 Replaces the flat name+count+'N hours ago' list with the People — Full
@@ -2478,7 +2541,7 @@ Follow the project's existing Playwright + Electron recipe: `pnpm package`, then
 
 - [ ] **Step 3: Capture the matrix**
 
-Screenshot the People section at rail widths **300** (narrow: search only, no volume bar), **340** (default) and **420** (widened), in **both** themes. Confirm in each shot:
+Screenshot the People section at rail widths **290** (narrow: search only, no volume bar), **320** (the default) and **420** (widened), in **both** themes. Confirm in each shot:
 
 - all three dot tiers are present and distinguishable — filled+hued, hollow+hued, hollow+grey;
 - the neutral dot reads as a mark, not a hole, and not louder than the coloured ones;
