@@ -56,6 +56,12 @@ export function axisTicks(win: ActivityWindowKey, startMs: number, len: number):
     if (len > 20) out[20] = '10d';
   }
   if (len > 0) out[len - 1] = 'now';
+  // "now" is placed last and wins, so a quarter-hour tick on the penultimate bucket
+  // would sit flush against it at this font size (8.5px in a ~10px-wide flex-1 cell) —
+  // drop it rather than render two labels touching. Only the 24h grid can produce this:
+  // 7d returns early and labels every bucket, and 30d's fixed 0/10/20/29 positions never
+  // land adjacent to the last index.
+  if (win === '24h' && len > 1) out[len - 2] = '';
   return out;
 }
 

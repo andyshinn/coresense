@@ -14,6 +14,15 @@ const midnight = (() => {
   return d.getTime();
 })();
 
+/** Same date, 08:00 local. With 24 hourly buckets starting here, bucket 22 carries
+ *  hour (8+22) mod 24 = 6 ("6a") and bucket 23 — the final, "now" — bucket carries
+ *  hour 7. That is the exact collision case: quarter-hour tick immediately before "now". */
+const eightAm = (() => {
+  const d = new Date(1_700_000_000_000);
+  d.setHours(8, 0, 0, 0);
+  return d.getTime();
+})();
+
 describe('trendPct', () => {
   it('rounds the percentage change against the previous period', () => {
     expect(trendPct(123, 104)).toBe(18);
@@ -39,6 +48,19 @@ describe('axisTicks', () => {
     expect(ticks[18]).toBe('6p');
     expect(ticks[23]).toBe('now');
     expect(ticks[1]).toBe('');
+  });
+
+  it('drops a quarter-hour tick that would otherwise sit flush against "now"', () => {
+    // startMs = 08:00 local puts hour 6 ("6a") on the penultimate bucket (22) and
+    // "now" on the final one (23) — the collision this suppression exists for.
+    const ticks = axisTicks('24h', eightAm, 24);
+    expect(ticks).toHaveLength(24);
+    expect(ticks[22]).toBe('');
+    expect(ticks[23]).toBe('now');
+    // Earlier quarter-hour labels in this same window are unaffected.
+    expect(ticks[4]).toBe('12p'); // hour 12
+    expect(ticks[10]).toBe('6p'); // hour 18
+    expect(ticks[16]).toBe('12a'); // hour 0
   });
 
   it('derives 7d weekday initials from the real dates, not a fixed M-T-W string', () => {
