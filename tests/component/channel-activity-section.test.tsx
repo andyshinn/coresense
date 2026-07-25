@@ -120,15 +120,25 @@ describe('ActivityBody', () => {
     expect(container.textContent).not.toContain('%');
   });
 
-  it('shows a real 0% chip when the period is flat, distinct from "no previous period"', () => {
+  it('shows a real, neutral 0% chip when the period is flat, distinct from "no previous period"', () => {
     // total === prevTotal is the one input where `pct !== null` and plain truthiness
     // (`pct && …`) disagree: trendPct returns 0 here, and 0 is a legitimate value that
-    // must still render — only a null trend (the test above) has no chip at all.
+    // must still render — only a null trend (the test above) has no chip at all. A flat
+    // period also has no direction to assert, so it must not borrow the green "up" chip
+    // treatment (a live defect: pct=0 previously fell into `up = pct >= 0`).
     const a = activity();
     a.windows['24h'] = w(24, 104, 104);
     const { container } = body({ activity: a });
     expect(screen.getByText('0%')).toBeTruthy();
     expect(container.textContent).not.toContain('NaN');
+    // Scoped to the chip itself (its parent element), not container-wide — both the
+    // "in 24h" unit label and WindowTabs' track also use bg-cs-bg-3/text-cs-text-muted,
+    // so a bare querySelector on those classes would pass regardless of the chip.
+    const chip = screen.getByText('0%').parentElement;
+    expect(chip?.className).toContain('text-cs-text-muted');
+    expect(chip?.className).toContain('bg-cs-bg-3');
+    expect(chip?.className).not.toContain('text-cs-trend-up');
+    expect(chip?.className).not.toContain('text-cs-trend-down');
   });
 
   it('renders a zero window without NaN', () => {
