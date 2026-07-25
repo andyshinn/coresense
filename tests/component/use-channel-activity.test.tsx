@@ -75,19 +75,18 @@ describe('useChannelActivity', () => {
     }
   });
 
-  it('clears the refresh interval on unmount', async () => {
+  it('clears the refresh interval on unmount', () => {
+    // A leaked interval only ever calls `setTick`; on an unmounted component that
+    // never re-renders or re-runs an effect, so it can't be observed through the
+    // fetch mock's call count. Assert on the pending timer itself instead.
     vi.useFakeTimers();
     try {
+      const before = vi.getTimerCount();
       const { unmount } = renderHook(() => useChannelActivity('ch:Test', client));
-      await vi.waitFor(() => expect(getChannelActivity).toHaveBeenCalledTimes(1));
-
+      // The hook owns exactly one long-lived interval while mounted.
+      expect(vi.getTimerCount()).toBeGreaterThan(before);
       unmount();
-
-      // Well past REFRESH_MS (300_000) — a live interval would have fired again.
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(600_000);
-      });
-      expect(getChannelActivity).toHaveBeenCalledTimes(1);
+      expect(vi.getTimerCount()).toBe(before);
     } finally {
       vi.useRealTimers();
     }
