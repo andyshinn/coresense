@@ -14,7 +14,15 @@ import { useStore } from '@/lib/store';
 import { ChannelPeopleBody, ChannelPeopleCount, ChannelPeopleSection } from '@/shell/rightrail/sections/ChannelPeople';
 import type { Channel, ChannelStats, Contact } from '../../src/shared/types';
 
-const NOW = Date.now();
+// Pinned, not Date.now(). `bucketFor` is calendar-relative (spec §5.6), so a
+// fixture built from the real clock puts "3 hours ago" on the *previous*
+// calendar day whenever the suite runs between local midnight and 03:00 — the
+// row buckets to "Yesterday" and this file's bucket test fails looking for
+// "Today". CI caught it at 02:31 UTC. Noon keeps every offset below well clear
+// of a day boundary in any timezone, and `useNowTick` is pinned to the same
+// instant so the component's clock and the fixture can never disagree.
+const { NOW } = vi.hoisted(() => ({ NOW: new Date('2026-07-25T12:00:00').getTime() }));
+vi.mock('@/hooks/useNowTick', () => ({ useNowTick: () => NOW }));
 
 const contact = (over: Partial<Contact> = {}): Contact => ({
   key: 'c:abc',
