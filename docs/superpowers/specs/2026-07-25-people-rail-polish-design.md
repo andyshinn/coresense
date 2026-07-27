@@ -511,7 +511,7 @@ honoured via Tailwind's `motion-reduce:` variant on any transition added.
 `--cs-id-0…11` (dot), `--cs-id-fg-0…11` (text and avatar glyph),
 `--cs-id-bg-0…11` (avatar fill), `--cs-id-neutral`. The avatar fills are
 required, not optional — `getNameColor` returns `{fg, bg, pillBg}` today and
-`ContactAvatar` uses `bg` as the disc fill (§7.4). Defined in
+`ContactAvatar` uses `bg` as the disc fill (§7.5). Defined in
 `:root` (dark) and fully overridden in `:root:not(.dark)` (light), with the
 originating `oklch()` and the `bg / bg-2 / bg-3` contrast ratios in a trailing
 comment per line — exactly the existing `--cs-hash-1/2/3` pattern
@@ -525,101 +525,181 @@ with Tailwind's `/15` alpha syntax and keep `contactColor.ts` a **pure**
 `djb2(id) % 12 → rgb(var(--cs-id-N))` function with no theme argument and no
 re-render on theme change.
 
-**Rule to preserve on future edits: `L_light = 1.30 − L_dark`.**
+**Rule to preserve on future edits: chroma is per hue (§7.2). There is no
+fixed light↔dark lightness offset — light `L` is whatever the contrast gates
+allow, and the binding gate is the pill fill, not the page.**
 
-### 7.2 Dot — `--cs-id-0 … --cs-id-11`
+### 7.2 Chroma is per hue
 
-Dark `oklch(0.76 0.095 h)` · Light `oklch(0.54 0.090 h)`. Ratios vs `bg / bg-2 / bg-3`.
-Threshold **3:1** (non-text graphical object).
+The first version of this ramp used one chroma for all twelve slots — dot
+`oklch(0.76 0.095 h)`, text `oklch(0.84 0.060 h)`. It shipped, and it read
+washed out. The cause is structural, not a matter of taste.
 
-| slot | h | dark | dark ratios | light | light ratios |
-|---|---|---|---|---|---|
-| 0 | 25 | `#E79993` | 8.83 / 8.24 / 7.60 | `#9C5954` | 5.02 / 4.60 / 3.94 |
-| 1 | 55 | `#E0A176` | 8.98 / 8.38 / 7.73 | `#976038` | 4.93 / 4.51 / 3.87 |
-| 2 | 85 | `#CDAD68` | 9.21 / 8.60 / 7.93 | `#876A29` | 4.84 / 4.43 / 3.79 |
-| 3 | 115 | `#AFB971` | 9.42 / 8.80 / 8.12 | `#6D7533` | 4.70 / 4.30 / 3.69 |
-| 4 | 145 | `#8BC18C` | 9.52 / 8.89 / 8.20 | `#4B7C4D` | 4.65 / 4.26 / 3.65 |
-| 5 | 175 | `#69C5AE` | 9.61 / 8.97 / 8.28 | `#24806C` | 4.55 / 4.17 / **3.57** |
-| 6 | 205 | `#5EC3CE` | 9.58 / 8.95 / 8.26 | `#0C7D87` | 4.64 / 4.25 / 3.64 |
-| 7 | 235 | `#72BBE5` | 9.38 / 8.76 / 8.08 | `#31779B` | 4.70 / 4.30 / 3.69 |
-| 8 | 265 | `#94B0EE` | 9.14 / 8.54 / 7.87 | `#556DA3` | 4.86 / 4.45 / 3.81 |
-| 9 | 295 | `#B5A5E8` | 8.95 / 8.36 / 7.71 | `#72649E` | 4.96 / 4.54 / 3.89 |
-| 10 | 325 | `#D09CD3` | 8.82 / 8.24 / 7.60 | `#895C8C` | 5.03 / 4.60 / 3.94 |
-| 11 | 355 | `#E298B4` | 8.84 / 8.25 / 7.62 | `#985871` | 5.02 / 4.60 / 3.94 |
+Max in-gamut sRGB chroma varies about **4× across hue** at a fixed lightness. At
+`L=0.46` the ceiling is 0.079 at h=205 (cyan) but 0.308 at h=265 (blue-violet).
+An iso-chroma ramp must sit at or below the *weakest* hue's ceiling, so cyan
+dragged all twelve down to 0.060 and threw away the headroom the other eleven
+had. Raising the single number was impossible — the first version of this
+section said so, and was right, *given iso-chroma*.
 
-Worst dark 7.60, worst light 3.57. All 24 pass. All in sRGB gamut.
+The fix is to drop iso-chroma. Each slot now sits at **~0.95 of its own hue's
+ceiling** at that ramp's `L`, capped so no single hue runs away:
 
-These are the shipped values; `src/renderer/index.css` is canonical.
+| ramp | dark | light | old C | new C (mean) |
+|---|---|---|---|---|
+| dot | `L 0.74, C ≤ 0.170` | `L 0.52, C ≤ 0.190` | 0.095 | **0.150 / 0.144** |
+| text | `L 0.78, C ≤ 0.150` | `L 0.41, C ≤ 0.200` | 0.060 | **0.130 / 0.126** |
+| avatar fill | `L 0.30, C ≤ 0.090` | `L 0.92, C ≤ 0.055` | 0.050 / 0.035 | 0.076 / 0.049 |
 
-### 7.3 Text — `--cs-id-fg-0 … --cs-id-fg-11`
+For reference, the HSL palette this design replaced averaged **C 0.138** — the
+saturation people were used to. The new ramp lands on it; the first version was
+2.3× below it.
 
-Dark `oklch(0.84 0.060 h)` · Light `oklch(0.46 0.060 h)`. Threshold **4.5:1**.
+Two consequences worth stating plainly:
 
-| slot | h | dark | dark ratios | light | light ratios |
-|---|---|---|---|---|---|
-| 0 | 25 | `#F0BCB7` | 11.85 / 11.07 / 10.21 | `#764B47` | 6.96 / 6.37 / 5.46 |
-| 1 | 55 | `#EAC1A6` | 11.94 / 11.15 / 10.29 | `#724F37` | 6.90 / 6.32 / 5.42 |
-| 2 | 85 | `#DDC89E` | 12.08 / 11.29 / 10.41 | `#67552F` | 6.84 / 6.26 / 5.36 |
-| 3 | 115 | `#C9D0A3` | 12.28 / 11.47 / 10.58 | `#575C34` | 6.68 / 6.11 / 5.24 |
-| 4 | 145 | `#B3D5B3` | 12.33 / 11.51 / 10.62 | `#426143` | 6.60 / 6.04 / 5.18 |
-| 5 | 175 | `#A2D8C8` | 12.43 / 11.60 / 10.71 | `#2F6356` | 6.56 / 6.01 / 5.15 |
-| 6 | 205 | `#9CD6DD` | 12.32 / 11.50 / 10.61 | `#296268` | 6.56 / 6.00 / **5.14** |
-| 7 | 235 | `#A5D2ED` | 12.27 / 11.46 / 10.57 | `#345D75` | 6.72 / 6.15 / 5.27 |
-| 8 | 265 | `#B8CBF3` | 12.13 / 11.33 / 10.45 | `#48587A` | 6.76 / 6.18 / 5.30 |
-| 9 | 295 | `#CDC3EE` | 11.90 / 11.12 / 10.25 | `#5A5176` | 6.94 / 6.35 / 5.45 |
-| 10 | 325 | `#DFBEE0` | 11.85 / 11.07 / 10.21 | `#694C6B` | 7.01 / 6.41 / 5.50 |
-| 11 | 355 | `#ECBBCC` | 11.82 / 11.04 / 10.18 | `#734A5A` | 6.98 / 6.39 / 5.48 |
+- **The `L_light = 1.30 − L_dark` rule is retired.** It was tidiness, and it
+  cannot survive gates that bind differently per theme.
+- **Dark-mode text dropped from `L 0.84` to `0.78`.** At 0.84 the ceiling for
+  h=265 is only 0.079, so the lightest slots were the dullest. 0.78 still
+  measures 7.99:1 at worst — comfortably above AA, and above AAA.
 
-Worst dark 10.18, worst light 5.14. All 24 pass. Against the tint's own `/18` pill
-fill (the rule from `index.css:46-56`): dark worst 8.31, light worst 5.03 — still
-passing.
+### 7.3 Dot — `--cs-id-0 … --cs-id-11`
 
-### 7.4 Avatar
+Threshold **3:1** (non-text graphical object). Ratios vs `bg / bg-2 / bg-3`.
+
+| slot | h | dark | C | dark ratios | light | C | light ratios |
+|---|---|---|---|---|---|---|---|
+| 0 | 25 | `#FB817A` | 0.150 | 8.03 / 7.50 / 6.92 | `#BE222A` | 0.190 | 5.78 / 5.29 / 4.53 |
+| 1 | 55 | `#FA8927` | 0.170 | 8.17 / 7.63 / 7.04 | `#9D520F` | 0.123 | 5.47 / 5.01 / 4.29 |
+| 2 | 85 | `#D4A220` | 0.144 | 8.47 / 7.91 / 7.29 | `#846310` | 0.101 | 5.29 / 4.84 / 4.15 |
+| 3 | 115 | `#A8B621` | 0.160 | 8.83 / 8.25 / 7.61 | `#677010` | 0.112 | 5.11 / 4.68 / 4.01 |
+| 4 | 145 | `#5BC663` | 0.169 | 9.14 / 8.53 / 7.87 | `#137F26` | 0.156 | 4.88 / 4.46 / 3.82 |
+| 5 | 175 | `#26C6A6` | 0.133 | 9.15 / 8.54 / 7.88 | `#137A66` | 0.093 | 4.98 / 4.56 / 3.91 |
+| 6 | 205 | `#25C0CF` | 0.120 | 8.97 / 8.37 / 7.73 | `#137780` | 0.085 | 5.01 / 4.59 / 3.93 |
+| 7 | 235 | `#24B8FB` | 0.150 | 8.78 / 8.20 / 7.57 | `#12719C` | 0.105 | 5.16 / 4.72 / 4.05 |
+| 8 | 265 | `#83A9FB` | 0.126 | 8.51 / 7.95 / 7.33 | `#315DD4` | 0.190 | 5.47 / 5.01 / 4.29 |
+| 9 | 295 | `#B297FB` | 0.143 | 8.21 / 7.66 / 7.07 | `#7447C8` | 0.191 | 5.74 / 5.25 / 4.50 |
+| 10 | 325 | `#DF81E5` | 0.170 | 7.92 / 7.40 / 6.82 | `#9C34A3` | 0.190 | 5.81 / 5.32 / 4.56 |
+| 11 | 355 | `#FB78B0` | 0.170 | 7.93 / 7.40 / 6.83 | `#B5236E` | 0.190 | 5.81 / 5.32 / 4.56 |
+
+Worst dark 6.82, worst light 3.82.
+
+### 7.4 Text — `--cs-id-fg-0 … --cs-id-fg-11`
+
+Threshold **4.5:1**.
+
+| slot | h | dark | C | dark ratios | light | C | light ratios |
+|---|---|---|---|---|---|---|---|
+| 0 | 25 | `#F99992` | 0.116 | 9.42 / 8.80 / 8.11 | `#8C0D18` | 0.158 | 9.13 / 8.35 / 7.16 |
+| 1 | 55 | `#F99F5E` | 0.134 | 9.56 / 8.93 / 8.24 | `#713A08` | 0.096 | 8.63 / 7.90 / 6.77 |
+| 2 | 85 | `#E1AF34` | 0.144 | 9.78 / 9.13 / 8.43 | `#5E4608` | 0.080 | 8.47 / 7.75 / 6.64 |
+| 3 | 115 | `#B5C242` | 0.150 | 10.14 / 9.47 / 8.73 | `#494F08` | 0.088 | 8.29 / 7.59 / 6.51 |
+| 4 | 145 | `#75D079` | 0.149 | 10.41 / 9.72 / 8.97 | `#0B5A19` | 0.121 | 8.01 / 7.33 / 6.28 |
+| 5 | 175 | `#3CD3B3` | 0.133 | 10.51 / 9.82 / 9.06 | `#0B5748` | 0.073 | 8.07 / 7.39 / 6.33 |
+| 6 | 205 | `#3BCDDC` | 0.120 | 10.32 / 9.63 / 8.89 | `#0B545B` | 0.066 | 8.20 / 7.50 / 6.43 |
+| 7 | 235 | `#62C3F8` | 0.119 | 10.06 / 9.40 / 8.67 | `#0A5170` | 0.082 | 8.23 / 7.53 / 6.46 |
+| 8 | 265 | `#98B7F8` | 0.099 | 9.86 / 9.20 / 8.49 | `#1337B4` | 0.200 | 8.93 / 8.17 / 7.01 |
+| 9 | 295 | `#BCA9F8` | 0.112 | 9.58 / 8.95 / 8.25 | `#581CA8` | 0.200 | 9.29 / 8.50 / 7.29 |
+| 10 | 325 | `#E794EC` | 0.150 | 9.27 / 8.66 / 7.99 | `#770D7F` | 0.182 | 9.28 / 8.50 / 7.28 |
+| 11 | 355 | `#F992BC` | 0.133 | 9.29 / 8.68 / 8.01 | `#860C4F` | 0.160 | 9.15 / 8.38 / 7.18 |
+
+Worst dark 7.99, worst light 6.28.
+
+The binding constraint on light text is **not** the page — it is the tint's own
+`/18` pill fill, which `ColoredUsername` paints behind the name. Because the fill
+is a tint of the text colour itself, raising chroma pulls the fill toward the
+text and closes the gap. Measured on its own fill over every surface: dark worst
+**5.63**, light worst **4.76**. That gate, not the page, is what caps light text
+at `L 0.42`; the shipped 0.41 keeps a margin. Measuring against the page instead
+overstates the result by about a point, and is how this project shipped sub-AA
+tints twice before.
+
+### 7.5 Avatar
 
 The one tinted-glyph-on-tinted-fill pair, so it is measured against **its own
 fill**, per project convention.
 
-| | fill | glyph | glyph-on-fill | disc vs page |
-|---|---|---|---|---|
-| Dark | `oklch(0.30 0.050 h)` | `oklch(0.84 0.060 h)` | 8.31 → 8.41 | 1.22 (deliberately soft) |
-| Light | `oklch(0.92 0.035 h)` | `oklch(0.46 0.060 h)` | 5.52 → 5.75 | 1.04 (deliberately soft) |
+| slot | h | dark fill | glyph-on-fill | light fill | glyph-on-fill |
+|---|---|---|---|---|---|
+| 0 | 25 | `#521615` | 6.74 | `#FBDCD9` | 7.48 |
+| 1 | 55 | `#45240A` | 6.72 | `#FBDECB` | 7.10 |
+| 2 | 85 | `#3A2B0A` | 6.79 | `#F6E3BC` | 7.06 |
+| 3 | 115 | `#2D310A` | 6.92 | `#E3EAC0` | 6.98 |
+| 4 | 145 | `#0C3811` | 6.96 | `#CFEFCF` | 6.79 |
+| 5 | 175 | `#0D362C` | 7.06 | `#BFF1E2` | 6.84 |
+| 6 | 205 | `#0C3438` | 7.00 | `#BAF0F6` | 6.94 |
+| 7 | 235 | `#0C3245` | 6.86 | `#CDE9FB` | 6.87 |
+| 8 | 265 | `#172A5A` | 6.91 | `#DAE5FB` | 7.43 |
+| 9 | 295 | `#322255` | 6.80 | `#E6E0FB` | 7.65 |
+| 10 | 325 | `#431A46` | 6.68 | `#F8D9F9` | 7.58 |
+| 11 | 355 | `#4E1530` | 6.69 | `#FBDAE6` | 7.47 |
 
-Both clear 4.5:1. Compare today: the disc uses a fixed dark HSL fill in **both**
-themes, reading 5.94–11.41:1 against the cream light page — a near-black blob. The
-retint is a bug fix, not polish.
+All 24 clear 4.5:1 (worst 6.68).
 
-### 7.5 Neutral
+### 7.6 Neutral
 
-`--cs-id-neutral` is its own token rather than borrowing `cs-text-dim`, which
-measures **3.03:1** on light-mode `bg-3` — passing, but the thinnest number in the
-design, and the row hovers to `bg-3`.
+`--cs-id-neutral` is the warm grey of `cs-text-dim`, re-levelled so it sits
+*inside* the coloured dots' band in each theme. The dot column should read as an
+even column of marks: a keyless person is a mark without a hue, not a hole.
 
-The goal is not "as much contrast as possible": the dot column should read as an
-**even column of marks**, so a keyless person is a mark without a hue, not a hole.
-The neutral therefore sits *inside* the coloured dots' band in each theme, not
-above or below it.
+| | value | ratios (bg / bg-2 / bg-3) |
+|---|---|---|
+| Dark | `181 169 147` (`#B5A993`) | 8.53 / 7.97 / 7.35 |
+| Light | `117 101 72` (`#756548`) | 5.37 / 4.92 / 4.22 |
 
-| | value | ratios (bg / bg-2 / bg-3) | coloured band on bg-3 |
-|---|---|---|---|
-| Dark | `188 172 141` (`#BCAC8D`) | 8.88 / 8.29 / **7.65** | 7.60 – 8.28 |
-| Light | `122 108 82` (`#7A6C52`) | 4.87 / 4.46 / **3.82** | 3.57 – 3.94 |
+Dark band on `bg-3` is 6.82–7.88 (neutral 7.35); light is 3.82–4.56 (neutral
+4.22). Both are mid-band, and both clear the 3:1 non-text threshold.
 
-Both are the warm grey of `cs-text-dim` re-levelled, so the neutral stays in the
-palette's hue family. Both clear the 3:1 non-text threshold with margin.
+Separation from the nearest coloured dot, OKLab ΔE: dark **0.110**, light
+**0.054** — both wider than the closest pair *within* the coloured ramp (dark
+0.068, light 0.046), which is the separation the design already accepts. The
+neutral is also hollow by type invariant and never renders at all under
+`byName`.
 
-### 7.6 Verification gate
+### 7.7 Why not Radix Colors
 
-All 48 ramp values pass their applicable WCAG threshold. **Distinguishability of 12
-hues 30° apart at chroma 0.060 is unmeasured.** Before locking the chroma, render
-all 12 slots in the real app in both themes and look at them.
+Radix's step semantics map onto this design almost exactly — step 9 (“purest
+step”) is the dot, step 11 (low-contrast text) is the text, step 3 is the avatar
+fill — and its per-hue chroma is the very idea §7.2 adopts. It was measured
+before being rejected, against our own surfaces:
 
-- If dark mode reads mushy, it has ~6 points of contrast headroom to spend on chroma.
-- Light mode has none: **lower `L`, never raise `C`.** Cyan (h=175/205) is the
-  binding hue at every `L` below ~0.60 — max in-gamut chroma at `L=0.54` is 0.092,
-  so `C=0.090` already sits just inside. Raising it clips and shifts hue without
-  adding contrast.
-- Pre-approved fallback if the hollow ring reads weak at 1.5px: dot light value
-  `oklch(0.52 0.089 h)` → worst 3.93 on `bg-3`, all 12 in gamut.
+| | step 9 as dot (≥3:1) | step 11 as text (≥4.5:1) |
+|---|---|---|
+| Dark | 25/25 pass | 25/25 pass |
+| Light | **6/25 pass** (mean 2.54) | **3/25 pass** (mean 3.93) |
+
+Dark mode is a clean fit. Light mode is not, and the reason is structural: Radix
+light scales are built for a near-white page (`#FBFDFF`) and guarantee **APCA
+Lc60 on their own step 2**, not WCAG 4.5:1 on ours. Our light `bg-3` is
+`#E6DEC8` — warm cream, materially darker — which eats roughly 1.3× of contrast
+ratio. Step 12 clears our gate everywhere but collapses to mean chroma 0.072,
+duller than what we are replacing and near-black besides.
+
+Adopting Radix would therefore mean running two unrelated palette systems across
+the two themes, lowering the light-mode bar below AA, or lightening the Field
+Console surfaces. Generating in OKLCH against our own surfaces gets the same
+per-hue vividness while both themes stay on one derivation and one gate.
+
+### 7.8 Verification gate
+
+`index.css` is canonical; every value above is generated from it, including the
+trailing ratio comments. Before changing any of the 74 identity variables,
+re-run all five gates over the *shipped* file — not over the generator's output:
+
+| gate | applies to | threshold |
+|---|---|---|
+| page contrast | dot | 3:1 on `bg`, `bg-2`, `bg-3` |
+| page contrast | text | 4.5:1 on all three |
+| own `/18` pill fill | text | 4.5:1 — **the binding one in light mode** |
+| glyph-on-fill | avatar | 4.5:1 against its own fill |
+| band membership | neutral | inside the dot band on `bg-3` |
+
+Also confirm 8-bit rounding has not shifted any hue by more than 1.5°, which is
+the symptom of a chroma sitting outside the sRGB gamut and being clipped.
+
+Automated checks cannot settle whether twelve hues 30° apart are *tellable
+apart*. Render all twelve in the real app, in both themes, and look — following
+the project's e2e recipe.
 
 ---
 
@@ -683,7 +763,7 @@ assertion in those files must seed state first.
   abbreviation, ambiguity.
 - **Component tests stay thin** — a handful of smoke renders. Without
   virtualisation, jsdom renders every row, so these are straightforward.
-- **Real-app check** before locking the ramp (§7.6), following the project's
+- **Real-app check** before locking the ramp (§7.8), following the project's
   existing Playwright + Electron recipe with a seeded SQLite roster: screenshot the
   section at 290px, 320px and 420px, in both themes, with all 12 hues represented
   and at least one of each dot tier.
