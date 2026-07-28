@@ -261,6 +261,15 @@ export interface ChannelActivity {
   lastTs: number | null;
 }
 
+export type PeopleSort = 'recent' | 'loud' | 'name';
+export type PeopleFilter = 'all' | 'contacts';
+
+/** Per-channel People rail view state. Persisted in UiState (Task 8). */
+export interface PeopleRailPrefs {
+  sort: PeopleSort;
+  filter: PeopleFilter;
+}
+
 export type BlockRuleType = 'pubkey' | 'pubkeyPrefix' | 'name' | 'nameRegex';
 
 export interface BlockRule {
@@ -368,6 +377,11 @@ export interface LogEntry {
 
 export type ThemePrefValue = 'auto' | 'dark' | 'light';
 
+/** How a person's identity colour is derived.
+ *  'byKey'  — hue only when a real pubkey is known; everyone else is neutral.
+ *  'byName' — hue from the display name, so everyone gets one. */
+export type IdentityColorMode = 'byKey' | 'byName';
+
 export type MessageStyle = 'compact' | 'rich';
 
 /** Clock format for rendered timestamps. 'auto' follows the OS locale; the
@@ -393,6 +407,8 @@ export interface UpdateState {
 
 export interface AppSettings {
   theme: ThemePrefValue;
+  /** How a person's identity colour is derived — see `IdentityColorMode`. */
+  identityColorMode: IdentityColorMode;
   /** Density for the channel/DM conversation message list. */
   messageStyle: MessageStyle;
   /** Density for the Unreads triage previews — separate from `messageStyle` so
@@ -502,6 +518,7 @@ export type ContactGrouping = 'nested' | 'top-level';
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: 'auto',
+  identityColorMode: 'byKey',
   messageStyle: 'rich',
   unreadsStyle: 'compact',
   timeFormat: 'auto',
@@ -858,6 +875,10 @@ export interface UiState {
   // Per-macro usage counts (macro id → tally) driving the quick bar's two
   // auto-pinned macro chips. Account-global, synced alongside emojiUsage.
   macroUsage: UsageMap;
+  // Per-channel People rail sort + filter. Keyed by channel key. Grows
+  // unboundedly, exactly like lastReadByKey. NOT in applyUiState's sync
+  // whitelist, so this persists locally but does not cross-sync.
+  peopleRail: Record<string, PeopleRailPrefs>;
 }
 
 export const DEFAULT_UI_STATE: UiState = {
@@ -893,6 +914,7 @@ export const DEFAULT_UI_STATE: UiState = {
   recentKeys: [],
   emojiUsage: {},
   macroUsage: {},
+  peopleRail: {},
 };
 
 export interface StateSnapshot {

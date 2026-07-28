@@ -1,5 +1,14 @@
-// Deterministic name→color mapping. Pure function of the input string so the
-// same contact always lands on the same color across renders and reloads.
+// Deterministic identity→colour mapping. Pure function of the input string, so
+// the same identity always lands on the same slot across renders and reloads.
+//
+// The returned strings are CSS variable *references*, never literal colours:
+// the 12-slot ramp has different values in dark and light mode (see the
+// --cs-id-* blocks in index.css), and resolving them in CSS keeps this function
+// theme-agnostic — no mode argument to thread through callers, and no re-render
+// when the theme flips.
+//
+// The hash INPUT is chosen by the caller, not here: under the 'byKey' identity
+// colour mode it is a pubkey, under 'byName' a display name. See lib/identity.ts.
 
 export interface NameColor {
   fg: string;
@@ -7,20 +16,10 @@ export interface NameColor {
   pillBg: string;
 }
 
-const PALETTE: ReadonlyArray<{ h: number; s: number; lFg: number; lBg: number }> = [
-  { h: 15, s: 70, lFg: 60, lBg: 28 },
-  { h: 35, s: 75, lFg: 60, lBg: 28 },
-  { h: 55, s: 65, lFg: 55, lBg: 25 },
-  { h: 95, s: 50, lFg: 55, lBg: 24 },
-  { h: 160, s: 50, lFg: 50, lBg: 22 },
-  { h: 195, s: 60, lFg: 60, lBg: 26 },
-  { h: 220, s: 60, lFg: 65, lBg: 28 },
-  { h: 265, s: 55, lFg: 68, lBg: 30 },
-  { h: 310, s: 55, lFg: 65, lBg: 28 },
-  { h: 345, s: 65, lFg: 62, lBg: 28 },
-];
+/** Ramp slot count. Hues are 30° apart: 25, 55, … 355. */
+export const IDENTITY_SLOTS = 12;
 
-function djb2(s: string): number {
+export function djb2(s: string): number {
   let h = 5381;
   for (let i = 0; i < s.length; i++) {
     h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
@@ -28,14 +27,28 @@ function djb2(s: string): number {
   return h;
 }
 
-export function getNameColor(name: string): NameColor {
-  const idx = djb2(name) % PALETTE.length;
-  const p = PALETTE[idx];
-  const fg = `hsl(${p.h} ${p.s}% ${p.lFg}%)`;
-  const bg = `hsl(${p.h} ${p.s}% ${p.lBg}%)`;
-  const pillBg = `color-mix(in srgb, ${fg} 18%, transparent)`;
-  return { fg, bg, pillBg };
+export function identitySlotFor(id: string): number {
+  return djb2(id) % IDENTITY_SLOTS;
 }
+
+export function getNameColor(id: string): NameColor {
+  const slot = identitySlotFor(id);
+  const fg = `rgb(var(--cs-id-fg-${slot}))`;
+  return {
+    fg,
+    bg: `rgb(var(--cs-id-bg-${slot}))`,
+    pillBg: `color-mix(in srgb, ${fg} 18%, transparent)`,
+  };
+}
+
+/** The 7px identity dot's colour. A different, more saturated ramp than the
+ *  text one — the dot is a graphical object at a 3:1 bar, text is at 4.5:1. */
+export function identityDotVar(id: string): string {
+  return `rgb(var(--cs-id-${identitySlotFor(id)}))`;
+}
+
+/** A keyless identity: a mark without a hue. */
+export const IDENTITY_NEUTRAL_VAR = 'rgb(var(--cs-id-neutral))';
 
 export function initialsFor(name: string): string {
   const trimmed = name.trim();

@@ -1,3 +1,4 @@
+import { useIdentityHash } from '../hooks/useIdentityHash';
 import { getNameColor } from '../lib/contactColor';
 import { cn, deriveSenderName } from '../lib/utils';
 
@@ -6,6 +7,12 @@ interface Props {
   name?: string;
   /** Raw from_pk: undefined/null=self, 'name:<n>', 'unknown', or hex pubkey. */
   sender?: string;
+  /** Explicit hash input, overriding this component's own sender-based
+   *  resolution. Pass an identity a caller already resolved (e.g. MessageItem,
+   *  sharing one resolution with ContactAvatar so the two agree) to keep them
+   *  in step; pass null to force neutral (an identity we cannot verify). Omit
+   *  to resolve from `sender` via the hook, as before. */
+  identity?: string | null;
   variant?: 'text' | 'pill';
   size?: 'sm' | 'md';
   selfLabel?: string;
@@ -16,6 +23,7 @@ interface Props {
 export function ColoredUsername({
   name,
   sender,
+  identity,
   variant = 'text',
   size = 'md',
   selfLabel = 'You',
@@ -39,9 +47,15 @@ export function ColoredUsername({
     }
   }
 
-  const color = neutral ? null : getNameColor(display);
+  // Under 'byKey' this is the resolved pubkey (null when we've never heard an
+  // advert); under 'byName' it's the display name. Self and 'unknown' stay
+  // neutral in both modes — they have no identity to colour. `identity`, when
+  // passed, overrides this hook-resolved value entirely (see the Props doc).
+  const resolvedHash = useIdentityHash(neutral ? null : sender, display);
+  const hashInput = identity !== undefined ? identity : resolvedHash;
+  const color = neutral || hashInput === null ? null : getNameColor(hashInput);
   const sizeCls = size === 'sm' ? 'text-[11px]' : 'text-xs';
-  const base = cn('font-medium leading-tight', sizeCls, neutral && 'text-cs-text-dim', className);
+  const base = cn('font-medium leading-tight', sizeCls, (neutral || !color) && 'text-cs-text-dim', className);
 
   if (variant === 'pill') {
     return (

@@ -1,5 +1,5 @@
 import { Sun } from 'lucide-react';
-import type { AppSettings as AppSettingsType, ThemePrefValue } from '../../../../shared/types';
+import type { AppSettings as AppSettingsType, IdentityColorMode, ThemePrefValue } from '../../../../shared/types';
 import { Row, Select } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { useStore } from '../../../lib/store';
@@ -24,11 +24,17 @@ const TIME_FORMAT_OPTIONS = [
   { value: '24h', label: '24-hour (14:05)' },
 ] as const;
 
+const IDENTITY_COLOR_OPTIONS = [
+  { value: 'byKey', label: 'By key (only verified identities)' },
+  { value: 'byName', label: 'By name (everyone gets a colour)' },
+] as const;
+
 const eqAppearance = (a: AppSettingsType, b: AppSettingsType) =>
   a.theme === b.theme &&
   a.messageStyle === b.messageStyle &&
   a.unreadsStyle === b.unreadsStyle &&
-  a.timeFormat === b.timeFormat;
+  a.timeFormat === b.timeFormat &&
+  a.identityColorMode === b.identityColorMode;
 
 export function AppearanceSection({ client }: SectionProps) {
   const saved = useStore((s) => s.appSettings);
@@ -41,6 +47,7 @@ export function AppearanceSection({ client }: SectionProps) {
         client,
         {
           theme: d.theme,
+          identityColorMode: d.identityColorMode,
           messageStyle: d.messageStyle,
           unreadsStyle: d.unreadsStyle,
           timeFormat: d.timeFormat,
@@ -69,6 +76,23 @@ export function AppearanceSection({ client }: SectionProps) {
             value={draft.theme}
             options={THEME_OPTIONS}
             onChange={(theme) => setDraft((s) => ({ ...s, theme: theme as ThemePrefValue }))}
+          />
+        }
+      />
+      <Row
+        label="Identity colour"
+        description="How each person's colour is chosen. By key only colours people whose public key is known, so a colour always means the same node. By name gives everyone a colour derived from their display name."
+        warning={
+          draft.identityColorMode === 'byKey'
+            ? 'Channel posts carry a name, not a key. Posters stay grey until this node hears an advert from them.'
+            : undefined
+        }
+        changed={draft.identityColorMode !== saved.identityColorMode}
+        control={
+          <Select
+            value={draft.identityColorMode}
+            options={IDENTITY_COLOR_OPTIONS}
+            onChange={(mode) => setDraft((s) => ({ ...s, identityColorMode: mode as IdentityColorMode }))}
           />
         }
       />

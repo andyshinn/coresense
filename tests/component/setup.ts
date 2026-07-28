@@ -36,3 +36,10 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect() {}
   } as unknown as typeof ResizeObserver;
 }
+
+// jsdom doesn't implement Element.scrollIntoView, which cmdk calls from a
+// layout effect to keep the selected item in view. Any test that opens a
+// `Command` list (e.g. SetPathEditor's Add-hop picker) needs this stub.
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}

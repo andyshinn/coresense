@@ -17,7 +17,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Check, GripVertical, Plus, RotateCcw, Save, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { Contact, PathHashSize } from '../../../shared/types';
+import type { Contact, IdentityColorMode, PathHashSize } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
@@ -45,6 +45,7 @@ interface Props {
 export function SetPathEditor({ contact, client }: Props) {
   const radioPathHashMode = useStore((s) => s.radioSettings.pathHashMode);
   const contacts = useStore((s) => s.contacts);
+  const identityMode = useStore((s) => s.appSettings.identityColorMode ?? 'byKey');
 
   const hashSize: PathHashSize = (contact.outPathHashSize ?? radioPathHashMode) as PathHashSize;
 
@@ -80,6 +81,7 @@ export function SetPathEditor({ contact, client }: Props) {
         .map((c) => ({
           contactKey: c.key,
           name: c.name,
+          publicKeyHex: c.publicKeyHex,
           prefixHex: c.publicKeyHex.slice(0, hashSize * 2),
         })),
     [contacts, hashSize],
@@ -218,7 +220,12 @@ export function SetPathEditor({ contact, client }: Props) {
                         value={`${r.name} ${r.prefixHex}`}
                         onSelect={() => onAddKnown(r.prefixHex)}
                       >
-                        <ContactAvatar name={r.name} size="sm" className="mr-2" />
+                        <ContactAvatar
+                          name={r.name}
+                          identity={identityMode === 'byName' ? undefined : r.publicKeyHex}
+                          size="sm"
+                          className="mr-2"
+                        />
                         <span className="flex-1 truncate">{r.name}</span>
                         <span className="font-mono text-[10px] text-cs-text-dim">{r.prefixHex}</span>
                       </CommandItem>
@@ -247,15 +254,19 @@ export function SetPathEditor({ contact, client }: Props) {
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={hops.map((h) => h.id)} strategy={verticalListSortingStrategy}>
               <ul className="flex flex-col gap-1">
-                {hops.map((hop, i) => (
-                  <HopRow
-                    key={hop.id}
-                    hop={hop}
-                    index={i}
-                    onRemove={() => onRemoveHop(hop.id)}
-                    knownName={repeaterChoices.find((r) => r.prefixHex === hop.prefixHex)?.name ?? null}
-                  />
-                ))}
+                {hops.map((hop, i) => {
+                  const known = repeaterChoices.find((r) => r.prefixHex === hop.prefixHex);
+                  return (
+                    <HopRow
+                      key={hop.id}
+                      hop={hop}
+                      index={i}
+                      onRemove={() => onRemoveHop(hop.id)}
+                      knownName={known?.name ?? null}
+                      knownPublicKeyHex={known?.publicKeyHex ?? null}
+                    />
+                  );
+                })}
               </ul>
             </SortableContext>
           </DndContext>
@@ -288,10 +299,28 @@ interface HopRowProps {
   hop: Hop;
   index: number;
   knownName: string | null;
+  knownPublicKeyHex: string | null;
   onRemove: () => void;
 }
 
-function HopRow({ hop, index, knownName, onRemove }: HopRowProps) {
+// A known repeater always has real key material to hash: under byKey that is
+// its pubkey; under byName we hand back `undefined` so ContactAvatar falls
+// back to hashing the `name` prop, exactly like the Add-hop picker does (see
+// the picker's `identity` prop above). An unknown hop has no name at all (its
+// label literally renders "(unknown)"): under byKey the prefix *is* key
+// material, so hashing it is meaningful; under byName there is nothing
+// legitimate to hash, so it goes neutral.
+function hopAvatarIdentity(
+  mode: IdentityColorMode,
+  knownPublicKeyHex: string | null,
+  prefixHex: string,
+): string | null | undefined {
+  if (knownPublicKeyHex !== null) return mode === 'byName' ? undefined : knownPublicKeyHex;
+  return mode === 'byKey' ? prefixHex : null;
+}
+
+function HopRow({ hop, index, knownName, knownPublicKeyHex, onRemove }: HopRowProps) {
+  const identityMode = useStore((s) => s.appSettings.identityColorMode ?? 'byKey');
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: hop.id,
   });
@@ -316,7 +345,11 @@ function HopRow({ hop, index, knownName, onRemove }: HopRowProps) {
         <GripVertical size={14} aria-hidden="true" />
       </button>
       <span className="w-4 text-right font-mono text-[11px] text-cs-text-dim">{index + 1}</span>
-      <ContactAvatar name={knownName ?? hop.prefixHex} size="sm" />
+      <ContactAvatar
+        name={knownName ?? hop.prefixHex}
+        identity={hopAvatarIdentity(identityMode, knownPublicKeyHex, hop.prefixHex)}
+        size="sm"
+      />
       <span className="flex-1 truncate text-[12px] text-cs-text">{knownName ?? '(unknown)'}</span>
       <Input value={hop.prefixHex} readOnly className="h-7 w-[100px] font-mono text-[11px]" aria-label="Hop prefix" />
       <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={onRemove} aria-label="Remove hop">

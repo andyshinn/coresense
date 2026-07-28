@@ -6,7 +6,7 @@ import { SettingsJumpRail } from '../SettingsJumpRail';
 import { Placeholder } from './atoms';
 import { viewKindFor } from './helpers';
 import { ChannelInfoSection } from './sections/ChannelInfo';
-import { ChannelPeopleSection } from './sections/ChannelPeople';
+import { ChannelPeopleCount, ChannelPeopleSection } from './sections/ChannelPeople';
 import { ChannelShareSection } from './sections/ChannelShare';
 import { ContactDetail } from './sections/ContactDetail';
 import { ContactManagerRailBody, DiscoverySettings } from './sections/ContactManagerRail';
@@ -28,7 +28,11 @@ export interface RailSection {
   id: string; // persisted key e.g. 'rail.channel.info'
   label: string;
   body: () => React.ReactNode;
+  /** Right-aligned header slot — a count chip, a badge. */
+  trailing?: () => React.ReactNode;
   defaultOpen?: boolean;
+  /** True for sections whose rows are full-bleed and supply their own padding. */
+  bare?: boolean;
 }
 
 export interface RailData {
@@ -199,7 +203,9 @@ export function sectionsFor(
               id: 'rail.channel.people',
               label: 'People',
               defaultOpen: false,
+              bare: true,
               body: () => <ChannelPeopleSection channel={ch} client={actions.client} />,
+              trailing: () => <ChannelPeopleCount channel={ch} client={actions.client} />,
             },
           ]
         : [
