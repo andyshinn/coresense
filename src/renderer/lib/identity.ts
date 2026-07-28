@@ -47,8 +47,9 @@ export function buildDiscoveredNameIndex(rows: DiscoveredContact[]): Map<string,
 
 /** Find a discovered row by pubkey rather than name. The name-keyed index is
  *  the only structure callers build, so this scans its buckets rather than
- *  asking every call site to also build a pubkey-keyed one for a lookup only
- *  the raw-hex branch below needs. */
+ *  asking every call site to also build a pubkey-keyed one. Both branches that
+ *  resolve to a known pubkey use it to read `blocked`, since the pubkey is the
+ *  only stable join key — display names drift. */
 function findDiscoveredByPubkey(
   discoveredByName: Map<string, DiscoveredContact[]>,
   pubkey: string,
@@ -89,13 +90,19 @@ export function resolveIdentity(
 
   const saved = contacts.find((c) => c.name === name);
   if (saved) {
+    // Looked up by PUBKEY, not by the name we just matched on: a locally
+    // renamed contact keeps the radio's advertised name in discovered_contacts,
+    // so a name-keyed lookup would miss the block. `Contact` carries no blocked
+    // field of its own — discovered_contacts is the only carrier, and every
+    // on-radio contact has a row there because contactSync upserts the whole
+    // radio list with onRadio: true.
     return {
       name,
       pubkey: saved.publicKeyHex,
       contactKey: saved.key,
       source: 'contact',
       ambiguous: false,
-      blocked: false,
+      blocked: findDiscoveredByPubkey(discoveredByName, saved.publicKeyHex)?.blocked ?? false,
     };
   }
 

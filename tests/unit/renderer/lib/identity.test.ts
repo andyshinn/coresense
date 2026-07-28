@@ -56,6 +56,36 @@ describe('resolveIdentity', () => {
     expect(resolveIdentity('name:alice ', [contact()], idx()).source).toBe('none');
   });
 
+  // A saved contact resolved by NAME must still report blocked. `Contact` has
+  // no blocked field — discovered_contacts is the only carrier (it derives the
+  // flag from the block rules), and every on-radio contact has a row there
+  // because contactSync upserts the whole radio list with onRadio: true. The
+  // saved branch used to hardcode `blocked: false`, so a blocked contact
+  // posting in a channel kept an enabled Message button reading "Message
+  // <name>" instead of "Blocked" (PeopleRow: canMessage = contactKey !== null
+  // && !blocked). Spec §4.2: "blocked comes from the resolved
+  // DiscoveredContact.blocked" — with no carve-out for the saved branch.
+  it('carries blocked onto a saved contact matched by name', () => {
+    const saved = contact({ publicKeyHex: PK, key: `c:${PK}` });
+    const heard = disc({ publicKeyHex: PK, name: 'alice', blocked: true });
+    const r = resolveIdentity('name:alice', [saved], idx([heard]));
+    expect(r).toMatchObject({ source: 'contact', contactKey: `c:${PK}`, pubkey: PK, blocked: true });
+  });
+
+  // Looked up by pubkey, not by name: a locally renamed contact keeps the
+  // radio's advertised name in discovered_contacts, so a name-keyed lookup
+  // would silently miss the block.
+  it('carries blocked onto a saved contact whose discovered row has a different name', () => {
+    const saved = contact({ publicKeyHex: PK, key: `c:${PK}`, name: 'alice' });
+    const heard = disc({ publicKeyHex: PK, name: 'ALICE-node-7', blocked: true });
+    expect(resolveIdentity('name:alice', [saved], idx([heard])).blocked).toBe(true);
+  });
+
+  it('leaves a saved contact unblocked when no discovered row exists', () => {
+    const saved = contact({ publicKeyHex: PK, key: `c:${PK}` });
+    expect(resolveIdentity('name:alice', [saved], idx()).blocked).toBe(false);
+  });
+
   it('carries the blocked flag from the discovered row', () => {
     const r = resolveIdentity('name:bob', [], idx([disc({ blocked: true })]));
     expect(r.blocked).toBe(true);
