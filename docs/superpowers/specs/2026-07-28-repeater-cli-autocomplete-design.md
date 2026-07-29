@@ -203,13 +203,13 @@ dropped: nothing consumes it.
 - **`fw` annotates only** — a `v1.14.1+` chip and a detail-pane line; never dims,
   sorts, or blocks.
 
-### 1.2 Reconciliation against firmware — a pre-plan gate
+### 1.2 Reconciliation against firmware
 
 `cli-data.js` was distilled from `docs.meshcore.io/cli_commands/` — documentation, not
-source. It must be reconciled against the dispatcher in `helpers/CommonCLI.cpp`,
-vendored into `docs/firmware/` beside the two `.cpp` files already there, together
-with a `docs/firmware/PROVENANCE.md` recording the upstream repo and commit for all
-three.
+source. It must be reconciled against the shared dispatcher, **now vendored** at
+`docs/firmware/CommonCLI.cpp` (1124 lines, upstream `meshcore-dev/MeshCore` @
+`03b6ef4`, recorded in `docs/firmware/PROVENANCE.md`). This was a gate on phase 1; it
+is satisfied, and the fallback below is retired.
 
 Per command, five checks: the name exists; argument count and order match; enum values
 match; `serialOnly` matches whether the handler is reachable from the mesh path;
@@ -217,15 +217,16 @@ match; `serialOnly` matches whether the handler is reachable from the mesh path;
 firmware but not the catalog are added; catalog entries with no firmware handler are
 removed and noted.
 
-**`CommonCLI.cpp` is not in the repo and the implementation shell is
-network-sandboxed.** Fetch it (`WebFetch` against the raw upstream URL) or drop it in
-manually. **This is a gate on phase 1, not a task inside it**: the outcome must be
-recorded before the phase-1 plan is written.
+`serialOnly` has a mechanical test in this file: a handler guarded by
+`sender_timestamp == 0` is serial-console-only, because a mesh sender's timestamp is
+its RTC clock and the one zero case is caught earlier as a retry. `erase` at
+`CommonCLI.cpp:302` is the worked example. Every catalog entry marked `serialOnly` must
+point at such a guard, and every such guard must produce one.
 
-**Pre-decided fallback** if it cannot be obtained: ship the catalog with **no command
-marked `noReply`** and a header comment stating it is documentation-derived and
-unverified. A wrongly-absent `noReply` costs a 30-second wait; a wrongly-present one
-reports success for a command that failed. Bias to the former.
+**`get acl` needs deciding here**, not asserting: its repeater-local branch is
+serial-gated (`MyMeshRepeater.cpp:1234`), but over the air it falls through to
+`CommonCLI.cpp`, so whether it answers at all is a reconciliation output. §0 leaves it
+open deliberately.
 
 ## 2. Pure logic layer
 
@@ -830,11 +831,10 @@ Popover list content follows the converged recipe: override the default `w-72 p-
 | `…/cli/CliReverseSearch.tsx` | `⌃R` line |
 | `…/cli/CliConfirmBar.tsx` | hold-to-send |
 | `…/cli/RebootPending.tsx` | strip + header chip + tab dot |
-| `docs/firmware/CommonCLI.cpp` | vendored, for §1.2 reconciliation |
-| `docs/firmware/PROVENANCE.md` | upstream repo + commit for all three `.cpp` files |
 
-**Commit** (already on disk, untracked): `.design-ref/cli-autocomplete/` — eight files
-including `cli-icons.jsx`, which `cli-palette.jsx:7,55` depends on.
+**Already committed on this branch**, not tasks: `.design-ref/cli-autocomplete/` (eight
+files, including `cli-icons.jsx`, which `cli-palette.jsx:7,55` depends on),
+`docs/firmware/CommonCLI.cpp`, and `docs/firmware/PROVENANCE.md`.
 
 **Modify**: `CliTab.tsx` (rewritten thin), `repeater-admin/index.tsx`, `lib/api.ts`,
 `main/api/routes.ts`, `main/protocol/sessionAdapter.ts`, `main/menu.ts`,
@@ -902,12 +902,12 @@ npx vitest run --project dom
 Three sequenced plans under this one design doc, following the
 `2026-05-29-contact-management-design.md` precedent.
 
-**Gate (before phase 1):** vendor `CommonCLI.cpp` + `PROVENANCE.md`, or record that it
-could not be obtained and the §1.2 fallback applies.
+**Gate: satisfied.** `CommonCLI.cpp` and `PROVENANCE.md` are vendored and committed,
+so phase 1 has its authority in-repo.
 
 | Phase | Contents | Blocked by |
 |---|---|---|
-| **1 — Catalog & logic** | `catalog.ts` reconciled; `parse`, `match`, `suggest`, `airtime`, `queue`, `promptReducer`, `persistence`; all unit tests. No UI, no transport. | the gate |
+| **1 — Catalog & logic** | `catalog.ts` reconciled against `CommonCLI.cpp`, split into several tasks by catalog group; `parse`, `match`, `suggest`, `airtime`, `queue`, `promptReducer`, `persistence`; all unit tests. No UI, no transport. | — |
 | **2 — UI** | `CliPrompt`, `CliPalette`, `CliDetail`, `CliTranscript`, `CliRow`, `CliReverseSearch`, `CliConfirmBar`, `RebootPending`; thin `CliTab` on today's two-argument transport; shortcut and `text-cs-error` fixes; component tests. Ships useful on its own. | phase 1 |
 | **3 — Queue & no-reply** | `expectReply` / `signal` through `api.ts` → `routes.ts` → `sessionAdapter.ts`; error-code classification; queue wiring; abort on switch; integration tests. | phase 2 + the `meshcore-ts` release |
 
@@ -927,10 +927,11 @@ could not be obtained and the §1.2 fallback applies.
 
 ## 14. Risks
 
-**The catalog is only as good as `CommonCLI.cpp`.** Not vendored yet, and the
-implementation shell is network-sandboxed. §1.2 makes this a gate with a pre-decided
-fallback rather than a mid-plan judgement call, but if the fallback fires, 91 commands
-ship documentation-derived and `noReply` ships empty.
+**Reconciling 91 commands is the largest single task in phase 1.** `CommonCLI.cpp` is
+vendored and pinned, so the risk is no longer availability but effort: five checks per
+command against 1124 lines of C++, and every mockup entry needs rewriting anyway to
+drop `admin`/`rx` (§1.1). It should be planned as several tasks split by catalog group,
+not one.
 
 **`promptReducer` is where the bugs will be.** Modal reverse-search, the `dismissed`
 latch, and draft preservation interact in ways easy to get subtly wrong — which is why
