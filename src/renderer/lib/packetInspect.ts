@@ -51,8 +51,55 @@ export const fieldColorIdx = (i: number) => ((i % NUM_FIELD_COLORS) + NUM_FIELD_
 
 // Shared by ByteStrip and FieldCard so the byte-strip highlight and the field
 // card's accent always resolve to the same CSS custom property for a given
-// `colorIdx` (0..NUM_FIELD_COLORS-1, from `fieldColorIdx`).
+// `colorIdx` (0..NUM_FIELD_COLORS-1, from `fieldColorIdx` / `sectionColor`).
 export const fieldColorVar = (idx: number) => `rgb(var(--cs-field${idx}))`;
+
+// A section's color is a function of *what it is* (its name), not of its position
+// in the strip. Positional coloring made the Payload section change color whenever
+// an optional Path/region segment was present, since that shifts every later
+// segment's index. Colors are scoped to a single strip, so indices are reused
+// across the top-level / payload / secondary strips; the map only needs the names
+// that co-occur within one strip to be distinct. Unknown names (rare trace/control
+// payloads) fall back to a stable per-name hash so they too stay position-independent.
+const SECTION_COLORS: Record<string, number> = {
+  // Top-level packet framing (Header → Path → Payload).
+  Header: 0,
+  'Path Length': 1,
+  'Path Data': 2,
+  Payload: 3,
+  'Path SNR Data': 4,
+  'Region/Scope (transport code 0)': 5,
+  'Return region (transport code 1)': 6,
+  // Payload segments.
+  'Public Key': 0,
+  Timestamp: 1,
+  Signature: 2,
+  'App Flags': 3,
+  Latitude: 4,
+  Longitude: 5,
+  'Node Name': 6,
+  'Channel Hash': 0,
+  'Cipher MAC': 1,
+  Ciphertext: 2,
+  'Destination Hash': 0,
+  'Source Hash': 3,
+  'Sender Public Key': 4,
+  Checksum: 0,
+  'Additional Data': 1,
+  // Secondary strips (decrypted plaintext, advert app-data).
+  Flags: 3,
+  Message: 4,
+};
+
+const hashColor = (name: string): number => {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (Math.imul(h, 31) + name.charCodeAt(i)) | 0;
+  return ((h % NUM_FIELD_COLORS) + NUM_FIELD_COLORS) % NUM_FIELD_COLORS;
+};
+
+/** Deterministic color index for a breakdown section, keyed by its name so the
+ *  same kind of section always renders in the same color. */
+export const sectionColor = (name: string): number => SECTION_COLORS[name] ?? hashColor(name);
 
 const hexToBytes = (hex: string): number[] => {
   const clean = hex.replace(/[^0-9a-fA-F]/g, '');
@@ -100,7 +147,7 @@ export function buildPlaintextFields(
       name: 'Timestamp',
       start: 0,
       end: 3,
-      colorIdx: 0,
+      colorIdx: sectionColor('Timestamp'),
       value: bytesHex(ts, 0, 3),
       desc: 'Sender clock (unix, little-endian).',
     },
@@ -109,7 +156,7 @@ export function buildPlaintextFields(
       name: 'Flags',
       start: 4,
       end: 4,
-      colorIdx: 1,
+      colorIdx: sectionColor('Flags'),
       value: bytesHex([flags & 0xff], 0, 0),
       desc: `0x${(flags & 0xff).toString(16).padStart(2, '0')}`,
     },
@@ -120,7 +167,7 @@ export function buildPlaintextFields(
       name: 'Message',
       start: 5,
       end: bytes.length - 1,
-      colorIdx: 2,
+      colorIdx: sectionColor('Message'),
       value: message,
       desc: 'Decoded UTF-8 text.',
     });
@@ -171,7 +218,7 @@ export function inspectPacket(hex: string, opts?: { keyStore?: CryptoKeyStore })
         name: seg.name,
         start: seg.startByte,
         end: seg.endByte,
-        colorIdx: fieldColorIdx(i),
+        colorIdx: sectionColor(seg.name),
         value: seg.value,
         desc: seg.description || undefined,
         bits,
@@ -185,7 +232,7 @@ export function inspectPacket(hex: string, opts?: { keyStore?: CryptoKeyStore })
       name: seg.name,
       start: normalize(seg.startByte, pStart, payloadBytes.length),
       end: normalize(seg.endByte, pStart, payloadBytes.length),
-      colorIdx: fieldColorIdx(i),
+      colorIdx: sectionColor(seg.name),
       value: seg.value,
       desc: seg.description || undefined,
     }));
@@ -270,7 +317,7 @@ function advertAppData(a: AdvertPayload | null, payloadBytes: number[]): Seconda
       name: 'Flags',
       start: 0,
       end: 0,
-      colorIdx: 0,
+      colorIdx: sectionColor('Flags'),
       value: (app[0] ?? 0).toString(16).padStart(2, '0').toUpperCase(),
       desc: `${hasLoc ? 'has location' : 'no location'}${a.appData.hasName ? ' · has name' : ''}`,
     },
@@ -282,7 +329,7 @@ function advertAppData(a: AdvertPayload | null, payloadBytes: number[]): Seconda
       name: 'Latitude',
       start: 1,
       end: 4,
-      colorIdx: 1,
+      colorIdx: sectionColor('Latitude'),
       value: `${a.appData.location.latitude}`,
       desc: 'int32 / 1e6',
     });
@@ -291,7 +338,7 @@ function advertAppData(a: AdvertPayload | null, payloadBytes: number[]): Seconda
       name: 'Longitude',
       start: 5,
       end: 8,
-      colorIdx: 2,
+      colorIdx: sectionColor('Longitude'),
       value: `${a.appData.location.longitude}`,
       desc: 'int32 / 1e6',
     });
@@ -303,7 +350,7 @@ function advertAppData(a: AdvertPayload | null, payloadBytes: number[]): Seconda
       name: 'Node Name',
       start: nameStart,
       end: app.length - 1,
-      colorIdx: 3,
+      colorIdx: sectionColor('Node Name'),
       value: a.appData.name,
       desc: 'UTF-8',
     });

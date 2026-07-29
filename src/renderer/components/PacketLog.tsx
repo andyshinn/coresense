@@ -1,6 +1,7 @@
 import { Layers, Radio, Search, Waypoints } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
+import { summarizeBleFrame } from '../lib/bleFrameLayouts';
 import { type PacketSummary, summarizePacket } from '../lib/decodePacket';
 import { spaceWords } from '../lib/packetInspect';
 import { type LivePacket, useStore } from '../lib/store';
@@ -20,9 +21,9 @@ const GRID = 'grid-cols-[70px_112px_minmax(0,1fr)_92px_30px]';
 // buffer never blocks the initial paint on thousands of synchronous DOM nodes.
 const INITIAL_RENDER_COUNT = 40;
 
-function badge(packet: LivePacket, summary: PacketSummary): { letter: string; varName: string } {
+function badge(packet: LivePacket, summary: PacketSummary | null): { letter: string; varName: string } {
   if (packet.kind === 'companion') return { letter: 'B', varName: '--cs-ble' };
-  return summary.routeName.includes('Direct')
+  return summary?.routeName.includes('Direct')
     ? { letter: 'D', varName: '--cs-route-direct' }
     : { letter: 'F', varName: '--cs-route-flood' };
 }
@@ -36,10 +37,16 @@ function rssiClass(rssi?: number): string {
 
 function Row({ packet, selected, onSelect }: { packet: LivePacket; selected: boolean; onSelect: () => void }) {
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
-  const summary: PacketSummary = useMemo(() => summarizePacket(packet.payloadHex), [packet.payloadHex]);
+  // Only mesh packets decode as mesh frames; companion (BLE) frames are summarized
+  // from their own companion-protocol layout instead (summary stays null for them).
+  const summary: PacketSummary | null = useMemo(
+    () => (packet.kind === 'companion' ? null : summarizePacket(packet.payloadHex)),
+    [packet.payloadHex, packet.kind],
+  );
   const b = badge(packet, summary);
-  const typeName =
-    packet.kind === 'companion' ? (packet.codeName ?? 'BLE').replace(/_/g, ' ') : spaceWords(summary.typeName);
+  const typeName = summary ? spaceWords(summary.typeName) : (packet.codeName ?? 'BLE').replace(/_/g, ' ');
+  const detail = summary ? (summary.detail ?? '') : summarizeBleFrame(packet.payloadHex, packet.codeName);
+  const hop = summary ? String(summary.decoded?.pathLength ?? 0) : '—';
   return (
     <button
       type="button"
@@ -59,15 +66,11 @@ function Row({ packet, selected, onSelect }: { packet: LivePacket; selected: boo
         </span>
         <span className="truncate text-[12.5px] text-cs-text">{typeName}</span>
       </span>
-      <span className="truncate text-[12.5px] text-cs-text-muted">
-        {packet.kind === 'companion' ? '—' : (summary.detail ?? '')}
-      </span>
+      <span className="truncate text-[12.5px] text-cs-text-muted">{detail || '—'}</span>
       <span className={`truncate font-mono text-[11px] ${rssiClass(packet.rssi)}`}>
         {packet.rssi == null || packet.snr == null ? '—' : `${packet.rssi} / ${packet.snr}`}
       </span>
-      <span className="text-right font-mono text-[11px] text-cs-text-muted">
-        {packet.kind === 'companion' ? '—' : (summary.decoded?.pathLength ?? 0)}
-      </span>
+      <span className="text-right font-mono text-[11px] text-cs-text-muted">{hop}</span>
     </button>
   );
 }

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildPlaintextFields, inspectPacket } from '../../../../src/renderer/lib/packetInspect';
+import { buildPlaintextFields, inspectPacket, sectionColor } from '../../../../src/renderer/lib/packetInspect';
 import { ACK_HEX, ADVERT_HEX, GROUP_TEXT_HEX, TEXT_MESSAGE_HEX } from '../../../support/packetFixtures';
+
+// Same Flood GroupText as GROUP_TEXT_HEX but with pathlen 0x00 (no Path Data segment).
+const GROUP_TEXT_NO_PATH_HEX = '15002abbcc00112233';
 
 describe('inspectPacket', () => {
   it('decodes packet-level fields with contiguous byte coverage', () => {
@@ -22,6 +25,23 @@ describe('inspectPacket', () => {
     expect(covered.size).toBe(r.size);
     // Each colorIdx is in range.
     expect(r.fields.every((f) => f.colorIdx >= 0 && f.colorIdx < 7)).toBe(true);
+  });
+
+  it('gives each top-level section a stable color regardless of optional path segments', () => {
+    const withPath = inspectPacket(GROUP_TEXT_HEX); // pathlen 0x01 → has a Path Data segment
+    const noPath = inspectPacket(GROUP_TEXT_NO_PATH_HEX); // pathlen 0x00 → no path segment
+    const payloadColor = (r: ReturnType<typeof inspectPacket>) => r.fields.find((f) => f.name === 'Payload')?.colorIdx;
+
+    // The Payload keeps its color whether or not a Path segment precedes it (the reported bug).
+    expect(payloadColor(withPath)).toBe(sectionColor('Payload'));
+    expect(payloadColor(noPath)).toBe(payloadColor(withPath));
+
+    // Sanity: the with-path packet really does carry a distinct Path section.
+    const pathField = withPath.fields.find((f) => f.name === 'Path Data');
+    expect(pathField?.colorIdx).toBe(sectionColor('Path Data'));
+    expect(pathField?.colorIdx).not.toBe(payloadColor(withPath));
+    // And the no-path packet has one fewer section (no Path Data).
+    expect(noPath.fields.some((f) => f.name === 'Path Data')).toBe(false);
   });
 
   it('exposes a normalized payload breakdown starting at byte 0', () => {
