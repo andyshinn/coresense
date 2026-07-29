@@ -31,4 +31,22 @@ describe('ByteStrip', () => {
     fireEvent.mouseEnter(screen.getByText('15'));
     expect(screen.getByTestId('hovered').textContent).toBe('pk:header');
   });
+
+  it('updates the hovered id as the pointer moves between cells (no null in between)', () => {
+    render(<Harness />);
+    fireEvent.mouseEnter(screen.getByText('15')); // byte 0 → header
+    expect(screen.getByTestId('hovered').textContent).toBe('pk:header');
+    fireEvent.mouseEnter(screen.getByText('2A')); // byte 2 → payload
+    // Moving straight to another cell swaps the id; it never blinks to 'none'.
+    expect(screen.getByTestId('hovered').textContent).toBe('pk:payload');
+  });
+
+  it('clears the hovered id only when the pointer leaves the whole strip', () => {
+    render(<Harness />);
+    fireEvent.mouseEnter(screen.getByText('15'));
+    const strip = screen.getByText('15').closest('div');
+    expect(strip).toBeTruthy();
+    if (strip) fireEvent.mouseLeave(strip);
+    expect(screen.getByTestId('hovered').textContent).toBe('none');
+  });
 });

@@ -1,7 +1,7 @@
 import { Binary, Copy, Route } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { ApiClient } from '../../lib/api';
-import { inspectBleFrame } from '../../lib/bleFrameLayouts';
+import { bleFramePurpose, inspectBleFrame, summarizeBleFrame } from '../../lib/bleFrameLayouts';
 import { inspectPacket } from '../../lib/packetInspect';
 import { useStore } from '../../lib/store';
 import { fmtDateTime } from '../../lib/time';
@@ -55,15 +55,19 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
 
   if (packet.kind === 'companion') {
     if (!ble) return null;
+    const purpose = bleFramePurpose(packet.codeName);
+    const summary = summarizeBleFrame(packet.payloadHex, packet.codeName);
     return (
       <div className="px-3.5 py-3.5" key={selectedId}>
         <div className="mb-1 font-mono text-[10px] tracking-wide text-cs-text-dim">DETAILS</div>
         <div className="rounded-lg border border-cs-border bg-cs-bg-2 px-3 py-2">
           <KeyValueRow label="Frame" value={ble.codeName.replace(/_/g, ' ')} mono />
+          {summary && <KeyValueRow label="Summary" value={summary} />}
           <KeyValueRow label="Transport" value="BLE / serial companion link" mono />
           <KeyValueRow label="Size" value={`${ble.bytes.length} bytes`} mono />
           <KeyValueRow label="Received" value={fmtDateTime(packet.timestamp, timeFormat)} mono />
         </div>
+        {purpose && <div className="mt-2 text-[11.5px] text-cs-text-muted">{purpose}</div>}
         <PacketBreakdown
           title="BLE Frame Breakdown"
           count={ble.bytes.length}

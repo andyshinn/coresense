@@ -19,7 +19,11 @@ export function ByteStrip({ bytes, fields, scope, hovered, setHovered }: Props) 
   }, [fields]);
 
   return (
-    <div className="rounded-lg border border-cs-border bg-cs-bg-3/40 px-3 py-2.5 font-mono text-[12.5px] leading-8 tracking-wide break-all">
+    // biome-ignore lint/a11y/noStaticElementInteractions: the container clears the hover spotlight when the pointer leaves the whole strip; the byte cells (below) drive it while inside. There's no interactive role for a hover-only highlight surface.
+    <div
+      onMouseLeave={() => setHovered(null)}
+      className="rounded-lg border border-cs-border bg-cs-bg-3/40 px-3 py-2 font-mono text-[12.5px] leading-none tracking-wide break-all"
+    >
       {bytes.map((b, i) => {
         const info = map[i];
         const id = info ? `${scope}:${info.key}` : null;
@@ -35,14 +39,24 @@ export function ByteStrip({ bytes, fields, scope, hovered, setHovered }: Props) 
           <span
             // biome-ignore lint/suspicious/noArrayIndexKey: byte position is the identity
             key={i}
-            onMouseEnter={() => id && setHovered(id)}
-            onMouseLeave={() => id && setHovered(null)}
+            // Only onMouseEnter — clearing is delegated to the container's onMouseLeave.
+            // With no per-cell leave handler and no margins between cells, the pointer is
+            // always over some cell while inside the strip, so the highlight never blinks
+            // to null in the gap between two cells (the old flicker).
+            onMouseEnter={() => setHovered(id)}
             style={{
+              display: 'inline-block',
+              verticalAlign: 'top',
               background: active ? color : `color-mix(in srgb, ${color} ${dimmed ? '6%' : '16%'}, transparent)`,
               color: active ? 'rgb(var(--cs-bg))' : dimmed ? `color-mix(in srgb, ${color} 50%, transparent)` : color,
+              // No horizontal margin between cells and full-height cells (padding + tight
+              // line-height so wrapped rows touch top-to-bottom) => zero pointer gaps in
+              // either axis. Runs are separated by color + rounded ends, not by whitespace.
+              lineHeight: '15px',
+              paddingTop: 3,
+              paddingBottom: 3,
               paddingLeft: runStart ? 5 : 1,
               paddingRight: runEnd ? 5 : 1,
-              marginLeft: runStart && i !== 0 ? 3 : 0,
               borderTopLeftRadius: runStart ? 4 : 0,
               borderBottomLeftRadius: runStart ? 4 : 0,
               borderTopRightRadius: runEnd ? 4 : 0,
