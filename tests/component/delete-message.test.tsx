@@ -1,4 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+
+import { DeleteConfirmPopover } from '@/features/message-actions/DeleteConfirmPopover';
+import { type ApiClient, api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import type { Message } from '../../src/shared/types';
 
@@ -11,6 +17,11 @@ beforeEach(() => {
     pendingJumpMid: null,
     pendingDeleteMessageId: null,
   });
+  // Mirrors the beforeEach convention in MacroLibrary.test.tsx: without this,
+  // vi.spyOn(api, 'deleteMessage') in one test returns the same mock instance
+  // (with its call history) in a later test, since the property is already a
+  // spy by the time the next `it` runs.
+  vi.restoreAllMocks();
 });
 
 describe('store.removeMessages', () => {
@@ -55,5 +66,39 @@ describe('store.setPendingDeleteMessageId', () => {
     expect(useStore.getState().pendingDeleteMessageId).toBe('b');
     useStore.getState().setPendingDeleteMessageId(null);
     expect(useStore.getState().pendingDeleteMessageId).toBeNull();
+  });
+});
+
+const client: ApiClient = { baseUrl: 'http://x', apiKey: 'k' };
+
+describe('DeleteConfirmPopover', () => {
+  it('renders nothing until its message is staged', () => {
+    useStore.setState({ pendingDeleteMessageId: null });
+    render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={client} />);
+    expect(screen.queryByTestId('confirm-delete-message')).toBeNull();
+  });
+
+  it('deletes through the API when confirmed', async () => {
+    const spy = vi.spyOn(api, 'deleteMessage').mockResolvedValue({ ok: true });
+    useStore.setState({ pendingDeleteMessageId: 'b' });
+    render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={client} />);
+    fireEvent.click(await screen.findByTestId('confirm-delete-message'));
+    expect(spy).toHaveBeenCalledWith(client, 'ch:x', 'b');
+  });
+
+  it('does not delete when cancelled, and unstages the message', async () => {
+    const spy = vi.spyOn(api, 'deleteMessage').mockResolvedValue({ ok: true });
+    useStore.setState({ pendingDeleteMessageId: 'b' });
+    render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={client} />);
+    fireEvent.click(await screen.findByTestId('cancel-delete-message'));
+    expect(spy).not.toHaveBeenCalled();
+    expect(useStore.getState().pendingDeleteMessageId).toBeNull();
+  });
+
+  it('says the delete is local only', async () => {
+    useStore.setState({ pendingDeleteMessageId: 'b' });
+    render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={client} />);
+    const panel = await screen.findByTestId('delete-confirm-panel');
+    expect(panel.textContent).toMatch(/this device only/i);
   });
 });

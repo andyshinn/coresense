@@ -1,6 +1,7 @@
 import { AlertCircle, Check, Clock, Send } from 'lucide-react';
 import { firstPathStats, type PathStats } from '../../shared/messagePath';
 import type { Message, MessageStyle, TimeFormatPref } from '../../shared/types';
+import { DeleteConfirmPopover } from '../features/message-actions/DeleteConfirmPopover';
 import { MessageQuickBar } from '../features/message-actions/MessageQuickBar';
 import { useIdentityHash } from '../hooks/useIdentityHash';
 import type { ApiClient } from '../lib/api';
@@ -156,6 +157,14 @@ export function MessageItem({
           onReply={(name) => onReply?.(name)}
           onBlock={(prefill) => onBlock?.(prefill)}
           onMacro={onMacro}
+        />
+      )}
+      {interactive && (
+        <DeleteConfirmPopover
+          messageId={message.id}
+          conversationKey={message.key}
+          preview={message.body}
+          client={client ?? null}
         />
       )}
       {interactive ? (

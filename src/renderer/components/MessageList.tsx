@@ -177,6 +177,7 @@ export function MessageList({
       setMenu(null);
       setFlashId(null);
       setBlockPrefill(null);
+      useStore.getState().setPendingDeleteMessageId(null);
     }
   }, [conversationKey]);
 
