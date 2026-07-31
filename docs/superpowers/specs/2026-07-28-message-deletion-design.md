@@ -112,17 +112,24 @@ a session-scoped guard would let the message return on the next launch.
 In `src/main/storage/messages.ts`, alongside `markState` and `findById`:
 
 ```ts
-remove(ids: string[]): number      // returns rows actually deleted
+remove(key: string, ids: string[]): string[]      // returns the ids actually deleted
 isDeleted(mid: string): boolean
 ```
 
-`remove` takes a list although the UI sends exactly one — the cheap-bulk-later hook. It returns a
-**count**, not a boolean, so the façade (`StateHolder.removeMessages(ids): number`) and the route
-pass it straight through; the route maps `0` to `404`. Both
-statements run inside one hand-rolled `BEGIN`/`COMMIT`, matching the only existing transaction in
+`remove` takes a list although the UI sends exactly one — the cheap-bulk-later hook. It returns the
+**ids it actually removed**, so the façade (`StateHolder.removeMessages(key, ids): string[]`) and the
+route pass it straight through; the route maps an empty result to `404` and emits exactly those ids.
+Both statements run inside one hand-rolled `BEGIN`/`COMMIT`, matching the only existing transaction in
 the tree (`src/main/storage/search.ts:351-364`); there is no transaction helper to reuse.
 
-**The predicate is `WHERE mid = ?`.** The table carries two ids and only one is the app-level id:
+**`key` scopes the delete, it is not just a lookup hint.** Both the probe and the `DELETE` filter on
+`key = ? AND mid IN (…)`, so a message can never be deleted through the wrong conversation and the
+key that drives the renderer's per-key cache prune is structurally the key that scoped the delete.
+Enforcing this in the DAO rather than in the route means a future second caller — bulk delete,
+clear-conversation — cannot skip the check.
+
+**The id predicate is `mid`, never the integer `id`.** The table carries two and only one is
+app-level:
 
 | Column | Type | Reach |
 |---|---|---|
@@ -239,7 +246,12 @@ dedicated event is worth the plumbing for three reasons:
   which calls `processMessage(list[list.length-1])` — only ever the tail. Delete the newest
   message and the previous one becomes the tail; if it was never the tail while the app was
   running it is absent from `notifiedIds` and can raise a fresh OS banner for an old message.
-- **It gives the search panel an invalidation channel**, which is what makes search coverage
+- ~~**It gives the search panel an invalidation channel**~~ — this third reason did not survive
+  implementation. The search panel splices its own local hits through an `onDeleted` callback
+  instead, because `MainPane` renders either search or a conversation view and unmounts the panel
+  on navigation, so only an in-panel delete can strand a hit. The event is still the right call on
+  the first two reasons alone. A second WS client deleting while search is open leaves a stale hit
+  until the next query — accepted. Original reasoning, kept for the record: it is what makes search coverage
   possible at all.
 
 `bus.on('messagesDeleted', () => router.recomputeBadge())` is registered alongside the existing
@@ -372,8 +384,17 @@ is called from the `messagesDeleted` WS case.
 A shrinking array fails all four of `MessageList`'s imperative fast paths (tail append, first
 batch, head prepend, in-place map) and lands on the fallback `replace` at `MessageList.tsx:261-263`.
 That already works — it preserves scroll and rebuilds date separators and the unread divider via
-`buildItems` — but an explicit removal branch is added, since a full `replace` for a one-row delete
-is wasteful on a long conversation.
+`buildItems`.
+
+> **Corrected during implementation.** This section originally called for an explicit removal branch,
+> on the assumption that a full `replace` for a one-row delete is wasteful on a long conversation.
+> One was built and then removed: its body was byte-identical to the fallback, so it saved nothing,
+> and because it built an id `Set` unconditionally it made *every* fallback sync measurably slower.
+> Virtuoso does expose `deleteRange(offset, count)`, so a real optimisation is possible — but the
+> rendered item indices include date dividers and the unread divider, both owned by `buildItems`, so
+> a correct `deleteRange` would also have to drop a newly-empty date divider and re-derive
+> `firstUnreadIdx` when the removed row sat above it. That index math is not worth it for a window
+> capped at 200 rows. Deletions land on the fallback deliberately.
 
 Derived state recomputes for free on the identity change: unread counts, LeftNav badges, keyboard
 unread nav, "last active", search sender-filter options. `useChannelStats` and `useChannelActivity`
