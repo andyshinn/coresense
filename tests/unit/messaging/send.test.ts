@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createSender } from '../../../src/main/messaging/sendMessage';
 
-function harness(over: { channelOk?: boolean; channelHash?: number } = {}) {
+function harness(over: { channelOk?: boolean; channelHash?: number; timestampUnix?: number } = {}) {
   const inserted: unknown[] = [];
   const states: Array<{ id: string; state: string }> = [];
   const registered: unknown[] = [];
   const session = {
-    sendChannelText: vi.fn(async () => ({ ok: over.channelOk ?? true, channelHash: over.channelHash })),
+    sendChannelText: vi.fn(async () => ({
+      ok: over.channelOk ?? true,
+      channelHash: over.channelHash,
+      timestampUnix: over.timestampUnix,
+    })),
     sendDmTextWithRetry: vi.fn(async () => ({ ok: true })),
     registerChannelSend: vi.fn((p: unknown) => registered.push(p)),
   };
@@ -28,13 +32,15 @@ function harness(over: { channelOk?: boolean; channelHash?: number } = {}) {
 
 describe('createSender', () => {
   it('channel: inserts optimistically, sends, marks sent, registers the send', async () => {
-    const h = harness({ channelOk: true, channelHash: 42 });
+    const h = harness({ channelOk: true, channelHash: 42, timestampUnix: 1_700_000_000 });
     const res = await h.send('ch:General', 'hi');
     expect(res).toEqual({ ok: true, id: 'local-test' });
     expect(h.inserted[0]).toMatchObject({ id: 'local-test', key: 'ch:General', body: 'hi', state: 'sending' });
     expect(h.session.sendChannelText).toHaveBeenCalledWith('ch:General', 'hi');
     expect(h.states).toContainEqual({ id: 'local-test', state: 'sent' });
-    expect(h.registered).toEqual([{ messageId: 'local-test', channelHash: 42 }]);
+    // timestampUnix is threaded straight through from sendChannelText so the
+    // library's relay matcher can attribute a heard relay to this exact send.
+    expect(h.registered).toEqual([{ messageId: 'local-test', channelHash: 42, timestampUnix: 1_700_000_000 }]);
   });
 
   it('channel failure marks failed and returns the error', async () => {
