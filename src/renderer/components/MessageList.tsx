@@ -489,9 +489,14 @@ export function MessageList({
               y={menu.y}
               items={buildMessageMenuItems({
                 message: menu.message,
+                isSelf: menu.message.fromPublicKeyHex === undefined,
                 onResend,
                 onViewContact: (key) => setActiveKey(key),
                 onBlock: setBlockPrefill,
+                onDelete: (m) => {
+                  setMenu(null);
+                  useStore.getState().setPendingDeleteMessageId(m.id);
+                },
                 senderName,
               })}
               onClose={() => setMenu(null)}
