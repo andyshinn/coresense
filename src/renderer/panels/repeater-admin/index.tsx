@@ -1,5 +1,5 @@
 import { Activity, ListTree, LogIn, LogOut, Radio, ShieldCheck, Spline, TerminalSquare, Users } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { RssiChip } from '../../components/RssiChip';
 import { type ApiClient, api } from '../../lib/api';
@@ -7,6 +7,8 @@ import { notify } from '../../lib/notify';
 import { type RepeaterAdminTab, useStore } from '../../lib/store';
 import { AclTab } from './AclTab';
 import { CliTab } from './CliTab';
+import { loadPendingReboot, savePendingReboot } from './cli/lib/persistence';
+import { clearIfHeard, EMPTY_REBOOT, RebootHeaderChip, type RebootPendingState, RebootTabDot } from './cli/RebootPending';
 import { LoginTab } from './LoginTab';
 import { NeighboursTab } from './NeighboursTab';
 import { OwnerTab } from './OwnerTab';
@@ -53,10 +55,39 @@ export function RepeaterAdmin({ contact, client }: Props) {
     }
   }, [pendingTab, setRepeaterAdminTab]);
   const [session, setSession] = useState<RepeaterAdminSession | null>(null);
+  const [_sessionChecked, setSessionChecked] = useState(false);
+  const [pending, setPendingState] = useState<RebootPendingState>(EMPTY_REBOOT);
+
+  // Load per-repeater reboot-pending on mount / contact change, and clear it if
+  // the node has been heard since the reboot was sent (the only real evidence).
+  useEffect(() => {
+    const loaded = clearIfHeard(loadPendingReboot(contact.publicKeyHex), contact.lastSeenMs);
+    setPendingState(loaded);
+    savePendingReboot(contact.publicKeyHex, loaded);
+  }, [contact.publicKeyHex, contact.lastSeenMs]);
+
+  const setPending = useCallback(
+    (next: RebootPendingState) => {
+      setPendingState(next);
+      savePendingReboot(contact.publicKeyHex, next);
+    },
+    [contact.publicKeyHex],
+  );
+
+  // Entering the CLI tab re-surfaces the tier-one strip: a dismissed
+  // reboot-pending demotes to the header chip / tab dot everywhere else, but
+  // opening the tab itself is an implicit "show me" that should undo the
+  // dismissal.
+  useEffect(() => {
+    if (tab === 'cli' && pending.dismissed && pending.settings.length > 0) {
+      setPending({ ...pending, dismissed: false });
+    }
+  }, [tab, pending, setPending]);
 
   // Fetch existing session on mount + when the contact changes — admin auth
   // can persist across panel switches as long as the radio stays connected.
   useEffect(() => {
+    setSessionChecked(false);
     if (!client) {
       setSession(null);
       return;
@@ -65,9 +96,13 @@ export function RepeaterAdmin({ contact, client }: Props) {
     void (async () => {
       try {
         const res = await api.repeaterSession(client, contact.key);
-        if (!cancelled) setSession(res.session);
+        if (!cancelled) {
+          setSession(res.session);
+          setSessionChecked(true);
+        }
       } catch {
         // non-fatal
+        if (!cancelled) setSessionChecked(true);
       }
     })();
     return () => {
@@ -100,6 +135,15 @@ export function RepeaterAdmin({ contact, client }: Props) {
           </span>
         </div>
         {contact.rssi != null && <RssiChip rssi={contact.rssi} hops={contact.hops} className="ml-3" />}
+        {pending.settings.length > 0 && pending.dismissed ? (
+          <RebootHeaderChip
+            count={pending.settings.length}
+            onClick={() => {
+              setTab('cli');
+              setPending({ ...pending, dismissed: false });
+            }}
+          />
+        ) : null}
         {session && (
           <button
             type="button"
@@ -131,6 +175,7 @@ export function RepeaterAdmin({ contact, client }: Props) {
             >
               <Icon size={11} aria-hidden="true" />
               <span className="hidden md:inline">{t.label}</span>
+              {t.id === 'cli' && pending.settings.length > 0 && pending.dismissed ? <RebootTabDot /> : null}
             </button>
           );
         })}
