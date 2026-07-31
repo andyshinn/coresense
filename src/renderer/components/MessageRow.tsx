@@ -1,6 +1,7 @@
 import type { Message, MessageStyle } from '../../shared/types';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
+import type { BlockSenderDialogPrefill } from './BlockSenderDialog';
 import { MessageItem } from './MessageItem';
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
   client: ApiClient | null;
   onReply?: (name: string) => void;
   onReact?: (name: string, emoji: string) => void;
+  onBlock: (prefill: BlockSenderDialogPrefill) => void;
   onMacro?: (name: string, text: string) => void;
 }
 
@@ -38,6 +40,7 @@ export function MessageRow({
   client,
   onReply,
   onReact,
+  onBlock,
   onMacro,
 }: Props) {
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
@@ -55,6 +58,7 @@ export function MessageRow({
       onContextMenu={onContextMenu}
       onReply={onReply}
       onReact={onReact}
+      onBlock={onBlock}
       onMacro={onMacro}
     />
   );

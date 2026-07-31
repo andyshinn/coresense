@@ -37,7 +37,7 @@ describe('OverflowMenu', () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
     render(
-      <OverflowMenu message={message} open onOpenChange={() => {}}>
+      <OverflowMenu message={message} isSelf={false} senderName="nate" onBlock={() => {}} open onOpenChange={() => {}}>
         <button type="button">⋯</button>
       </OverflowMenu>,
     );
@@ -47,11 +47,42 @@ describe('OverflowMenu', () => {
 
   test('view contact routes to the sender', () => {
     render(
-      <OverflowMenu message={message} open onOpenChange={() => {}}>
+      <OverflowMenu message={message} isSelf={false} senderName="nate" onBlock={() => {}} open onOpenChange={() => {}}>
         <button type="button">⋯</button>
       </OverflowMenu>,
     );
     fireEvent.click(screen.getByText('View contact'));
     expect(useStore.getState().ui.activeKey).toBe('c:a3f9c1d8');
+  });
+
+  test('offers Delete message and stages it for confirmation', () => {
+    useStore.setState({ pendingDeleteMessageId: null });
+    render(
+      <OverflowMenu message={message} isSelf={false} senderName="nate" onBlock={() => {}} open onOpenChange={() => {}}>
+        <button type="button">⋯</button>
+      </OverflowMenu>,
+    );
+    fireEvent.click(screen.getByText('Delete message'));
+    expect(useStore.getState().pendingDeleteMessageId).toBe('m1');
+  });
+
+  test('no longer offers the retired Dismiss locally item', () => {
+    render(
+      <OverflowMenu message={message} isSelf={false} senderName="nate" onBlock={() => {}} open onOpenChange={() => {}}>
+        <button type="button">⋯</button>
+      </OverflowMenu>,
+    );
+    expect(screen.queryByText('Dismiss locally')).toBeNull();
+  });
+
+  test('omits Block sender on your own message', () => {
+    const mine: Message = { id: 'm9', key: 'ch:x', body: 'yo', ts: 0, state: 'sent' };
+    render(
+      <OverflowMenu message={mine} isSelf senderName={undefined} onBlock={() => {}} open onOpenChange={() => {}}>
+        <button type="button">⋯</button>
+      </OverflowMenu>,
+    );
+    expect(screen.queryByText('Block sender…')).toBeNull();
+    expect(screen.getByText('Delete message')).toBeTruthy();
   });
 });

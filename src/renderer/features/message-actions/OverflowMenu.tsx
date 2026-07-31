@@ -1,107 +1,79 @@
-import { KeyRound, Radio, Trash2, User, Waypoints } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Message } from '../../../shared/types';
-import { copyToClipboard } from '../../components/ContextMenu';
+import type { BlockSenderDialogPrefill } from '../../components/BlockSenderDialog';
+import type { ContextMenuItem } from '../../components/ContextMenu';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
-import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
-import { formatAllPathsHeard, formatFirstPathHeard } from './paths';
+import { buildMessageMenuItems } from './menuItems';
 
 interface Props {
   message: Message;
+  isSelf: boolean;
+  senderName: string | undefined;
+  onBlock: (prefill: BlockSenderDialogPrefill) => void;
+  onResend?: (m: Message) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
 }
 
-export function OverflowMenu({ message, open, onOpenChange, children }: Props) {
+/** The action bar's "…" dropdown. Renders the same ContextMenuEntry[] the
+ *  right-click menu does — two renderers, one item list. */
+export function OverflowMenu({ message, isSelf, senderName, onBlock, onResend, open, onOpenChange, children }: Props) {
   const setActiveKey = useStore((s) => s.setActiveKey);
-  const pk = message.fromPublicKeyHex;
-  const hasRealPk = pk != null && pk !== 'unknown' && !pk.startsWith('name:');
-  const firstPath = formatFirstPathHeard(message);
-  const allPaths = formatAllPathsHeard(message);
+  const setPendingDeleteMessageId = useStore((s) => s.setPendingDeleteMessageId);
 
   const close = () => onOpenChange(false);
-  const copy = (text: string, label: string) => copyToClipboard(text, () => notify.success(label));
+  const items = buildMessageMenuItems({
+    message,
+    isSelf,
+    senderName,
+    onViewContact: (key) => setActiveKey(key),
+    onBlock,
+    onDelete: (m) => setPendingDeleteMessageId(m.id),
+    onResend,
+  });
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent side="top" align="end" sideOffset={8} className="w-[216px] border-cs-border-strong bg-cs-bg-2 p-1">
-        {hasRealPk && (
-          <MenuButton
-            icon={<User size={15} />}
-            label="View contact"
-            onClick={() => {
-              setActiveKey(`c:${pk}`);
-              close();
-            }}
-          />
+        {items.map((entry, i) =>
+          entry.kind === 'separator' ? (
+            // biome-ignore lint/suspicious/noArrayIndexKey: separators carry no identity
+            <div key={`sep-${i}`} className="my-1 h-px bg-cs-border" />
+          ) : (
+            <MenuButton
+              key={entry.label}
+              entry={entry}
+              onRun={() => {
+                entry.onClick();
+                close();
+              }}
+            />
+          ),
         )}
-        {hasRealPk && (
-          <MenuButton
-            icon={<KeyRound size={15} />}
-            label="Copy public key"
-            onClick={() => {
-              copy(pk, 'Copied public key');
-              close();
-            }}
-          />
-        )}
-        {firstPath && (
-          <MenuButton
-            icon={<Waypoints size={15} />}
-            label="Copy first path heard"
-            onClick={() => {
-              copy(firstPath, 'Copied first path');
-              close();
-            }}
-          />
-        )}
-        {allPaths && (
-          <MenuButton
-            icon={<Radio size={15} />}
-            label="Copy all paths heard"
-            onClick={() => {
-              copy(allPaths, 'Copied all paths');
-              close();
-            }}
-          />
-        )}
-        <div className="my-1 h-px bg-cs-border" />
-        <MenuButton icon={<Trash2 size={15} />} label="Dismiss locally" destructive soon />
       </PopoverContent>
     </Popover>
   );
 }
 
-function MenuButton({
-  icon,
-  label,
-  onClick,
-  destructive,
-  soon,
-}: {
-  icon: ReactNode;
-  label: string;
-  onClick?: () => void;
-  destructive?: boolean;
-  soon?: boolean;
-}) {
+function MenuButton({ entry, onRun }: { entry: ContextMenuItem; onRun: () => void }) {
+  const Icon = entry.icon;
   return (
     <button
       type="button"
-      disabled={soon}
-      onClick={onClick}
+      disabled={entry.disabled}
+      onClick={onRun}
+      data-testid={entry.testid}
       className={[
         'flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[12.5px] transition-colors',
-        soon ? 'cursor-default opacity-45' : 'hover:bg-cs-bg-3',
-        destructive ? 'text-cs-danger hover:bg-cs-danger/10' : 'text-cs-text',
+        entry.disabled ? 'cursor-default opacity-45' : 'hover:bg-cs-bg-3',
+        entry.danger ? 'text-cs-danger hover:bg-cs-danger/10' : 'text-cs-text',
       ].join(' ')}
     >
-      <span className={destructive ? 'text-cs-danger' : 'text-cs-text-muted'}>{icon}</span>
-      <span className="flex-1">{label}</span>
-      {soon && <span className="rounded border border-cs-border px-1 text-[9px] text-cs-text-dim">soon</span>}
+      <span className={entry.danger ? 'text-cs-danger' : 'text-cs-text-muted'}>{Icon ? <Icon size={15} /> : null}</span>
+      <span className="flex-1">{entry.label}</span>
     </button>
   );
 }

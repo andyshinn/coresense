@@ -58,6 +58,7 @@ interface RowContext {
   onSelect: (id: string) => void;
   onReply?: (name: string) => void;
   onReact?: (name: string, emoji: string) => void;
+  onBlock: (prefill: BlockSenderDialogPrefill) => void;
   onMacro?: (name: string, text: string) => void;
   onContextMenu: (m: Message, e: React.MouseEvent) => void;
   client: ApiClient | null;
@@ -113,6 +114,7 @@ const ItemRow: ItemContent<Item, RowContext> = ({ data, context }) => {
       senderName={senderName}
       onReply={context.onReply}
       onReact={context.onReact}
+      onBlock={context.onBlock}
       client={context.client}
       onMacro={context.onMacro}
     />
@@ -446,6 +448,7 @@ export function MessageList({
     onSelect,
     onReply,
     onReact,
+    onBlock: setBlockPrefill,
     onMacro,
     onContextMenu: handleContextMenu,
     client,

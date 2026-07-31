@@ -25,7 +25,15 @@ function renderBar(props: React.ComponentProps<typeof MessageQuickBar>) {
   );
 }
 
-const base = { message: other, isSelf: false, senderName: 'K5TH', client, onReact: () => {}, onReply: () => {} };
+const base = {
+  message: other,
+  isSelf: false,
+  senderName: 'K5TH',
+  client,
+  onReact: () => {},
+  onReply: () => {},
+  onBlock: () => {},
+};
 
 describe('MessageQuickBar', () => {
   beforeEach(() => {

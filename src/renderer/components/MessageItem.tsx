@@ -7,6 +7,7 @@ import type { ApiClient } from '../lib/api';
 import { isKnownHashMode } from '../lib/hopWarmth';
 import { fmtDateTime, fmtMessageTime } from '../lib/time';
 import { cn } from '../lib/utils';
+import type { BlockSenderDialogPrefill } from './BlockSenderDialog';
 import { ColoredUsername } from './ColoredUsername';
 import { ContactAvatar } from './ContactAvatar';
 import { HopBadge } from './HopBadge';
@@ -31,6 +32,8 @@ export interface MessageItemProps {
   onContextMenu?: (e: React.MouseEvent) => void;
   onReply?: (name: string) => void;
   onReact?: (name: string, emoji: string) => void;
+  /** Absent for static previews (Unreads) that render no quick bar/action menu. */
+  onBlock?: (prefill: BlockSenderDialogPrefill) => void;
   /** Needed by the quick bar's macro affordances; absent ⇒ no macro cluster. */
   client?: ApiClient | null;
   onMacro?: (name: string, text: string) => void;
@@ -66,6 +69,7 @@ export function MessageItem({
   onContextMenu,
   onReply,
   onReact,
+  onBlock,
   client,
   onMacro,
 }: MessageItemProps) {
@@ -150,6 +154,7 @@ export function MessageItem({
           client={client ?? null}
           onReact={onReact}
           onReply={(name) => onReply?.(name)}
+          onBlock={(prefill) => onBlock?.(prefill)}
           onMacro={onMacro}
         />
       )}
