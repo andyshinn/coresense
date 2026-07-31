@@ -136,7 +136,7 @@ export function buildMenu(): Menu {
         click: send(menuActionFor('toggleTheme')),
       },
       { type: 'separator' },
-      { role: 'reload' },
+      { role: 'reload', accelerator: accelFor('reload') },
       { role: 'toggleDevTools' },
       { role: 'resetZoom' },
       { role: 'zoomIn' },

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { accelFor, byId, menuActionFor, SHORTCUTS } from '../../../src/shared/shortcuts';
+import type { Chord } from '../../../src/shared/shortcuts-format';
 
 describe('SHORTCUTS registry', () => {
   it('has unique ids', () => {
@@ -31,5 +32,31 @@ describe('SHORTCUTS registry', () => {
   });
   it('menuActionFor throws for a non-menu shortcut', () => {
     expect(() => menuActionFor('help')).toThrow();
+  });
+});
+
+function chordSig(chord: Chord, platform: 'mac' | 'other'): string {
+  const mods = new Set(chord.mods ?? []);
+  const parts: string[] = [];
+  if (mods.has('ctrl') || (mods.has('mod') && platform === 'other')) parts.push('Ctrl');
+  if (mods.has('mod') && platform === 'mac') parts.push('Meta');
+  if (mods.has('alt')) parts.push('Alt');
+  if (mods.has('shift')) parts.push('Shift');
+  return `${parts.sort().join('+')}|${chord.key.toLowerCase()}`;
+}
+
+describe('SHORTCUTS chord collisions', () => {
+  it('no two entries share a chord on either platform', () => {
+    for (const platform of ['mac', 'other'] as const) {
+      const seen = new Map<string, string>();
+      for (const s of SHORTCUTS) {
+        for (const chord of s.chords) {
+          const sig = chordSig(chord, platform);
+          const prior = seen.get(sig);
+          expect(prior, `${platform}: ${s.id} collides with ${prior} on ${sig}`).toBeUndefined();
+          seen.set(sig, s.id);
+        }
+      }
+    }
   });
 });
