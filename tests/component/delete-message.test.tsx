@@ -171,3 +171,17 @@ describe('search result delete', () => {
     await vi.waitFor(() => expect(onDeleted).toHaveBeenCalledWith('h1'));
   });
 });
+
+describe('removeMessages and the rendered list', () => {
+  it('leaves an empty array when the last message goes', () => {
+    useStore.setState({ messagesByKey: { 'ch:x': [msg('only')] } });
+    useStore.getState().removeMessages('ch:x', ['only']);
+    expect(useStore.getState().messagesByKey['ch:x']).toEqual([]);
+  });
+
+  it('preserves order of the remaining messages', () => {
+    useStore.setState({ messagesByKey: { 'ch:x': [msg('a'), msg('b'), msg('c'), msg('d')] } });
+    useStore.getState().removeMessages('ch:x', ['b', 'c']);
+    expect(useStore.getState().messagesByKey['ch:x'].map((m) => m.id)).toEqual(['a', 'd']);
+  });
+});
