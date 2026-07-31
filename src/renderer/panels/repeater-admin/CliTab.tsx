@@ -101,18 +101,23 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
     void (async () => {
       try {
         const res = await api.repeaterCli(client, contact.key, next.text);
-        const refused = /^err/i.test(res.reply.trim());
+        // This call never passes `opts.expectReply`, so the server always
+        // defaults it to true and `res` always carries `reply`. The `sent`
+        // variant (no-reply/fire-and-forget) is only reachable once phase 3's
+        // drain wiring lands (phase-3 Task 5); narrow defensively until then.
+        const reply = 'reply' in res ? res.reply : '';
+        const refused = /^err/i.test(reply.trim());
         setQueue((q) =>
           settle(q, next.id, {
             state: refused ? 'error' : 'ok',
-            reply: res.reply,
+            reply,
             endedAt: Date.now(),
-            error: refused ? { kind: 'refused', message: res.reply } : null,
+            error: refused ? { kind: 'refused', message: reply } : null,
           }),
         );
         patchStatus(next.text, refused ? 'error' : 'ok');
         if (!refused && next.cmd?.key && next.cmd.name.startsWith('get ')) {
-          const v = extractNodeValue(next.cmd, res.reply);
+          const v = extractNodeValue(next.cmd, reply);
           if (v != null) setNodeValues((nv) => ({ ...nv, [next.cmd?.key as string]: v }));
         }
         // Reboot-pending: arm on a reboot-required set reaching ok; mark sent
