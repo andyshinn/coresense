@@ -55,7 +55,7 @@ export function RepeaterAdmin({ contact, client }: Props) {
     }
   }, [pendingTab, setRepeaterAdminTab]);
   const [session, setSession] = useState<RepeaterAdminSession | null>(null);
-  const [_sessionChecked, setSessionChecked] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [pending, setPendingState] = useState<RebootPendingState>(EMPTY_REBOOT);
 
   // Load per-repeater reboot-pending on mount / contact change, and clear it if
@@ -193,7 +193,16 @@ export function RepeaterAdmin({ contact, client }: Props) {
         {tab === 'acl' && <AclTab contact={contact} client={client} disabled={!isAdmin} />}
         {tab === 'neighbours' && <NeighboursTab contact={contact} client={client} />}
         {tab === 'owner' && <OwnerTab contact={contact} client={client} />}
-        {tab === 'cli' && <CliTab contact={contact} client={client} />}
+        {tab === 'cli' && (
+          <CliTab
+            contact={contact}
+            client={client}
+            session={session}
+            sessionChecked={sessionChecked}
+            pending={pending}
+            onPending={setPending}
+          />
+        )}
       </div>
     </div>
   );

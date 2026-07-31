@@ -43,3 +43,23 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
+
+// Vitest 4's built-in jsdom environment deliberately does not copy
+// localStorage/sessionStorage onto globalThis (Node 22+ ships its own gated
+// globals under those names, and vitest leaves them alone rather than
+// overriding — see populateGlobal's KEYS list in vitest/dist). Node's own
+// version needs `--localstorage-file` to actually store anything, so a bare
+// `localStorage.setItem(...)` throws "Cannot read properties of undefined".
+// Any component test that touches real storage (CliTab's persistence.ts,
+// which defaults to globalThis.localStorage when no storage is injected)
+// needs the real jsdom Storage wired in — Vitest exposes the live JSDOM
+// instance for this file as the global `jsdom`; rebind unconditionally
+// (rather than probing `typeof globalThis.localStorage` first) so we never
+// trip Node's own one-time "localStorage is not available" warning.
+const jsdomInstance = (globalThis as unknown as { jsdom?: { window: Window } }).jsdom;
+if (jsdomInstance) {
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: jsdomInstance.window.localStorage,
+    configurable: true,
+  });
+}
