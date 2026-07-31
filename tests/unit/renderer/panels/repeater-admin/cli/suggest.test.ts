@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CliSuggestCtx } from '@/panels/repeater-admin/cli/lib/suggest';
 import { applySuggestion, deriveRecent, extractNodeValue, suggest } from '@/panels/repeater-admin/cli/lib/suggest';
-import { CLI_BY_NAME } from '../../../../../../src/shared/repeater-cli/catalog';
+import { CLI_BY_NAME, type CliCommand } from '../../../../../../src/shared/repeater-cli/catalog';
 
 const ctx = (over: Partial<CliSuggestCtx> = {}): CliSuggestCtx => ({ recent: [], nodeValues: {}, ...over });
 
@@ -25,6 +25,12 @@ describe('suggest — command mode', () => {
     const { items } = suggest('set radio', 9, ctx());
     expect(items.find((i) => i.label === 'set radio')?.insert).toBe('set radio ');
     expect(CLI_BY_NAME.ver && suggest('ver', 3, ctx()).items.find((i) => i.label === 'ver')?.insert).toBe('ver');
+  });
+
+  it('does not flag recent when the query is non-empty', () => {
+    const { items } = suggest('set du', 6, ctx({ recent: ['set dutycycle'] }));
+    const top = items.find((i) => i.label === 'set dutycycle');
+    expect(top?.recent).toBeUndefined();
   });
 });
 
@@ -74,10 +80,19 @@ describe('extractNodeValue', () => {
   });
 
   it('records nothing when extraction is ambiguous (a colon or multiple lines)', () => {
-    // A get without a replyValue falls back to "single line, no colon".
+    // get role HAS replyValue (> " strip), so this tests the regex branch, not the fallback.
     expect(extractNodeValue(CLI_BY_NAME['get role'], '> repeater')).toBe('repeater');
     // A command with no key never records.
     expect(extractNodeValue(CLI_BY_NAME.ver, '1.14.3')).toBeNull();
+  });
+
+  it('falls back to single-line/no-colon extraction when a keyed command has no replyValue', () => {
+    const noReplyValue = { name: 'x', group: 'System', desc: '', key: 'x' } as unknown as CliCommand;
+    // success: single line, no colon
+    expect(extractNodeValue(noReplyValue, '  on  ')).toBe('on');
+    // failure → null: a colon, or multiple lines, records nothing
+    expect(extractNodeValue(noReplyValue, 'lat: 30.2')).toBeNull();
+    expect(extractNodeValue(noReplyValue, 'line1\nline2')).toBeNull();
   });
 });
 
