@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CLI_BY_NAME, type CliCommand } from '../../../shared/repeater-cli/catalog';
+import { CLI_BY_NAME } from '../../../shared/repeater-cli/catalog';
 import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { useStore } from '../../lib/store';
 import { type CliGuest, CliPrompt } from './cli/CliPrompt';
 import type { FollowUp } from './cli/CliRow';
 import { CliTranscript } from './cli/CliTranscript';
-import { parseCliLine } from './cli/lib/parse';
-import { type CliHistoryEntry, loadHistory, saveHistory } from './cli/lib/persistence';
+import { resolveCommand } from './cli/lib/parse';
+import { type CliHistoryEntry, loadHistory, pushHistory, saveHistory } from './cli/lib/persistence';
 import { abortAll, beginNext, type CliEntry, type CliQueueState, cancel, enqueue, settle } from './cli/lib/queue';
 import { type CliSuggestCtx, deriveRecent, extractNodeValue } from './cli/lib/suggest';
 import { armReboot, markRebootSent, type RebootPendingState, RebootStrip } from './cli/RebootPending';
@@ -68,15 +68,10 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
       if (guest !== 'admin') return; // §8: only an admin session may send (covers RebootStrip + retry, not just the prompt)
       const trimmed = text.trim();
       if (trimmed === '') return;
-      const cmd =
-        CLI_BY_NAME[trimmed] ??
-        (parseCliLine(trimmed, trimmed.length).mode === 'arg'
-          ? (parseCliLine(trimmed, trimmed.length) as { cmd: CliCommand }).cmd
-          : null);
+      const cmd = resolveCommand(trimmed);
       // History is pushed on submit (so ↑ recalls immediately); status patched at settle.
       setHistory((h) => {
-        if (h[h.length - 1]?.text === trimmed) return h; // collapse consecutive dupes
-        const next = [...h, { text: trimmed, status: 'sent' as const }].slice(-200);
+        const next = pushHistory(h, { text: trimmed, status: 'sent' as const });
         saveHistory(contact.publicKeyHex, next);
         return next;
       });

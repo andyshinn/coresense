@@ -60,9 +60,10 @@ describe('CliRow error kinds', () => {
 });
 
 describe('CliRow reply states', () => {
-  it('in-flight: dims the echo and shows a blinking cursor', () => {
+  it('in-flight: dims the row (once, not double-dimmed on the echo) and shows a blinking cursor', () => {
     const { container } = render(row({ state: 'sending', startedAt: Date.now(), endedAt: null, reply: null }));
-    expect(container.querySelector('[data-testid="cli-echo"]')?.className).toMatch(/opacity-50/);
+    expect(container.firstElementChild?.className).toMatch(/opacity-50/);
+    expect(container.querySelector('[data-testid="cli-echo"]')?.className).not.toMatch(/opacity-50/);
     expect(container.querySelector('[data-testid="cli-cursor"]')).toBeTruthy();
   });
 

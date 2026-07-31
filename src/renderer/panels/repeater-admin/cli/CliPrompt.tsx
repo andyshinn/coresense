@@ -1,14 +1,14 @@
 import { Radio } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { CLI_BY_NAME } from '../../../../shared/repeater-cli/catalog';
 import type { RadioSettings } from '../../../../shared/types';
 import { CliConfirmBar } from './CliConfirmBar';
 import { CLI_PALETTE_LISTBOX_ID, CliPalette } from './CliPalette';
 import { CliReverseSearch } from './CliReverseSearch';
 import { cliRoundTrip } from './lib/airtime';
+import { resolveCommand } from './lib/parse';
 import type { CliHistoryEntry } from './lib/persistence';
-import { type CliPromptState, cliPromptReducer, rsearchMatches } from './lib/promptReducer';
+import { type CliPromptState, cliPromptReducer, ghostSuffix, isPaletteOpen, rsearchMatches } from './lib/promptReducer';
 import { type CliSuggestCtx, suggest } from './lib/suggest';
 
 export type CliGuest = 'checking' | 'guest' | 'admin';
@@ -41,11 +41,6 @@ function initialState(history: CliHistoryEntry[], ctx: CliSuggestCtx): CliPrompt
     confirmPending: null,
     ctx,
   };
-}
-
-function resolveCmd(value: string) {
-  const trimmed = value.trim();
-  return CLI_BY_NAME[trimmed] ?? null;
 }
 
 export function CliPrompt({
@@ -108,23 +103,17 @@ export function CliPrompt({
     if (el && el.selectionStart !== state.caret) el.setSelectionRange(state.caret, state.caret);
   }, [state.caret, state.value]);
 
-  const { parse, items } = suggest(state.value, state.caret, state.ctx);
-  const open =
-    (state.manualOpen || (state.value.trim() !== '' && !state.dismissed)) && !state.rsearch && !state.confirmPending;
+  const { parse, items } = useMemo(
+    () => suggest(state.value, state.caret, state.ctx),
+    [state.value, state.caret, state.ctx],
+  );
+  const open = isPaletteOpen(state);
 
   // Ghost: only at end-of-line, when the top item's label prefix-matches the
   // token case-insensitively; the suffix preserves the user's typed casing.
-  const top = items[0];
-  const atEnd = state.caret === state.value.length;
-  let ghost = '';
-  if (open && top && atEnd) {
-    const token = parse.token;
-    if (top.label.toLowerCase().startsWith(token.toLowerCase()) && top.label.length > token.length) {
-      ghost = top.label.slice(token.length);
-    }
-  }
+  const ghost = ghostSuffix(state);
 
-  const cmd = parse.mode === 'arg' ? parse.cmd : resolveCmd(state.value);
+  const cmd = parse.mode === 'arg' ? parse.cmd : resolveCommand(state.value);
   const airtime =
     state.value.trim() === ''
       ? ''

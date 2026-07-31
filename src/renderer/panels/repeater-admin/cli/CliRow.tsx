@@ -50,7 +50,7 @@ export function CliRow({ entry, timeoutMs, followUps, onRetry, onEdit, onCancel 
         <span className={`shrink-0 font-mono text-[12.5px] ${failed ? 'text-cs-danger' : 'text-cs-accent'}`}>$</span>
         <span
           data-testid="cli-echo"
-          className={`min-w-0 flex-1 break-all font-mono text-[12.5px] ${failed ? 'text-cs-danger' : 'text-cs-text'} ${inFlight ? 'opacity-50' : ''}`}
+          className={`min-w-0 flex-1 break-all font-mono text-[12.5px] ${failed ? 'text-cs-danger' : 'text-cs-text'}`}
         >
           {entry.text}
         </span>
