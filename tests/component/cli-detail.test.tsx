@@ -44,10 +44,15 @@ describe('CliDetail — command', () => {
     expect(screen.getByText(radio.note as string)).toBeTruthy();
   });
 
-  it('renders the no-reply round trip and a dash when the estimate is unknown', () => {
+  it('renders the no-reply round trip when noReply is set', () => {
     const noReply: CliCommand = { ...radio, noReply: true, note: undefined };
     render(<CliDetail item={cmdItem({ cmd: noReply })} roundTripLabel={null} />);
     expect(screen.getByText('1↑ · no reply')).toBeTruthy();
+  });
+
+  it('renders a dash in the round trip when the estimate is unknown', () => {
+    render(<CliDetail item={cmdItem()} roundTripLabel={null} />);
+    expect(screen.getByText('1↑ 1↓ · —')).toBeTruthy();
   });
 
   it('omits the on-node row when no value is known', () => {
