@@ -124,3 +124,50 @@ describe('DeleteConfirmPopover', () => {
     expect(useStore.getState().messagesByKey['ch:x'].map((m) => m.id)).toEqual(['a', 'b', 'c']);
   });
 });
+
+describe('search result delete', () => {
+  it('exposes a delete affordance per hit and stages it', async () => {
+    const { SearchMessageRow } = await import('@/panels/search/MessageRow');
+    useStore.setState({ pendingDeleteMessageId: null });
+    render(
+      <SearchMessageRow
+        hit={{
+          id: 'h1',
+          key: 'ch:x',
+          ts: 0,
+          fromPublicKeyHex: null,
+          body: 'found me',
+          snippet: 'found <mark>me</mark>',
+          score: 1,
+        }}
+        channelName="x"
+        senderName="nate"
+        onClick={() => {}}
+        client={client}
+        onDeleted={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('search-delete-message'));
+    expect(useStore.getState().pendingDeleteMessageId).toBe('h1');
+  });
+
+  it('reports the deletion so the panel can drop the hit', async () => {
+    const { SearchMessageRow } = await import('@/panels/search/MessageRow');
+    const spy = vi.spyOn(api, 'deleteMessage').mockResolvedValue({ ok: true });
+    const onDeleted = vi.fn();
+    useStore.setState({ pendingDeleteMessageId: 'h1' });
+    render(
+      <SearchMessageRow
+        hit={{ id: 'h1', key: 'ch:x', ts: 0, fromPublicKeyHex: null, body: 'found me', snippet: 'found me', score: 1 }}
+        channelName="x"
+        senderName="nate"
+        onClick={() => {}}
+        client={client}
+        onDeleted={onDeleted}
+      />,
+    );
+    fireEvent.click(await screen.findByTestId('confirm-delete-message'));
+    await vi.waitFor(() => expect(spy).toHaveBeenCalledWith(client, 'ch:x', 'h1'));
+    await vi.waitFor(() => expect(onDeleted).toHaveBeenCalledWith('h1'));
+  });
+});
