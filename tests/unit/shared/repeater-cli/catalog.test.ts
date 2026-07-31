@@ -76,4 +76,15 @@ describe('CLI catalog invariants', () => {
     // erase writes a serial reply, so it is serial-only but NOT noReply.
     expect(CLI_BY_NAME.erase?.noReply).toBeUndefined();
   });
+
+  it('marks the Radio/System serial-only commands by name', () => {
+    expect(CLI_BY_NAME['set freq']?.serialOnly).toBe(true);
+    expect(CLI_BY_NAME['get prv.key']?.serialOnly).toBe(true);
+  });
+
+  it('reboot-required set commands are flagged by name', () => {
+    for (const name of ['set radio', 'set freq', 'set prv.key']) {
+      expect(CLI_BY_NAME[name]?.reboot, `${name} should be reboot`).toBe(true);
+    }
+  });
 });
