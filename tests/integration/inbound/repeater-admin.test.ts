@@ -1,13 +1,37 @@
 import { Buffer } from 'node:buffer';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createRoutes } from '../../../src/main/api/routes';
 import { adminSessions } from '../../../src/main/bridge/adminSession';
 import { bus } from '../../../src/main/events/bus';
+import { setProtocolSession } from '../../../src/main/protocol';
+import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
 import type { Contact } from '../../../src/shared/types';
 import { makeTestSession } from '../../support/session-harness';
 
 const PK = 'aa'.repeat(32);
 const PREFIX = 'aaaaaaaaaaaa'; // first 6 bytes of PK
 const tick = () => new Promise((r) => setTimeout(r, 0));
+
+function routesApp() {
+  return createRoutes({
+    port: () => 8080,
+    wsClients: () => 0,
+    bridgeStatus: () => ({ running: false, clients: 0 }) as never,
+  });
+}
+
+/** A SessionAdapter double whose only live method is repeaterSendCli. */
+function fakeCliAdapter(impl: SessionAdapter['repeaterSendCli']): SessionAdapter {
+  return { repeaterSendCli: impl } as unknown as SessionAdapter;
+}
+
+async function postCli(body: unknown) {
+  return routesApp().request(`/api/repeater/c%3A${PK}/cli`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
 
 const repeater = (): Contact => ({
   key: `c:${PK}`,
@@ -180,5 +204,55 @@ describe('repeater administration', () => {
     receive(cliReply(PREFIX, 'OK rebooting'));
     const reply = await p;
     expect(reply).toBe('OK rebooting');
+  });
+});
+
+describe('POST /api/repeater/:key/cli classification', () => {
+  afterEach(() => setProtocolSession(null));
+
+  it('returns 200 { reply } when a reply is expected and arrives', async () => {
+    setProtocolSession(fakeCliAdapter(async () => 'radio: 869.525'));
+    const res = await postCli({ command: 'get radio' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, reply: 'radio: 869.525' });
+  });
+
+  it('returns 202 { sent: true } for a no-reply command', async () => {
+    const calls: Array<{ expectReply?: boolean }> = [];
+    setProtocolSession(
+      fakeCliAdapter(async (_key, _command, opts) => {
+        calls.push({ expectReply: opts?.expectReply });
+        return '';
+      }),
+    );
+    const res = await postCli({ command: 'set advert.interval 30', expectReply: false });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ ok: true, sent: true });
+    expect(calls[0].expectReply).toBe(false);
+  });
+
+  it('classifies a reply timeout as 504 cli_timeout', async () => {
+    setProtocolSession(
+      fakeCliAdapter(async () => {
+        throw new Error('CLI command timed out after 30000ms');
+      }),
+    );
+    const res = await postCli({ command: 'get radio' });
+    expect(res.status).toBe(504);
+    expect((await res.json()) as { code: string }).toMatchObject({ code: 'cli_timeout' });
+  });
+
+  it('classifies any other failure (incl. superseded) as 503 transport', async () => {
+    setProtocolSession(
+      fakeCliAdapter(async () => {
+        throw new Error('superseded by newer CLI command');
+      }),
+    );
+    const res = await postCli({ command: 'get radio' });
+    expect(res.status).toBe(503);
+    expect((await res.json()) as { code: string; error: string }).toMatchObject({
+      code: 'transport',
+      error: 'superseded by newer CLI command',
+    });
   });
 });

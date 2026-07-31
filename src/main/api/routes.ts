@@ -798,15 +798,32 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
 
   api.post('/api/repeater/:key/cli', async (c) => {
     const key = decodeURIComponent(c.req.param('key'));
-    const body = (await c.req.json().catch(() => null)) as { command?: string } | null;
+    const body = (await c.req.json().catch(() => null)) as { command?: string; expectReply?: boolean } | null;
     if (!body || typeof body.command !== 'string' || body.command.length === 0) {
       return c.json({ error: 'command is required' }, 400);
     }
+    // Defaults to a reply-expecting send; only an explicit false opts out.
+    const expectReply = body.expectReply !== false;
     try {
-      const reply = await protocolSession().repeaterSendCli(key, body.command);
-      return c.json({ ok: true, reply });
+      // Forward the HTTP request's own AbortSignal: if the client aborts (repeater
+      // switch / unmount), the library deletes its pendingCli entry rather than
+      // holding it for the full CLI_REPLY_TIMEOUT_MS (§5.1, §7.1).
+      const reply = await protocolSession().repeaterSendCli(key, body.command, {
+        expectReply,
+        signal: c.req.raw.signal,
+      });
+      if (!expectReply) return c.json({ ok: true, sent: true }, 202);
+      return c.json({ ok: true, reply }, 200);
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      const message = (err as Error).message;
+      // The library rejects a lapsed reply with `CLI command timed out after
+      // <ms>ms` (§7.1). Everything else — transport drop, superseded-by-newer —
+      // is a transport-tier failure; the renderer re-reads the message to split
+      // superseded out (§5.4).
+      if (message.includes('timed out after')) {
+        return c.json({ error: message, code: 'cli_timeout' }, 504);
+      }
+      return c.json({ error: message, code: 'transport' }, 503);
     }
   });
 
