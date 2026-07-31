@@ -24,6 +24,35 @@
 
 ---
 
+## Phase 1 handoff notes (from the Phase 1 whole-branch review)
+
+Phase 1 (catalog + pure logic) is complete, reviewed, and merged. Four things the Phase 1
+review surfaced that this phase must handle — read before Task 6 (CliConfirmBar) and Task 9
+(CliTab):
+
+1. **The danger-accept contract is a real seam.** `cliPromptReducer` intentionally has NO
+   `confirm/accept` action — Enter on a `danger` command sets `confirmPending` and returns no
+   effect; the accept is this phase's `CliConfirmBar` hold-to-send. Wire it one of two ways and
+   state which in Task 6/9: (a) add a `confirm/accept` reducer action that returns
+   `{ state: clearLine(confirm-cleared), effect: { kind: 'submit', text: confirmPending.text } }`,
+   or (b) have `CliTab` read `state.confirmPending.text`, submit it, and dispatch `confirm/cancel`
+   to clear. (a) keeps the single-submit-path invariant; prefer it.
+2. **The confirm bar (and reverse-search line) must CAPTURE the keyboard.** While `confirmPending`
+   is set, `isPaletteOpen` is false, so a stray `key/arrowUp`/`key/enter` reaching the reducer
+   falls through to history-recall / submit and mutates `state.value` underneath the bar (inert in
+   Phase 1 only because no UI routes keys there). `CliConfirmBar` and `CliReverseSearch` must
+   intercept keydown so those actions never reach the reducer while they are mounted.
+3. **Tab-completion UX papercut (optional polish).** `commonPrefix` runs over ALL non-serial
+   matches (spec §2.2), so `Tab` on `set rad` won't complete to `set radio` — a loose subsequence
+   match (`set allow.read.only`) collapses the prefix to `set `. If you want intuitive Tab
+   completion, pass only the prefix/word-start-tier items into `commonPrefix` at the reducer's Tab
+   call site (a small, additive change; leaves `match.commonPrefix` itself untouched).
+4. **Perf for the live component:** memoize `suggest(value, caret, ctx)` per input — the reducer's
+   derived helpers (`paletteItems`, `ghostSuffix`, `isPaletteOpen`, `reselect`) each call `suggest()`,
+   so one keystroke drives several full 101-command scans. Harmless in unit tests; memoize in `CliTab`.
+
+---
+
 ## File Structure
 
 **Create**
