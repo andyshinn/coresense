@@ -53,6 +53,43 @@ describe('parseCliLine', () => {
     const p = parseCliLine('set radio 869', 9);
     expect(p).toEqual({ mode: 'command', token: 'set radio', start: 0 });
   });
+
+  it('handles multi-space input correctly (argIndex off-by-one fix)', () => {
+    const p1 = parseCliLine('set radio  869', 15);
+    expect(p1.mode).toBe('arg');
+    if (p1.mode === 'arg') {
+      expect(p1.argIndex).toBe(0);
+      expect(p1.token).toBe('869');
+    }
+
+    const p2 = parseCliLine('set radio  ', 11);
+    expect(p2.mode).toBe('arg');
+    if (p2.mode === 'arg') {
+      expect(p2.argIndex).toBe(0);
+      expect(p2.token).toBe('');
+    }
+  });
+
+  it('resolves longest-match collision correctly', () => {
+    // Both 'set radio' and 'set radio.rxgain' exist; longest wins.
+    const p = parseCliLine('set radio.rxgain 1', 18);
+    expect(p.mode).toBe('arg');
+    if (p.mode === 'arg') {
+      expect(p.cmd.name).toBe('set radio.rxgain');
+      expect(p.argIndex).toBe(0);
+      expect(p.token).toBe('1');
+    }
+  });
+
+  it('clamps caret to text bounds', () => {
+    // Negative caret should clamp to 0, treating caret as at start.
+    const p1 = parseCliLine('ver', -1);
+    expect(p1).toEqual({ mode: 'command', token: '', start: 0 });
+
+    // Caret beyond text length should clamp to text length.
+    const p2 = parseCliLine('ver', 99);
+    expect(p2).toEqual({ mode: 'command', token: 'ver', start: 0 });
+  });
 });
 
 describe('resolveCommand', () => {

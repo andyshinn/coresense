@@ -22,7 +22,7 @@ export function parseCliLine(text: string, caret: number): CliParse {
   }
 
   if (best && !best.exact) {
-    const rest = head.slice(best.cmd.name.length + 1);
+    const rest = head.slice(best.cmd.name.length).trimStart();
     const parts = rest.split(/\s+/);
     const token = parts[parts.length - 1];
     return { mode: 'arg', cmd: best.cmd, argIndex: parts.length - 1, token, start: head.length - token.length };
