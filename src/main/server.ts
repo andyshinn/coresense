@@ -208,6 +208,7 @@ export async function startServer(
   const onMessageState = (id: string, state: MessageState) => broadcast({ type: 'messageState', payload: { id, state } });
   const onMessagePathHeard = (payload: { id: string; path: MessagePath; state: MessageState }) =>
     broadcast({ type: 'messagePathHeard', payload });
+  const onMessagesDeleted = (payload: { key: string; ids: string[] }) => broadcast({ type: 'messagesDeleted', payload });
   const onOwner = (owner: Owner | null) => broadcast({ type: 'owner', payload: owner });
   const onAppSettings = (settings: AppSettings) => broadcast({ type: 'appSettings', payload: settings });
   const onRadioSettings = (settings: RadioSettings) => broadcast({ type: 'radioSettings', payload: settings });
@@ -245,6 +246,7 @@ export async function startServer(
   bus.on('messages', onMessages);
   bus.on('messageState', onMessageState);
   bus.on('messagePathHeard', onMessagePathHeard);
+  bus.on('messagesDeleted', onMessagesDeleted);
   bus.on('owner', onOwner);
   bus.on('appSettings', onAppSettings);
   bus.on('radioSettings', onRadioSettings);
@@ -284,6 +286,7 @@ export async function startServer(
     bus.off('messages', onMessages);
     bus.off('messageState', onMessageState);
     bus.off('messagePathHeard', onMessagePathHeard);
+    bus.off('messagesDeleted', onMessagesDeleted);
     bus.off('owner', onOwner);
     bus.off('appSettings', onAppSettings);
     bus.off('radioSettings', onRadioSettings);

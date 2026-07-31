@@ -92,6 +92,7 @@ export const emit = {
   messageState: (id: string, state: MessageState) => bus.emit('messageState', id, state),
   messagePathHeard: (payload: { id: string; path: MessagePath; state: MessageState }) =>
     bus.emit('messagePathHeard', payload),
+  messagesDeleted: (payload: { key: string; ids: string[] }) => bus.emit('messagesDeleted', payload),
   owner: (owner: Owner | null) => bus.emit('owner', owner),
   appSettings: (settings: AppSettings) => bus.emit('appSettings', settings),
   radioSettings: (settings: RadioSettings) => bus.emit('radioSettings', settings),
@@ -134,6 +135,7 @@ export type BusEvents = {
   messages: (key: string, messages: Message[]) => void;
   messageState: (id: string, state: MessageState) => void;
   messagePathHeard: (payload: { id: string; path: MessagePath; state: MessageState }) => void;
+  messagesDeleted: (payload: { key: string; ids: string[] }) => void;
   owner: (owner: Owner | null) => void;
   appSettings: (settings: AppSettings) => void;
   radioSettings: (settings: RadioSettings) => void;
