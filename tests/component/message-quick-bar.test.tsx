@@ -62,6 +62,17 @@ describe('MessageQuickBar', () => {
     expect(screen.queryByRole('button', { name: 'Reply' })).toBeNull();
   });
 
+  test('own messages get the overflow menu, not a bare Delete button', () => {
+    renderBar({ ...base, message: mine, isSelf: true, senderName: '' });
+    expect(screen.getByRole('button', { name: 'More' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+  });
+
+  test('received messages still get the overflow menu', () => {
+    renderBar(base);
+    expect(screen.getByRole('button', { name: 'More' })).toBeTruthy();
+  });
+
   test('hidden pill is non-interactive (pointer-events-none, not pinned open)', () => {
     renderBar(base);
     const bar = screen.getByTestId('message-quick-bar');
