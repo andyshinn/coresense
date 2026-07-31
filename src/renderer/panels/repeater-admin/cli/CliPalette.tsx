@@ -13,6 +13,10 @@ const DETAIL_W = 250;
 const DETAIL_MIN = 560; // below this the two-pane detail folds to inline
 const LIST_MAX_H = 302;
 
+// Stable id for the listbox so Task 4's prompt input can own the authoritative
+// aria-activedescendant/aria-controls pair (the FOCUSED element must own it).
+export const CLI_PALETTE_LISTBOX_ID = 'cli-palette-listbox';
+
 export interface CliPaletteProps {
   open: boolean;
   parse: CliParse;
@@ -253,6 +257,7 @@ export function CliPalette({ open, parse, items, activeId, nodeValues, radioSett
         </div>
         <div className="flex">
           <div
+            id={CLI_PALETTE_LISTBOX_ID}
             role="listbox"
             aria-label={header}
             aria-activedescendant={active?.id || undefined}

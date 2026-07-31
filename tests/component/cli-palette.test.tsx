@@ -53,17 +53,19 @@ describe('CliPalette', () => {
   });
 
   it('orders groups by their best member score (list order), not by CLI_GROUP_ORDER', () => {
-    // items arrive already ranked: a Statistics hit outranks a Radio hit.
+    // GPS is CLI_GROUP_ORDER index 10, Operational is index 0 — a naive
+    // registry sort would flip these, so this pair genuinely proves
+    // first-appearance (score) ordering rather than passing by coincidence.
     const items = [
-      item({ label: 'stats', cmd: cmd('stats', 'Statistics'), ranges: [[0, 4]] }),
-      item({ label: 'set radio', cmd: cmd('set radio', 'Radio') }),
+      item({ label: 'gps', cmd: cmd('gps', 'GPS'), ranges: [[0, 3]] }),
+      item({ label: 'reboot', cmd: cmd('reboot', 'Operational') }),
     ];
     render(
       <CliPalette
         open
         parse={commandParse}
         items={items}
-        activeId="c:stats"
+        activeId="c:gps"
         nodeValues={{}}
         radioSettings={radio}
         hops={1}
@@ -71,7 +73,7 @@ describe('CliPalette', () => {
       />,
     );
     const headings = Array.from(document.querySelectorAll('[data-group-heading]')).map((n) => n.textContent);
-    expect(headings).toEqual(['Statistics', 'Radio']);
+    expect(headings).toEqual(['GPS', 'Operational']); // list order, NOT CLI_GROUP_ORDER (which would give Operational, GPS)
   });
 
   it('sinks serial-only commands into a trailing group', () => {
