@@ -9,6 +9,7 @@ import { CliTranscript } from './cli/CliTranscript';
 import { resolveCommand } from './cli/lib/parse';
 import { type CliHistoryEntry, loadHistory, pushHistory, saveHistory } from './cli/lib/persistence';
 import { abortAll, beginNext, type CliEntry, type CliQueueState, cancel, enqueue, settle } from './cli/lib/queue';
+import { settlePatchForError, settlePatchForReply } from './cli/lib/send';
 import { type CliSuggestCtx, deriveRecent, extractNodeValue } from './cli/lib/suggest';
 import { armReboot, markRebootSent, type RebootPendingState, RebootStrip } from './cli/RebootPending';
 
@@ -25,14 +26,6 @@ const CLI_TIMEOUT_MS = 30_000;
 let seq = 0;
 const newId = () => `cli-${Date.now().toString(36)}-${(seq++).toString(36)}`;
 
-// Phase 2 best-effort classification (phase 3 replaces this with server codes).
-function classify(err: Error): CliEntry['error'] {
-  const msg = err.message;
-  if (/superseded by newer CLI command/i.test(msg)) return { kind: 'superseded', message: msg };
-  if (/CLI command timed out after/i.test(msg)) return { kind: 'timeout', message: msg };
-  return { kind: 'transport', message: msg };
-}
-
 export function CliTab({ contact, client, session, sessionChecked, pending, onPending }: Props) {
   const radioSettings = useStore((s) => s.radioSettings);
   const setRepeaterAdminTab = useStore((s) => s.setRepeaterAdminTab);
@@ -44,6 +37,11 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
   const [lineToSet, setLineToSet] = useState<{ text: string; nonce: number } | null>(null);
   const sendingRef = useRef(false);
   const mountedRef = useRef(true);
+  // One controller per in-flight send; aborted by the unmount/switch cleanup so
+  // the main-process pendingCli entry is cleared instead of stranded for the full
+  // 30s timeout (§7.1). Deliberately a ref, not queue state — queue state stays
+  // pure/serialisable (§2.5).
+  const abortRef = useRef<AbortController | null>(null);
 
   const guest: CliGuest = !sessionChecked ? 'checking' : session?.role === 'admin' ? 'admin' : 'guest';
   const ctx: CliSuggestCtx = useMemo(() => ({ recent: deriveRecent(history), nodeValues }), [history, nodeValues]);
@@ -99,57 +97,57 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
     sendingRef.current = true;
     setQueue(state);
     void (async () => {
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+      const expectReply = !next.cmd?.noReply; // fire-and-forget for noReply cmds
       try {
-        const res = await api.repeaterCli(client, contact.key, next.text);
-        // This call never passes `opts.expectReply`, so the server always
-        // defaults it to true and `res` always carries `reply`. The `sent`
-        // variant (no-reply/fire-and-forget) is only reachable once phase 3's
-        // drain wiring lands (phase-3 Task 5); narrow defensively until then.
-        const reply = 'reply' in res ? res.reply : '';
-        const refused = /^err/i.test(reply.trim());
-        setQueue((q) =>
-          settle(q, next.id, {
-            state: refused ? 'error' : 'ok',
-            reply,
-            endedAt: Date.now(),
-            error: refused ? { kind: 'refused', message: reply } : null,
-          }),
-        );
-        patchStatus(next.text, refused ? 'error' : 'ok');
-        if (!refused && next.cmd?.key && next.cmd.name.startsWith('get ')) {
-          const v = extractNodeValue(next.cmd, reply);
+        const res = await api.repeaterCli(client, contact.key, next.text, {
+          expectReply,
+          signal: ctrl.signal,
+        });
+        const patch = settlePatchForReply(res, Date.now());
+        setQueue((q) => settle(q, next.id, patch));
+        patchStatus(next.text, patch.state as CliHistoryEntry['status']);
+        const refused = patch.error?.kind === 'refused';
+        // Node value only exists on a reply-bearing settle (never on `sent`).
+        if (patch.reply != null && next.cmd?.key && next.cmd.name.startsWith('get ')) {
+          const v = extractNodeValue(next.cmd, patch.reply);
           if (v != null) setNodeValues((nv) => ({ ...nv, [next.cmd?.key as string]: v }));
         }
-        // Reboot-pending: arm on a reboot-required set reaching ok; mark sent
-        // when the reboot command itself settles. NOTE §6 also arms on `sent`,
-        // but the `sent` terminal (reboot+noReply commands) only exists once
-        // phase 3's drain lands (phase-3 Task 5); wire arm-on-`sent` there so a
-        // reboot+noReply command is not silently lost.
+        // §6: arm reboot-pending on a reboot-required `set` that reaches a
+        // SUCCESS terminal — this branch now runs for BOTH `ok` (reply) and
+        // `sent` (no-reply), because api.repeaterCli resolves for both. No
+        // state check needed: error/timeout go to catch and never reach here;
+        // a refused reply is gated out.
         if (mountedRef.current && !refused && next.cmd?.reboot && next.cmd.name.startsWith('set '))
           onPending(armReboot(pending, next.cmd));
+        // §6 observable win: `reboot`/`clkreboot` are noReply → now settle
+        // `sent` (Phase 2 timed out here and this never fired). markRebootSent
+        // finally runs.
         if (mountedRef.current && !refused && (next.text === 'reboot' || next.text === 'clkreboot'))
           onPending(markRebootSent(pending, Date.now()));
       } catch (err) {
-        const error = classify(err as Error);
-        setQueue((q) =>
-          settle(q, next.id, { state: error?.kind === 'timeout' ? 'timeout' : 'error', endedAt: Date.now(), error }),
-        );
-        patchStatus(next.text, error?.kind === 'timeout' ? 'timeout' : 'error');
+        if (ctrl.signal.aborted) return; // abortAll already moved this entry to cancelled
+        const patch = settlePatchForError(err, Date.now());
+        setQueue((q) => settle(q, next.id, patch));
+        patchStatus(next.text, patch.state as CliHistoryEntry['status']);
       } finally {
         sendingRef.current = false;
       }
     })();
   }, [queue, client, contact.key, patchStatus, onPending, pending]);
 
-  // Abort the queue on unmount / repeater switch: move every non-terminal entry
-  // (including a sending one) to cancelled so beginNext can never wedge. The
-  // in-flight fetch itself is orphaned — no signal on today's transport (§2.5).
-  // Also flip mountedRef so the orphaned continuation can't call the PARENT's
+  // Abort the queue on unmount / repeater switch: abort the live send first —
+  // which clears the main-process pendingCli entry (§7.1) instead of leaving
+  // it registered for the full timeout — then move every non-terminal entry
+  // (including a sending one) to cancelled so beginNext can never wedge. Also
+  // flip mountedRef so the orphaned continuation can't call the PARENT's
   // shared onPending after this CliTab (and its repeater) is gone — otherwise
   // a reboot-required set that settles just after a repeater switch would
   // arm/mark-sent reboot-pending for whichever repeater is now mounted.
   useEffect(
     () => () => {
+      abortRef.current?.abort();
       mountedRef.current = false;
       setQueue((q) => abortAll(q));
     },

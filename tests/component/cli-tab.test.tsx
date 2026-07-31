@@ -41,8 +41,37 @@ describe('CliTab', () => {
     renderTab();
     fireEvent.change(input(), { target: { value: 'get radio' } });
     fireEvent.keyDown(input(), { key: 'Enter' });
-    await waitFor(() => expect(repeaterCli).toHaveBeenCalledWith(expect.anything(), 'c:abc', 'get radio'));
+    await waitFor(() =>
+      expect(repeaterCli).toHaveBeenCalledWith(
+        expect.anything(),
+        'c:abc',
+        'get radio',
+        expect.objectContaining({ expectReply: true }),
+      ),
+    );
     expect(await screen.findByText('869.525,250,11,5')).toBeTruthy();
+  });
+
+  it('sends reboot fire-and-forget and marks reboot-pending sent on a `sent` settle (§6)', async () => {
+    const onPending = vi.fn();
+    repeaterCli.mockResolvedValue({ ok: true, sent: true }); // route's 202 no-reply shape
+    renderTab({ onPending });
+    fireEvent.change(input(), { target: { value: 'reboot' } });
+    fireEvent.keyDown(input(), { key: 'Enter' });
+
+    // noReply command → expectReply:false in the opts bag
+    await waitFor(() =>
+      expect(repeaterCli).toHaveBeenCalledWith(
+        expect.anything(),
+        'c:abc',
+        'reboot',
+        expect.objectContaining({ expectReply: false }),
+      ),
+    );
+    // the `sent` settle fires markRebootSent → onPending gets rebootSentAtMs set
+    await waitFor(() =>
+      expect(onPending).toHaveBeenCalledWith(expect.objectContaining({ rebootSentAtMs: expect.any(Number) })),
+    );
   });
 
   it('blocks the send and shows the banner when not an admin session', () => {
