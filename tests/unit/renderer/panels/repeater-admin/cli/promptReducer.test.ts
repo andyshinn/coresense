@@ -49,6 +49,11 @@ describe('typing and visibility', () => {
     expect(s.dismissed).toBe(true);
     expect(isPaletteOpen(s)).toBe(false);
   });
+
+  it('caret/set updates the caret and reselects', () => {
+    const s = run({ ...initialPromptState(), value: 'set radio', caret: 9 }, { kind: 'caret/set', caret: 3 }).state;
+    expect(s.caret).toBe(3);
+  });
 });
 
 describe('history recall', () => {
@@ -63,7 +68,7 @@ describe('history recall', () => {
   });
 
   it('↓ past the newest restores the saved draft', () => {
-    const base = { ...withHistory(['ver']), value: 'dr', caret: 2 };
+    const base = { ...withHistory(['ver']), value: 'dr', caret: 2, dismissed: true };
     const up = run(base, { kind: 'key/arrowUp' }).state;
     const down = run(up, { kind: 'key/arrowDown' }).state;
     expect(down.value).toBe('dr');
@@ -156,6 +161,21 @@ describe('⌃L and non-key actions', () => {
     const withRecent = run(withNode, { kind: 'ctx/setRecent', recent: ['ver'] }).state;
     expect(withRecent.ctx.recent).toEqual(['ver']);
   });
+
+  it('history/loaded replaces history and resets the recall index', () => {
+    const loaded = run(
+      { ...initialPromptState(), histIndex: 2 },
+      {
+        kind: 'history/loaded',
+        history: [
+          { text: 'ver', status: 'ok' },
+          { text: 'board', status: 'ok' },
+        ],
+      },
+    ).state;
+    expect(loaded.history.map((h) => h.text)).toEqual(['ver', 'board']);
+    expect(loaded.histIndex).toBe(-1);
+  });
 });
 
 describe('reverse-i-search', () => {
@@ -188,6 +208,13 @@ describe('reverse-i-search', () => {
   it('Escape aborts and restores the saved line', () => {
     const base = { ...withHistory(['ver']), value: 'draft', caret: 5 };
     const s = run(base, { kind: 'key/ctrlR' }, { kind: 'key/escape' }).state;
+    expect(s.rsearch).toBeNull();
+    expect(s.value).toBe('draft');
+  });
+
+  it('key/ctrlG aborts reverse-search and restores the saved line', () => {
+    const base = { ...withHistory(['ver']), value: 'draft', caret: 5 };
+    const s = run(base, { kind: 'key/ctrlR' }, { kind: 'key/ctrlG' }).state;
     expect(s.rsearch).toBeNull();
     expect(s.value).toBe('draft');
   });
