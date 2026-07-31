@@ -649,6 +649,20 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     return c.json({ ok: true, id: result.id });
   });
 
+  // Local-only. MeshCore has no retract primitive, so unlike DELETE
+  // /api/contacts/:key there is no radio round-trip to make and nothing to
+  // desync with. A tombstone stops a re-heard packet resurrecting the row.
+  api.delete('/api/messages/:key/:id', (c) => {
+    const key = decodeURIComponent(c.req.param('key'));
+    const id = c.req.param('id');
+    if (!key.startsWith('ch:') && !key.startsWith('c:')) {
+      return c.json({ error: 'key must be ch:<name> or c:<pubkey>' }, 400);
+    }
+    if (stateHolder().removeMessages([id]) === 0) return c.json({ error: 'not found' }, 404);
+    emit.messagesDeleted({ key, ids: [id] });
+    return c.json({ ok: true });
+  });
+
   // ---- Per-contact path ------------------------------------------------
   // Writes the path back to the radio (firmware is the source of truth) and
   // updates the local Contact record on success. preferDirect is a local-only
