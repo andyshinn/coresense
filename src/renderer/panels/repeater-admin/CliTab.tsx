@@ -110,7 +110,7 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
         patchStatus(next.text, patch.state as CliHistoryEntry['status']);
         const refused = patch.error?.kind === 'refused';
         // Node value only exists on a reply-bearing settle (never on `sent`).
-        if (patch.reply != null && next.cmd?.key && next.cmd.name.startsWith('get ')) {
+        if (!refused && patch.reply != null && next.cmd?.key && next.cmd.name.startsWith('get ')) {
           const v = extractNodeValue(next.cmd, patch.reply);
           if (v != null) setNodeValues((nv) => ({ ...nv, [next.cmd?.key as string]: v }));
         }

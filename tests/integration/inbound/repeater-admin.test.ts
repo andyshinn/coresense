@@ -113,7 +113,7 @@ function cliReply(prefixHex: string, body: string): Buffer {
 // on MeshCoreSession; the cast pins the runtime shape recorded in the release
 // (`ctx.rt.adminCorr.pendingCli`, keyed by the 12-char pubkey prefix). If the
 // release relocates the map, update this one helper.
-function pendingCliMap(adapter: import('../../../src/main/protocol/sessionAdapter').SessionAdapter): Map<string, unknown> {
+function pendingCliMap(adapter: SessionAdapter): Map<string, unknown> {
   return (adapter.session as unknown as { ctx: { rt: { adminCorr: { pendingCli: Map<string, unknown> } } } }).ctx.rt
     .adminCorr.pendingCli;
 }
