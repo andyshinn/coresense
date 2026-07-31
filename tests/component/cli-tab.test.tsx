@@ -52,4 +52,14 @@ describe('CliTab', () => {
     fireEvent.keyDown(input(), { key: 'Enter' });
     expect(repeaterCli).not.toHaveBeenCalled();
   });
+
+  it('blocks RebootStrip "Reboot now" for a non-admin session', () => {
+    renderTab({
+      session: null,
+      sessionChecked: true,
+      pending: { settings: [{ label: 'radio', verify: 'get radio' }], dismissed: false, rebootSentAtMs: null },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /reboot now/i }));
+    expect(repeaterCli).not.toHaveBeenCalled();
+  });
 });

@@ -63,3 +63,15 @@ if (jsdomInstance) {
     configurable: true,
   });
 }
+
+// Cross-test safety belt: the real jsdom Storage above persists whatever a
+// test writes for the lifetime of that test file's jsdom instance. Clear it
+// after every test so persisted CLI history / reboot-pending state can't
+// leak from one test into the next.
+afterEach(() => {
+  try {
+    localStorage.clear();
+  } catch {
+    // no-op — degrade the same way persistence.ts's resolveStorage does
+  }
+});

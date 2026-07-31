@@ -29,7 +29,7 @@ const newId = () => `cli-${Date.now().toString(36)}-${(seq++).toString(36)}`;
 function classify(err: Error): CliEntry['error'] {
   const msg = err.message;
   if (/superseded by newer CLI command/i.test(msg)) return { kind: 'superseded', message: msg };
-  if (/timeout|no reply|timed out/i.test(msg)) return { kind: 'timeout', message: msg };
+  if (/CLI command timed out after/i.test(msg)) return { kind: 'timeout', message: msg };
   return { kind: 'transport', message: msg };
 }
 
@@ -43,6 +43,7 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
   const [nodeValues, setNodeValues] = useState<Record<string, string>>({});
   const [lineToSet, setLineToSet] = useState<{ text: string; nonce: number } | null>(null);
   const sendingRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const guest: CliGuest = !sessionChecked ? 'checking' : session?.role === 'admin' ? 'admin' : 'guest';
   const ctx: CliSuggestCtx = useMemo(() => ({ recent: deriveRecent(history), nodeValues }), [history, nodeValues]);
@@ -64,6 +65,7 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
 
   const submit = useCallback(
     (text: string) => {
+      if (guest !== 'admin') return; // §8: only an admin session may send (covers RebootStrip + retry, not just the prompt)
       const trimmed = text.trim();
       if (trimmed === '') return;
       const cmd =
@@ -91,7 +93,7 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
       };
       setQueue((q) => enqueue(q, entry));
     },
-    [contact.publicKeyHex],
+    [contact.publicKeyHex, guest],
   );
 
   // Drain: start the next entry whenever nothing is sending.
@@ -123,8 +125,9 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
         // but the `sent` terminal (reboot+noReply commands) only exists once
         // phase 3's drain lands (phase-3 Task 5); wire arm-on-`sent` there so a
         // reboot+noReply command is not silently lost.
-        if (!refused && next.cmd?.reboot && next.cmd.name.startsWith('set ')) onPending(armReboot(pending, next.cmd));
-        if (!refused && (next.text === 'reboot' || next.text === 'clkreboot'))
+        if (mountedRef.current && !refused && next.cmd?.reboot && next.cmd.name.startsWith('set '))
+          onPending(armReboot(pending, next.cmd));
+        if (mountedRef.current && !refused && (next.text === 'reboot' || next.text === 'clkreboot'))
           onPending(markRebootSent(pending, Date.now()));
       } catch (err) {
         const error = classify(err as Error);
@@ -141,7 +144,17 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
   // Abort the queue on unmount / repeater switch: move every non-terminal entry
   // (including a sending one) to cancelled so beginNext can never wedge. The
   // in-flight fetch itself is orphaned — no signal on today's transport (§2.5).
-  useEffect(() => () => setQueue((q) => abortAll(q)), []);
+  // Also flip mountedRef so the orphaned continuation can't call the PARENT's
+  // shared onPending after this CliTab (and its repeater) is gone — otherwise
+  // a reboot-required set that settles just after a repeater switch would
+  // arm/mark-sent reboot-pending for whichever repeater is now mounted.
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+      setQueue((q) => abortAll(q));
+    },
+    [],
+  );
 
   const onClear = useCallback(() => setQueue({ entries: [] }), []);
   const onCancel = useCallback((id: string) => setQueue((q) => cancel(q, id)), []);
