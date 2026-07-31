@@ -28,7 +28,10 @@ export function DeleteConfirmPopover({ messageId, conversationKey, preview, clie
 
   const confirm = async () => {
     setPendingDeleteMessageId(null);
-    if (!client) return;
+    if (!client) {
+      notify.error('Couldn’t delete message: no connection to the local service.');
+      return;
+    }
     try {
       await api.deleteMessage(client, conversationKey, messageId);
       notify.success('Message deleted');

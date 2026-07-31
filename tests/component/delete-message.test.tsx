@@ -5,6 +5,7 @@ vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), error: vi.fn(), inf
 
 import { DeleteConfirmPopover } from '@/features/message-actions/DeleteConfirmPopover';
 import { type ApiClient, api } from '@/lib/api';
+import { notify } from '@/lib/notify';
 import { useStore } from '@/lib/store';
 import type { Message } from '../../src/shared/types';
 
@@ -100,5 +101,26 @@ describe('DeleteConfirmPopover', () => {
     render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={client} />);
     const panel = await screen.findByTestId('delete-confirm-panel');
     expect(panel.textContent).toMatch(/this device only/i);
+  });
+
+  it('reports an error instead of silently doing nothing when there is no client', async () => {
+    const spy = vi.spyOn(api, 'deleteMessage').mockResolvedValue({ ok: true });
+    useStore.setState({ pendingDeleteMessageId: 'b' });
+    render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={null} />);
+    fireEvent.click(await screen.findByTestId('confirm-delete-message'));
+    expect(spy).not.toHaveBeenCalled();
+    expect(notify.error).toHaveBeenCalled();
+  });
+
+  it('leaves the store untouched — the messagesDeleted broadcast prunes, not the component', async () => {
+    vi.spyOn(api, 'deleteMessage').mockResolvedValue({ ok: true });
+    useStore.setState({
+      messagesByKey: { 'ch:x': [msg('a'), msg('b'), msg('c')] },
+      pendingDeleteMessageId: 'b',
+    });
+    render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={client} />);
+    fireEvent.click(await screen.findByTestId('confirm-delete-message'));
+    await vi.waitFor(() => expect(api.deleteMessage).toHaveBeenCalled());
+    expect(useStore.getState().messagesByKey['ch:x'].map((m) => m.id)).toEqual(['a', 'b', 'c']);
   });
 });
