@@ -107,6 +107,17 @@ function cliReply(prefixHex: string, body: string): Buffer {
   return f;
 }
 
+// White-box reach into the library's admin-correlation map. This is a
+// deliberate assertion that abort/no-reply touch the RIGHT internal state
+// (§11: "cleared, not merely that the client saw an abort"). `ctx` is private
+// on MeshCoreSession; the cast pins the runtime shape recorded in the release
+// (`ctx.rt.adminCorr.pendingCli`, keyed by the 12-char pubkey prefix). If the
+// release relocates the map, update this one helper.
+function pendingCliMap(adapter: import('../../../src/main/protocol/sessionAdapter').SessionAdapter): Map<string, unknown> {
+  return (adapter.session as unknown as { ctx: { rt: { adminCorr: { pendingCli: Map<string, unknown> } } } }).ctx.rt
+    .adminCorr.pendingCli;
+}
+
 describe('repeater administration', () => {
   afterEach(() => {
     adminSessions.reset('test cleanup');
@@ -204,6 +215,50 @@ describe('repeater administration', () => {
     receive(cliReply(PREFIX, 'OK rebooting'));
     const reply = await p;
     expect(reply).toBe('OK rebooting');
+  });
+
+  it('registers a pendingCli entry while a reply is expected', async () => {
+    const { adapter, receive } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
+
+    const p = adapter.repeaterSendCli(`c:${PK}`, 'get radio');
+    await tick();
+    expect(pendingCliMap(adapter).size).toBe(1);
+
+    receive(cliReply(PREFIX, 'radio: 869.525,250,11,5'));
+    expect(await p).toBe('radio: 869.525,250,11,5');
+    expect(pendingCliMap(adapter).size).toBe(0);
+  });
+
+  it('resolves a no-reply send without registering a pendingCli entry', async () => {
+    const { adapter, receive } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
+
+    const p = adapter.repeaterSendCli(`c:${PK}`, 'set advert.interval 30', { expectReply: false });
+    await tick();
+    // No cliReply frame is delivered; the send resolves on transport hand-off,
+    // i.e. the local radio's RESP_SENT confirmation that it queued the frame
+    // for TX (dist/index.js `handleSent` → `emitSendState(..., "sent")`).
+    // The loopback transport never synthesizes that frame on its own, so it
+    // has to be injected here, same as every other test in this file.
+    receive(respSent('deadbeef'));
+    expect(await p).toBe('');
+    expect(pendingCliMap(adapter).size).toBe(0);
+  });
+
+  it('clears the pendingCli entry when the caller aborts mid-flight', async () => {
+    const { adapter } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
+
+    const ctrl = new AbortController();
+    const p = adapter.repeaterSendCli(`c:${PK}`, 'get radio', { signal: ctrl.signal });
+    await tick();
+    expect(pendingCliMap(adapter).size).toBe(1);
+
+    ctrl.abort();
+    await expect(p).rejects.toThrow();
+    // The entry is deleted, not left to fire its 30 s timer — the whole point.
+    expect(pendingCliMap(adapter).size).toBe(0);
   });
 });
 
