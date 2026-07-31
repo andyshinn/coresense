@@ -87,4 +87,11 @@ describe('CLI catalog invariants', () => {
       expect(CLI_BY_NAME[name]?.reboot, `${name} should be reboot`).toBe(true);
     }
   });
+
+  it('carries the reconciled Routing enums and the added flood.max.unscoped pair', () => {
+    expect(CLI_BY_NAME['set loop.detect']?.args?.[0].enum).toEqual(['off', 'minimal', 'moderate', 'strict']);
+    expect(CLI_BY_NAME['set path.hash.mode']?.args?.[0].enum).toEqual(['0', '1', '2']);
+    expect(CLI_BY_NAME['get flood.max.unscoped']?.key).toBe('flood.max.unscoped');
+    expect(CLI_BY_NAME['set flood.max.unscoped']?.key).toBe('flood.max.unscoped');
+  });
 });
