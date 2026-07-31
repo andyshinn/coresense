@@ -8,7 +8,7 @@ import { CLI_PALETTE_LISTBOX_ID, CliPalette } from './CliPalette';
 import { CliReverseSearch } from './CliReverseSearch';
 import { cliRoundTrip } from './lib/airtime';
 import type { CliHistoryEntry } from './lib/persistence';
-import { type CliPromptState, cliPromptReducer } from './lib/promptReducer';
+import { type CliPromptState, cliPromptReducer, rsearchMatches } from './lib/promptReducer';
 import { type CliSuggestCtx, suggest } from './lib/suggest';
 
 export type CliGuest = 'checking' | 'guest' | 'admin';
@@ -134,10 +134,18 @@ export function CliPrompt({
 
   const canSubmit = guest === 'admin' && state.value.trim() !== '';
 
+  // The reducer's own filtered, newest-first match list — reused so the index
+  // rsearch.index points into stays in the same space the reducer navigates.
+  const rmatches = state.rsearch ? rsearchMatches(state.history, state.rsearch.query) : [];
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Map each key to a granular reducer action (§3.1). Reverse-search typing
-    // routes to rsearch/setQuery; an end-of-line →/End with a live ghost accepts
-    // it. Everything the reducer owns is preventDefault'd except the caret keys.
+    // routes to rsearch/setQuery; →/End accepts either the active rsearch match
+    // or an end-of-line ghost via the reducer's shared key/acceptGhost (§3.2).
+    // `a` is only non-null when there's something for the reducer to do with
+    // this key, so every branch that returns an action also preventDefaults —
+    // when there's nothing to accept, `a` is null and native cursor movement
+    // (e.g. plain ArrowRight/End) still happens.
     const a = (() => {
       if (state.rsearch) {
         if (e.key === 'Backspace') return { kind: 'rsearch/setQuery', query: state.rsearch.query.slice(0, -1) } as const;
@@ -161,12 +169,13 @@ export function CliPrompt({
           return { kind: 'key/escape' } as const;
         case 'ArrowRight':
         case 'End':
+          if (state.rsearch) return { kind: 'key/acceptGhost' } as const;
           return state.caret === state.value.length && ghost ? ({ kind: 'key/acceptGhost' } as const) : null;
       }
       return null;
     })();
     if (a) {
-      if (e.key !== 'ArrowRight' && e.key !== 'End') e.preventDefault();
+      e.preventDefault();
       dispatch(a);
     }
   };
@@ -203,9 +212,9 @@ export function CliPrompt({
       {state.rsearch ? (
         <CliReverseSearch
           query={state.rsearch.query}
-          match={state.history[state.rsearch.index] ?? null}
+          match={rmatches[state.rsearch.index] ?? null}
           index={state.rsearch.index}
-          total={state.history.filter((h) => h.text.toLowerCase().includes(state.rsearch?.query.toLowerCase() ?? '')).length}
+          total={rmatches.length}
         />
       ) : null}
 

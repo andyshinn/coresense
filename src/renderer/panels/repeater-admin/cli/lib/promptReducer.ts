@@ -100,7 +100,7 @@ export function ghostSuffix(s: CliPromptState): string {
   return '';
 }
 
-function rsearchMatches(history: CliHistoryEntry[], query: string): CliHistoryEntry[] {
+export function rsearchMatches(history: CliHistoryEntry[], query: string): CliHistoryEntry[] {
   const q = query.toLowerCase();
   const out: CliHistoryEntry[] = [];
   for (let i = history.length - 1; i >= 0; i--) {
