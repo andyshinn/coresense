@@ -23,7 +23,7 @@ describe('deleted messages do not come back', () => {
     holder.recordLibMessage(channelMsg());
     expect(messagesStore.findById(CHANNEL_MID)).not.toBeNull();
 
-    expect(holder.removeMessages([CHANNEL_MID])).toBe(1);
+    expect(holder.removeMessages('ch:General', [CHANNEL_MID])).toEqual([CHANNEL_MID]);
     expect(messagesStore.findById(CHANNEL_MID)).toBeNull();
 
     // Same packet, second flood path — the library re-emits messageUpserted
@@ -35,12 +35,22 @@ describe('deleted messages do not come back', () => {
   it('still records a genuinely new message after a delete', () => {
     const holder = stateHolder();
     holder.recordLibMessage(channelMsg());
-    holder.removeMessages([CHANNEL_MID]);
+    holder.removeMessages('ch:General', [CHANNEL_MID]);
     holder.recordLibMessage({ ...channelMsg(), id: 'radio-xyz-000001', body: 'different' });
     expect(messagesStore.findById('radio-xyz-000001')).not.toBeNull();
   });
 
-  it('removeMessages returns 0 for an unknown id', () => {
-    expect(stateHolder().removeMessages(['ghost'])).toBe(0);
+  it('removeMessages returns [] for an unknown id', () => {
+    expect(stateHolder().removeMessages('ch:General', ['ghost'])).toEqual([]);
+  });
+
+  // upsertMessage is the other insert path — currently unreferenced, but it
+  // exists to merge the multi-path receipts the tombstone protects.
+  it('upsertMessage also refuses to resurrect a deleted id', () => {
+    const holder = stateHolder();
+    holder.recordLibMessage(channelMsg());
+    holder.removeMessages('ch:General', [CHANNEL_MID]);
+    holder.upsertMessage(channelMsg());
+    expect(messagesStore.findById(CHANNEL_MID)).toBeNull();
   });
 });

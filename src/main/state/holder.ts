@@ -303,6 +303,11 @@ class StateHolder {
    *    - ts keeps the earliest receipt
    *    - state only moves forward (received → ack), never backward */
   upsertMessage(message: Message): void {
+    // Mirrors the guard in recordLibMessage: this is the other insert path, and
+    // the multi-path merge it exists for is exactly what the tombstone protects
+    // against. Currently unreferenced — the guard is here so rewiring it can't
+    // silently resurrect a deleted id.
+    if (messagesStore.isDeleted(message.id)) return;
     // First-match: only count when this id is new. Backfill (re-evaluation on
     // rule creation) is handled by a separate pass; per-render reads never
     // bump the counter.
@@ -386,10 +391,12 @@ class StateHolder {
   setMessageState(id: string, state: Message['state']): void {
     messagesStore.markState(id, state);
   }
-  /** Hard-delete messages and tombstone them. Returns the number removed, so
-   *  the route can 404 on an unknown id. */
-  removeMessages(ids: string[]): number {
-    return messagesStore.remove(ids);
+  /** Hard-delete messages from one conversation and tombstone them. Scoping by
+   *  `key` is the DAO's job — ids that belong to another conversation are left
+   *  alone. Returns the ids actually removed, so the route can 404 on an
+   *  unknown (or foreign) id and emit exactly what it deleted. */
+  removeMessages(key: string, ids: string[]): string[] {
+    return messagesStore.remove(key, ids);
   }
   /** Append a newly-heard relay path to an outgoing channel message. Dedupes
    *  by MessagePath.id, bumps timesHeard, and (when the message is still in

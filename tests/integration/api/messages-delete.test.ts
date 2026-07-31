@@ -64,6 +64,9 @@ describe('DELETE /api/messages/:key/:id', () => {
     expect(messagesStore.findById('m1')).not.toBeNull();
   });
 
+  // The route no longer reads the DAO to pre-check ownership — remove() is
+  // key-scoped, so a foreign id removes nothing and the empty result becomes
+  // the 404. This test now proves the DAO scoping end-to-end.
   it('404s and deletes nothing when the id belongs to a different conversation', async () => {
     messagesStore.insert(msg({ id: 'm1', key: 'ch:Real' }));
     const res = await app().request('/api/messages/ch%3AWrong/m1', { method: 'DELETE' });
