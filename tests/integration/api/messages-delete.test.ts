@@ -47,7 +47,8 @@ describe('DELETE /api/messages/:key/:id', () => {
     messagesStore.insert(msg());
     const onMessages = vi.fn();
     bus.on('messages', onMessages);
-    await app().request('/api/messages/ch%3AGeneral/m1', { method: 'DELETE' });
+    const res = await app().request('/api/messages/ch%3AGeneral/m1', { method: 'DELETE' });
+    expect(res.status).toBe(200);
     expect(onMessages).not.toHaveBeenCalled();
   });
 
@@ -60,6 +61,14 @@ describe('DELETE /api/messages/:key/:id', () => {
     messagesStore.insert(msg());
     const res = await app().request('/api/messages/bogus/m1', { method: 'DELETE' });
     expect(res.status).toBe(400);
+    expect(messagesStore.findById('m1')).not.toBeNull();
+  });
+
+  it('404s and deletes nothing when the id belongs to a different conversation', async () => {
+    messagesStore.insert(msg({ id: 'm1', key: 'ch:Real' }));
+    const res = await app().request('/api/messages/ch%3AWrong/m1', { method: 'DELETE' });
+    expect(res.status).toBe(404);
+    expect(messagesStore.findById('m1')).not.toBeNull();
   });
 
   it('handles a DM key', async () => {

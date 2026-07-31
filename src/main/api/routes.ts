@@ -658,8 +658,14 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     if (!key.startsWith('ch:') && !key.startsWith('c:')) {
       return c.json({ error: 'key must be ch:<name> or c:<pubkey>' }, 400);
     }
-    if (stateHolder().removeMessages([id]) === 0) return c.json({ error: 'not found' }, 404);
-    emit.messagesDeleted({ key, ids: [id] });
+    const holder = stateHolder();
+    // Confirm the message exists AND belongs to this conversation before
+    // deleting: the emitted key drives the renderer's per-key cache prune, so
+    // it must be the message's real key, not whatever the caller sent.
+    const existing = messagesStore.findById(id);
+    if (!existing || existing.key !== key) return c.json({ error: 'not found' }, 404);
+    if (holder.removeMessages([id]) === 0) return c.json({ error: 'not found' }, 404);
+    emit.messagesDeleted({ key: existing.key, ids: [id] });
     return c.json({ ok: true });
   });
 
