@@ -62,4 +62,18 @@ describe('CLI catalog invariants', () => {
       expect(set.key).toBe(get.key);
     }
   });
+
+  it('marks the Operational/Statistics/Logging serial-only commands by name', () => {
+    for (const name of ['erase', 'log', 'stats-packets', 'stats-radio', 'stats-core']) {
+      expect(CLI_BY_NAME[name]?.serialOnly, `${name} should be serialOnly`).toBe(true);
+    }
+  });
+
+  it('marks the no-reply reboot/power commands by name', () => {
+    for (const name of ['reboot', 'poweroff', 'clkreboot']) {
+      expect(CLI_BY_NAME[name]?.noReply, `${name} should be noReply`).toBe(true);
+    }
+    // erase writes a serial reply, so it is serial-only but NOT noReply.
+    expect(CLI_BY_NAME.erase?.noReply).toBeUndefined();
+  });
 });

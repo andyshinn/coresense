@@ -83,8 +83,111 @@ export const CLI_GROUP_ORDER: readonly CliGroup[] = [
   'GPS',
 ];
 
-// Populated group-by-group across Tasks 2–5. Empty until then.
-export const CLI_COMMANDS: readonly CliCommand[] = [];
+const OPERATIONAL: CliCommand[] = [
+  { name: 'reboot', group: 'Operational', desc: 'Restart the node', noReply: true },
+  {
+    name: 'poweroff',
+    group: 'Operational',
+    desc: 'Power the node down',
+    noReply: true,
+    danger: true,
+    note: 'The node goes dark and cannot be woken over the air — someone must power-cycle it in person. `shutdown` is a firmware alias (CommonCLI.cpp:216).',
+  },
+  { name: 'clkreboot', group: 'Operational', desc: 'Reset the clock and reboot', noReply: true },
+  { name: 'clock', group: 'Operational', desc: 'Display current time in UTC' },
+  { name: 'clock sync', group: 'Operational', desc: 'Sync the clock with this device' },
+  {
+    name: 'time',
+    group: 'Operational',
+    desc: 'Set the time to a specific timestamp',
+    spec: '<epoch_seconds>',
+    args: [{ name: 'epoch_seconds', hint: 'Unix epoch time' }],
+  },
+  { name: 'advert', group: 'Operational', desc: 'Send a flood advert' },
+  { name: 'advert.zerohop', group: 'Operational', desc: 'Send a zero-hop advert' },
+  { name: 'start ota', group: 'Operational', desc: 'Begin an over-the-air firmware update' },
+  {
+    name: 'erase',
+    group: 'Operational',
+    desc: 'Factory reset — wipes all settings and keys',
+    serialOnly: true,
+    danger: true,
+    note: 'Wipes settings, ACL and node identity. Serial console only — guarded by sender_timestamp == 0 (CommonCLI.cpp:302); over the air it returns "Unknown command".',
+  },
+];
+
+const NEIGHBORS: CliCommand[] = [
+  {
+    name: 'neighbors',
+    group: 'Neighbors',
+    desc: 'List nearby neighbors',
+    note: 'Limited to the 8 most recent adverts; each line is {pubkey-prefix}:{timestamp}:{snr*4}. The reply is one ≤160-byte packet and overflows/truncates (§0).',
+  },
+  {
+    name: 'neighbor.remove',
+    group: 'Neighbors',
+    desc: 'Remove a neighbor from the list',
+    danger: true,
+    spec: '<pubkey_prefix>',
+    args: [{ name: 'pubkey_prefix', hint: 'short prefix or full key' }],
+    note: 'A single space as the prefix removes every neighbor.',
+  },
+  { name: 'discover.neighbors', group: 'Neighbors', desc: 'Probe for zero-hop neighbors' },
+];
+
+const STATISTICS: CliCommand[] = [
+  { name: 'clear stats', group: 'Statistics', desc: 'Reset all counters' },
+  {
+    name: 'stats-core',
+    group: 'Statistics',
+    desc: 'Battery, uptime, queue length, debug flags',
+    serialOnly: true,
+    note: 'Serial only — guarded by sender_timestamp == 0 (CommonCLI.cpp:474).',
+  },
+  {
+    name: 'stats-radio',
+    group: 'Statistics',
+    desc: 'Noise floor, last RSSI/SNR, airtime, rx errors',
+    serialOnly: true,
+    note: 'Serial only — guarded by sender_timestamp == 0 (CommonCLI.cpp:472).',
+  },
+  {
+    name: 'stats-packets',
+    group: 'Statistics',
+    desc: 'Packet counters — received and sent',
+    serialOnly: true,
+    note: 'Serial only — guarded by sender_timestamp == 0 (CommonCLI.cpp:470).',
+  },
+];
+
+const LOGGING: CliCommand[] = [
+  { name: 'log start', group: 'Logging', desc: 'Begin capturing the rx log to node storage' },
+  { name: 'log stop', group: 'Logging', desc: 'Stop capturing the rx log' },
+  {
+    name: 'log erase',
+    group: 'Logging',
+    desc: 'Erase the captured log',
+    danger: true,
+    note: 'Deletes the captured rx log from node storage. Download it first if you still need it.',
+  },
+  {
+    name: 'log',
+    group: 'Logging',
+    desc: 'Print the captured log to serial',
+    serialOnly: true,
+    note: 'Serial only — guarded by sender_timestamp == 0 (CommonCLI.cpp:467).',
+  },
+];
+
+const INFO: CliCommand[] = [
+  { name: 'ver', group: 'Info', desc: 'Firmware version' },
+  { name: 'board', group: 'Info', desc: 'Hardware name' },
+  { name: 'get role', group: 'Info', desc: 'Configured role', key: 'role', replyValue: GET_VALUE },
+  { name: 'get public.key', group: 'Info', desc: "This node's public key", key: 'public.key', replyValue: GET_VALUE },
+];
+
+// Populated group-by-group across Tasks 2–5.
+export const CLI_COMMANDS: readonly CliCommand[] = [...OPERATIONAL, ...NEIGHBORS, ...STATISTICS, ...LOGGING, ...INFO];
 
 export const CLI_BY_NAME: Readonly<Record<string, CliCommand>> = Object.freeze(
   Object.fromEntries(CLI_COMMANDS.map((c) => [c.name, c])),
