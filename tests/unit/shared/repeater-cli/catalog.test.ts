@@ -94,4 +94,16 @@ describe('CLI catalog invariants', () => {
     expect(CLI_BY_NAME['get flood.max.unscoped']?.key).toBe('flood.max.unscoped');
     expect(CLI_BY_NAME['set flood.max.unscoped']?.key).toBe('flood.max.unscoped');
   });
+
+  it('resolves the ACL and Region reconciliation questions by name', () => {
+    expect(CLI_BY_NAME['get acl']?.serialOnly).toBe(true);
+    // region list is NOT serial — handleRegionCmd has no sender_timestamp guard.
+    expect(CLI_BY_NAME['region list']?.serialOnly).toBeUndefined();
+    // region load writes no reply.
+    expect(CLI_BY_NAME['region load']?.noReply).toBe(true);
+  });
+
+  it('lists the four setperm permission levels', () => {
+    expect(CLI_BY_NAME.setperm?.args?.[1].enum).toEqual(['0', '1', '2', '3']);
+  });
 });

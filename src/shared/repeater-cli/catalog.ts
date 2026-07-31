@@ -572,6 +572,141 @@ const ROUTING: CliCommand[] = [
   },
 ];
 
+const ACL: CliCommand[] = [
+  {
+    name: 'get acl',
+    group: 'ACL',
+    desc: 'View the current ACL',
+    serialOnly: true,
+    note: 'The ACL dump is serial only — guarded by sender_timestamp == 0 (MyMeshRepeater.cpp:1234). Over the air it falls through to CommonCLI.cpp and returns "??: acl".',
+  },
+  {
+    name: 'setperm',
+    group: 'ACL',
+    desc: "Add, update or remove a companion's permissions",
+    spec: '<pubkey> <permissions>',
+    args: [
+      { name: 'pubkey', hint: 'companion public key' },
+      {
+        name: 'permissions',
+        enum: ['0', '1', '2', '3'],
+        enumDesc: { '0': 'Guest', '1': 'Read-only', '2': 'Read-write', '3': 'Admin' },
+      },
+    ],
+    note: 'Omit permissions to remove the entry entirely.',
+  },
+  {
+    name: 'get allow.read.only',
+    group: 'ACL',
+    desc: 'Room server read-only flag',
+    key: 'allow.read.only',
+    replyValue: GET_VALUE,
+  },
+  { name: 'set allow.read.only', group: 'ACL', desc: 'Change the read-only flag', key: 'allow.read.only', args: onOff },
+];
+
+const REGION: CliCommand[] = [
+  { name: 'region', group: 'Region', desc: 'Dump all regions and flood permissions', fw: '1.10' },
+  { name: 'region save', group: 'Region', desc: 'Persist region changes made since reboot', fw: '1.10' },
+  {
+    name: 'region load',
+    group: 'Region',
+    desc: 'Begin a region-load session',
+    noReply: true,
+    fw: '1.10',
+    note: 'Writes no reply (CommonCLI.cpp:1008); pairs with an un-vendored bulk push.',
+  },
+  {
+    name: 'region allowf',
+    group: 'Region',
+    desc: 'Allow flooding for a region',
+    fw: '1.10',
+    spec: '<name>',
+    args: [{ name: 'name', hint: 'region name or *' }],
+  },
+  {
+    name: 'region denyf',
+    group: 'Region',
+    desc: 'Block flooding for a region',
+    fw: '1.10',
+    spec: '<name>',
+    args: [{ name: 'name', hint: 'region name or *' }],
+  },
+  { name: 'region put', group: 'Region', desc: 'Create a new region', fw: '1.10', spec: '<name> [parent_name]' },
+  {
+    name: 'region remove',
+    group: 'Region',
+    desc: 'Remove a region',
+    fw: '1.10',
+    danger: true,
+    spec: '<name>',
+    note: 'All child regions must be removed first.',
+  },
+  {
+    name: 'region get',
+    group: 'Region',
+    desc: 'Inspect one region',
+    fw: '1.10',
+    spec: '<name>',
+    args: [{ name: 'name', hint: 'region name' }],
+    note: 'Added in reconciliation — CommonCLI.cpp:1031.',
+  },
+  {
+    name: 'region home',
+    group: 'Region',
+    desc: 'Show or set the home region',
+    fw: '1.10',
+    spec: '[name]',
+    note: 'Added in reconciliation — bare `region home` shows it, a name sets it (CommonCLI.cpp:1043/1051).',
+  },
+  {
+    name: 'region default',
+    group: 'Region',
+    desc: 'Show or set the default scope',
+    fw: '1.10',
+    spec: '[name|<null>]',
+    note: 'Added in reconciliation — CommonCLI.cpp:1054/1075.',
+  },
+  {
+    name: 'region list',
+    group: 'Region',
+    desc: 'View all regions',
+    fw: '1.12',
+    spec: '<filter>',
+    args: [{ name: 'filter', enum: ['allowed', 'denied'] }],
+    note: 'Reconciled: NOT serial — handleRegionCmd has no sender_timestamp guard, unlike the mockup.',
+  },
+];
+
+const GPS: CliCommand[] = [
+  {
+    name: 'gps',
+    group: 'GPS',
+    desc: 'GPS state',
+    key: 'gps',
+    args: onOff,
+    note: '`gps on`/`gps off` in firmware; bare `gps` shows status. Behind ENV_INCLUDE_GPS.',
+  },
+  { name: 'gps sync', group: 'GPS', desc: 'Sync the clock with GPS time' },
+  { name: 'gps setloc', group: 'GPS', desc: 'Set location from GPS coordinates' },
+  {
+    name: 'gps advert',
+    group: 'GPS',
+    desc: 'GPS advert policy',
+    args: [
+      {
+        name: 'policy',
+        enum: ['none', 'share', 'prefs'],
+        enumDesc: {
+          none: 'never include location',
+          share: 'share live GPS location',
+          prefs: 'use stored lat/lon',
+        },
+      },
+    ],
+  },
+];
+
 // Populated group-by-group across Tasks 2–5.
 export const CLI_COMMANDS: readonly CliCommand[] = [
   ...OPERATIONAL,
@@ -582,6 +717,9 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
   ...RADIO,
   ...SYSTEM,
   ...ROUTING,
+  ...ACL,
+  ...REGION,
+  ...GPS,
 ];
 
 export const CLI_BY_NAME: Readonly<Record<string, CliCommand>> = Object.freeze(
