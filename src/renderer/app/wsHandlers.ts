@@ -73,6 +73,9 @@ export function createWsMessageHandler(deps: WsMessageHandlerDeps): (msg: WsMess
       case 'messagePathHeard':
         s.appendMessagePath(msg.payload.id, msg.payload.path, msg.payload.state);
         break;
+      case 'messagesDeleted':
+        s.removeMessages(msg.payload.key, msg.payload.ids);
+        break;
       case 'owner':
         s.applyOwner(msg.payload);
         break;

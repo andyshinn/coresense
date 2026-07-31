@@ -193,6 +193,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ body }),
     }),
+  deleteMessage: (c: ApiClient, key: string, id: string) =>
+    request<{ ok: true }>(c, `/api/messages/${encodeURIComponent(key)}/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
   pushChannelToDevice: (c: ApiClient, key: string) =>
     request<{ ok: true; idx: number }>(c, `/api/channels/${encodeURIComponent(key)}/push-to-device`, {
       method: 'POST',

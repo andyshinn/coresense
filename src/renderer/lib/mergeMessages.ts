@@ -22,10 +22,16 @@ import type { Message } from '../../shared/types';
  * the two sorted inputs can be merged linearly. Ties keep the existing entry
  * first, which keeps the order stable across re-broadcasts.
  *
- * Nothing deletes messages in production — `trimPerKey` has no caller outside
- * tests — so there is no case where the renderer needs to forget a row it has
- * already seen. If pruning is ever introduced it will need an explicit event
- * rather than the absence of a row from a window.
+ * Because the merge is a union, it can only ever grow a key: absence of a row
+ * from an incoming window means "not in this window", never "deleted". That is
+ * deliberate, and it is why deleting a message is routed as its own explicit
+ * `messagesDeleted` event into `store.removeMessages` rather than being
+ * inferred here. Inferring it would resurrect rows constantly — every window
+ * legitimately omits everything outside its range.
+ *
+ * The corollary is that this function cannot undo a delete's effect: a window
+ * computed before the delete but resolving after it re-adds the row for the
+ * session. The main process tombstones the id so no later window carries it.
  */
 function isAscending(list: Message[]): boolean {
   for (let i = 1; i < list.length; i++) if (list[i].ts < list[i - 1].ts) return false;
