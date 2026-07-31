@@ -362,6 +362,12 @@ class StateHolder {
    *  block-rule match counter on genuinely-new ids, but does NOT re-run the
    *  path/timesHeard merge that upsertMessage does (the lib owns that). */
   recordLibMessage(message: Message): void {
+    // The user deleted this id — do not let a re-heard packet re-create it.
+    // Channel-message ids are deterministic, and messagesStore.insert upserts
+    // on mid. Guard runs before the block-rule bump below so a resurrect
+    // attempt doesn't also inflate a rule's matchCount.
+    // Removed once andyshinn/meshcore-ts#2 lands a suppression API.
+    if (messagesStore.isDeleted(message.id)) return;
     const isNew = !messagesStore.findById(message.id);
     if (isNew) {
       const rules = blockingStore().list();
@@ -379,6 +385,11 @@ class StateHolder {
   }
   setMessageState(id: string, state: Message['state']): void {
     messagesStore.markState(id, state);
+  }
+  /** Hard-delete messages and tombstone them. Returns the number removed, so
+   *  the route can 404 on an unknown id. */
+  removeMessages(ids: string[]): number {
+    return messagesStore.remove(ids);
   }
   /** Append a newly-heard relay path to an outgoing channel message. Dedupes
    *  by MessagePath.id, bumps timesHeard, and (when the message is still in
