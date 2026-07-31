@@ -1,0 +1,84 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
+import { flushSync } from 'react-dom';
+import { describe, expect, it } from 'vitest';
+import { CliPrompt } from '@/panels/repeater-admin/cli/CliPrompt';
+import type { CliSuggestCtx } from '@/panels/repeater-admin/cli/lib/suggest';
+
+const ctx: CliSuggestCtx = { recent: [], nodeValues: {} };
+const radio = {
+  frequencyHz: 910_525_000,
+  bandwidthHz: 62_500,
+  spreadingFactor: 7,
+  codingRate: 5,
+  txPowerDbm: 20,
+  repeatMode: false,
+  pathHashMode: 2 as const,
+};
+
+function Harness() {
+  const [sent, setSent] = useState<string[]>([]);
+  return (
+    <div>
+      <div data-testid="sent">{sent.join('|')}</div>
+      <CliPrompt
+        history={[{ text: 'get radio', status: 'ok' }]}
+        ctx={ctx}
+        radioSettings={radio}
+        hops={1}
+        guest="admin"
+        queuedCount={0}
+        onSubmit={(t) => flushSync(() => setSent((s) => [...s, t]))}
+        onClearTranscript={() => {}}
+        onLoginAsAdmin={() => {}}
+      />
+    </div>
+  );
+}
+
+function input() {
+  return screen.getByRole('combobox') as HTMLInputElement;
+}
+
+describe('CliPrompt keys', () => {
+  it('Tab completes to the shared prefix of the matching commands', () => {
+    render(<Harness />);
+    const el = input();
+    fireEvent.change(el, { target: { value: 'set flood.m' } });
+    fireEvent.keyDown(el, { key: 'Tab' });
+    expect(el.value).toBe('set flood.max');
+  });
+
+  it('ArrowUp recalls the last history line', () => {
+    render(<Harness />);
+    const el = input();
+    fireEvent.keyDown(el, { key: 'ArrowUp' });
+    expect(el.value).toBe('get radio');
+  });
+
+  it('Enter submits the current line', () => {
+    render(<Harness />);
+    const el = input();
+    fireEvent.change(el, { target: { value: 'reboot' } });
+    fireEvent.keyDown(el, { key: 'Enter' });
+    expect(screen.getByTestId('sent').textContent).toBe('reboot');
+  });
+
+  it('renders a ghost that preserves typed casing', () => {
+    render(<Harness />);
+    const el = input();
+    fireEvent.change(el, { target: { value: 'SET r' } });
+    // The ghost layer holds an invisible copy of the value plus the dim suffix.
+    const ghost = document.querySelector('[data-testid="cli-ghost"]');
+    expect(ghost?.textContent?.startsWith('SET r')).toBe(true);
+  });
+
+  it('the focused input owns the combobox relationship (aria-activedescendant on the input, not the listbox)', () => {
+    render(<Harness />);
+    const el = input();
+    fireEvent.change(el, { target: { value: 'set r' } });
+    expect(el.getAttribute('role')).toBe('combobox');
+    expect(el.getAttribute('aria-controls')).toBe('cli-palette-listbox');
+    expect(el.getAttribute('aria-activedescendant')).toMatch(/^c:/); // active option id
+  });
+});
