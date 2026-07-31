@@ -59,6 +59,12 @@ describe('store.removeMessages', () => {
     useStore.getState().removeMessages('ch:x', ['c']);
     expect(useStore.getState().pendingJumpMid).toBeNull();
   });
+
+  it('keeps pendingJumpMid when a different message is deleted', () => {
+    useStore.setState({ pendingJumpMid: 'a' });
+    useStore.getState().removeMessages('ch:x', ['b']);
+    expect(useStore.getState().pendingJumpMid).toBe('a');
+  });
 });
 
 describe('store.setPendingDeleteMessageId', () => {
@@ -110,6 +116,24 @@ describe('DeleteConfirmPopover', () => {
     fireEvent.click(await screen.findByTestId('confirm-delete-message'));
     expect(spy).not.toHaveBeenCalled();
     expect(notify.error).toHaveBeenCalled();
+  });
+
+  // Virtuoso recycling the row (or the search panel navigating away) unmounts
+  // the popover without radix ever firing onOpenChange, so the id would stay
+  // staged and the confirm would re-open unbidden on the next mount.
+  it('unstages the message when a staged confirmation unmounts', async () => {
+    useStore.setState({ pendingDeleteMessageId: 'b' });
+    const { unmount } = render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={client} />);
+    await screen.findByTestId('delete-confirm-panel');
+    unmount();
+    expect(useStore.getState().pendingDeleteMessageId).toBeNull();
+  });
+
+  it('leaves a different message staged when an unrelated row unmounts', () => {
+    useStore.setState({ pendingDeleteMessageId: 'b' });
+    const { unmount } = render(<DeleteConfirmPopover messageId="c" conversationKey="ch:x" preview="c" client={client} />);
+    unmount();
+    expect(useStore.getState().pendingDeleteMessageId).toBe('b');
   });
 
   it('leaves the store untouched — the messagesDeleted broadcast prunes, not the component', async () => {

@@ -20,6 +20,8 @@ interface Props {
   onReact?: (name: string, emoji: string) => void;
   onBlock: (prefill: BlockSenderDialogPrefill) => void;
   onMacro?: (name: string, text: string) => void;
+  /** Retry a failed send. Optional: its absence is what hides "Re-send". */
+  onResend?: (m: Message) => void;
 }
 
 /**
@@ -42,6 +44,7 @@ export function MessageRow({
   onReact,
   onBlock,
   onMacro,
+  onResend,
 }: Props) {
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
   return (
@@ -60,6 +63,7 @@ export function MessageRow({
       onReact={onReact}
       onBlock={onBlock}
       onMacro={onMacro}
+      onResend={onResend}
     />
   );
 }

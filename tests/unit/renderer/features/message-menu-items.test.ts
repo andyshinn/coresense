@@ -91,6 +91,34 @@ describe('buildMessageMenuItems', () => {
     );
   });
 
+  // The unification's actual deliverable is this exact sequence — one item set
+  // behind both renderers, grouped by separator. The hygiene tests below use an
+  // own-message input that yields a single separator and so cannot catch a
+  // grouping regression; this maximal case is what pins the order.
+  it('emits the full label-and-separator sequence for a maximal message', () => {
+    const onResend = vi.fn();
+    const maximal = received({
+      state: 'failed',
+      meta: {
+        paths: [{ id: 'p', hashMode: 1, finalSnr: 0, hops: [{ kind: 'origin', shortId: 'a3' }] }],
+      },
+    });
+    const entries = buildMessageMenuItems({ ...opts, message: maximal, isSelf: false, onResend });
+    expect(entries.map((e) => (e.kind === 'separator' ? '---' : e.label))).toEqual([
+      'Copy text',
+      '---',
+      'View contact',
+      'Copy public key',
+      'Copy first path heard',
+      'Copy all paths heard',
+      '---',
+      'Re-send',
+      'Block sender…',
+      '---',
+      'Delete message',
+    ]);
+  });
+
   it('never emits two adjacent separators', () => {
     const entries = buildMessageMenuItems({ ...opts, message: own(), isSelf: true });
     for (let i = 1; i < entries.length; i++) {

@@ -60,6 +60,10 @@ interface RowContext {
   onReact?: (name: string, emoji: string) => void;
   onBlock: (prefill: BlockSenderDialogPrefill) => void;
   onMacro?: (name: string, text: string) => void;
+  // Optional all the way down (unlike onBlock, which every caller supplies):
+  // buildMessageMenuItems keys "Re-send" off `onResend != null`, so a
+  // non-null wrapper forwarder would offer the item with nothing behind it.
+  onResend?: (m: Message) => void;
   onContextMenu: (m: Message, e: React.MouseEvent) => void;
   client: ApiClient | null;
 }
@@ -115,6 +119,7 @@ const ItemRow: ItemContent<Item, RowContext> = ({ data, context }) => {
       onReply={context.onReply}
       onReact={context.onReact}
       onBlock={context.onBlock}
+      onResend={context.onResend}
       client={context.client}
       onMacro={context.onMacro}
     />
@@ -451,6 +456,7 @@ export function MessageList({
     onReact,
     onBlock: setBlockPrefill,
     onMacro,
+    onResend,
     onContextMenu: handleContextMenu,
     client,
   };

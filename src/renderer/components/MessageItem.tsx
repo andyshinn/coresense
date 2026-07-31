@@ -38,6 +38,9 @@ export interface MessageItemProps {
   /** Needed by the quick bar's macro affordances; absent ⇒ no macro cluster. */
   client?: ApiClient | null;
   onMacro?: (name: string, text: string) => void;
+  /** Retry a failed send. Forwarded as-is rather than wrapped like onBlock:
+   *  the overflow menu shows "Re-send" only when this is non-null. */
+  onResend?: (m: Message) => void;
 }
 
 const STATE_LABEL: Record<Message['state'], string> = {
@@ -73,6 +76,7 @@ export function MessageItem({
   onBlock,
   client,
   onMacro,
+  onResend,
 }: MessageItemProps) {
   const interactive = onSelect != null;
   const showSenderHeaderRich = style === 'rich' && !isSelf && senderName !== '';
@@ -157,6 +161,7 @@ export function MessageItem({
           onReply={(name) => onReply?.(name)}
           onBlock={(prefill) => onBlock?.(prefill)}
           onMacro={onMacro}
+          onResend={onResend}
         />
       )}
       {interactive && (

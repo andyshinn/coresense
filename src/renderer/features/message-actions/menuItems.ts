@@ -34,8 +34,7 @@ export function buildMessageMenuItems({
 }: BuildMessageMenuOpts): ContextMenuEntry[] {
   const copy = (text: string, label: string) => copyToClipboard(text, () => notify.success(label));
 
-  // Copy text stays toast-free, matching the right-click menu it came from.
-  const items: ContextMenuEntry[] = [menuItem('Copy text', () => copyToClipboard(message.body), { icon: Copy })];
+  const items: ContextMenuEntry[] = [menuItem('Copy text', () => copy(message.body, 'Copied message text'), { icon: Copy })];
 
   const rawPk = message.fromPublicKeyHex;
   const hasRealPubkey = rawPk != null && rawPk !== 'unknown' && !rawPk.startsWith('name:');

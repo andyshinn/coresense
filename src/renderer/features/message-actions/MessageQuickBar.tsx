@@ -28,10 +28,22 @@ interface Props {
   onBlock: (prefill: BlockSenderDialogPrefill) => void;
   /** Insert rendered macro text into the composer as `@[name] <text> `. */
   onMacro?: (name: string, text: string) => void;
+  /** Retry a failed send. Absent ⇒ the overflow menu omits "Re-send". */
+  onResend?: (m: Message) => void;
 }
 
 /** Discord-style hover action pill anchored to the top-right of a message row. */
-export function MessageQuickBar({ message, isSelf, senderName, client, onReact, onReply, onBlock, onMacro }: Props) {
+export function MessageQuickBar({
+  message,
+  isSelf,
+  senderName,
+  client,
+  onReact,
+  onReply,
+  onBlock,
+  onMacro,
+  onResend,
+}: Props) {
   const [open, setOpen] = useState<PopKey>(null);
   const recordEmojiUse = useStore((s) => s.recordEmojiUse);
   const macros = useStore((s) => s.macros);
@@ -135,7 +147,14 @@ export function MessageQuickBar({ message, isSelf, senderName, client, onReact, 
             <IconBtn label="Copy text" onClick={copyText}>
               <Copy size={16} aria-hidden="true" />
             </IconBtn>
-            <OverflowMenu message={message} isSelf={isSelf} senderName={senderName} onBlock={onBlock} {...P('more')}>
+            <OverflowMenu
+              message={message}
+              isSelf={isSelf}
+              senderName={senderName}
+              onBlock={onBlock}
+              onResend={onResend}
+              {...P('more')}
+            >
               <button
                 type="button"
                 aria-label="More"
@@ -164,7 +183,14 @@ export function MessageQuickBar({ message, isSelf, senderName, client, onReact, 
                 <Info size={16} aria-hidden="true" />
               </button>
             </MessageInfoPopover>
-            <OverflowMenu message={message} isSelf={isSelf} senderName={senderName} onBlock={onBlock} {...P('more')}>
+            <OverflowMenu
+              message={message}
+              isSelf={isSelf}
+              senderName={senderName}
+              onBlock={onBlock}
+              onResend={onResend}
+              {...P('more')}
+            >
               <button
                 type="button"
                 aria-label="More"

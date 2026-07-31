@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Button } from '../../components/ui/button';
 import { Popover, PopoverAnchor, PopoverContent } from '../../components/ui/popover';
 import { type ApiClient, api } from '../../lib/api';
@@ -25,6 +26,19 @@ const PREVIEW_MAX = 80;
 export function DeleteConfirmPopover({ messageId, conversationKey, preview, client, onDeleted }: Props) {
   const open = useStore((s) => s.pendingDeleteMessageId === messageId);
   const setPendingDeleteMessageId = useStore((s) => s.setPendingDeleteMessageId);
+
+  // Unmounting is not a radix dismissal — Virtuoso recycling the row (or the
+  // search panel navigating away) tears the popover down without ever firing
+  // onOpenChange, leaving the id staged so the confirm re-opens unbidden the
+  // next time that row mounts. Clear on unmount, but only when *this* message
+  // is the staged one: confirm/cancel already nulled the field by then, and a
+  // different id belongs to whichever row staged it.
+  useEffect(() => {
+    return () => {
+      const store = useStore.getState();
+      if (store.pendingDeleteMessageId === messageId) store.setPendingDeleteMessageId(null);
+    };
+  }, [messageId]);
 
   if (!open) return null;
 
