@@ -98,6 +98,19 @@ export function openDb(): DatabaseSync {
     );
     CREATE INDEX IF NOT EXISTS discovered_by_last_advert ON discovered_contacts (last_advert_unix DESC);
     CREATE INDEX IF NOT EXISTS discovered_by_on_radio    ON discovered_contacts (on_radio);
+
+    -- Ids of messages the user deleted. Consulted on the inbound write path so
+    -- a re-heard packet can't resurrect a deleted row: the library mints
+    -- channel-message ids deterministically (chmsg-<key>-<ts>-<bodyhash>) and
+    -- messagesStore.insert upserts on mid, so without this a second flood
+    -- receipt silently re-creates the row. Kept forever — ~40 bytes each, and
+    -- the library rebuilds its in-memory map each session so a process-scoped
+    -- guard would let the message return on the next launch.
+    -- Removed once andyshinn/meshcore-ts#2 lands a suppression API.
+    CREATE TABLE IF NOT EXISTS deleted_messages (
+      mid TEXT PRIMARY KEY,
+      ts  INTEGER NOT NULL
+    );
   `);
   log.info(`opened ${path}`);
   return db;
