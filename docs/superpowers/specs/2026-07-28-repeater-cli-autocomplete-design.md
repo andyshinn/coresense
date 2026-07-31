@@ -9,15 +9,18 @@
   `cli-icons.jsx`, `cli-app.jsx` (wiring). Recreate, don't copy: the mockup is a
   browser-global demo against a fake repeater, and several of its assumptions are
   contradicted by firmware ([§0](#0-ground-truth)).
-- **Depends on:** a `@andyshinn/meshcore-ts` release adding `expectReply` and `signal`
-  to `repeaterSendCli` ([§7.1](#71-meshcore-ts-external-prerequisite)). Phases 1 and 2
-  ([§12](#12-phasing)) do not need it.
-- **Library baseline:** verified against the installed `@andyshinn/meshcore-ts@0.4.0`
-  — `repeaterSendCli(contactKey, command): Promise<string>` (`dist/index.d.ts:2178`,
-  no options bag), `CLI_REPLY_TIMEOUT_MS = 30_000` (`dist/index.js:3593`), `pendingCli`
-  keyed on `contact.publicKeyHex.slice(0, 12)` with the older command rejected as
-  `superseded by newer CLI command` (`dist/index.js:3852-3866`). §7.1 is the diff
-  against this.
+- **Depends on:** `@andyshinn/meshcore-ts@0.6.0` (published), which adds `expectReply`
+  and `signal` to `repeaterSendCli` ([§7.1](#71-meshcore-ts-published-in-060)). Phase 3
+  is gated on bumping to it; phases 1 and 2 ([§12](#12-phasing)) do not need it.
+- **Library baseline:** `@andyshinn/meshcore-ts@0.6.0` is the release that provides the
+  options bag, verified from the published tarball —
+  `repeaterSendCli(contactKey, command, opts?: RepeaterCliOptions): Promise<string>`
+  (`dist/index.d.ts:2335`), `interface RepeaterCliOptions { expectReply?; timeoutMs?;
+  signal? }` (`dist/index.d.ts:1234-1252`), `CLI_REPLY_TIMEOUT_MS = 30_000`
+  (`dist/index.d.ts:1434-1439`), `pendingCli` keyed on
+  `contact.publicKeyHex.slice(0, 12)` with the older command rejected as
+  `superseded by newer CLI command` (`dist/index.js:3963-3966`). It is the Phase-3
+  floor (§12); §7.1 is the shape it provides.
 
 ## Summary
 
@@ -134,7 +137,7 @@ spreading factor, bandwidth, and hop count only. A per-row airtime chip would pr
 the same number 91 times; one estimate on the prompt and one in the detail pane is the
 honest presentation.
 
-**One outstanding CLI command per repeater.** `meshcore-ts@0.4.0` keys `pendingCli` on
+**One outstanding CLI command per repeater.** `meshcore-ts@0.6.0` keys `pendingCli` on
 `contact.publicKeyHex.slice(0, 12)`; a second command rejects the **older** one with
 `superseded by newer CLI command`. Reply timeout is `CLI_REPLY_TIMEOUT_MS = 30_000`
 (`dist/index.js:3593, 3852-3866`). The library's own choice of `publicKeyHex` is why
@@ -729,23 +732,32 @@ live `contact` comes from the panel's own prop, which is why tier two must sit i
 
 ## 7. Transport & API changes
 
-### 7.1 `meshcore-ts` (external prerequisite)
+### 7.1 `meshcore-ts` (published in 0.6.0)
 
-`repeaterSendCli(contactKey, command, opts?)` gains:
+`repeaterSendCli(contactKey, command, opts?: RepeaterCliOptions)` ships in 0.6.0. The
+options bag is `interface RepeaterCliOptions { expectReply?: boolean; timeoutMs?:
+number; signal?: AbortSignal }` (`dist/index.d.ts:1234-1252`):
 
-- `expectReply?: boolean` (default `true`). When `false`: send the same
-  `TXT_TYPE.CLI_DATA` DM, resolve on send confirmation, register no `pendingCli` entry,
-  arm no reply timer.
-- `signal?: AbortSignal` — cancellation that clears the `pendingCli` entry rather than
-  merely detaching the caller.
-- `CLI_REPLY_TIMEOUT_MS` exported, so §5.4's *"no reply after 30 s"* is derived rather
-  than hardcoded.
+- `expectReply?: boolean` (default `true`, today's behavior). When `false`: registers
+  **no** `pendingCli` reply awaiter and resolves `''` the moment the radio confirms the
+  send (`RESP_SENT`), rejecting only on a definitive send failure. Its timer bounds
+  send confirmation and defaults to `ADMIN_SENT_TIMEOUT_MS` (5 000), **not**
+  `CLI_REPLY_TIMEOUT_MS`.
+- `signal?: AbortSignal` — the promise rejects with `signal.reason` **and** the abort
+  handler **deletes the `pendingCli` entry** (`dist/index.js:3944-3945`), freeing the
+  per-repeater slot. It does not recall a send already on air.
+- `timeoutMs?: number` overrides the wait. It exists in 0.6.0, but this design still
+  relies on the defaults and sets it at no call site.
+- `CLI_REPLY_TIMEOUT_MS` is exported (`dist/index.d.ts:1434-1439`), so §5.4's *"no reply
+  after 30 s"* is derived rather than hardcoded.
 
-`timeoutMs` is **not** requested: no call site in this design sets it.
-
-Separately requested, not blocking: tag the synthetic `cli-<base36>-<rand>` DM ids so
-consumers can filter them out of `messageState` (coresense writes a no-op row and
-broadcasts a junk WS frame per CLI command, `src/main/protocol/adapterEvents.ts:113-116`).
+**Resolved in 0.6.0**, previously "separately requested, not blocking": CLI sends and
+replies no longer land on `messageState` at all. The library now emits `cliSendState`
+(`CliSendStateEvent { id: 'cli-<base36>-<rand>'; contactKey; state: 'sent' | 'ack' |
+'failed' }`) and `cliUnmatched` (`CliUnmatchedEvent { contactKey?; senderPrefixHex;
+body; … }`). coresense's no-op-row handling at
+`src/main/protocol/adapterEvents.ts:113-116` should be **revisited** when the bump
+lands — noted here, not expanded into.
 
 ### 7.2 This repo
 
@@ -760,7 +772,7 @@ broadcasts a junk WS frame per CLI command, `src/main/protocol/adapterEvents.ts:
 | `src/renderer/panels/repeater-admin/index.tsx:151` | pass `session` and `contact` to `CliTab`; `isAdmin` is computed at `:78` and handed to `AclTab` at `:148`, but not to `CliTab` |
 | `src/renderer/panels/repeater-admin/CliTab.tsx:73` | `text-cs-error` → `text-cs-danger`; the token does not exist, so CLI errors render unstyled today |
 | `vitest.config.ts:29-38` | no change needed if `persistence.ts` takes an injectable `Storage` (§2.6); listed so the alternative is a conscious choice |
-| `package.json` | raise the `@andyshinn/meshcore-ts` floor once the release lands |
+| `package.json` | raise the `@andyshinn/meshcore-ts` floor to `^0.6.0` as Phase 3 Task 1; the bump carries a known migration (channel-relay-ack) — the `src/main/messaging/sendMessage.ts` src fix threading `timestampUnix` into `registerChannelSend`, plus the heard-relay fixture rewrite |
 
 `⌃⇧R` is **not** available for Reload — `src/shared/shortcuts.ts:185` already binds it
 to Reconnect Radio. `mod+shift+L` is Toggle Theme (`:52`). Both replacements must be
@@ -909,7 +921,7 @@ so phase 1 has its authority in-repo.
 |---|---|---|
 | **1 — Catalog & logic** | `catalog.ts` reconciled against `CommonCLI.cpp`, split into several tasks by catalog group; `parse`, `match`, `suggest`, `airtime`, `queue`, `promptReducer`, `persistence`; all unit tests. No UI, no transport. | — |
 | **2 — UI** | `CliPrompt`, `CliPalette`, `CliDetail`, `CliTranscript`, `CliRow`, `CliReverseSearch`, `CliConfirmBar`, `RebootPending`; thin `CliTab` on today's two-argument transport; shortcut and `text-cs-error` fixes; component tests. Ships useful on its own. | phase 1 |
-| **3 — Queue & no-reply** | `expectReply` / `signal` through `api.ts` → `routes.ts` → `sessionAdapter.ts`; error-code classification; queue wiring; abort on switch; integration tests. | phase 2 + the `meshcore-ts` release |
+| **3 — Queue & no-reply** | `expectReply` / `signal` through `api.ts` → `routes.ts` → `sessionAdapter.ts`; error-code classification; queue wiring; abort on switch; integration tests. | phase 2; gated on bumping to `@andyshinn/meshcore-ts@0.6.0` (published) |
 
 ## 13. Deliberate deviations from the handoff
 
