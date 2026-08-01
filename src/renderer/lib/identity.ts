@@ -45,6 +45,24 @@ export function buildDiscoveredNameIndex(rows: DiscoveredContact[]): Map<string,
   return index;
 }
 
+// The name index is derived purely from the `discovered` array, and every
+// caller passes the same array instance from the store — so a one-entry cache
+// keyed on that identity is enough. It matters because useIdentityHash runs
+// once per rendered message row: without this, a contact sync rebuilt the whole
+// index (rows on screen) x (websocket messages) times.
+let cachedRows: readonly DiscoveredContact[] | null = null;
+let cachedIndex: Map<string, DiscoveredContact[]> | null = null;
+
+/** Name-keyed index over the discovered pool, memoised on the array identity.
+ *  Prefer this over calling buildDiscoveredNameIndex directly in a render. */
+export function discoveredNameIndex(rows: DiscoveredContact[]): Map<string, DiscoveredContact[]> {
+  if (cachedRows === rows && cachedIndex !== null) return cachedIndex;
+  const index = buildDiscoveredNameIndex(rows);
+  cachedRows = rows;
+  cachedIndex = index;
+  return index;
+}
+
 /** Find a discovered row by pubkey rather than name. The name-keyed index is
  *  the only structure callers build, so this scans its buckets rather than
  *  asking every call site to also build a pubkey-keyed one. Both branches that

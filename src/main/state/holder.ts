@@ -24,10 +24,14 @@ import {
 } from '../../shared/types';
 import { blockingStore } from '../blocking/store';
 import { emit } from '../events/bus';
+import { coalesce } from '../events/coalesce';
 import { hasApiKey } from '../map/api-key';
 import { messagesStore } from '../storage/messages';
 import { rebuildConversationsIndex, type SearchBlockContext } from '../storage/search';
-import { settingsStore } from '../storage/settings';
+import { flushSettings, settingsStore } from '../storage/settings';
+
+/** How long to collect state changes before persisting them. */
+const HOLDER_PERSIST_INTERVAL_MS = 120;
 
 // Persistent state holder. Settings/channels/contacts/ui live in JSON files;
 // messages live in node:sqlite. The holder caches in memory and writes through
@@ -89,13 +93,45 @@ class StateHolder {
     rebuildConversationsIndex({ channels: this.channels, contacts: this.contacts });
   }
 
+  // Persisting contacts/channels rewrites the whole JSON file, and refreshing
+  // the search index DELETEs conversations_fts and re-inserts every row. The
+  // lib emits a full contacts list once per contact during a sync, so doing
+  // both per call is quadratic; coalesce and let the last write win.
+  private contactsDirty = false;
+  private channelsDirty = false;
+  private indexDirty = false;
+  private readonly persist = coalesce(() => this.persistNow(), HOLDER_PERSIST_INTERVAL_MS);
+
+  private persistNow(): void {
+    if (this.contactsDirty) {
+      this.contactsDirty = false;
+      settingsStore.saveContacts(this.contacts);
+    }
+    if (this.channelsDirty) {
+      this.channelsDirty = false;
+      settingsStore.saveChannels(this.channels);
+    }
+    if (this.indexDirty) {
+      this.indexDirty = false;
+      this.refreshConversationsIndex();
+    }
+  }
+
+  /** Settle pending coalesced persistence, including the fire-and-forget JSON
+   *  writes it queues. */
+  async flushPersistence(): Promise<void> {
+    await this.persist.flush();
+    await flushSettings();
+  }
+
   getChannels(): Channel[] {
     return this.channels;
   }
   setChannels(next: Channel[]): void {
     this.channels = next;
-    settingsStore.saveChannels(next);
-    this.refreshConversationsIndex();
+    this.channelsDirty = true;
+    this.indexDirty = true;
+    this.persist.schedule();
   }
   upsertChannel(channel: Channel): void {
     const idx = this.channels.findIndex((c) => c.key === channel.key);
@@ -111,8 +147,9 @@ class StateHolder {
   }
   setContacts(next: Contact[]): void {
     this.contacts = next;
-    settingsStore.saveContacts(next);
-    this.refreshConversationsIndex();
+    this.contactsDirty = true;
+    this.indexDirty = true;
+    this.persist.schedule();
   }
   upsertContact(contact: Contact): void {
     const idx = this.contacts.findIndex((c) => c.key === contact.key);
@@ -423,4 +460,11 @@ let _instance: StateHolder | null = null;
 export function stateHolder(): StateHolder {
   if (!_instance) _instance = new StateHolder();
   return _instance;
+}
+
+/** Settle any pending coalesced persistence (contacts/channels JSON + the
+ *  conversations search index). Awaited on quit and by tests; a no-op when the
+ *  holder was never constructed. */
+export async function flushHolderPersistence(): Promise<void> {
+  await _instance?.flushPersistence();
 }

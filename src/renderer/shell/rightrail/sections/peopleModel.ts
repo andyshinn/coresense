@@ -6,7 +6,7 @@
 
 import type { DiscoveredContact } from '../../../../shared/contacts/discovered';
 import type { ChannelSenderStat, Contact, PeopleFilter, PeopleSort } from '../../../../shared/types';
-import { buildDiscoveredNameIndex, type IdentitySource, resolveIdentity } from '../../../lib/identity';
+import { discoveredNameIndex, type IdentitySource, resolveIdentity } from '../../../lib/identity';
 
 export type BucketId = 'today' | 'yesterday' | 'week' | 'earlier';
 
@@ -52,7 +52,7 @@ export function toRosterRows(
   contacts: Contact[],
   discovered: DiscoveredContact[],
 ): RosterRow[] {
-  const index = buildDiscoveredNameIndex(discovered);
+  const index = discoveredNameIndex(discovered);
   const rows: RosterRow[] = [];
   for (const entry of roster) {
     if (!entry.fromPk || entry.fromPk === 'unknown') continue;

@@ -1,6 +1,6 @@
 import type { MeshCoreSession } from '@andyshinn/meshcore-ts';
 import { emit } from '../events/bus';
-import { applyLibContacts, ingestObservedContact } from '../state/contactSync';
+import { applyLibContacts, ingestObservedContact, scheduleDiscoveredEmit } from '../state/contactSync';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { mergeSyncedChannels } from './mergeChannels';
@@ -87,14 +87,16 @@ function wireContacts(session: MeshCoreSession): void {
     // The lib owns the authoritative discovered pool. Write its on_radio/favourite
     // through to coresense's sqlite mirror — remove/favourite commands emit
     // `discovered` but never `contactObserved`, so re-reading our own store would
-    // miss them. Per-row setX (not reconcileOnRadio) so contacts the lib hasn't
+    // miss them. Per-row (not reconcileOnRadio) so contacts the lib hasn't
     // re-synced this session keep their persisted flags.
-    for (const r of libRows) {
-      discoveredStore.setOnRadio(r.publicKeyHex, r.onRadio);
-      discoveredStore.setFavourite(r.publicKeyHex, r.favourite);
-    }
-    const holder = stateHolder();
-    emit.discovered(discoveredStore.list(holder.getBlockRules()));
+    //
+    // The lib re-sends the WHOLE pool on every contact frame, so this must stay
+    // cheap to repeat: applyRadioFlags batches the writes into one transaction
+    // and skips rows whose flags already match. The write-through stays
+    // synchronous (a removal must be durable immediately); only the projection
+    // and broadcast are coalesced.
+    discoveredStore.applyRadioFlags(libRows);
+    scheduleDiscoveredEmit();
   });
   // Note: contactDiscovered is emitted by ingestObservedContact for genuinely-new
   // discoveries (with blocking-aware naming). The lib's contactDiscovered fires

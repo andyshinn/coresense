@@ -53,7 +53,7 @@ import { setAppLifecycle } from './runtime/appLifecycle';
 import { setSecretStore } from './runtime/secretStore';
 import { setUserDataDir } from './runtime/userData';
 import { startServer } from './server';
-import { stateHolder } from './state/holder';
+import { flushHolderPersistence, stateHolder } from './state/holder';
 import { closeDb } from './storage/db';
 import { optimizeFts } from './storage/search';
 import { flushSettings } from './storage/settings';
@@ -531,6 +531,10 @@ async function shutdown() {
   );
 
   await Promise.allSettled(tasks);
+  // Contacts/channels persistence and the search-index rebuild are coalesced,
+  // so a quit landing inside a coalesce window would drop the last change.
+  // Settle it before the settings queue is drained below.
+  await flushHolderPersistence().catch((err) => log.warn(`holder flush failed: ${(err as Error).message}`));
   // Drain any pending block-rule counter increments into the settings
   // write queue so flushSettings() below can await them.
   blockingStore().flushNow();
