@@ -19,6 +19,8 @@ interface Props {
   onReply?: (name: string) => void;
   onReact?: (name: string, emoji: string) => void;
   onBlock: (prefill: BlockSenderDialogPrefill) => void;
+  /** True while the list's right-click menu is open — suppresses the quick bar. */
+  contextMenuOpen?: boolean;
   onMacro?: (name: string, text: string) => void;
   /** Retry a failed send. Optional: its absence is what hides "Re-send". */
   onResend?: (m: Message) => void;
@@ -43,6 +45,7 @@ export function MessageRow({
   onReply,
   onReact,
   onBlock,
+  contextMenuOpen,
   onMacro,
   onResend,
 }: Props) {
@@ -62,6 +65,7 @@ export function MessageRow({
       onReply={onReply}
       onReact={onReact}
       onBlock={onBlock}
+      contextMenuOpen={contextMenuOpen}
       onMacro={onMacro}
       onResend={onResend}
     />

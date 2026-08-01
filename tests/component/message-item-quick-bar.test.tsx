@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
 import { MessageItem } from '@/components/MessageItem';
+import { MessageRow } from '@/components/MessageRow';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { ApiClient } from '@/lib/api';
 import type { Message } from '../../src/shared/types';
@@ -78,6 +79,79 @@ describe('MessageItem quick bar', () => {
   test('non-interactive previews (no onSelect) render no quick bar', () => {
     render(<MessageItem message={message} isSelf={false} style="rich" senderName="K5TH" timeFormat="24h" />);
     expect(screen.queryByRole('button', { name: 'Reply' })).toBeNull();
+  });
+
+  // The bar is revealed by :hover, and the right-click that opens the menu
+  // leaves the cursor inside the row — so without this the two overlap.
+  test('the quick bar is gone while the row context menu is open', () => {
+    const { rerender } = render(
+      <TooltipProvider>
+        <MessageItem
+          message={message}
+          isSelf={false}
+          style="rich"
+          senderName="K5TH"
+          timeFormat="24h"
+          client={client}
+          contextMenuOpen
+          onSelect={() => {}}
+          onReply={() => {}}
+          onReact={() => {}}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.queryByTestId('message-quick-bar')).toBeNull();
+
+    // …and comes back when the menu closes, rather than being suppressed for
+    // the rest of the row's life.
+    rerender(
+      <TooltipProvider>
+        <MessageItem
+          message={message}
+          isSelf={false}
+          style="rich"
+          senderName="K5TH"
+          timeFormat="24h"
+          client={client}
+          contextMenuOpen={false}
+          onSelect={() => {}}
+          onReply={() => {}}
+          onReact={() => {}}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.getByTestId('message-quick-bar')).toBeTruthy();
+  });
+});
+
+// MessageRow is a thin adapter, but a dropped prop in the hand-off is exactly
+// the regression this threading invites — assert the flag survives it.
+describe('MessageRow context-menu suppression', () => {
+  test('forwards contextMenuOpen through to the quick bar', () => {
+    const props = {
+      message,
+      isSelf: false,
+      selected: false,
+      style: 'rich' as const,
+      senderName: 'K5TH',
+      client,
+      onSelect: () => {},
+      onReact: () => {},
+      onBlock: () => {},
+    };
+    const { rerender } = render(
+      <TooltipProvider>
+        <MessageRow {...props} contextMenuOpen />
+      </TooltipProvider>,
+    );
+    expect(screen.queryByTestId('message-quick-bar')).toBeNull();
+
+    rerender(
+      <TooltipProvider>
+        <MessageRow {...props} contextMenuOpen={false} />
+      </TooltipProvider>,
+    );
+    expect(screen.getByTestId('message-quick-bar')).toBeTruthy();
   });
 });
 

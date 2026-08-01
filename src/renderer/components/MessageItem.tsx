@@ -35,6 +35,12 @@ export interface MessageItemProps {
   onReact?: (name: string, emoji: string) => void;
   /** Absent for static previews (Unreads) that render no quick bar/action menu. */
   onBlock?: (prefill: BlockSenderDialogPrefill) => void;
+  /** True while the conversation's right-click menu is open anywhere in the
+   *  list. The menu is drawn at the cursor — which is still inside the row that
+   *  spawned it, so `group-hover` keeps the quick bar up and the two overlap.
+   *  Suppressed list-wide, not just on the owning row, because the menu can be
+   *  drawn over neighbours the cursor then travels across. */
+  contextMenuOpen?: boolean;
   /** Needed by the quick bar's macro affordances; absent ⇒ no macro cluster. */
   client?: ApiClient | null;
   onMacro?: (name: string, text: string) => void;
@@ -74,6 +80,7 @@ export function MessageItem({
   onReply,
   onReact,
   onBlock,
+  contextMenuOpen,
   client,
   onMacro,
   onResend,
@@ -151,7 +158,10 @@ export function MessageItem({
       className="group relative px-3 py-0.5"
       data-flash={flash ? 'true' : undefined}
     >
-      {interactive && onReact && (
+      {/* Unmounted rather than hidden while the context menu is open: the quick
+          bar's own popovers render in portals, so dimming the pill would leave
+          an open emoji picker or overflow menu on screen beside the menu. */}
+      {interactive && onReact && !contextMenuOpen && (
         <MessageQuickBar
           message={message}
           isSelf={isSelf}

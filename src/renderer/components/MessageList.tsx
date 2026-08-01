@@ -65,6 +65,8 @@ interface RowContext {
   // non-null wrapper forwarder would offer the item with nothing behind it.
   onResend?: (m: Message) => void;
   onContextMenu: (m: Message, e: React.MouseEvent) => void;
+  /** True while the right-click menu is open, so rows drop their hover bar. */
+  contextMenuOpen: boolean;
   client: ApiClient | null;
 }
 
@@ -119,6 +121,7 @@ const ItemRow: ItemContent<Item, RowContext> = ({ data, context }) => {
       onReply={context.onReply}
       onReact={context.onReact}
       onBlock={context.onBlock}
+      contextMenuOpen={context.contextMenuOpen}
       onResend={context.onResend}
       client={context.client}
       onMacro={context.onMacro}
@@ -458,6 +461,7 @@ export function MessageList({
     onMacro,
     onResend,
     onContextMenu: handleContextMenu,
+    contextMenuOpen: menu != null,
     client,
   };
 
