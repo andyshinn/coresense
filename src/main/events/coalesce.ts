@@ -7,14 +7,20 @@ export interface Coalescer {
   cancel(): void;
 }
 
-/** Collapse a burst of change signals into a bounded number of runs.
+/** Collapse a burst of change signals into a bounded rate of runs.
  *
  *  The first signal runs `run` immediately so the UI reacts without waiting;
  *  every signal arriving during the following `intervalMs` is collapsed into a
- *  single trailing run. That makes the run count proportional to how long the
- *  burst lasts, not to how many signals it contained — which is the difference
- *  between O(N) and O(1) emits for a contact sync that fires one event per
- *  contact. */
+ *  single trailing run. So the run count is roughly
+ *
+ *      runs ≈ burst_duration / intervalMs
+ *
+ *  It is decoupled from how many signals the burst contained, but NOT constant:
+ *  a contact sync's duration grows with the contact count, so the runs still
+ *  grow with N — just divided by the interval instead of one per signal.
+ *  Measured over a real ~15s 300-contact sync: 300 signals produced 128 runs at
+ *  a 120ms interval and 17 at 1s. Pick the interval against the expected burst
+ *  DURATION; making the per-run work cheaper does not reduce the count. */
 export function coalesce(run: () => void, intervalMs: number): Coalescer {
   let timer: NodeJS.Timeout | null = null;
   let pending = false;

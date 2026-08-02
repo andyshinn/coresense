@@ -58,6 +58,16 @@ export interface ContactSyncSummary {
   complete: boolean;
 }
 
+/** Build a sync summary, deciding whether everything the radio sent landed.
+ *
+ *  `stored` can legitimately EXCEED `delivered` — a placeholder contact
+ *  synthesised for an incoming DM from an unknown sender is in the holder
+ *  without the radio having delivered it — so only a shortfall counts as
+ *  incomplete. */
+export function summarizeContactSync(delivered: number, stored: number, onRadio: number): ContactSyncSummary {
+  return { delivered, stored, onRadio, complete: stored >= delivered };
+}
+
 export const bus = new EventEmitter();
 
 // Note: avoid Node EventEmitter's reserved 'error' event — it throws when

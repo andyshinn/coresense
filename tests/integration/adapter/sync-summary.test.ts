@@ -54,23 +54,25 @@ describe('contact sync summary', () => {
     expect(stateHolder().getContacts()).toHaveLength(N);
   });
 
-  it('flags the sync as incomplete when fewer contacts were stored than delivered', async () => {
+  it('counts delivered from the records actually received, not the header count', async () => {
     const { receive } = makeTestSession();
 
     const summaries: Array<{ delivered: number; stored: number; complete: boolean }> = [];
     const onSummary = (s: { delivered: number; stored: number; complete: boolean }) => summaries.push(s);
     bus.on('contactSyncSummary', onSummary);
 
-    // END_OF_CONTACTS claiming a count no RESP_CONTACT backed up: the radio
-    // says it sent 5, we saw none. This is the shape a dropped-contact bug
-    // would take, and it must not report complete.
+    // CONTACTS_START and END_OF_CONTACTS both claim 5, but no RESP_CONTACT
+    // arrives. `delivered` must reflect the records we actually saw (0), not
+    // the radio's advertised count — otherwise an optimistic or stale header
+    // would raise a false "INCOMPLETE" on every sync.
     receive(u32Frame(RESP_CONTACTS_START, 5));
     receive(u32Frame(RESP_END_OF_CONTACTS, 5));
     await flushContactSyncEmits();
     bus.off('contactSyncSummary', onSummary);
 
     expect(summaries).toHaveLength(1);
+    expect(summaries[0].delivered).toBe(0);
     expect(summaries[0].stored).toBe(0);
-    expect(summaries[0].complete).toBe(true); // delivered is 0 too — radio sent nothing
+    expect(summaries[0].complete).toBe(true);
   });
 });

@@ -1,5 +1,5 @@
 import type { MeshCoreSession } from '@andyshinn/meshcore-ts';
-import { emit } from '../events/bus';
+import { emit, summarizeContactSync } from '../events/bus';
 import { child } from '../log';
 import { applyLibContacts, ingestObservedContact, scheduleDiscoveredEmit } from '../state/contactSync';
 import { stateHolder } from '../state/holder';
@@ -115,9 +115,9 @@ function wireContacts(session: MeshCoreSession): void {
     const holder = stateHolder();
     const stored = holder.getContacts().length;
     const onRadio = discoveredStore.list(holder.getBlockRules()).filter((r) => r.onRadio).length;
-    const complete = stored >= count;
-    emit.contactSyncSummary({ delivered: count, stored, onRadio, complete });
-    if (complete) {
+    const summary = summarizeContactSync(count, stored, onRadio);
+    emit.contactSyncSummary(summary);
+    if (summary.complete) {
       log.info(`contact sync complete: radio delivered ${count}, stored ${stored} (${onRadio} on-radio)`);
     } else {
       log.warn(`contact sync INCOMPLETE: radio delivered ${count} but only ${stored} stored`);
