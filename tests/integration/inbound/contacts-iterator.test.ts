@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
 import { bus } from '../../../src/main/events/bus';
+import { flushContactSyncEmits } from '../../../src/main/state/contactSync';
 import { makeTestSession } from '../../support/session-harness';
 
 // RESP_CONTACT (0x03) carries a full 148-byte record (same layout as
@@ -24,7 +25,7 @@ const startFrame = (total: number) => {
 const endFrame = Buffer.from([0x04, 0x00, 0x00, 0x00, 0x00]); // RESP_END_OF_CONTACTS
 
 describe('inbound contacts iterator via the feature registry + contactsSync bridge', () => {
-  it('drives syncProgress 0/2 → 1/2 → 2/2 → 2/2 and surfaces both contacts', () => {
+  it('drives syncProgress 0/2 → 1/2 → 2/2 → 2/2 and surfaces both contacts', async () => {
     const { receive } = makeTestSession();
 
     const progress: Array<{ done: number; total: number }> = [];
@@ -43,6 +44,9 @@ describe('inbound contacts iterator via the feature registry + contactsSync brid
     receive(contactFrame(pkA, 'Alice'));
     receive(contactFrame(pkB, 'Bob'));
     receive(endFrame);
+    // The contacts broadcast is coalesced, so the final full list lands on the
+    // trailing pass. syncProgress is not coalesced and is already complete.
+    await flushContactSyncEmits();
 
     bus.off('syncProgress', onProgress);
     bus.off('contacts', onContacts);

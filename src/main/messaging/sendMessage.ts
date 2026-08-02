@@ -12,9 +12,12 @@ export interface SendResult {
 }
 
 interface Session {
-  sendChannelText(key: string, text: string): Promise<{ ok: boolean; error?: string; channelHash?: number }>;
+  sendChannelText(
+    key: string,
+    text: string,
+  ): Promise<{ ok: boolean; error?: string; channelHash?: number; timestampUnix?: number }>;
   sendDmTextWithRetry(key: string, text: string, id: string): Promise<{ ok: boolean; error?: string }>;
-  registerChannelSend(p: { messageId: string; channelHash: number }): void;
+  registerChannelSend(p: { messageId: string; channelHash: number; timestampUnix?: number }): void;
 }
 
 interface Holder {
@@ -51,7 +54,15 @@ export function createSender(deps: SenderDeps): (key: string, body: string) => P
       holder.setMessageState(id, nextState);
       deps.emitMessageState(id, nextState);
       if (result.ok && result.channelHash != null) {
-        session.registerChannelSend({ messageId: id, channelHash: result.channelHash });
+        // timestampUnix is the timestamp encrypted into the outgoing packet.
+        // Without it the lib can only guess which pending send a heard relay
+        // belongs to (arrival order), which put ✓×N chips on the wrong message
+        // when two sends were in flight — see meshcore-ts 0.6.0.
+        session.registerChannelSend({
+          messageId: id,
+          channelHash: result.channelHash,
+          timestampUnix: result.timestampUnix,
+        });
       }
       return { ok: result.ok, id, error: result.error };
     }

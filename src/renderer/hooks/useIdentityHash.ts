@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { buildDiscoveredNameIndex, identityHashInput, resolveIdentity } from '../lib/identity';
+import { discoveredNameIndex, identityHashInput, resolveIdentity } from '../lib/identity';
 import { useStore } from '../lib/store';
 
 /** Resolve a raw from_pk to the string that should drive its ramp slot, under
@@ -9,7 +9,7 @@ export function useIdentityHash(fromPk: string | null | undefined, fallbackName?
   const contacts = useStore((s) => s.contacts);
   const discovered = useStore((s) => s.discovered);
   return useMemo(() => {
-    const index = buildDiscoveredNameIndex(discovered);
+    const index = discoveredNameIndex(discovered);
     const resolved = resolveIdentity(fromPk, contacts, index);
     const hash = identityHashInput(resolved, mode);
     if (hash) return hash;

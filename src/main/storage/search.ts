@@ -343,13 +343,16 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
 // set. Cheap: even hundreds of conversations are a single transaction.
 export function rebuildConversationsIndex(snapshot: { channels: Channel[]; contacts: Contact[] }): void {
   const db = openDb();
-  db.exec(`DELETE FROM conversations_fts`);
   const ins = db.prepare(
     `INSERT INTO conversations_fts (kind, key, name, pk_prefix, pk_suffix_rev, contact_kind)
      VALUES (?, ?, ?, ?, ?, ?)`,
   );
+  // The wipe must live inside the transaction: if a later insert throws, the
+  // ROLLBACK has to restore the prior index rather than leave it empty (a bare
+  // DELETE would auto-commit before BEGIN).
   db.exec('BEGIN');
   try {
+    db.exec(`DELETE FROM conversations_fts`);
     for (const ch of snapshot.channels) {
       ins.run('channel', ch.key, ch.name, '', '', '');
     }

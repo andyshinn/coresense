@@ -52,7 +52,57 @@ function rowToDiscovered(row: Row, blockRules: BlockRule[]): DiscoveredContact {
   };
 }
 
+/** What applyRadioFlags last wrote for a pubkey, packed as on_radio | fav<<1.
+ *  The lib re-sends its entire discovered pool on every contact frame, so
+ *  without this the write-through would re-issue two UPDATEs per row per frame
+ *  — quadratic in a sync. Any other write path invalidates its entry. */
+const lastWrittenFlags = new Map<string, number>();
+
+const packFlags = (onRadio: boolean, favourite: boolean) => (onRadio ? 1 : 0) | (favourite ? 2 : 0);
+
+/** Forget cached flags so the next applyRadioFlags re-writes these rows.
+ *  Called by every other mutating path. Omit `pubkey` to drop the whole cache. */
+function invalidateFlagCache(pubkey?: string): void {
+  if (pubkey === undefined) lastWrittenFlags.clear();
+  else lastWrittenFlags.delete(pubkey);
+}
+
+/** Reset the flag cache. Exported for tests, which reuse the module across
+ *  fresh temp databases. */
+export function resetDiscoveredFlagCache(): void {
+  lastWrittenFlags.clear();
+}
+
 export const discoveredStore = {
+  /** Write the lib's authoritative on_radio/favourite through for many rows in
+   *  one transaction, skipping rows whose flags already match what we last
+   *  wrote. Turns a per-frame full-pool rewrite into one write per real
+   *  change. */
+  applyRadioFlags(rows: ReadonlyArray<{ publicKeyHex: string; onRadio: boolean; favourite: boolean }>): void {
+    const changed = rows.filter((r) => lastWrittenFlags.get(r.publicKeyHex) !== packFlags(r.onRadio, r.favourite));
+    if (changed.length === 0) return;
+
+    const db = openDb();
+    const stmt = db.prepare(
+      `UPDATE discovered_contacts
+         SET on_radio = ?, favourite = ?, flags = (flags & ~1) | ?
+       WHERE pubkey = ?`,
+    );
+    db.exec('BEGIN');
+    try {
+      for (const r of changed) {
+        const fav = r.favourite ? 1 : 0;
+        stmt.run(r.onRadio ? 1 : 0, fav, fav, r.publicKeyHex);
+      }
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+    // Only record after a successful commit, so a rolled-back batch re-writes.
+    for (const r of changed) lastWrittenFlags.set(r.publicKeyHex, packFlags(r.onRadio, r.favourite));
+  },
+
   /** Upsert from a decoded advert/contact frame. Stamps first_heard_ms on the
    *  first sighting of a pubkey; preserves it (and the existing favourite flag)
    *  on later adverts. `onRadio` is set by the caller per context.
@@ -97,6 +147,7 @@ export const discoveredStore = {
       opts.onRadio ? 1 : 0,
       record.flags & 0x01 ? 1 : 0,
     );
+    invalidateFlagCache(record.publicKeyHex);
   },
 
   list(blockRules: BlockRule[]): DiscoveredContact[] {
@@ -114,6 +165,7 @@ export const discoveredStore = {
   setOnRadio(pubkey: string, onRadio: boolean): void {
     const db = openDb();
     db.prepare(`UPDATE discovered_contacts SET on_radio = ? WHERE pubkey = ?`).run(onRadio ? 1 : 0, pubkey);
+    invalidateFlagCache(pubkey);
   },
 
   /** Mark on_radio for exactly the given set (used after a full GET_CONTACTS
@@ -123,6 +175,7 @@ export const discoveredStore = {
     db.exec('UPDATE discovered_contacts SET on_radio = 0');
     const stmt = db.prepare('UPDATE discovered_contacts SET on_radio = 1 WHERE pubkey = ?');
     for (const pk of onRadioPubkeys) stmt.run(pk);
+    invalidateFlagCache();
   },
 
   setFavourite(pubkey: string, favourite: boolean): void {
@@ -131,16 +184,19 @@ export const discoveredStore = {
       `UPDATE discovered_contacts
          SET favourite = ?, flags = (flags & ~1) | ? WHERE pubkey = ?`,
     ).run(favourite ? 1 : 0, favourite ? 1 : 0, pubkey);
+    invalidateFlagCache(pubkey);
   },
 
   remove(pubkey: string): void {
     const db = openDb();
     db.prepare(`DELETE FROM discovered_contacts WHERE pubkey = ?`).run(pubkey);
+    invalidateFlagCache(pubkey);
   },
 
   /** Drop discovered-only rows, keeping anything currently on the radio. */
   clearDiscoveredOnly(): void {
     const db = openDb();
     db.exec(`DELETE FROM discovered_contacts WHERE on_radio = 0`);
+    invalidateFlagCache();
   },
 };

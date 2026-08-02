@@ -9,6 +9,7 @@ import { sendMessage } from '../messaging/sendMessage';
 import { stateHolder } from '../state/holder';
 import { getMainWindow, isMainWindowFocused } from '../window/registry';
 import { createNotificationActions } from './actions';
+import { subscribeBadgeRecompute } from './badge';
 import { notificationCapabilities } from './capabilities';
 import { ROLLUP_CAP, STALE_THRESHOLD_MS, SUMMARY_FLUSH_MS } from './config';
 import { electronPresenter } from './present';
@@ -95,12 +96,13 @@ export function startNotifications(): void {
   bus.on('uiState', (u: UiState) => {
     log.debug(`uiState activeKey=${u.activeKey}`);
     router.handleUiState(u);
+    // Opening a conversation clears its unread count, so the badge has to drop
+    // right away — this one is a direct user action, not a sync burst.
     router.recomputeBadge();
   });
-  bus.on('appSettings', () => router.recomputeBadge());
-  bus.on('channels', () => router.recomputeBadge());
-  bus.on('contacts', () => router.recomputeBadge());
-  bus.on('blockRules', () => router.recomputeBadge());
+  // The rest are list-shaped events; `contacts` alone fires once per contact
+  // during a sync, so they go through a coalescer.
+  subscribeBadgeRecompute(router);
   router.recomputeBadge();
   log.debug('notification router started');
 }

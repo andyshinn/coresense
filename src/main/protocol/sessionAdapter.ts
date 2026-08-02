@@ -1,5 +1,6 @@
 import { MeshCoreSession, type Ports } from '@andyshinn/meshcore-ts';
 import { adminSessions } from '../bridge/adminSession';
+import { child } from '../log';
 import { wireSessionEvents } from './adapterEvents';
 
 const APP_NAME = 'coresense';
@@ -12,7 +13,16 @@ export class SessionAdapter {
   private started = false;
 
   constructor(transport: Ports.Transport) {
-    this.session = new MeshCoreSession({ transport, appName: APP_NAME, appVersion: APP_VERSION });
+    // Without a logger the library falls back to its noopLogger and every
+    // ctx.log line — including the contacts iterator's start/done counts — is
+    // silently discarded. Route it into coresense's logging so the protocol
+    // layer is inspectable at the level the user chose.
+    this.session = new MeshCoreSession({
+      transport,
+      appName: APP_NAME,
+      appVersion: APP_VERSION,
+      logger: child('meshcore'),
+    });
   }
 
   start(): void {

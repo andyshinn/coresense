@@ -43,6 +43,31 @@ export type ContactsSyncSignal =
   | { phase: 'progress'; done: number; total: number }
   | { phase: 'done'; done: number };
 
+/** Outcome of one GET_CONTACTS iteration: what the radio said it delivered vs
+ *  what we actually persisted. The contact broadcasts are coalesced, so their
+ *  count no longer tracks the number of contacts — this is the signal that
+ *  answers "did everything land?". */
+export interface ContactSyncSummary {
+  /** RESP_CONTACT records the radio delivered in this iteration. */
+  delivered: number;
+  /** Contacts in the holder once the iteration settled. */
+  stored: number;
+  /** Discovered-pool rows currently marked on-radio. */
+  onRadio: number;
+  /** False when we persisted fewer contacts than the radio delivered. */
+  complete: boolean;
+}
+
+/** Build a sync summary, deciding whether everything the radio sent landed.
+ *
+ *  `stored` can legitimately EXCEED `delivered` — a placeholder contact
+ *  synthesised for an incoming DM from an unknown sender is in the holder
+ *  without the radio having delivered it — so only a shortfall counts as
+ *  incomplete. */
+export function summarizeContactSync(delivered: number, stored: number, onRadio: number): ContactSyncSummary {
+  return { delivered, stored, onRadio, complete: stored >= delivered };
+}
+
 export const bus = new EventEmitter();
 
 // Note: avoid Node EventEmitter's reserved 'error' event — it throws when
@@ -61,6 +86,7 @@ export const emit = {
   contacts: (contacts: Contact[]) => bus.emit('contacts', contacts),
   discovered: (rows: DiscoveredContact[]) => bus.emit('discovered', rows),
   contactEvicted: (name: string) => bus.emit('contactEvicted', name),
+  contactSyncSummary: (s: ContactSyncSummary) => bus.emit('contactSyncSummary', s),
   contactDiscovered: (c: { key: string; name: string; kind: ContactKind }) => bus.emit('contactDiscovered', c),
   messages: (key: string, messages: Message[]) => bus.emit('messages', key, messages),
   messageState: (id: string, state: MessageState) => bus.emit('messageState', id, state),
@@ -103,6 +129,7 @@ export type BusEvents = {
   contacts: (contacts: Contact[]) => void;
   discovered: (rows: DiscoveredContact[]) => void;
   contactEvicted: (name: string) => void;
+  contactSyncSummary: (s: ContactSyncSummary) => void;
   contactDiscovered: (c: { key: string; name: string; kind: ContactKind }) => void;
   messages: (key: string, messages: Message[]) => void;
   messageState: (id: string, state: MessageState) => void;
