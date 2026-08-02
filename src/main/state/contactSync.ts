@@ -3,8 +3,11 @@ import { advTypeToKind } from '../../shared/contacts/discovered';
 import type { Contact } from '../../shared/types';
 import { emit } from '../events/bus';
 import { coalesce } from '../events/coalesce';
+import { child } from '../log';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { stateHolder } from './holder';
+
+const log = child('contacts');
 
 /** How long to collect contact/discovered changes before re-broadcasting.
  *
@@ -63,6 +66,10 @@ export function ingestObservedContact(record: Models.ContactRecord, source: Mode
   const isNewDiscovery = source === 'advert' && discoveredStore.get(record.publicKeyHex) === null;
 
   discoveredStore.upsert(record, { onRadio, nowMs: Date.now(), heardLive: source === 'advert' });
+  // One line per ingested contact. Below the default level (debug) on purpose:
+  // a 300-contact sync would otherwise bury everything else. Turn it on with
+  // CORESENSE_LOG_LEVEL=trace to literally count what the radio sent.
+  log.trace(`ingest [${source}] ${record.publicKeyHex.slice(0, 12)} "${record.name}" onRadio=${onRadio}`);
   scheduleDiscoveredEmit();
 
   if (isNewDiscovery) {

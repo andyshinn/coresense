@@ -1,9 +1,12 @@
 import type { MeshCoreSession } from '@andyshinn/meshcore-ts';
 import { emit } from '../events/bus';
+import { child } from '../log';
 import { applyLibContacts, ingestObservedContact, scheduleDiscoveredEmit } from '../state/contactSync';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { mergeSyncedChannels } from './mergeChannels';
+
+const log = child('contacts');
 
 /** Subscribe to every session event and write through to coresense's stores
  *  + bus. */
@@ -103,6 +106,23 @@ function wireContacts(session: MeshCoreSession): void {
   // for the same observations contactObserved does, so re-emitting it here would
   // double-fire — we deliberately do NOT subscribe to it.
   ev.on('contactEvicted', (name) => emit.contactEvicted(name));
+  // Fires after the lib has flushed its coalesced `contacts`/`discovered`
+  // snapshots, so the holder and the sqlite mirror are both current here.
+  // Because coresense coalesces its own broadcasts too, no per-contact signal
+  // reaches the renderer any more — this summary is what makes a sync
+  // verifiable, and the log line is the answer to "did it load them all?".
+  ev.on('contactsSynced', ({ count }) => {
+    const holder = stateHolder();
+    const stored = holder.getContacts().length;
+    const onRadio = discoveredStore.list(holder.getBlockRules()).filter((r) => r.onRadio).length;
+    const complete = stored >= count;
+    emit.contactSyncSummary({ delivered: count, stored, onRadio, complete });
+    if (complete) {
+      log.info(`contact sync complete: radio delivered ${count}, stored ${stored} (${onRadio} on-radio)`);
+    } else {
+      log.warn(`contact sync INCOMPLETE: radio delivered ${count} but only ${stored} stored`);
+    }
+  });
 }
 
 function wireMessages(session: MeshCoreSession): void {
