@@ -33,15 +33,24 @@ already at the bottom**. If the user has scrolled up — the normal state while
 inspecting an older packet in the right rail — the scroll position is left
 alone, and following resumes once they scroll back down.
 
+The message-list package ships this exact policy as `scrollToBottomIfAtBottom`
+("scrolls to the bottom only if the list was already at the bottom or is
+already scrolling to the bottom … a scrolled-up user should stay at their
+current location"). Use it rather than hand-rolling the callback — it also
+distinguishes smooth vs instant via `scrollInProgress`, which a hand-rolled
+`({ atBottom }) => atBottom && 'smooth'` would miss.
+
 ```ts
-scrollModifier: {
-  type: 'auto-scroll-to-bottom',
-  autoScroll: ({ atBottom }) => atBottom && 'smooth',
-}
+import { scrollToBottomIfAtBottom } from '@virtuoso.dev/message-list';
+
+scrollModifier: { type: 'auto-scroll-to-bottom', autoScroll: scrollToBottomIfAtBottom }
 ```
 
-`ItemLocationCallback` is typed `(params) => ScrollBehavior | boolean |
-ItemLocation`, so returning `false` is a supported "do not move".
+Initial mount lands on the newest packet via
+`initialLocation={{ index: 'LAST', align: 'end' }}` — required because
+`scrollToBottomIfAtBottom` returns `false` (do nothing) whenever the viewport
+isn't already at the bottom, so it cannot be relied on to place the list at the
+bottom on first paint. This replaces today's mount-only `scrollToIndex` effect.
 
 This deliberately differs from `LogsPanel`, whose `autoScroll` always returns
 `{ index: 'LAST', align: 'end' }` and therefore yanks the viewport to the
