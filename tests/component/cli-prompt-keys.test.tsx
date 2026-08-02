@@ -87,6 +87,18 @@ describe('CliPrompt keys', () => {
     expect(el.getAttribute('aria-activedescendant')).toMatch(/^c:/); // active option id
   });
 
+  it('treats the console chords as Ctrl-only: ⌘R does not open reverse-search, ⌃R does', () => {
+    render(<Harness />);
+    const el = input();
+    // ⌘R (metaKey) must NOT trigger the readline chord — on macOS it belongs to
+    // app-level shortcuts, and the reverse-search bar should stay closed.
+    fireEvent.keyDown(el, { key: 'r', metaKey: true });
+    expect(screen.queryAllByText(/reverse-i-search/)).toHaveLength(0);
+    // ⌃R still opens it.
+    fireEvent.keyDown(el, { key: 'r', ctrlKey: true });
+    expect(screen.queryAllByText(/reverse-i-search/).length).toBeGreaterThan(0);
+  });
+
   it('reverse-search: ArrowRight accepts the active match into the line', () => {
     render(<Harness />);
     const el = input();

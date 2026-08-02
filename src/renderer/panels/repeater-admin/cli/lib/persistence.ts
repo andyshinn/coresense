@@ -10,6 +10,12 @@
 export interface CliHistoryEntry {
   text: string;
   status: 'ok' | 'error' | 'timeout' | 'sent';
+  /** Stable per-submit id, mirrored from the queue entry (`CliEntry.id`) so a
+   *  settle patches exactly the line that submit created — not the newest line
+   *  that happens to share this text. Optional: entries persisted before this
+   *  field, and consecutive-duplicate collapses that drop the earlier line,
+   *  simply carry no id. */
+  id?: string;
 }
 
 export interface RebootPending {
@@ -94,4 +100,17 @@ export function pushHistory(h: CliHistoryEntry[], entry: CliHistoryEntry): CliHi
 export function patchLastStatus(h: CliHistoryEntry[], status: CliHistoryEntry['status']): CliHistoryEntry[] {
   if (h.length === 0) return h;
   return [...h.slice(0, -1), { ...h[h.length - 1], status }];
+}
+
+/** Patch a specific entry's status by its stable id (the queue-entry id).
+ *  Correlating by id, not text, keeps a command that appears more than once in
+ *  history from cross-patching — two `get freq` lines settle independently
+ *  instead of both landing on the newest occurrence. Returns the same array
+ *  reference (a no-op the caller can skip persisting) when no entry carries the
+ *  id: a consecutive-duplicate collapse dropped that line, or it aged out of
+ *  the ring. */
+export function patchStatusById(h: CliHistoryEntry[], id: string, status: CliHistoryEntry['status']): CliHistoryEntry[] {
+  const at = h.findIndex((e) => e.id === id);
+  if (at === -1) return h;
+  return h.map((e, i) => (i === at ? { ...e, status } : e));
 }

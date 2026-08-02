@@ -815,7 +815,10 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       if (!expectReply) return c.json({ ok: true, sent: true }, 202);
       return c.json({ ok: true, reply }, 200);
     } catch (err) {
-      const message = (err as Error).message;
+      // Coerce defensively: a non-Error rejection (thrown string, or an object
+      // without a string `.message`) would make `.includes(...)` throw and mask
+      // the real failure as an opaque 500.
+      const message = err instanceof Error ? err.message : String(err);
       // The library rejects a lapsed reply with `CLI command timed out after
       // <ms>ms` (§7.1). Everything else — transport drop, superseded-by-newer —
       // is a transport-tier failure; the renderer re-reads the message to split

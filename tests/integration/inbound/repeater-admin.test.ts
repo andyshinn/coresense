@@ -310,4 +310,20 @@ describe('POST /api/repeater/:key/cli classification', () => {
       error: 'superseded by newer CLI command',
     });
   });
+
+  it('coerces a non-Error rejection to 503 transport instead of crashing on .message', async () => {
+    // A rejection that is not an Error (here a bare string) must not make the
+    // classifier throw on `.includes` and surface as an opaque 500.
+    setProtocolSession(
+      fakeCliAdapter(async () => {
+        throw 'raw string failure';
+      }),
+    );
+    const res = await postCli({ command: 'get radio' });
+    expect(res.status).toBe(503);
+    expect((await res.json()) as { code: string; error: string }).toMatchObject({
+      code: 'transport',
+      error: 'raw string failure',
+    });
+  });
 });

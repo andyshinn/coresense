@@ -7,7 +7,7 @@ import { type CliGuest, CliPrompt } from './cli/CliPrompt';
 import type { FollowUp } from './cli/CliRow';
 import { CliTranscript } from './cli/CliTranscript';
 import { resolveCommand } from './cli/lib/parse';
-import { type CliHistoryEntry, loadHistory, pushHistory, saveHistory } from './cli/lib/persistence';
+import { type CliHistoryEntry, loadHistory, patchStatusById, pushHistory, saveHistory } from './cli/lib/persistence';
 import { abortAll, beginNext, type CliEntry, type CliQueueState, cancel, enqueue, settle } from './cli/lib/queue';
 import { settlePatchForError, settlePatchForReply } from './cli/lib/send';
 import { type CliSuggestCtx, deriveRecent, extractNodeValue } from './cli/lib/suggest';
@@ -47,13 +47,15 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
   const ctx: CliSuggestCtx = useMemo(() => ({ recent: deriveRecent(history), nodeValues }), [history, nodeValues]);
   const queuedCount = queue.entries.filter((e) => e.state === 'queued').length;
 
+  // Patch by the submit's stable id — shared with the queue entry — so a
+  // command queued more than once settles onto its own history line instead of
+  // the newest line with the same text (which left earlier duplicates stuck at
+  // `sent` and skewed deriveRecent).
   const patchStatus = useCallback(
-    (text: string, status: CliHistoryEntry['status']) => {
+    (id: string, status: CliHistoryEntry['status']) => {
       setHistory((h) => {
-        const idx = [...h].reverse().findIndex((e) => e.text === text);
-        if (idx === -1) return h;
-        const at = h.length - 1 - idx;
-        const next = h.map((e, i) => (i === at ? { ...e, status } : e));
+        const next = patchStatusById(h, id, status);
+        if (next === h) return h; // id not found (collapsed/aged out) — nothing to persist
         saveHistory(contact.publicKeyHex, next);
         return next;
       });
@@ -67,14 +69,16 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
       const trimmed = text.trim();
       if (trimmed === '') return;
       const cmd = resolveCommand(trimmed);
-      // History is pushed on submit (so ↑ recalls immediately); status patched at settle.
+      const id = newId();
+      // History is pushed on submit (so ↑ recalls immediately); status patched
+      // at settle by this same id, which the queue entry below also carries.
       setHistory((h) => {
-        const next = pushHistory(h, { text: trimmed, status: 'sent' as const });
+        const next = pushHistory(h, { text: trimmed, status: 'sent' as const, id });
         saveHistory(contact.publicKeyHex, next);
         return next;
       });
       const entry: CliEntry = {
-        id: newId(),
+        id,
         text: trimmed,
         cmd,
         state: 'queued',
@@ -107,7 +111,7 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
         });
         const patch = settlePatchForReply(res, Date.now());
         setQueue((q) => settle(q, next.id, patch));
-        patchStatus(next.text, patch.state as CliHistoryEntry['status']);
+        patchStatus(next.id, patch.state as CliHistoryEntry['status']);
         const refused = patch.error?.kind === 'refused';
         // Node value only exists on a reply-bearing settle (never on `sent`).
         if (!refused && patch.reply != null && next.cmd?.key && next.cmd.name.startsWith('get ')) {
@@ -130,7 +134,7 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
         if (ctrl.signal.aborted) return; // abortAll already moved this entry to cancelled
         const patch = settlePatchForError(err, Date.now());
         setQueue((q) => settle(q, next.id, patch));
-        patchStatus(next.text, patch.state as CliHistoryEntry['status']);
+        patchStatus(next.id, patch.state as CliHistoryEntry['status']);
       } finally {
         sendingRef.current = false;
       }

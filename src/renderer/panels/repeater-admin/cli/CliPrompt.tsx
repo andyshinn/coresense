@@ -141,10 +141,14 @@ export function CliPrompt({
         if (e.key.length === 1 && !e.ctrlKey && !e.metaKey)
           return { kind: 'rsearch/setQuery', query: state.rsearch.query + e.key } as const;
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === ' ') return { kind: 'key/ctrlSpace' } as const;
-      if ((e.ctrlKey || e.metaKey) && e.key === 'r') return { kind: 'key/ctrlR' } as const;
-      if ((e.ctrlKey || e.metaKey) && e.key === 'l') return { kind: 'key/ctrlL' } as const;
-      if ((e.ctrlKey || e.metaKey) && e.key === 'g') return { kind: 'key/ctrlG' } as const;
+      // Ctrl-only, on every platform: these are readline/terminal chords (⌃R
+      // reverse-search, ⌃L clear, ⌃Space palette, ⌃G abort), and the shortcuts
+      // registry defines them ctrl-only. Treating ⌘ as Ctrl would fire them on
+      // macOS ⌘R/⌘L and collide with app-level shortcuts.
+      if (e.ctrlKey && e.key === ' ') return { kind: 'key/ctrlSpace' } as const;
+      if (e.ctrlKey && e.key === 'r') return { kind: 'key/ctrlR' } as const;
+      if (e.ctrlKey && e.key === 'l') return { kind: 'key/ctrlL' } as const;
+      if (e.ctrlKey && e.key === 'g') return { kind: 'key/ctrlG' } as const;
       switch (e.key) {
         case 'Tab':
           return { kind: 'key/tab' } as const;

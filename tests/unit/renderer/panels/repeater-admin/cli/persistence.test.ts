@@ -4,6 +4,7 @@ import {
   loadHistory,
   loadPendingReboot,
   patchLastStatus,
+  patchStatusById,
   pushHistory,
   saveHistory,
   savePendingReboot,
@@ -104,6 +105,32 @@ describe('patchLastStatus', () => {
 
   it('is a no-op on an empty history', () => {
     expect(patchLastStatus([], 'ok')).toEqual([]);
+  });
+});
+
+describe('patchStatusById', () => {
+  it('patches the entry with the matching id, leaving same-text siblings untouched', () => {
+    // Two `get freq` lines from separate submits; the OLDER one settles `ok`.
+    // A text search would have patched the newest occurrence — this must not.
+    const h = patchStatusById(
+      [
+        { text: 'get freq', status: 'sent', id: 'a' },
+        { text: 'get tx', status: 'sent', id: 'b' },
+        { text: 'get freq', status: 'sent', id: 'c' },
+      ],
+      'a',
+      'ok',
+    );
+    expect(h).toEqual([
+      { text: 'get freq', status: 'ok', id: 'a' },
+      { text: 'get tx', status: 'sent', id: 'b' },
+      { text: 'get freq', status: 'sent', id: 'c' },
+    ]);
+  });
+
+  it('returns the same array reference (skippable no-op) when no entry carries the id', () => {
+    const h = [{ text: 'get freq', status: 'sent' as const, id: 'a' }];
+    expect(patchStatusById(h, 'missing', 'ok')).toBe(h);
   });
 });
 
