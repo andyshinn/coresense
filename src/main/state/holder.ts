@@ -30,8 +30,13 @@ import { messagesStore } from '../storage/messages';
 import { rebuildConversationsIndex, type SearchBlockContext } from '../storage/search';
 import { flushSettings, settingsStore } from '../storage/settings';
 
-/** How long to collect state changes before persisting them. */
-const HOLDER_PERSIST_INTERVAL_MS = 120;
+/** How long to collect state changes before persisting them. Sized like the
+ *  contact broadcast interval: a run happens once per interval for as long as
+ *  changes keep arriving, so over a ~15s contact sync this is the difference
+ *  between ~128 and ~16 full contacts.json rewrites + FTS rebuilds. The window
+ *  is bounded loss on a hard kill only — a clean quit flushes (see
+ *  flushHolderPersistence in the before-quit path). */
+const HOLDER_PERSIST_INTERVAL_MS = 1000;
 
 // Persistent state holder. Settings/channels/contacts/ui live in JSON files;
 // messages live in node:sqlite. The holder caches in memory and writes through

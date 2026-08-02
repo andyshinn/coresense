@@ -7,6 +7,10 @@ import { subscribeBadgeRecompute } from '../../../src/main/notifications/badge';
 // `contacts`, which the lib fires once per contact during a sync, so a 300
 // contact sync spent ~3s recomputing a dock badge nobody can see mid-sync.
 
+// Pin the interval here rather than relying on the production default, so
+// changing that default can't silently make these timer advances meaningless.
+const INTERVAL = 100;
+
 describe('subscribeBadgeRecompute', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -18,7 +22,7 @@ describe('subscribeBadgeRecompute', () => {
 
   it('recomputes once for a burst of contacts events, not once per event', async () => {
     const recomputeBadge = vi.fn();
-    const sub = subscribeBadgeRecompute({ recomputeBadge });
+    const sub = subscribeBadgeRecompute({ recomputeBadge }, INTERVAL);
 
     for (let i = 0; i < 100; i++) bus.emit('contacts', []);
     await sub.flush();
@@ -29,7 +33,7 @@ describe('subscribeBadgeRecompute', () => {
 
   it('still recomputes for each of the other badge-affecting events', async () => {
     const recomputeBadge = vi.fn();
-    const sub = subscribeBadgeRecompute({ recomputeBadge });
+    const sub = subscribeBadgeRecompute({ recomputeBadge }, INTERVAL);
 
     bus.emit('channels', []);
     await sub.flush();
@@ -44,7 +48,7 @@ describe('subscribeBadgeRecompute', () => {
 
   it('settles on a final recompute after the burst ends', async () => {
     const recomputeBadge = vi.fn();
-    const sub = subscribeBadgeRecompute({ recomputeBadge });
+    const sub = subscribeBadgeRecompute({ recomputeBadge }, INTERVAL);
 
     bus.emit('contacts', []);
     bus.emit('contacts', []);
@@ -57,7 +61,7 @@ describe('subscribeBadgeRecompute', () => {
 
   it('stops recomputing after stop()', async () => {
     const recomputeBadge = vi.fn();
-    const sub = subscribeBadgeRecompute({ recomputeBadge });
+    const sub = subscribeBadgeRecompute({ recomputeBadge }, INTERVAL);
 
     sub.stop();
     bus.emit('contacts', []);

@@ -6,11 +6,18 @@ import { coalesce } from '../events/coalesce';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { stateHolder } from './holder';
 
-/** How long to collect contact/discovered changes before re-broadcasting. Long
- *  enough that a GET_CONTACTS sync (one lib event per contact) collapses into a
- *  handful of emits, short enough that a single live advert still lands
- *  visibly straight away — the leading edge fires immediately either way. */
-const CONTACT_EMIT_INTERVAL_MS = 120;
+/** How long to collect contact/discovered changes before re-broadcasting.
+ *
+ *  A coalescer runs once per interval for as long as signals keep arriving, so
+ *  the broadcast count is `burst_duration / interval` — it does NOT shrink as
+ *  the interval work gets cheaper, and it grows with how slowly the radio
+ *  feeds us. A real 300-contact sync over BLE takes ~15s (one RESP_CONTACT
+ *  every ~50ms), so at 120ms that was still ~128 full-pool projections and
+ *  ~5.8MB of JSON; at 1s it is ~16 and ~0.7MB.
+ *
+ *  A single live advert is unaffected either way: the leading edge fires
+ *  immediately, so only a *second* change within the same second waits. */
+const CONTACT_EMIT_INTERVAL_MS = 1000;
 
 // Projecting the pool is a full table scan plus a per-row block-rule match, and
 // the payload is then JSON-serialised to every websocket client. The lib emits

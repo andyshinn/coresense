@@ -1,8 +1,13 @@
 import { bus } from '../events/bus';
 import { coalesce } from '../events/coalesce';
 
-/** How long to collect badge-affecting changes before recomputing. */
-const BADGE_RECOMPUTE_INTERVAL_MS = 250;
+/** How long to collect badge-affecting changes before recomputing. One run per
+ *  interval while changes keep arriving, so over a ~15s contact sync this is
+ *  ~16 recomputes rather than ~60. The badge is a dock overlay whose value is
+ *  only meaningful once the sync settles, so it is the most latency-tolerant of
+ *  the coalesced paths — opening a conversation still recomputes immediately,
+ *  outside this coalescer (see startNotifications). */
+const BADGE_RECOMPUTE_INTERVAL_MS = 1000;
 
 export interface BadgeRecomputer {
   recomputeBadge(): void;
