@@ -1,3 +1,7 @@
+import { child } from '../log';
+
+const log = child('coalesce');
+
 export interface Coalescer {
   /** Signal that the underlying state changed and `run` should happen. */
   schedule(): void;
@@ -25,11 +29,23 @@ export function coalesce(run: () => void, intervalMs: number): Coalescer {
   let timer: NodeJS.Timeout | null = null;
   let pending = false;
 
+  // A coalesced run() executes deferred work (a DB rebuild, a bus broadcast)
+  // that can throw. The main process installs no uncaughtException handler, so
+  // a throw escaping the trailing setTimeout below would terminate the app.
+  // Contain failures and keep the cadence alive; the next signal recovers.
+  const safeRun = () => {
+    try {
+      run();
+    } catch (err) {
+      log.warn(`coalesced run failed: ${(err as Error).message}`);
+    }
+  };
+
   const fire = () => {
     timer = null;
     if (!pending) return;
     pending = false;
-    run();
+    safeRun();
     // Something changed during this cycle, so open another window: a long
     // burst keeps producing one run per interval rather than going quiet.
     arm();
@@ -44,7 +60,7 @@ export function coalesce(run: () => void, intervalMs: number): Coalescer {
   return {
     schedule() {
       if (timer === null) {
-        run();
+        safeRun();
         arm();
         return;
       }
@@ -57,7 +73,7 @@ export function coalesce(run: () => void, intervalMs: number): Coalescer {
       }
       if (pending) {
         pending = false;
-        run();
+        safeRun();
       }
     },
     cancel() {

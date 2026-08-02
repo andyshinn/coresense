@@ -83,4 +83,49 @@ describe('coalesce', () => {
 
     expect(run).toHaveBeenCalledTimes(2); // leading of the second cycle
   });
+
+  // A coalesced run() executes work that can throw (a DB rebuild hitting a
+  // transient SQLite error, or a synchronous bus listener throwing). The main
+  // process installs no uncaughtException handler, so a throw escaping the
+  // trailing timer callback would terminate the app. Contain it instead.
+  it('does not propagate an error thrown by run() on the leading edge', () => {
+    const run = vi.fn(() => {
+      throw new Error('boom');
+    });
+    const c = coalesce(run, 100);
+
+    expect(() => c.schedule()).not.toThrow();
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not let an error from a trailing run() escape the timer callback', () => {
+    let calls = 0;
+    const run = vi.fn(() => {
+      calls += 1;
+      if (calls === 2) throw new Error('boom'); // throw on the trailing run only
+    });
+    const c = coalesce(run, 100);
+
+    c.schedule(); // leading run (calls=1)
+    c.schedule(); // pending
+
+    expect(() => vi.advanceTimersByTime(100)).not.toThrow();
+  });
+
+  it('keeps firing on later schedules after a run() throws', () => {
+    let first = true;
+    const run = vi.fn(() => {
+      if (first) {
+        first = false;
+        throw new Error('boom');
+      }
+    });
+    const c = coalesce(run, 100);
+
+    expect(() => c.schedule()).not.toThrow(); // leading throws, contained
+    vi.advanceTimersByTime(100); // the armed empty cycle lapses
+    c.schedule(); // the coalescer is still usable and fires again
+
+    expect(run).toHaveBeenCalledTimes(2);
+  });
 });

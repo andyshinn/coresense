@@ -3,7 +3,7 @@ import { openDb } from '../../src/main/storage/db';
 export interface SqlCounter {
   /** Number of write statements executed against discovered_contacts so far. */
   readonly count: number;
-  /** Restore the original `prepare`. Safe to call more than once. */
+  /** Restore the original `prepare`/`exec`. Safe to call more than once. */
   restore(): void;
 }
 
@@ -11,15 +11,19 @@ export interface SqlCounter {
  *
  *  Counts executions rather than `prepare` calls, so hoisting a statement out
  *  of a loop can't make a quadratic write pattern look linear. Wraps the live
- *  DatabaseSync's `prepare` and decorates matching statements' `run`. */
+ *  DatabaseSync's `prepare` (decorating matching statements' `run`) and its
+ *  `exec` — whole-table writes like reconcileOnRadio/clearDiscoveredOnly go
+ *  through `db.exec`, so counting only prepared statements would report an
+ *  exec-based quadratic pattern as zero. */
 export function countWritesTo(table: string): SqlCounter {
   const pattern = new RegExp(String.raw`^\s*(insert|update|delete)\b[\s\S]*\b${table}\b`, 'i');
   const db = openDb();
-  const original = db.prepare.bind(db);
+  const originalPrepare = db.prepare.bind(db);
+  const originalExec = db.exec.bind(db);
   let count = 0;
 
   (db as { prepare: (sql: string) => unknown }).prepare = (sql: string) => {
-    const stmt = original(sql);
+    const stmt = originalPrepare(sql);
     if (!pattern.test(sql)) return stmt;
     const run = stmt.run.bind(stmt);
     return new Proxy(stmt, {
@@ -35,12 +39,18 @@ export function countWritesTo(table: string): SqlCounter {
     });
   };
 
+  (db as { exec: (sql: string) => unknown }).exec = (sql: string) => {
+    if (pattern.test(sql)) count += 1;
+    return originalExec(sql);
+  };
+
   return {
     get count() {
       return count;
     },
     restore() {
-      (db as { prepare: unknown }).prepare = original;
+      (db as { prepare: unknown }).prepare = originalPrepare;
+      (db as { exec: unknown }).exec = originalExec;
     },
   };
 }
