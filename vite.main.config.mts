@@ -7,7 +7,7 @@ export default defineConfig({
     // virtual modules `~build/info` and `~build/git`. Read in src/main/about.ts
     // and forwarded to the renderer through the existing Capabilities handshake
     // — single source of truth.
-    Info({ meta: false }),
+    Info({}),
   ],
   build: {
     // Electron 42 bundles Node.js 22 — match the target so we don't down-level
@@ -22,6 +22,7 @@ export default defineConfig({
         'ws',
         'bufferutil',
         'utf-8-validate',
+        'node:sqlite',
       ],
     },
   },
