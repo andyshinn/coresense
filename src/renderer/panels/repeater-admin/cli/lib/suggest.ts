@@ -111,6 +111,47 @@ export function suggest(text: string, caret: number, ctx: CliSuggestCtx): { pars
   return { parse, items: scored.map((x) => x.item) };
 }
 
+export interface CliPaletteGroup {
+  name: string | null;
+  items: CliSuggestion[];
+}
+
+// The palette's display order — the SINGLE source of truth for BOTH rendering
+// (CliPalette draws these groups) and keyboard navigation (the reducer steps
+// through `orderedSuggestions`, the flattened form). One function is why ↑/↓
+// move to the next VISUAL row instead of the next raw-ranked item: the raw
+// `suggest()` list is scored flat and interleaves groups, while the palette
+// clusters them, so navigating the raw list looked like it "jumped" between
+// sections. Command mode: Recent first, then catalog groups in first-appearance
+// (== best-member score) order, then serial-only sunk into one trailing group.
+// Argument mode is a single ungrouped list. The result is a permutation of
+// `items` — nothing is added or dropped — so navigation stays complete.
+export function groupSuggestions(parse: CliParse, items: CliSuggestion[]): CliPaletteGroup[] {
+  if (parse.mode === 'arg') return [{ name: null, items }];
+  const recent = items.filter((i) => i.recent);
+  const rest = items.filter((i) => !i.recent);
+  const avail = rest.filter((i) => !i.serialOnly);
+  const serial = rest.filter((i) => i.serialOnly);
+  const out: CliPaletteGroup[] = [];
+  if (recent.length) out.push({ name: 'Recent on this node', items: recent });
+  const byGroup = new Map<string, CliSuggestion[]>();
+  for (const i of avail) {
+    const g = i.group ?? 'Info';
+    const bucket = byGroup.get(g);
+    if (bucket) bucket.push(i);
+    else byGroup.set(g, [i]);
+  }
+  for (const [name, list] of byGroup) out.push({ name, items: list });
+  if (serial.length) out.push({ name: 'Not available over radio', items: serial });
+  return out;
+}
+
+/** The flattened display order — what the reducer navigates so ↑/↓ track the
+ *  rendered rows exactly. A permutation of `items` (same members, regrouped). */
+export function orderedSuggestions(parse: CliParse, items: CliSuggestion[]): CliSuggestion[] {
+  return groupSuggestions(parse, items).flatMap((g) => g.items);
+}
+
 /** value.slice(0, replaceFrom) + insert + (replaceAll ? '' : value.slice(caret)),
  *  caret at replaceFrom + insert.length. Stated once in §2.3. */
 export function applySuggestion(value: string, caret: number, s: CliSuggestion): { value: string; caret: number } {

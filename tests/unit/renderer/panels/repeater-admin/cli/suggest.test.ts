@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { CliSuggestCtx } from '@/panels/repeater-admin/cli/lib/suggest';
-import { applySuggestion, deriveRecent, extractNodeValue, suggest } from '@/panels/repeater-admin/cli/lib/suggest';
+import type { CliParse } from '@/panels/repeater-admin/cli/lib/parse';
+import type { CliSuggestCtx, CliSuggestion } from '@/panels/repeater-admin/cli/lib/suggest';
+import {
+  applySuggestion,
+  deriveRecent,
+  extractNodeValue,
+  groupSuggestions,
+  orderedSuggestions,
+  suggest,
+} from '@/panels/repeater-admin/cli/lib/suggest';
 import { CLI_BY_NAME, type CliCommand } from '../../../../../../src/shared/repeater-cli/catalog';
 
 const ctx = (over: Partial<CliSuggestCtx> = {}): CliSuggestCtx => ({ recent: [], nodeValues: {}, ...over });
@@ -57,6 +65,63 @@ describe('suggest — arg mode', () => {
     // 'us' has no value starting with it, but the 'US 915' label contains it.
     const { items } = suggest('set radio us', 12, ctx());
     expect(items.map((i) => i.label)).toContain('910.525,250,11,5');
+  });
+});
+
+describe('groupSuggestions / orderedSuggestions — display order', () => {
+  const commandParse: CliParse = { mode: 'command', token: 's', start: 0 };
+  const sug = (label: string, group: CliCommand['group'], over: Partial<CliSuggestion> = {}): CliSuggestion => ({
+    id: `c:${label}`,
+    label,
+    desc: '',
+    kind: 'command',
+    group,
+    insert: label,
+    replaceFrom: 0,
+    ...over,
+  });
+
+  it('clusters interleaved groups by first appearance — display order ≠ raw ranked order', () => {
+    // Raw ranked order interleaves Radio/System; the palette clusters them, so
+    // navigating the raw list would "jump" between sections. This is the bug.
+    const raw = [sug('a', 'Radio'), sug('b', 'System'), sug('c', 'Radio'), sug('d', 'System')];
+    expect(orderedSuggestions(commandParse, raw).map((i) => i.label)).toEqual(['a', 'c', 'b', 'd']);
+    expect(groupSuggestions(commandParse, raw).map((g) => g.name)).toEqual(['Radio', 'System']);
+  });
+
+  it('puts Recent first and sinks serial-only into a trailing group', () => {
+    const raw = [sug('r', 'Radio', { recent: true }), sug('n', 'System'), sug('e', 'System', { serialOnly: true })];
+    expect(groupSuggestions(commandParse, raw).map((g) => g.name)).toEqual([
+      'Recent on this node',
+      'System',
+      'Not available over radio',
+    ]);
+    expect(orderedSuggestions(commandParse, raw).map((i) => i.label)).toEqual(['r', 'n', 'e']);
+  });
+
+  it('leaves argument mode a single ungrouped list in its original order', () => {
+    const { parse, items } = suggest('set repeat o', 12, ctx());
+    expect(parse.mode).toBe('arg');
+    expect(orderedSuggestions(parse, items)).toEqual(items);
+  });
+
+  it('is a permutation of the raw list — real suggest() output, nothing dropped or duplicated', () => {
+    const { parse, items } = suggest('s', 1, ctx());
+    const ordered = orderedSuggestions(parse, items);
+    expect(ordered).toHaveLength(items.length);
+    expect(new Set(ordered.map((i) => i.id))).toEqual(new Set(items.map((i) => i.id)));
+    // Contiguity: once display order leaves a section it never returns to it.
+    const sectionOf = (i: CliSuggestion) => (i.serialOnly ? ' serial' : i.recent ? ' recent' : (i.group ?? 'Info'));
+    const seen = new Set<string>();
+    let prev = '';
+    for (const i of ordered) {
+      const s = sectionOf(i);
+      if (s !== prev) {
+        expect(seen.has(s)).toBe(false);
+        seen.add(s);
+        prev = s;
+      }
+    }
   });
 });
 

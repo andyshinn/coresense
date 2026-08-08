@@ -4,6 +4,7 @@ import { flushSync } from 'react-dom';
 import { describe, expect, it } from 'vitest';
 import { CliPrompt } from '@/panels/repeater-admin/cli/CliPrompt';
 import type { CliSuggestCtx } from '@/panels/repeater-admin/cli/lib/suggest';
+import { CLI_BY_NAME } from '../../src/shared/repeater-cli/catalog';
 
 const ctx: CliSuggestCtx = { recent: [], nodeValues: {} };
 const radio = {
@@ -85,6 +86,20 @@ describe('CliPrompt keys', () => {
     expect(el.getAttribute('role')).toBe('combobox');
     expect(el.getAttribute('aria-controls')).toBe('cli-palette-listbox');
     expect(el.getAttribute('aria-activedescendant')).toMatch(/^c:/); // active option id
+  });
+
+  it('hovering a row surfaces that command’s docs in the detail pane before any click', () => {
+    render(<Harness />);
+    fireEvent.change(input(), { target: { value: 'set' } });
+    // 'set radio' is a real row but not the default selection; hovering it must
+    // both select it and render its docs (cmd.desc, which the rows omit) in the
+    // two-pane detail — exercising the full onMouseEnter → item/activate → detail seam.
+    const radio = screen.getAllByRole('option').find((o) => o.textContent?.startsWith('set radio')) as HTMLElement;
+    expect(radio).toBeTruthy();
+    expect(radio.getAttribute('aria-selected')).toBe('false');
+    fireEvent.mouseEnter(radio);
+    expect(radio.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByText(CLI_BY_NAME['set radio'].desc)).toBeTruthy();
   });
 
   it('treats the console chords as Ctrl-only: ⌘R does not open reverse-search, ⌃R does', () => {

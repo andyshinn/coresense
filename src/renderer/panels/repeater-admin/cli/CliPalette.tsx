@@ -7,7 +7,7 @@ import type { RadioSettings } from '../../../../shared/types';
 import { CliDetail } from './CliDetail';
 import { cliRoundTrip } from './lib/airtime';
 import type { CliParse } from './lib/parse';
-import type { CliSuggestion } from './lib/suggest';
+import { type CliSuggestion, groupSuggestions } from './lib/suggest';
 
 const DETAIL_W = 250;
 const DETAIL_MIN = 560; // below this the two-pane detail folds to inline
@@ -26,6 +26,7 @@ export interface CliPaletteProps {
   radioSettings: RadioSettings | null;
   hops: number;
   onApply: (item: CliSuggestion) => void;
+  onActivate?: (item: CliSuggestion) => void;
 }
 
 interface Chip {
@@ -104,34 +105,6 @@ function Highlight({ text, ranges }: { text: string; ranges?: [number, number][]
   return <>{out}</>;
 }
 
-interface Group {
-  name: string | null;
-  items: CliSuggestion[];
-}
-
-// Command mode: Recent first, then catalog groups ordered by first appearance
-// in the already-ranked list (== best member's score), then serial-only sunk
-// into one trailing group. Argument mode is a single ungrouped list.
-function groupItems(parse: CliParse, items: CliSuggestion[]): Group[] {
-  if (parse.mode === 'arg') return [{ name: null, items }];
-  const recent = items.filter((i) => i.recent);
-  const rest = items.filter((i) => !i.recent);
-  const avail = rest.filter((i) => !i.serialOnly);
-  const serial = rest.filter((i) => i.serialOnly);
-  const out: Group[] = [];
-  if (recent.length) out.push({ name: 'Recent on this node', items: recent });
-  const byGroup = new Map<string, CliSuggestion[]>();
-  for (const i of avail) {
-    const g = i.group ?? 'Info';
-    const bucket = byGroup.get(g);
-    if (bucket) bucket.push(i);
-    else byGroup.set(g, [i]);
-  }
-  for (const [name, list] of byGroup) out.push({ name, items: list });
-  if (serial.length) out.push({ name: 'Not available over radio', items: serial });
-  return out;
-}
-
 function useWidth(anchor: React.RefObject<HTMLDivElement | null>): number {
   const [width, setWidth] = useState(420);
   useLayoutEffect(() => {
@@ -148,7 +121,17 @@ function useWidth(anchor: React.RefObject<HTMLDivElement | null>): number {
   return width;
 }
 
-function Row({ item, selected, onApply }: { item: CliSuggestion; selected: boolean; onApply: (i: CliSuggestion) => void }) {
+function Row({
+  item,
+  selected,
+  onApply,
+  onActivate,
+}: {
+  item: CliSuggestion;
+  selected: boolean;
+  onApply: (i: CliSuggestion) => void;
+  onActivate?: (i: CliSuggestion) => void;
+}) {
   const chips = cmdChips(item.cmd);
   return (
     <button
@@ -156,6 +139,10 @@ function Row({ item, selected, onApply }: { item: CliSuggestion; selected: boole
       role="option"
       id={item.id}
       aria-selected={selected}
+      // Hover activates the row like ↑/↓ do, so the detail pane shows its docs
+      // before any click. onMouseEnter (not onMouseMove) keeps it to one event
+      // per row entry; keyboard nav over a stationary mouse never re-fires it.
+      onMouseEnter={() => onActivate?.(item)}
       // onMouseDown + preventDefault: onClick would blur the prompt first.
       onMouseDown={(e) => {
         e.preventDefault();
@@ -202,12 +189,24 @@ function Row({ item, selected, onApply }: { item: CliSuggestion; selected: boole
   );
 }
 
-export function CliPalette({ open, parse, items, activeId, nodeValues, radioSettings, hops, onApply }: CliPaletteProps) {
+export function CliPalette({
+  open,
+  parse,
+  items,
+  activeId,
+  nodeValues,
+  radioSettings,
+  hops,
+  onApply,
+  onActivate,
+}: CliPaletteProps) {
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const width = useWidth(anchorRef);
   const twopane = width >= DETAIL_MIN;
-  const groups = groupItems(parse, items);
-  const active = items.find((i) => i.id === activeId) ?? items[0] ?? null;
+  const groups = groupSuggestions(parse, items);
+  // Fall back to the first RENDERED row (groups[0].items[0]), not items[0], so
+  // the default highlight matches the top visual row even when grouping reorders.
+  const active = items.find((i) => i.id === activeId) ?? groups[0]?.items[0] ?? null;
   const header = parse.mode === 'arg' ? 'Values' : 'Commands';
   const subhead = parse.mode === 'arg' ? parse.cmd.args?.[parse.argIndex]?.name : undefined;
 
@@ -282,7 +281,13 @@ export function CliPalette({ open, parse, items, activeId, nodeValues, radioSett
                     </div>
                   ) : null}
                   {g.items.map((i) => (
-                    <Row key={i.id} item={i} selected={!!active && active.id === i.id} onApply={onApply} />
+                    <Row
+                      key={i.id}
+                      item={i}
+                      selected={!!active && active.id === i.id}
+                      onApply={onApply}
+                      onActivate={onActivate}
+                    />
                   ))}
                 </div>
               ))

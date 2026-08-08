@@ -150,6 +150,26 @@ describe('CliPalette', () => {
     expect(onApply).toHaveBeenCalledWith(it0);
   });
 
+  it('activates a row on hover (mouseEnter) so its docs show before any click', () => {
+    const onActivate = vi.fn();
+    const it0 = item({ label: 'set radio', cmd: cmd('set radio', 'Radio') });
+    render(
+      <CliPalette
+        open
+        parse={commandParse}
+        items={[it0]}
+        activeId="c:set radio"
+        nodeValues={{}}
+        radioSettings={radio}
+        hops={1}
+        onApply={() => {}}
+        onActivate={onActivate}
+      />,
+    );
+    fireEvent.mouseEnter(screen.getByRole('option'));
+    expect(onActivate).toHaveBeenCalledWith(it0);
+  });
+
   it('renders the empty state when there are no items', () => {
     render(
       <CliPalette

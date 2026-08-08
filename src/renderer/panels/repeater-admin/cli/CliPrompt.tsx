@@ -223,6 +223,7 @@ export function CliPrompt({
             radioSettings={radioSettings}
             hops={hops}
             onApply={(item) => dispatch({ kind: 'item/apply', id: item.id })}
+            onActivate={(item) => dispatch({ kind: 'item/activate', id: item.id })}
           />
           <div
             aria-hidden="true"

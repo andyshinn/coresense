@@ -8,6 +8,7 @@ import {
   paletteItems,
   rsearchView,
 } from '@/panels/repeater-admin/cli/lib/promptReducer';
+import { orderedSuggestions, suggest } from '@/panels/repeater-admin/cli/lib/suggest';
 
 // Fold a sequence of actions, returning the final state and the LAST effect.
 function run(start: CliPromptState, ...actions: CliPromptAction[]) {
@@ -73,6 +74,29 @@ describe('history recall', () => {
     const down = run(up, { kind: 'key/arrowDown' }).state;
     expect(down.value).toBe('dr');
     expect(down.histIndex).toBe(-1);
+  });
+});
+
+describe('palette navigation follows display order', () => {
+  it('↓/↑ step through the rendered (grouped) order, not the raw score rank', () => {
+    // Expected order is derived INDEPENDENTLY of the reducer (from suggest +
+    // orderedSuggestions), and we assert it genuinely differs from raw rank —
+    // otherwise this test could pass even if the reducer navigated raw order.
+    const { parse, items } = suggest('set', 3, { recent: [], nodeValues: {} });
+    const raw = items.map((i) => i.id);
+    const display = orderedSuggestions(parse, items).map((i) => i.id);
+    expect(display.length).toBeGreaterThan(2);
+    expect(raw).not.toEqual(display); // 'set' truly regroups (raw[1] ≠ display[1])
+
+    const base = run(initialPromptState(), { kind: 'value/change', value: 'set', caret: 3 }).state;
+    expect(base.activeId).toBe(display[0]); // default lands on the first visual row
+    const d1 = run(base, { kind: 'key/arrowDown' }).state;
+    expect(d1.activeId).toBe(display[1]);
+    expect(d1.activeId).not.toBe(raw[1]); // fails if the reducer navigates raw rank
+    const d2 = run(d1, { kind: 'key/arrowDown' }).state;
+    expect(d2.activeId).toBe(display[2]);
+    const u1 = run(d2, { kind: 'key/arrowUp' }).state;
+    expect(u1.activeId).toBe(display[1]);
   });
 });
 
@@ -146,6 +170,42 @@ describe('⌃L and non-key actions', () => {
     const id = paletteItems(s).find((i) => i.label === 'set radio')?.id as string;
     const applied = run(s, { kind: 'item/apply', id }).state;
     expect(applied.value).toBe('set radio ');
+  });
+
+  it('item/activate moves the highlight/detail to the hovered row WITHOUT arming Enter', () => {
+    const s = run(initialPromptState(), { kind: 'value/change', value: 'set', caret: 3 }).state;
+    const target = paletteItems(s)[2]; // a row other than the default-selected first
+    const out = run(s, { kind: 'item/activate', id: target.id }).state;
+    expect(out.activeId).toBe(target.id); // highlight + detail pane follow the mouse
+    expect(out.navigated).toBe(false); // but hover does not make it a selection
+    // Enter still submits the TYPED line, not the hovered command.
+    expect(run(out, { kind: 'key/enter' }).effect).toEqual({ kind: 'submit', text: 'set' });
+  });
+
+  it('hover is path-independent: default row vs away-and-back both leave Enter meaning "send typed"', () => {
+    const s = run(initialPromptState(), { kind: 'value/change', value: 'set', caret: 3 }).state;
+    const first = paletteItems(s)[0].id;
+    const other = paletteItems(s)[2].id;
+    expect(s.activeId).toBe(first);
+    // hover the already-active default row → unchanged, not armed
+    const a = run(s, { kind: 'item/activate', id: first }).state;
+    expect(a.navigated).toBe(false);
+    // hover another row then back to the default → still not armed
+    const b = run(s, { kind: 'item/activate', id: other }, { kind: 'item/activate', id: first }).state;
+    expect(b.activeId).toBe(first);
+    expect(b.navigated).toBe(false);
+    // both paths → Enter submits the typed line
+    expect(run(a, { kind: 'key/enter' }).effect).toEqual({ kind: 'submit', text: 'set' });
+    expect(run(b, { kind: 'key/enter' }).effect).toEqual({ kind: 'submit', text: 'set' });
+  });
+
+  it('item/activate is a no-op when the palette is closed or the id is stale', () => {
+    const closed = run(initialPromptState(), { kind: 'item/activate', id: 'c:ver' }).state;
+    expect(closed.activeId).toBe(''); // empty line → palette closed → ignored
+    const open = run(initialPromptState(), { kind: 'value/change', value: 'set', caret: 3 }).state;
+    const stale = run(open, { kind: 'item/activate', id: 'c:nope-not-a-real-id' }).state;
+    expect(stale.navigated).toBe(false);
+    expect(stale.activeId).toBe(open.activeId);
   });
 
   it('history/push then history/patchStatus record and amend the newest line', () => {

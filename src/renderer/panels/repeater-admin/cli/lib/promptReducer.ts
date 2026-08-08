@@ -10,7 +10,7 @@ import type { CliCommand } from '../../../../../shared/repeater-cli/catalog';
 import { commonPrefix } from './match';
 import { parseCliLine, resolveCommand } from './parse';
 import { type CliHistoryEntry, patchLastStatus, pushHistory } from './persistence';
-import { applySuggestion, type CliSuggestCtx, type CliSuggestion, suggest } from './suggest';
+import { applySuggestion, type CliSuggestCtx, type CliSuggestion, orderedSuggestions, suggest } from './suggest';
 
 export interface CliPromptState {
   value: string;
@@ -43,6 +43,7 @@ export type CliPromptAction =
   | { kind: 'key/ctrlG' }
   | { kind: 'key/ctrlL' }
   | { kind: 'item/apply'; id: string }
+  | { kind: 'item/activate'; id: string } // pointer hover: highlight + show detail (does NOT arm Enter/Tab)
   | { kind: 'line/set'; text: string }
   | { kind: 'history/loaded'; history: CliHistoryEntry[] }
   | { kind: 'history/push'; entry: CliHistoryEntry }
@@ -69,8 +70,13 @@ export function initialPromptState(ctx?: Partial<CliSuggestCtx>): CliPromptState
   };
 }
 
+/** The palette items in DISPLAY order — the same order CliPalette renders — so
+ *  ↑/↓ step to the next visual row and `[0]` is the first visible row. Every
+ *  navigation, ghost, and selection path reads this one list, which is why the
+ *  keyboard can never drift from what the eye sees. */
 export function paletteItems(s: CliPromptState): CliSuggestion[] {
-  return suggest(s.value, s.caret, s.ctx).items;
+  const { parse, items } = suggest(s.value, s.caret, s.ctx);
+  return orderedSuggestions(parse, items);
 }
 
 /** Derived, never stored. No `items.length > 0` term — a zero-item palette must
@@ -279,6 +285,20 @@ export function cliPromptReducer(s: CliPromptState, a: CliPromptAction): { state
     case 'item/apply': {
       const item = paletteItems(s).find((i) => i.id === a.id);
       return { state: item ? applyItem(s, item) : s };
+    }
+
+    // Pointer hover moves the highlight and detail pane to the row, but does NOT
+    // arm Enter/Tab: `navigated` is left untouched, so an incidental hover (the
+    // mouse crossing a row on its way elsewhere) can never change what Enter
+    // does — only a deliberate ↑/↓ or a click makes a "real" selection. Keeping
+    // navigated out of this also makes it path-independent: hovering the already
+    // active row and hovering away-and-back both leave the same state. No-op if
+    // the palette is closed, the row is already active, or the id is stale (the
+    // list changed under an in-flight hover event).
+    case 'item/activate': {
+      if (!isPaletteOpen(s) || s.activeId === a.id) return { state: s };
+      if (!paletteItems(s).some((i) => i.id === a.id)) return { state: s };
+      return { state: { ...s, activeId: a.id } };
     }
 
     case 'line/set':
