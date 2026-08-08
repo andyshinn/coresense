@@ -21,8 +21,10 @@ describe('isKnownHashMode', () => {
 });
 
 describe('hopCeiling', () => {
-  // 64-byte path buffer / bytes-per-hop.
-  it('is 64 hops in 1-byte mode', () => expect(hopCeiling(1)).toBe(64));
+  // 64-byte path buffer / bytes-per-hop, except 1-byte mode: the packed
+  // path-length byte has only 6 bits for the hop count, so 63 (not 64) is the
+  // real wall there. 2-byte (32) and 3-byte (21) already sit below it.
+  it('is 63 hops in 1-byte mode', () => expect(hopCeiling(1)).toBe(63));
   it('is 32 hops in 2-byte mode', () => expect(hopCeiling(2)).toBe(32));
   it('is 21 hops in 3-byte mode', () => expect(hopCeiling(3)).toBe(21));
   it('is null when the mode is unknown', () => expect(hopCeiling(null)).toBeNull());
@@ -36,20 +38,22 @@ describe('hopWarmth', () => {
   });
 
   it('reaches 1 exactly at the soft cap (ceiling / divisor)', () => {
-    expect(hopWarmth(HOP_CEILING[1] / HOP_RAMP_CAP_DIVISOR, 1)).toBe(1); // 16h
+    expect(hopWarmth(HOP_CEILING[1] / HOP_RAMP_CAP_DIVISOR, 1)).toBe(1); // 15.75h
     expect(hopWarmth(HOP_CEILING[2] / HOP_RAMP_CAP_DIVISOR, 2)).toBe(1); // 8h
     expect(hopWarmth(HOP_CEILING[3] / HOP_RAMP_CAP_DIVISOR, 3)).toBe(1); // 5.25h
   });
 
   it('is half warm at half the cap', () => {
-    expect(hopWarmth(8, 1)).toBe(0.5);
+    // 1-byte's cap is 63/4 = 15.75, not an integer, so this is expressed in
+    // terms of the constants rather than a literal hop count.
+    expect(hopWarmth(HOP_CEILING[1] / HOP_RAMP_CAP_DIVISOR / 2, 1)).toBe(0.5);
     expect(hopWarmth(4, 2)).toBe(0.5);
   });
 
   // The whole point of the feature: the same count reads hotter the more
   // expensive the hash mode, because the budget it spends is smaller.
   it('warms faster the smaller the ceiling', () => {
-    expect(hopWarmth(4, 1)).toBeCloseTo(0.25, 5);
+    expect(hopWarmth(4, 1)).toBeCloseTo(0.254, 3); // 4 / 15.75
     expect(hopWarmth(4, 2)).toBeCloseTo(0.5, 5);
     expect(hopWarmth(4, 3)).toBeCloseTo(0.7619, 4);
   });
@@ -111,7 +115,7 @@ describe('hopTitle', () => {
   });
 
   it('uses the singular for a single hop', () => {
-    expect(hopTitle(1, 1)).toBe('1 hop · max 64 (1-byte path hash)');
+    expect(hopTitle(1, 1)).toBe('1 hop · max 63 (1-byte path hash)');
   });
 
   it('says "0 hops" for a direct message', () => {

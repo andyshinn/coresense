@@ -193,7 +193,11 @@ function TrailingMeta({ message, stats }: { message: Message; stats: PathStats }
 
 /** Hop count and path-hash mode as a badge pair. Renders nothing when neither
  *  is known. The hop badge is unfilled and the hash badge filled, which is what
- *  keeps them legible side by side. */
+ *  keeps them legible side by side. `stats.hashMode` is never `HASH_MODE_UNKNOWN`
+ *  (0) here in practice: that sentinel is only stamped by `HeardVia`'s
+ *  synthesized paths, which feed `PathItem` alone, and the protocol library
+ *  rejects `hashSize === 4` at decode — so this call site only ever sees
+ *  `null | 1 | 2 | 3`. Not worth a test for the unreachable `0` case. */
 function PathStatsMeta({ stats }: { stats: PathStats }) {
   if (stats.hops == null && !isKnownHashMode(stats.hashMode)) return null;
   return (

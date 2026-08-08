@@ -1,19 +1,22 @@
 // The hop-count warming ramp: how a relay hop count becomes a colour. Pure and
 // DOM-free so every part of it — including the CSS strings — is unit-testable
-// in Node. The CSS lives here rather than in HopBadge because jsdom's parser
-// silently drops values it can't parse (color-mix among them), which would make
-// an inline-style assertion in a component test meaningless.
+// in Node. The CSS lives here rather than in HopBadge because pure string
+// construction belongs in the pure module: it runs in the fast Node project,
+// and it matches the existing precedent in lib/contactColor.ts, which builds
+// its own color-mix strings the same way.
 
 import type { PathHashSize } from '../../shared/types';
 
-/** Maximum hop count per path-hash mode. The routing path is a fixed 64-byte
- *  buffer and each hop consumes `hashMode` bytes, so the ceiling is
- *  floor(64 / hashMode). */
-export const HOP_CEILING: Record<PathHashSize, number> = { 1: 64, 2: 32, 3: 21 };
+/** Maximum hop count per path-hash mode: min(63, floor(64 / hashMode)). The
+ *  64-byte path buffer bounds it, and the 6-bit hop-count field (bits 5-0 of
+ *  the packed path-length byte — see src/shared/contacts/discovered.ts) caps
+ *  it at 63. That 63 wall only binds in 1-byte mode; 2-byte (32) and 3-byte
+ *  (21) already sit below it. */
+export const HOP_CEILING: Record<PathHashSize, number> = { 1: 63, 2: 32, 3: 21 };
 
 /** The fade completes at `ceiling / HOP_RAMP_CAP_DIVISOR` hops rather than at
  *  the ceiling itself: real traffic clusters at the low end, and a ramp that
- *  only saturated at 64 would leave nearly every badge sitting cool and doing
+ *  only saturated at 63 would leave nearly every badge sitting cool and doing
  *  no work. This is the tuning knob — raise it to make the ramp reach further
  *  before it maxes out. */
 export const HOP_RAMP_CAP_DIVISOR = 4;
@@ -41,6 +44,13 @@ export function hopCeiling(hashMode: number | null | undefined): number | null {
 export function hopWarmth(hops: number, hashMode: number | null | undefined): number {
   const ceiling = hopCeiling(hashMode);
   if (ceiling == null || !Number.isFinite(hops)) return 0;
+  // The ceiling clamp has no observable effect at the current divisor: the
+  // Math.min(…, 1) below already saturates at that same point, since the cap
+  // (ceiling / HOP_RAMP_CAP_DIVISOR) never exceeds the ceiling while the
+  // divisor is ≥ 1. It's forward defence, not dead code — if the divisor were
+  // ever tuned below 1, the cap would exceed the ceiling and this is what
+  // would still stop hops above the ceiling from reading hotter than max.
+  // Math.max(hops, 0) is the only clamp that's load-bearing today.
   const clamped = Math.min(Math.max(hops, 0), ceiling);
   return Math.min(clamped / (ceiling / HOP_RAMP_CAP_DIVISOR), 1);
 }

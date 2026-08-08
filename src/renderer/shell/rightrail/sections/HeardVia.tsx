@@ -43,7 +43,7 @@ function synthesizeUnnamedPath(message: Message, hopCount: number): MessagePath 
     hops,
     // Synthesized from a bare hop count precisely because no observation
     // exists — so we never saw the hash mode either. Claiming 1 here would
-    // assert a 64-hop ceiling and warm the badge against a number we invented.
+    // assert a 63-hop ceiling and warm the badge against a number we invented.
     hashMode: HASH_MODE_UNKNOWN,
     finalSnr: message.meta?.snr ?? 0,
   };

@@ -18,9 +18,10 @@ Two problems with that. The number carries no magnitude at a glance, so a reader
 has to parse every digit to tell a direct message from one that crossed half the
 mesh. And the count is displayed without its ceiling: the routing path is a
 fixed 64-byte buffer, so the maximum hop count depends on the path-hash mode —
-64 hops at 1 byte per hop, 32 at 2 bytes, 21 at 3. `9h` means something very
-different in 3-byte mode (nearly at the wall) than in 1-byte mode (barely
-started), and nothing in the UI says so.
+63 hops at 1 byte per hop, 32 at 2 bytes, 21 at 3. (1-byte's wall is 63, not
+64: the packed path-length byte has only 6 bits for the hop count.) `9h` means
+something very different in 3-byte mode (nearly at the wall) than in 1-byte
+mode (barely started), and nothing in the UI says so.
 
 `PathItem` has the same gap, showing `8 hops` as plain text next to the badge it
 pairs with.
@@ -53,18 +54,21 @@ Sourced from the approved Claude Design handoff `Hop Count Badge.html` (project
 
 ### Ceiling per hash mode
 
-The path buffer is 64 bytes and each hop consumes `hashMode` bytes, so:
+The path buffer is 64 bytes and each hop consumes `hashMode` bytes, giving
+`floor(64 / hashMode)` — except in 1-byte mode, where the ceiling is also
+bounded by the 6-bit hop-count field in the packed path-length byte (bits 5-0;
+see `src/shared/contacts/discovered.ts`), which caps it at 63:
 
 | hash mode | ceiling |
 |---|---|
-| 1 byte | 64 hops |
+| 1 byte | 63 hops |
 | 2 bytes | 32 hops |
 | 3 bytes | 21 hops |
 
 ### Soft cap
 
 The fade completes well before the ceiling — real traffic clusters at the low
-end, and a ramp that only saturates at 64 would leave nearly every badge sitting
+end, and a ramp that only saturates at 63 would leave nearly every badge sitting
 at the cool end doing no work. The cap is a fixed fraction of the ceiling:
 
 ```
@@ -72,7 +76,7 @@ cap = ceiling / HOP_RAMP_CAP_DIVISOR      // divisor = 4
 warmth = min(hops / cap, 1)               // 0 → 1
 ```
 
-| hops | 1-byte (cap 16) | 2-byte (cap 8) | 3-byte (cap 5.25) |
+| hops | 1-byte (cap 15.75) | 2-byte (cap 8) | 3-byte (cap 5.25) |
 |---|---|---|---|
 | 0 | 0% | 0% | 0% |
 | 1 | 6% | 13% | 19% |
@@ -80,7 +84,7 @@ warmth = min(hops / cap, 1)               // 0 → 1
 | 3 | 19% | 38% | 57% |
 | 4 | 25% | 50% | 76% |
 | 6 | 38% | 75% | 100% |
-| 8 | 50% | 100% | 100% |
+| 8 | 51% | 100% | 100% |
 | 16 | 100% | 100% | 100% |
 
 `HOP_RAMP_CAP_DIVISOR` is a named exported constant, not a literal, so the
@@ -168,7 +172,7 @@ so a direct message is as quiet as the meta text around it. It is deliberately a
 Pure, no React, independently testable.
 
 ```ts
-export const HOP_CEILING: Record<PathHashSize, number> = { 1: 64, 2: 32, 3: 21 };
+export const HOP_CEILING: Record<PathHashSize, number> = { 1: 63, 2: 32, 3: 21 };
 
 /** Fade completes at ceiling ÷ this. Raise it to make the ramp reach further. */
 export const HOP_RAMP_CAP_DIVISOR = 4;
@@ -251,7 +255,7 @@ renders only for a known mode.
 
 ### `HeardVia.tsx`
 
-`synthesizeUnnamedPath` currently hardcodes `hashMode: 1`, asserting a 64-hop
+`synthesizeUnnamedPath` currently hardcodes `hashMode: 1`, asserting a 63-hop
 ceiling it never observed — the path is synthesized from a bare hop count
 precisely because no observation exists. It becomes `HASH_MODE_UNKNOWN`, so a
 synthesized path renders unwarmed and its row shows no hash badge.
@@ -282,7 +286,7 @@ does render one for 1/2/3.
 ## Risks
 
 - **The ramp is subtle at 1-byte mode.** 1 hop is 6% warm, barely distinguishable
-  from 0. That is inherent to a 64-hop ceiling and is what
+  from 0. That is inherent to a 63-hop ceiling and is what
   `HOP_RAMP_CAP_DIVISOR` exists to retune once it has been seen against real
   traffic.
 - **`--cs-hop-far` is the brand accent in dark mode.** `index.css` otherwise

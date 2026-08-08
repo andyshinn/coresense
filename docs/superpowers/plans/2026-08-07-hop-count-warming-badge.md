@@ -12,12 +12,12 @@
 
 **One refinement on the spec:** the spec sketched the `color-mix` string and the
 tooltip text as inline expressions in `HopBadge`. This plan moves both into
-`hopWarmth.ts` as `hopTint` and `hopTitle`. jsdom's CSS parser silently drops
-declarations it cannot parse — `color-mix` among them — so a component-level
-assertion on the inline style would pass or fail for reasons unrelated to the
-ramp. Built as plain strings in the Node project they are exactly assertable,
-and the component is left with nothing but markup. Same rendered output, no
-change to any token or to the ramp.
+`hopWarmth.ts` as `hopTint` and `hopTitle`. Pure string construction belongs in
+the pure module: it runs in the fast Node project, and it matches the existing
+precedent in `lib/contactColor.ts`, which builds its own `color-mix` strings
+the same way. Built as plain strings in the Node project they are exactly
+assertable, and the component is left with nothing but markup. Same rendered
+output, no change to any token or to the ramp.
 
 ## Global Constraints
 
@@ -51,7 +51,7 @@ Expected: all suites pass.
 
 Everything about "how a hop count becomes a colour" lives in one pure file. No React, no DOM — so it can be tested in the fast Node project, and so the component that consumes it has nothing left to test but markup.
 
-The CSS strings live here rather than in the component on purpose: jsdom's CSS parser silently drops values it cannot parse, and `color-mix(…)` is one of them, so an inline-style assertion in a jsdom test would be worthless. Built as a plain string in Node, it is exactly assertable.
+The CSS strings live here rather than in the component on purpose: pure string construction belongs in the pure module, it runs in the fast Node project, and it matches the existing precedent in `lib/contactColor.ts`, which builds its own `color-mix` strings the same way. Built as a plain string in Node, it is exactly assertable.
 
 **Files:**
 - Create: `src/renderer/lib/hopWarmth.ts`
@@ -97,8 +97,10 @@ describe('isKnownHashMode', () => {
 });
 
 describe('hopCeiling', () => {
-  // 64-byte path buffer / bytes-per-hop.
-  it('is 64 hops in 1-byte mode', () => expect(hopCeiling(1)).toBe(64));
+  // 64-byte path buffer / bytes-per-hop, except 1-byte mode: the packed
+  // path-length byte has only 6 bits for the hop count, so 63 (not 64) is the
+  // real wall there. 2-byte (32) and 3-byte (21) already sit below it.
+  it('is 63 hops in 1-byte mode', () => expect(hopCeiling(1)).toBe(63));
   it('is 32 hops in 2-byte mode', () => expect(hopCeiling(2)).toBe(32));
   it('is 21 hops in 3-byte mode', () => expect(hopCeiling(3)).toBe(21));
   it('is null when the mode is unknown', () => expect(hopCeiling(null)).toBeNull());
@@ -112,20 +114,22 @@ describe('hopWarmth', () => {
   });
 
   it('reaches 1 exactly at the soft cap (ceiling / divisor)', () => {
-    expect(hopWarmth(HOP_CEILING[1] / HOP_RAMP_CAP_DIVISOR, 1)).toBe(1); // 16h
+    expect(hopWarmth(HOP_CEILING[1] / HOP_RAMP_CAP_DIVISOR, 1)).toBe(1); // 15.75h
     expect(hopWarmth(HOP_CEILING[2] / HOP_RAMP_CAP_DIVISOR, 2)).toBe(1); // 8h
     expect(hopWarmth(HOP_CEILING[3] / HOP_RAMP_CAP_DIVISOR, 3)).toBe(1); // 5.25h
   });
 
   it('is half warm at half the cap', () => {
-    expect(hopWarmth(8, 1)).toBe(0.5);
+    // 1-byte's cap is 63/4 = 15.75, not an integer, so this is expressed in
+    // terms of the constants rather than a literal hop count.
+    expect(hopWarmth(HOP_CEILING[1] / HOP_RAMP_CAP_DIVISOR / 2, 1)).toBe(0.5);
     expect(hopWarmth(4, 2)).toBe(0.5);
   });
 
   // The whole point of the feature: the same count reads hotter the more
   // expensive the hash mode, because the budget it spends is smaller.
   it('warms faster the smaller the ceiling', () => {
-    expect(hopWarmth(4, 1)).toBeCloseTo(0.25, 5);
+    expect(hopWarmth(4, 1)).toBeCloseTo(0.254, 3); // 4 / 15.75
     expect(hopWarmth(4, 2)).toBeCloseTo(0.5, 5);
     expect(hopWarmth(4, 3)).toBeCloseTo(0.7619, 4);
   });
@@ -187,7 +191,7 @@ describe('hopTitle', () => {
   });
 
   it('uses the singular for a single hop', () => {
-    expect(hopTitle(1, 1)).toBe('1 hop · max 64 (1-byte path hash)');
+    expect(hopTitle(1, 1)).toBe('1 hop · max 63 (1-byte path hash)');
   });
 
   it('says "0 hops" for a direct message', () => {
@@ -212,20 +216,23 @@ Create `src/renderer/lib/hopWarmth.ts`:
 ```ts
 // The hop-count warming ramp: how a relay hop count becomes a colour. Pure and
 // DOM-free so every part of it — including the CSS strings — is unit-testable
-// in Node. The CSS lives here rather than in HopBadge because jsdom's parser
-// silently drops values it can't parse (color-mix among them), which would make
-// an inline-style assertion in a component test meaningless.
+// in Node. The CSS lives here rather than in HopBadge because pure string
+// construction belongs in the pure module: it runs in the fast Node project,
+// and it matches the existing precedent in lib/contactColor.ts, which builds
+// its own color-mix strings the same way.
 
 import type { PathHashSize } from '../../shared/types';
 
-/** Maximum hop count per path-hash mode. The routing path is a fixed 64-byte
- *  buffer and each hop consumes `hashMode` bytes, so the ceiling is
- *  floor(64 / hashMode). */
-export const HOP_CEILING: Record<PathHashSize, number> = { 1: 64, 2: 32, 3: 21 };
+/** Maximum hop count per path-hash mode: min(63, floor(64 / hashMode)). The
+ *  64-byte path buffer bounds it, and the 6-bit hop-count field (bits 5-0 of
+ *  the packed path-length byte — see src/shared/contacts/discovered.ts) caps
+ *  it at 63. That 63 wall only binds in 1-byte mode; 2-byte (32) and 3-byte
+ *  (21) already sit below it. */
+export const HOP_CEILING: Record<PathHashSize, number> = { 1: 63, 2: 32, 3: 21 };
 
 /** The fade completes at `ceiling / HOP_RAMP_CAP_DIVISOR` hops rather than at
  *  the ceiling itself: real traffic clusters at the low end, and a ramp that
- *  only saturated at 64 would leave nearly every badge sitting cool and doing
+ *  only saturated at 63 would leave nearly every badge sitting cool and doing
  *  no work. This is the tuning knob — raise it to make the ramp reach further
  *  before it maxes out. */
 export const HOP_RAMP_CAP_DIVISOR = 4;
@@ -253,6 +260,13 @@ export function hopCeiling(hashMode: number | null | undefined): number | null {
 export function hopWarmth(hops: number, hashMode: number | null | undefined): number {
   const ceiling = hopCeiling(hashMode);
   if (ceiling == null || !Number.isFinite(hops)) return 0;
+  // The ceiling clamp has no observable effect at the current divisor: the
+  // Math.min(…, 1) below already saturates at that same point, since the cap
+  // (ceiling / HOP_RAMP_CAP_DIVISOR) never exceeds the ceiling while the
+  // divisor is ≥ 1. It's forward defence, not dead code — if the divisor were
+  // ever tuned below 1, the cap would exceed the ceiling and this is what
+  // would still stop hops above the ceiling from reading hotter than max.
+  // Math.max(hops, 0) is the only clamp that's load-bearing today.
   const clamped = Math.min(Math.max(hops, 0), ceiling);
   return Math.min(clamped / (ceiling / HOP_RAMP_CAP_DIVISOR), 1);
 }
@@ -297,7 +311,7 @@ git add src/renderer/lib/hopWarmth.ts tests/unit/renderer/lib/hopWarmth.test.ts
 git commit -m "feat(hops): add the hop-count warming ramp
 
 The ramp normalises a hop count against the ceiling its path-hash mode
-implies (64/32/21 hops for 1/2/3 bytes per hop) and fades over a quarter
+implies (63/32/21 hops for 1/2/3 bytes per hop) and fades over a quarter
 of that ceiling, so the badge reads as routing headroom spent rather than
 absolute relay count. An unknown mode yields zero warmth — without a
 ceiling there is no honest distance to claim.
@@ -429,7 +443,7 @@ describe('HopBadge', () => {
 });
 ```
 
-Note there is deliberately **no** assertion on the inline `color` here — jsdom drops `color-mix`. That string is covered by `hopTint`'s Node tests in Task 1.
+Note there is deliberately no assertion here on what colour `hopTint` *produces* — that string is covered by `hopTint`'s own Node tests in Task 1, and re-deriving the ramp's percentages in a jsdom test would only duplicate that coverage. (A later fix wave added a narrower assertion to this file — that `HopBadge` actually wears `hopTint`'s output on `style.color`/`style.borderColor` — because without it, deleting the `style` prop shipped a permanently colourless badge with the whole suite green. See `tests/component/hop-badge.test.tsx`'s `wears the ramp tint…` cases.)
 
 - [ ] **Step 3: Run the test to verify it fails**
 
@@ -669,7 +683,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ### Task 4: Path rows, and an honest unknown mode
 
-`PathItem` gets the same treatment. This task also fixes a small existing lie: when no mesh observation exists, `HeardVia` synthesizes a path from a bare hop count and stamps `hashMode: 1` on it — asserting a 64-hop ceiling it never observed. Left alone, that would make a synthesized path render *warmed* against a fabricated ceiling.
+`PathItem` gets the same treatment. This task also fixes a small existing lie: when no mesh observation exists, `HeardVia` synthesizes a path from a bare hop count and stamps `hashMode: 1` on it — asserting a 63-hop ceiling it never observed. Left alone, that would make a synthesized path render *warmed* against a fabricated ceiling.
 
 **Files:**
 - Modify: `src/renderer/components/path/PathItem.tsx:55-69`
@@ -779,7 +793,7 @@ to:
 ```tsx
     // Synthesized from a bare hop count precisely because no observation
     // exists — so we never saw the hash mode either. Claiming 1 here would
-    // assert a 64-hop ceiling and warm the badge against a number we invented.
+    // assert a 63-hop ceiling and warm the badge against a number we invented.
     hashMode: HASH_MODE_UNKNOWN,
 ```
 
@@ -802,7 +816,7 @@ git commit -m "feat(hops): warm the hop count in path rows
 Also stops HeardVia's synthesized path claiming hashMode 1. That path is
 built from a bare hop count precisely because no observation exists, so
 the mode was never seen either — asserting 1 would have warmed the badge
-against an invented 64-hop ceiling.
+against an invented 63-hop ceiling.
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```

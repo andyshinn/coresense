@@ -40,5 +40,11 @@ describe('PathItem hop count', () => {
     expect(badges(container)).toContain('3h');
     expect(badges(container)).not.toContain('0b');
     expect(container.textContent).not.toContain('0b');
+    // The `·` separator and the trailing "path" word belong to the hash badge
+    // and moved inside its guard for exactly this case — otherwise an
+    // unknown-mode row would render a dangling "· path". Assert the word is
+    // gone too, not just the badge, or moving <span>path</span> back outside
+    // the guard would still pass this test.
+    expect(container.textContent).not.toContain('path');
   });
 });

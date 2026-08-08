@@ -1,6 +1,7 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { HopBadge } from '../../src/renderer/components/HopBadge';
+import { hopTint } from '../../src/renderer/lib/hopWarmth';
 
 function badgeEl(container: HTMLElement): HTMLElement {
   const el = container.querySelector('[data-slot="badge"]');
@@ -69,5 +70,19 @@ describe('HopBadge', () => {
     // string carries `[a&]:hover:bg-accent`, so a bare /bg-/ would always
     // match. What must be absent is an UNPREFIXED background utility.
     expect(badgeEl(container).className).not.toMatch(/(^|\s)bg-/);
+  });
+
+  // The colour IS the feature. Without this, deleting the style prop would
+  // ship a permanently colourless badge with the whole suite still green.
+  it('wears the ramp tint for its hop count and mode', () => {
+    const { container } = render(<HopBadge hops={4} hashMode={2} />);
+    const badge = badgeEl(container);
+    expect(badge.style.color).toBe(hopTint(4, 2).color);
+    expect(badge.style.borderColor).toBe(hopTint(4, 2).borderColor);
+  });
+
+  it('wears a different tint at a different distance', () => {
+    const { container } = render(<HopBadge hops={1} hashMode={2} />);
+    expect(badgeEl(container).style.color).toBe(hopTint(1, 2).color);
   });
 });
