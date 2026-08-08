@@ -131,6 +131,37 @@ describe('CliPalette', () => {
     expect(listbox.getAttribute('aria-activedescendant')).toBe('c:set name');
   });
 
+  it('scrolls the active option into view when the selection moves', () => {
+    // jsdom has no layout, so assert the follow-scroll intent: the active row's
+    // scrollIntoView is invoked when activeId changes. Stub it on the prototype
+    // (defined-or-not in jsdom) and restore after.
+    const proto = HTMLElement.prototype as unknown as { scrollIntoView?: (opts?: ScrollIntoViewOptions) => void };
+    const original = proto.scrollIntoView;
+    const scrollSpy = vi.fn();
+    proto.scrollIntoView = scrollSpy;
+    try {
+      const items = [
+        item({ label: 'set radio', cmd: cmd('set radio', 'Radio') }),
+        item({ label: 'set name', cmd: cmd('set name', 'System') }),
+      ];
+      const shared = {
+        open: true as const,
+        parse: commandParse,
+        items,
+        nodeValues: {},
+        radioSettings: radio,
+        hops: 1,
+        onApply: () => {},
+      };
+      const { rerender } = render(<CliPalette {...shared} activeId="c:set radio" />);
+      scrollSpy.mockClear(); // ignore the initial-mount scroll
+      rerender(<CliPalette {...shared} activeId="c:set name" />);
+      expect(scrollSpy).toHaveBeenCalledWith({ block: 'nearest' });
+    } finally {
+      proto.scrollIntoView = original;
+    }
+  });
+
   it('applies an item on mousedown', () => {
     const onApply = vi.fn();
     const it0 = item({ label: 'set radio', cmd: cmd('set radio', 'Radio') });

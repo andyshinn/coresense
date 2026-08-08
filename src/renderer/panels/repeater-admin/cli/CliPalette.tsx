@@ -217,6 +217,17 @@ export function CliPalette({
       : null;
   const activeNodeValue = activeCmd?.key ? nodeValues[activeCmd.key] : undefined;
 
+  // Follow the keyboard: keep the active row visible when ↑/↓ move the selection
+  // past the scroll window. block:'nearest' scrolls the listbox the minimal
+  // amount and is a no-op when the row is already visible — so hovering (which
+  // lands on an already-visible row) never yanks the list. Rows carry id=item.id
+  // (getElementById tolerates the ':'/space in the id that querySelector would not).
+  const activeOptionId = active?.id;
+  useLayoutEffect(() => {
+    if (!open || !activeOptionId) return;
+    document.getElementById(activeOptionId)?.scrollIntoView?.({ block: 'nearest' });
+  }, [open, activeOptionId]);
+
   return (
     <Popover open={open}>
       <PopoverAnchor asChild>
