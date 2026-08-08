@@ -1,5 +1,6 @@
 import type { Contact, Message, MessageHop, MessagePath } from '../../../../shared/types';
 import { PathViewer } from '../../../components/path/PathViewer';
+import { HASH_MODE_UNKNOWN } from '../../../lib/hopWarmth';
 import { Placeholder } from '../atoms';
 
 /** Path timeline showing how a message reached the local radio. */
@@ -40,7 +41,10 @@ function synthesizeUnnamedPath(message: Message, hopCount: number): MessagePath 
   return {
     id: `synth-${message.id}`,
     hops,
-    hashMode: 1,
+    // Synthesized from a bare hop count precisely because no observation
+    // exists — so we never saw the hash mode either. Claiming 1 here would
+    // assert a 64-hop ceiling and warm the badge against a number we invented.
+    hashMode: HASH_MODE_UNKNOWN,
     finalSnr: message.meta?.snr ?? 0,
   };
 }
