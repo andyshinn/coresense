@@ -55,11 +55,18 @@ describe('main-process vite externals', () => {
   });
 
   it('covers the prefix-only builtins the forge plugin structurally cannot', () => {
-    // Pins the mechanism, not just the symptom. Harmless if a future Node
-    // starts listing these; until then it's the only thing externalizing them.
+    // The guarantee: our config externalizes these regardless of Node version.
+    // We also pin the *mechanism* (forge structurally can't, so ours is the only
+    // thing doing it) — but only on Nodes that don't yet list the builtin. A
+    // newer Node that DOES list it (node:sqlite landed in builtinModules in Node
+    // 24, which CI runs) has forge covering it too, making our entry
+    // redundant-but-harmless; there the mechanism pin is skipped, not failed.
     for (const specifier of ['node:sqlite']) {
-      expect(forgeExternals).not.toContain(specifier);
       expect(ourExternals).toContain(specifier);
+      const bareName = specifier.slice('node:'.length);
+      if (!builtinModules.includes(bareName)) {
+        expect(forgeExternals).not.toContain(specifier);
+      }
     }
   });
 });
