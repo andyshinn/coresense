@@ -40,12 +40,3 @@ export function firstPathStats(message: Message): PathStats {
   }
   return { hops: message.meta?.hops ?? null, hashMode: null };
 }
-
-/**
- * Compact hop label for the meta row: e.g. "2h" | "0h" | "". The path-hash mode
- * is no longer part of this string — it renders as a <PathHashBadge> alongside.
- * Uses `!= null` so a direct (0-hop) message renders "0h" rather than "".
- */
-export function formatPathStats(stats: PathStats): string {
-  return stats.hops != null ? `${stats.hops}h` : '';
-}

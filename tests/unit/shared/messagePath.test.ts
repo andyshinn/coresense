@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { firstPathStats, formatPathStats, relayHopCount } from '../../../src/shared/messagePath';
+import { firstPathStats, relayHopCount } from '../../../src/shared/messagePath';
 import type { Message, MessageHop } from '../../../src/shared/types';
 
 const msg = (meta: Message['meta']): Message => ({
@@ -81,27 +81,5 @@ describe('relayHopCount', () => {
 
   it('is 0 for an empty hop list', () => {
     expect(relayHopCount({ id: 'p', hashMode: 1, finalSnr: 0, hops: [] })).toBe(0);
-  });
-});
-
-describe('formatPathStats (hops label)', () => {
-  it('formats the hop count, ignoring hash mode (now shown as a badge)', () => {
-    expect(formatPathStats({ hops: 2, hashMode: 1 })).toBe('2h');
-  });
-
-  it('formats hops even when the hash mode is null', () => {
-    expect(formatPathStats({ hops: 3, hashMode: null })).toBe('3h');
-  });
-
-  it('returns empty when hops is null regardless of hash mode', () => {
-    expect(formatPathStats({ hops: null, hashMode: 2 })).toBe('');
-  });
-
-  it('returns empty when both are null', () => {
-    expect(formatPathStats({ hops: null, hashMode: null })).toBe('');
-  });
-
-  it('keeps a 0-hop (direct) message as 0h', () => {
-    expect(formatPathStats({ hops: 0, hashMode: 1 })).toBe('0h');
   });
 });
