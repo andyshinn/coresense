@@ -421,7 +421,10 @@ describe('HopBadge', () => {
   it('uses the outline variant so it carries no fill', () => {
     const { container } = render(<HopBadge hops={4} hashMode={2} />);
     expect(badgeEl(container).getAttribute('data-variant')).toBe('outline');
-    expect(badgeEl(container).className).not.toMatch(/\bbg-/);
+    // Anchored to a token boundary on purpose: badgeVariants' own outline
+    // string carries `[a&]:hover:bg-accent`, so a bare /bg-/ would always
+    // match. What must be absent is an UNPREFIXED background utility.
+    expect(badgeEl(container).className).not.toMatch(/(^|\s)bg-/);
   });
 });
 ```
@@ -835,7 +838,7 @@ Expected: no matches (the only one was `HeardVia`'s synthesized path).
 
 - [ ] **Step 5: Look at it in the running app**
 
-Run: `pnpm start`
+Run: `npx electron-forge start`
 
 Check the message list and the Heard-via rail section: a 0-hop message should be the quietest thing on the meta line, and hop count should visibly warm with distance. Toggle the theme in Settings → Appearance and confirm the light ramp is legible at both ends and still distinguishable from the `2b` badge beside it.
 
