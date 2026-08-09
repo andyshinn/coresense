@@ -5,6 +5,7 @@ import type { Contact } from '../../shared/types';
 import { Composer, type ComposerHandle } from '../components/Composer';
 import { MessageList } from '../components/MessageList';
 import { RssiChip } from '../components/RssiChip';
+import { useJumpBackfill } from '../hooks/useJumpBackfill';
 import { type ApiClient, api } from '../lib/api';
 import { notify } from '../lib/notify';
 import { useStore } from '../lib/store';
@@ -58,6 +59,10 @@ export function DMView({ contact, client }: Props) {
       cancelled = true;
     };
   }, [client, contact.key, applyMessages]);
+
+  // A search hit older than the trailing window above has no row to scroll to
+  // until this pulls the history around it.
+  useJumpBackfill(client, contact.key, pendingJumpMid);
 
   const onSend = useCallback(
     async (body: string) => {

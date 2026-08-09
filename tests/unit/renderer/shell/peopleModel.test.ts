@@ -26,6 +26,7 @@ const row = (over: Partial<RosterRow> = {}): RosterRow => ({
   ambiguous: false,
   blocked: false,
   inContacts: true,
+  self: false,
   msgCount: 1,
   lastSeenAt: NOW,
   ...over,
@@ -184,7 +185,7 @@ describe('volume bar', () => {
 });
 
 describe('toRosterRows', () => {
-  it('drops self and unknown', () => {
+  it('emits a You row for the null bucket and still drops unknown', () => {
     const rows = toRosterRows(
       [
         { fromPk: null, count: 1, lastTs: NOW },
@@ -194,12 +195,92 @@ describe('toRosterRows', () => {
       [],
       [],
     );
-    expect(rows.map((r) => r.name)).toEqual(['alice']);
+    expect(rows.map((r) => r.name)).toEqual(['You', 'alice']);
+  });
+
+  it('carries the self count and last-send straight off the null bucket', () => {
+    const [r] = toRosterRows([{ fromPk: null, count: 7, lastTs: NOW - HOUR }], [], []);
+    expect(r).toEqual({
+      id: 'self',
+      name: 'You',
+      pubkey: null,
+      contactKey: null,
+      source: 'none',
+      ambiguous: false,
+      blocked: false,
+      inContacts: false,
+      self: true,
+      msgCount: 7,
+      lastSeenAt: NOW - HOUR,
+    });
+  });
+
+  // The user-visible symptom: a channel only we have posted to rendered
+  // "No one has been heard in this channel yet" under an activity chart
+  // showing our own bars. The empty-note guard is `all.length === 0`.
+  it('yields a row for a roster that contains only our own sends', () => {
+    expect(toRosterRows([{ fromPk: null, count: 4, lastTs: NOW }], [], [])).toHaveLength(1);
+  });
+
+  it('does not collide with a poster literally named self', () => {
+    const rows = toRosterRows(
+      [
+        { fromPk: null, count: 1, lastTs: NOW },
+        { fromPk: 'name:self', count: 2, lastTs: NOW },
+      ],
+      [],
+      [],
+    );
+    expect(rows.map((r) => r.id)).toEqual(['self', 'name:self']);
+    expect(new Set(rows.map((r) => r.id)).size).toBe(2);
   });
 
   it('marks a saved poster as a contact', () => {
     const contacts = [{ key: 'c:abc', publicKeyHex: 'abc', name: 'alice', kind: 'chat' as const }];
     const [r] = toRosterRows([{ fromPk: 'name:alice', count: 3, lastTs: NOW }], contacts, []);
-    expect(r).toMatchObject({ inContacts: true, contactKey: 'c:abc', pubkey: 'abc', msgCount: 3, lastSeenAt: NOW });
+    expect(r).toMatchObject({
+      inContacts: true,
+      contactKey: 'c:abc',
+      pubkey: 'abc',
+      self: false,
+      msgCount: 3,
+      lastSeenAt: NOW,
+    });
+  });
+});
+
+describe('the You row behaves like any other participant', () => {
+  const self = row({ id: 'self', name: 'You', pubkey: null, contactKey: null, inContacts: false, self: true });
+
+  // Deliberately NOT pinned to the top. The rail states a statistic; hoisting
+  // ourselves above louder posters would misreport it.
+  it('sorts by volume, not by being us', () => {
+    const rows = [self, row({ id: 'name:alice', name: 'alice', msgCount: 9 })];
+    expect(sortRoster(rows, 'loud').map((r) => r.name)).toEqual(['alice', 'You']);
+  });
+
+  it('sorts by recency, not by being us', () => {
+    const rows = [self, row({ id: 'name:alice', name: 'alice', lastSeenAt: NOW + HOUR })];
+    expect(sortRoster(rows, 'recent').map((r) => r.name)).toEqual(['alice', 'You']);
+  });
+
+  // Renormalising over our own row shrinks everyone else's bar when we are the
+  // loudest. That is the correct answer to "who's loud here" — pinned so it
+  // stays a decision rather than a surprise.
+  it('renormalises the volume bars when we are the loudest', () => {
+    const rows = [row({ ...self, msgCount: 10 }), row({ id: 'name:alice', name: 'alice', msgCount: 5 })];
+    expect(maxCount(rows)).toBe(10);
+    expect(volumeWidth(5, maxCount(rows))).toBe('50%');
+  });
+
+  // You are not in your own contact list, so the Contacts filter hides the row
+  // rather than quietly redefining that toggle as "contacts, plus you".
+  it('is hidden by the contacts filter', () => {
+    expect(filterRoster([self], 'contacts', '').length).toBe(0);
+    expect(filterRoster([self], 'all', '').length).toBe(1);
+  });
+
+  it('is searchable by name', () => {
+    expect(filterRoster([self], 'all', 'you').map((r) => r.name)).toEqual(['You']);
   });
 });

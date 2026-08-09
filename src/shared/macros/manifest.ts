@@ -70,16 +70,38 @@ export const MACRO_VARIABLES: MacroVariable[] = [
     example: '{{ sender_pos.lat }}',
     available: 'reply',
   },
-  { name: 'rssi', description: "This message's RSSI", type: 'number', example: '-95', available: 'reply' },
+  {
+    name: 'rssi',
+    // The radio reports RSSI per received frame, but the transport never
+    // attaches it to a Message, so this resolves to the `?` placeholder on
+    // every real message even though the preview above shows a number. Say so
+    // rather than let someone build a macro around it and transmit "?dBm" —
+    // the same trap `hops` used to be. Use `snr`, which IS populated.
+    description: "This message's RSSI. Not currently reported per message — prefer snr.",
+    type: 'number',
+    example: '-95',
+    available: 'reply',
+  },
   { name: 'snr', description: "This message's SNR", type: 'number', example: '5.5', available: 'reply' },
-  { name: 'hops', description: "This message's hop count", type: 'number', example: '2', available: 'reply' },
+  {
+    name: 'hops',
+    description: "This message's relay count — the same number the message row shows. 0 means direct.",
+    type: 'number',
+    example: '2',
+    available: 'reply',
+  },
   { name: 'times_heard', description: 'Distinct receptions merged', type: 'number', example: '3', available: 'reply' },
   {
     name: 'paths',
     description:
       'Relay paths this message took. `hops` is the repeaters between the sender and you (empty when direct); `all_hops` adds the sender and your radio at the ends. `length` is the relay count. Each hop has kind/short_id/name/pk — name and pk resolve only when exactly one known repeater matches the prefix.',
     type: 'array',
-    example: '{{ paths.first.hops | map: "short_id" | join: " → " | default: "direct" }}',
+    // `paths | map: "hops" | first`, not `paths.first.hops`: the latter raises
+    // `undefined variable: paths.first` whenever `paths` is empty, which is
+    // every DM. The filter chain yields the `default` instead, and — unlike a
+    // {% for %} loop, whose locals lint cannot see — keeps `short_id` property-
+    // checked by lintTemplate.
+    example: '{{ paths | map: "hops" | first | map: "short_id" | join: " → " | default: "direct" }}',
     available: 'reply',
   },
 ];

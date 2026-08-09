@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { createMacroEngine } from '../../../src/shared/macros/engine';
 import { buildSampleContext, getManifest, MACRO_VARIABLES } from '../../../src/shared/macros/manifest';
+import { renderTemplate } from '../../../src/shared/macros/render';
 
 describe('macro manifest', () => {
   it('exposes core variables with availability', () => {
@@ -18,6 +20,25 @@ describe('macro manifest', () => {
     expect(paths?.example).toContain('short_id');
     expect(paths?.example).toContain('default: "direct"');
     expect(paths?.description).toContain('all_hops');
+  });
+
+  // Every documented example is copy-paste bait, so each one has to survive the
+  // *worst* real context, not just the sample. `paths.first.hops` passed against
+  // the sample and raised `undefined variable: paths.first` on every DM.
+  describe('examples render against a context with no path observations', () => {
+    const engine = createMacroEngine({ defaultDistanceUnit: 'metric' });
+    const pathless = () => ({ ...buildSampleContext(), paths: [] }) as unknown as Record<string, unknown>;
+
+    for (const v of MACRO_VARIABLES.filter((x) => x.example.includes('{{'))) {
+      it(`${v.name}: ${v.example}`, () => {
+        expect(renderTemplate(engine, v.example, pathless())).toMatchObject({ ok: true });
+      });
+    }
+
+    it('the paths example falls back to "direct" rather than erroring', () => {
+      const example = MACRO_VARIABLES.find((v) => v.name === 'paths')?.example as string;
+      expect(renderTemplate(engine, example, pathless())).toEqual({ ok: true, text: 'direct' });
+    });
   });
 
   it('sample path carries relay hops, one resolved and one not', () => {

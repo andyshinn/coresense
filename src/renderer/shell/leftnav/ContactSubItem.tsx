@@ -2,7 +2,9 @@ import { BellOff, Star } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import type { Contact } from '../../../shared/types';
 import { SidebarMenuSubButton, SidebarMenuSubItem } from '../../components/ui/sidebar';
+import { shouldShowUnread } from '../../hooks/useUnreads';
 import { CONTACT_ICON } from '../../lib/conversationIcons';
+import { useStore } from '../../lib/store';
 import { ACTIVE_BUTTON_CLASS, UnreadChip } from './atoms';
 
 /** Single contact row in a sub-list with unread/mute/pin badges. */
@@ -22,7 +24,8 @@ export function ContactSubItem({
   onContextMenu: (e: MouseEvent) => void;
 }) {
   const Icon = CONTACT_ICON[contact.kind];
-  const showUnread = unread > 0 && !active;
+  const windowFocused = useStore((s) => s.windowFocused);
+  const showUnread = shouldShowUnread(unread, active, windowFocused);
   return (
     <SidebarMenuSubItem>
       <SidebarMenuSubButton

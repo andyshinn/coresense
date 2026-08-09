@@ -11,7 +11,9 @@ import { discoveredNameIndex, type IdentitySource, resolveIdentity } from '../..
 export type BucketId = 'today' | 'yesterday' | 'week' | 'earlier';
 
 export interface RosterRow {
-  /** The raw from_pk. Unique — it is a GROUP BY key. */
+  /** The raw from_pk, or the literal `'self'` for our own bucket (whose from_pk
+   *  is NULL). Unique: from_pk is a GROUP BY key, and a real poster id is always
+   *  either `name:<n>` or hex, neither of which can spell "self". */
   id: string;
   name: string;
   pubkey: string | null;
@@ -20,6 +22,9 @@ export interface RosterRow {
   ambiguous: boolean;
   blocked: boolean;
   inContacts: boolean;
+  /** Our own sends. Carries no pubkey or contact, so the row is inert: nothing
+   *  to message, nothing to save, and no identity hue. */
+  self: boolean;
   /** Messages seen in THIS channel, not globally. */
   msgCount: number;
   lastSeenAt: number;
@@ -44,9 +49,18 @@ const BUCKET_LABELS: Record<BucketId, string> = {
 
 const BUCKET_ORDER: BucketId[] = ['today', 'yesterday', 'week', 'earlier'];
 
-/** Map the raw roster to rows, dropping self (`null`) and the `'unknown'`
- *  aggregate — neither has a name to search or sort, a key, or an action, and
- *  `distinctSenders` already excludes both. */
+/** Map the raw roster to rows.
+ *
+ *  Own sends are stored with `from_pk = NULL` (sendMessage.ts / the proxy echo
+ *  both omit it deliberately), so `GROUP BY from_pk` collapses them into a
+ *  single null bucket. That bucket used to be discarded here, which meant the
+ *  rail undercounted every channel you talk in and claimed "no one has been
+ *  heard" on channels where only you had posted. It becomes a "You" row instead:
+ *  `resolveIdentity` can't help — it returns NONE for null — so the row is built
+ *  directly, with no pubkey and no contact key, which leaves it inert.
+ *
+ *  The `'unknown'` aggregate is still dropped: it has no name to search or sort
+ *  by, no key, and no action. */
 export function toRosterRows(
   roster: ChannelSenderStat[],
   contacts: Contact[],
@@ -55,6 +69,22 @@ export function toRosterRows(
   const index = discoveredNameIndex(discovered);
   const rows: RosterRow[] = [];
   for (const entry of roster) {
+    if (entry.fromPk === null) {
+      rows.push({
+        id: 'self',
+        name: 'You',
+        pubkey: null,
+        contactKey: null,
+        source: 'none',
+        ambiguous: false,
+        blocked: false,
+        inContacts: false,
+        self: true,
+        msgCount: entry.count,
+        lastSeenAt: entry.lastTs,
+      });
+      continue;
+    }
     if (!entry.fromPk || entry.fromPk === 'unknown') continue;
     const id = resolveIdentity(entry.fromPk, contacts, index);
     if (id.name === null) continue;
@@ -67,6 +97,7 @@ export function toRosterRows(
       ambiguous: id.ambiguous,
       blocked: id.blocked,
       inContacts: id.source === 'contact',
+      self: false,
       msgCount: entry.count,
       lastSeenAt: entry.lastTs,
     });

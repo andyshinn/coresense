@@ -626,7 +626,11 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const key = decodeURIComponent(c.req.param('key'));
     const limit = Number(c.req.query('limit') ?? '200');
     const before = c.req.query('before') ? Number(c.req.query('before')) : undefined;
-    return c.json(stateHolder().getMessagesForKey(key, { limit, before }));
+    // `around=<mid>` returns a window centred on that message instead of the
+    // trailing one, so a search hit older than the default window can be
+    // scrolled to. Unknown ids fall back to the trailing window.
+    const around = c.req.query('around') || undefined;
+    return c.json(stateHolder().getMessagesForKey(key, { limit, before, around }));
   });
 
   api.post('/api/messages/:key', async (c) => {

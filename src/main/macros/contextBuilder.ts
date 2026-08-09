@@ -1,5 +1,6 @@
 // src/main/macros/contextBuilder.ts
 import type { MacroContext, MacroPath, MacroPathHop, MacroPosition } from '../../shared/macros/types';
+import { firstPathStats, relayHopCount } from '../../shared/messagePath';
 import type { Contact, DeviceIdentity, DeviceInfo, Message, MessagePath, Owner } from '../../shared/types';
 
 export interface SelfState {
@@ -46,7 +47,7 @@ function mapPaths(paths: MessagePath[] | undefined, repeaters: Contact[]): Macro
     const relays = all.filter((h) => h.kind === 'hop');
     return {
       id: p.id,
-      length: relays.length,
+      length: relayHopCount(p),
       hash_mode: p.hashMode,
       final_snr: p.finalSnr,
       hops: relays,
@@ -133,7 +134,11 @@ export function buildReplyContext(args: {
     sender_pos: pos(args.senderContact?.gpsLat, args.senderContact?.gpsLon),
     rssi: m.meta?.rssi ?? null,
     snr: m.meta?.snr ?? null,
-    hops: m.meta?.hops ?? null,
+    // Derived from meta.paths, NOT the bare meta.hops scalar — no ingest path
+    // writes that field, so reading it directly rendered `?` for every message
+    // while the row's own chip showed a real count. firstPathStats keeps the
+    // two in lockstep and still honours meta.hops for older stored messages.
+    hops: firstPathStats(m).hops,
     times_heard: m.meta?.timesHeard ?? null,
     paths: mapPaths(m.meta?.paths, args.repeaters),
   };

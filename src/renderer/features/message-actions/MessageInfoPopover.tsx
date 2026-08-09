@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
+import { firstPathStats } from '../../../shared/messagePath';
 import type { Message } from '../../../shared/types';
 import { KeyValueRow } from '../../components/ui/KeyValueRow';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
-import { firstPathStats } from '../../lib/messagePath';
 
 interface Props {
   message: Message;

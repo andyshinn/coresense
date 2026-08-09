@@ -2,7 +2,9 @@ import { BellOff, Star } from 'lucide-react';
 import { type DragEvent, type MouseEvent, useRef, useState } from 'react';
 import type { Channel } from '../../../shared/types';
 import { SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '../../components/ui/sidebar';
+import { shouldShowUnread } from '../../hooks/useUnreads';
 import { CHANNEL_ICON } from '../../lib/conversationIcons';
+import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
 import { ACTIVE_BUTTON_CLASS, ShowMoreRow, UnreadChip } from './atoms';
 
@@ -64,6 +66,7 @@ export function ChannelSubList({
 
   const shown = limit !== null && !revealed ? channels.slice(0, limit) : channels;
   const hidden = channels.length - shown.length;
+  const windowFocused = useStore((s) => s.windowFocused);
   return (
     <SidebarMenuSub>
       {shown.map((ch) => {
@@ -71,7 +74,7 @@ export function ChannelSubList({
         const Icon = CHANNEL_ICON[ch.kind];
         const unread = unreadByKey[ch.key] ?? 0;
         const active = activeKey === ch.key;
-        const showUnread = unread > 0 && !active;
+        const showUnread = shouldShowUnread(unread, active, windowFocused);
         return (
           <SidebarMenuSubItem
             key={ch.key}

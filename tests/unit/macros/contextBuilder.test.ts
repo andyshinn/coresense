@@ -124,6 +124,41 @@ describe('buildReplyContext', () => {
     expect(reply().paths[0].length).toBe(2);
   });
 
+  // Regression: {{ hops }} rendered `?` on every real message. The fixture
+  // above sets BOTH meta.hops and meta.paths, so it could not catch it — the
+  // transport only ever emits the paths half.
+  describe('hops (derived from paths, not the dead meta.hops scalar)', () => {
+    const libShaped: Message = {
+      ...message,
+      meta: { snr: 5.5, paths: [{ id: 'p1', hashMode: 1, finalSnr: 6, hops: pathHops }] },
+    };
+
+    it('derives the hop count from the first path when meta.hops is absent', () => {
+      expect(reply({ message: libShaped }).hops).toBe(2);
+    });
+
+    it('agrees with the path length it ships alongside', () => {
+      const ctx = reply({ message: libShaped });
+      expect(ctx.hops).toBe(ctx.paths[0].length);
+    });
+
+    it('reports 0 — not null — for a direct path, so it never renders as "?"', () => {
+      const direct: Message = {
+        ...message,
+        meta: { snr: 5.5, paths: [{ id: 'p2', hashMode: 1, finalSnr: 6, hops: [pathHops[0], pathHops[3]] }] },
+      };
+      expect(reply({ message: direct }).hops).toBe(0);
+    });
+
+    it('is null for a DM, which carries no path observation', () => {
+      expect(reply({ message: { ...message, meta: { snr: 5.5 } } }).hops).toBeNull();
+    });
+
+    it('still honours a stored meta.hops when no paths are present', () => {
+      expect(reply({ message: { ...message, meta: { hops: 3 } } }).hops).toBe(3);
+    });
+  });
+
   it('reports length 0 and empty hops for a direct path', () => {
     const ctx = reply({ message: directMessage });
     expect(ctx.paths[0].length).toBe(0);

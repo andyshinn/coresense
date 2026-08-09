@@ -58,7 +58,25 @@ import {
 import { recordUsage } from '../features/message-actions/frecency';
 import type { MacroStudioBridge } from '../panels/macros/studio/bridge';
 import { setRendererLogLevel, setRendererLogSink } from './logger';
+import { mergeMessages } from './mergeMessages';
 import type { NeighbourSortKey } from './neighbours';
+
+/** Rows main returns per history window (`byKey`'s default limit). The renderer
+ *  holds more than this by design; a few places need to know the server's unit. */
+const SERVER_WINDOW = 200;
+
+// Retained per-key history. The renderer accumulates rather than tracking the
+// server's sliding window (see mergeMessages), so it needs its own ceiling —
+// main's own history is unbounded, `trimPerKey` having no caller.
+//
+// The gap between the two constants is deliberate. Trimming back to exactly the
+// cap would shed one row per arrival once full, which is precisely the
+// same-length-every-index-shifted shape that used to force a full rebuild on
+// every message — the bug this whole area exists to fix, just relocated from
+// 200 to the cap. Dropping a block at a time amortises it to one rebuild per
+// HISTORY_CAP - HISTORY_KEEP messages instead of one per message.
+const HISTORY_CAP = 5000;
+const HISTORY_KEEP = 4000;
 
 const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null };
 
@@ -638,7 +656,18 @@ export const useStore = create<CoreState>((set) => ({
   applyDevices: (devices) => set(() => ({ devices })),
   applyBridge: (bridge) => set(() => ({ bridge })),
 
-  applyMessages: (key, messages) => set((s) => ({ messagesByKey: { ...s.messagesByKey, [key]: messages } })),
+  // Main sends the TRAILING history window, re-derived per broadcast. Merge it
+  // into what we hold rather than assigning it: past the window size a straight
+  // assignment slides the array (m1..m200 → m2..m201), which reads as "every
+  // index changed" and forces the message list into a full replace on every
+  // single arrival. See mergeMessages.
+  applyMessages: (key, messages) =>
+    set((s) => {
+      const merged = mergeMessages(s.messagesByKey[key] ?? [], messages);
+      if (merged === s.messagesByKey[key]) return {};
+      const capped = merged.length > HISTORY_CAP ? merged.slice(-HISTORY_KEEP) : merged;
+      return { messagesByKey: { ...s.messagesByKey, [key]: capped } };
+    }),
 
   applyMessageState: (id, state) =>
     set((s) => {
@@ -737,7 +766,25 @@ export const useStore = create<CoreState>((set) => ({
     set(() => ({ appSettings: settings }));
   },
   applyUpdateState: (state) => set(() => ({ updateState: state })),
-  applyBlockRules: (rules) => set(() => ({ blockRules: rules })),
+  // `meta.blocked` is not stored — main computes it per read and stamps it onto
+  // the history window it is about to send. That made "the next broadcast
+  // repairs every row the renderer holds" true only while the renderer held
+  // exactly one window. Now that applyMessages merges, rows that have scrolled
+  // out of the window would keep whatever annotation they last carried: a new
+  // rule would leave old messages from that sender visible (and still counting
+  // toward unread badges), and deleting a rule would leave them hidden.
+  //
+  // Dropping back to a single window's worth restores the invariant, at the
+  // cost of re-fetching history the user may have backfilled. Block-rule
+  // changes are rare and deliberate; a wrong block state is not acceptable.
+  applyBlockRules: (rules) =>
+    set((s) => {
+      const trimmed: Record<string, Message[]> = {};
+      for (const [key, list] of Object.entries(s.messagesByKey)) {
+        trimmed[key] = list.length > SERVER_WINDOW ? list.slice(-SERVER_WINDOW) : list;
+      }
+      return { blockRules: rules, messagesByKey: trimmed };
+    }),
   applyMacros: (macros) => set(() => ({ macros })),
   applyRadioSettings: (settings) => set(() => ({ radioSettings: settings })),
   applyDeviceIdentity: (identity) => set(() => ({ deviceIdentity: identity })),

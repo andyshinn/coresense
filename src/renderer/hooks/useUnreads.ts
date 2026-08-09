@@ -48,6 +48,25 @@ export function computeUnreadByKey(
   return out;
 }
 
+/**
+ * Whether a nav row should show its unread count.
+ *
+ * The count is hidden on the conversation you are actively reading, because
+ * sitting in a channel marks its messages read as they arrive and a badge that
+ * appears and vanishes on every message is pure noise.
+ *
+ * That reasoning only holds while you are actually there. Mark-read is gated on
+ * window focus (computeMarkReadTs), so messages arriving in the active
+ * conversation while the app is in the background genuinely stay unread — and
+ * the old `!active` rule hid them anyway. A channel could accumulate a dozen
+ * unread messages, correctly counted everywhere else in the store, and show
+ * nothing in the tree, because the app happened to be sitting on it. Focus is
+ * the missing half of "am I actually reading this?".
+ */
+export function shouldShowUnread(unread: number, active: boolean, windowFocused: boolean): boolean {
+  return unread > 0 && (!active || !windowFocused);
+}
+
 // Set of conversation keys the user has muted — channels and contacts alike.
 function collectMutedKeys(channels: Channel[], contacts: Contact[]): Set<string> {
   const muted = new Set<string>();

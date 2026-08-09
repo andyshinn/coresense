@@ -20,6 +20,7 @@ function baseRow(overrides: Partial<RosterRow> = {}): RosterRow {
     ambiguous: false,
     blocked: false,
     inContacts: false,
+    self: false,
     msgCount: 3,
     lastSeenAt: 1_000,
     ...overrides,
@@ -88,5 +89,34 @@ describe('PeopleRow identity dot', () => {
     expect(message.getAttribute('aria-disabled')).toBe('true');
     const add = getByRole('button', { name: /no advert heard from this node yet/i });
     expect(add.getAttribute('aria-disabled')).toBe('true');
+  });
+});
+
+describe('PeopleRow self row', () => {
+  const selfRow = baseRow({ id: 'self', name: 'You', pubkey: null, contactKey: null, self: true });
+
+  it('renders hollow + grey and offers no actions', () => {
+    const { container, queryByRole } = renderRow(selfRow);
+    const dot = dotOf(container);
+    expect(dot.style.backgroundColor).toBe('transparent');
+    expect(dot.style.boxShadow).toContain(IDENTITY_NEUTRAL_VAR);
+    expect(queryByRole('button', { name: /to message/i })).toBeNull();
+    expect(queryByRole('button', { name: /contacts/i })).toBeNull();
+  });
+
+  // byName hashes row.name, and 'You' is a perfectly good hash input — without
+  // the explicit self guard the row would take a stable hue that can collide
+  // with a real poster's, reading as just another participant.
+  it('stays hueless under byName, where the literal "You" would otherwise hash', () => {
+    useStore.setState((s) => ({ appSettings: { ...s.appSettings, identityColorMode: 'byName' } }));
+    const { container } = renderRow(selfRow);
+    expect(dotOf(container).style.boxShadow).toContain(IDENTITY_NEUTRAL_VAR);
+    expect(dotOf(container).style.boxShadow).not.toContain(identityDotVar('You'));
+  });
+
+  it('still hues a normal row under byName', () => {
+    useStore.setState((s) => ({ appSettings: { ...s.appSettings, identityColorMode: 'byName' } }));
+    const { container } = renderRow(baseRow({ name: 'alice' }));
+    expect(dotOf(container).style.boxShadow).toContain(identityDotVar('alice'));
   });
 });
