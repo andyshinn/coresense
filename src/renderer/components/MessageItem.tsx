@@ -1,9 +1,9 @@
 import { AlertCircle, Check, Clock, Send } from 'lucide-react';
+import { firstPathStats, formatPathStats, type PathStats } from '../../shared/messagePath';
 import type { Message, MessageStyle, TimeFormatPref } from '../../shared/types';
 import { MessageQuickBar } from '../features/message-actions/MessageQuickBar';
 import { useIdentityHash } from '../hooks/useIdentityHash';
 import type { ApiClient } from '../lib/api';
-import { firstPathStats, formatPathStats, type PathStats } from '../lib/messagePath';
 import { fmtDateTime, fmtMessageTime } from '../lib/time';
 import { cn } from '../lib/utils';
 import { ColoredUsername } from './ColoredUsername';

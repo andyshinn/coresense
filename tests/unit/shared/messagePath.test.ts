@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { firstPathStats, formatPathStats } from '../../../../src/renderer/lib/messagePath';
-import type { Message, MessageHop } from '../../../../src/shared/types';
+import { firstPathStats, formatPathStats, relayHopCount } from '../../../src/shared/messagePath';
+import type { Message, MessageHop } from '../../../src/shared/types';
 
 const msg = (meta: Message['meta']): Message => ({
   id: '1',
@@ -51,6 +51,36 @@ describe('firstPathStats', () => {
       paths: [{ id: 'p', hashMode: 1, finalSnr: 0, hops: [hop('origin'), hop('sink')] }],
     });
     expect(firstPathStats(m)).toEqual({ hops: 0, hashMode: 1 });
+  });
+
+  // What the transport layer actually hands us for a channel message: snr plus
+  // paths, and no `hops` scalar at all. The chip has always read this shape
+  // correctly; {{ hops }} did not, which is the bug this module exists to close.
+  it('derives hops from paths for the library-shaped meta (snr + paths, no hops)', () => {
+    const m = msg({
+      snr: 5.5,
+      paths: [{ id: 'p', hashMode: 1, finalSnr: 6, hops: [hop('origin'), hop('hop'), hop('hop'), hop('sink')] }],
+    });
+    expect(firstPathStats(m).hops).toBe(2);
+  });
+
+  // The DM shape: snr only. Nothing to derive, so null is the honest answer.
+  it('returns null hops for the library-shaped DM meta (snr only)', () => {
+    expect(firstPathStats(msg({ snr: 5.5 })).hops).toBeNull();
+  });
+});
+
+describe('relayHopCount', () => {
+  it('counts intermediate relays, excluding origin and sink', () => {
+    expect(relayHopCount({ id: 'p', hashMode: 1, finalSnr: 0, hops: [hop('origin'), hop('hop'), hop('sink')] })).toBe(1);
+  });
+
+  it('is 0 for a direct path', () => {
+    expect(relayHopCount({ id: 'p', hashMode: 1, finalSnr: 0, hops: [hop('origin'), hop('sink')] })).toBe(0);
+  });
+
+  it('is 0 for an empty hop list', () => {
+    expect(relayHopCount({ id: 'p', hashMode: 1, finalSnr: 0, hops: [] })).toBe(0);
   });
 });
 
