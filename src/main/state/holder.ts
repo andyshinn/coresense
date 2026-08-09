@@ -262,7 +262,7 @@ class StateHolder {
   getRecentMessages(limit = 500): Message[] {
     return this.annotateBlocked(messagesStore.recent(limit));
   }
-  getMessagesForKey(key: string, opts?: { limit?: number; before?: number }): Message[] {
+  getMessagesForKey(key: string, opts?: { limit?: number; before?: number; around?: string }): Message[] {
     return this.annotateBlocked(messagesStore.byKey(key, opts));
   }
   getChannelStats(key: string): ChannelStats {

@@ -58,6 +58,7 @@ import {
 import { recordUsage } from '../features/message-actions/frecency';
 import type { MacroStudioBridge } from '../panels/macros/studio/bridge';
 import { setRendererLogLevel, setRendererLogSink } from './logger';
+import { mergeMessages } from './mergeMessages';
 import type { NeighbourSortKey } from './neighbours';
 
 const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null };
@@ -638,7 +639,17 @@ export const useStore = create<CoreState>((set) => ({
   applyDevices: (devices) => set(() => ({ devices })),
   applyBridge: (bridge) => set(() => ({ bridge })),
 
-  applyMessages: (key, messages) => set((s) => ({ messagesByKey: { ...s.messagesByKey, [key]: messages } })),
+  // Main sends the TRAILING history window, re-derived per broadcast. Merge it
+  // into what we hold rather than assigning it: past the window size a straight
+  // assignment slides the array (m1..m200 → m2..m201), which reads as "every
+  // index changed" and forces the message list into a full replace on every
+  // single arrival. See mergeMessages.
+  applyMessages: (key, messages) =>
+    set((s) => {
+      const merged = mergeMessages(s.messagesByKey[key] ?? [], messages);
+      if (merged === s.messagesByKey[key]) return {};
+      return { messagesByKey: { ...s.messagesByKey, [key]: merged } };
+    }),
 
   applyMessageState: (id, state) =>
     set((s) => {

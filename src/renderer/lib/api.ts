@@ -178,7 +178,13 @@ export const api = {
   getTileCacheInfo: (c: ApiClient) => request<TileCacheInfo>(c, '/api/map/tile-cache'),
   clearTileCache: (c: ApiClient) => request<TileCacheInfo>(c, '/api/map/tile-cache', { method: 'DELETE' }),
   openTileCacheFolder: (c: ApiClient) => request<{ ok: true }>(c, '/api/map/tile-cache/open', { method: 'POST' }),
-  getMessages: (c: ApiClient, key: string) => request<Message[]>(c, `/api/messages/${encodeURIComponent(key)}`),
+  /** `around` centres the returned window on that message id, for scrolling to
+   *  a search hit older than the default trailing window. */
+  getMessages: (c: ApiClient, key: string, opts: { around?: string } = {}) =>
+    request<Message[]>(
+      c,
+      `/api/messages/${encodeURIComponent(key)}${opts.around ? `?around=${encodeURIComponent(opts.around)}` : ''}`,
+    ),
   getChannelStats: (c: ApiClient, key: string) => request<ChannelStats>(c, `/api/channels/${encodeURIComponent(key)}/stats`),
   getChannelActivity: (c: ApiClient, key: string) =>
     request<ChannelActivity>(c, `/api/channels/${encodeURIComponent(key)}/activity`),

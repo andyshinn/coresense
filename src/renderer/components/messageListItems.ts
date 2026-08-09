@@ -6,7 +6,7 @@ export type DividerItem = { kind: 'divider'; id: '__unread__' };
 export type MessageItem = { kind: 'msg'; m: Message };
 export type Item = DateItem | DividerItem | MessageItem;
 
-const UNREAD_DIVIDER: DividerItem = { kind: 'divider', id: '__unread__' };
+export const UNREAD_DIVIDER: DividerItem = { kind: 'divider', id: '__unread__' };
 
 function dateItem(ts: number): DateItem {
   return { kind: 'date', id: `date-${dayKey(ts)}`, ts };
@@ -26,6 +26,32 @@ export function computeMarkReadTs(range: Item[], lastMarked: number, focused: bo
     if (it.kind === 'msg' && it.m.ts > maxTs) maxTs = it.m.ts;
   }
   return maxTs > lastMarked ? maxTs : null;
+}
+
+// Where the 'New' divider belongs in an ALREADY-MOUNTED list, given the read
+// cursor as it stood when the app lost focus. -1 when nothing qualifies.
+//
+// buildItems can only place the divider during a wholesale rebuild, which
+// happens on a conversation switch and nowhere else — so messages that arrived
+// while the window was in the background never got a marker, even though they
+// correctly stayed unread. This computes the offset for a surgical
+// findAndDelete + insert instead, so the marker can appear without re-measuring
+// the whole list under the user.
+//
+// The returned index is relative to the item array WITH any existing divider
+// removed, because the caller deletes the old one in the same batch. A date
+// separator immediately above the first unread message keeps its place: the
+// index lands on the message, so the order stays date -> New -> message, the
+// same as buildItems produces.
+export function computeDividerInsertIdx(items: Item[], cutoff: number): number {
+  if (!cutoff) return -1;
+  let idx = 0;
+  for (const it of items) {
+    if (it.kind === 'divider') continue;
+    if (it.kind === 'msg' && it.m.ts > cutoff && it.m.fromPublicKeyHex !== undefined) return idx;
+    idx++;
+  }
+  return -1;
 }
 
 // Index of the first message newer than the unread cutoff that wasn't sent by

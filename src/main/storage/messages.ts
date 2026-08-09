@@ -117,9 +117,39 @@ export const messagesStore = {
     );
   },
 
-  byKey(key: string, opts: { limit?: number; before?: number } = {}): Message[] {
+  byKey(key: string, opts: { limit?: number; before?: number; around?: string } = {}): Message[] {
     const db = openDb();
     const limit = opts.limit ?? 200;
+
+    // Centred window, for jumping to a search hit. FTS searches the whole
+    // table, so a hit is routinely older than the trailing window the
+    // conversation loads with — without this the renderer simply has no row to
+    // scroll to. Half the budget each side, and the anchor is included by the
+    // `ts <=` leg. Both legs ride messages_by_key_ts (key, ts DESC).
+    if (opts.around) {
+      const anchor = db.prepare(`SELECT ts FROM messages WHERE mid = ? AND key = ?`).get(opts.around, key) as unknown as
+        | { ts: number }
+        | undefined;
+      if (anchor) {
+        const half = Math.max(1, Math.floor(limit / 2));
+        const before = db
+          .prepare(
+            `SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages
+             WHERE key = ? AND ts <= ? ORDER BY ts DESC LIMIT ?`,
+          )
+          .all(key, anchor.ts, half) as unknown as Row[];
+        const after = db
+          .prepare(
+            `SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages
+             WHERE key = ? AND ts > ? ORDER BY ts ASC LIMIT ?`,
+          )
+          .all(key, anchor.ts, limit - half) as unknown as Row[];
+        return [...before.reverse(), ...after].map(rowToMessage);
+      }
+      // Unknown id — fall through to the plain trailing window rather than
+      // returning nothing, so a stale search hit still shows the conversation.
+    }
+
     const rows = opts.before
       ? (db
           .prepare(
