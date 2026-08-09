@@ -65,6 +65,19 @@ import type { NeighbourSortKey } from './neighbours';
  *  holds more than this by design; a few places need to know the server's unit. */
 const SERVER_WINDOW = 200;
 
+// Retained per-key history. The renderer accumulates rather than tracking the
+// server's sliding window (see mergeMessages), so it needs its own ceiling —
+// main's own history is unbounded, `trimPerKey` having no caller.
+//
+// The gap between the two constants is deliberate. Trimming back to exactly the
+// cap would shed one row per arrival once full, which is precisely the
+// same-length-every-index-shifted shape that used to force a full rebuild on
+// every message — the bug this whole area exists to fix, just relocated from
+// 200 to the cap. Dropping a block at a time amortises it to one rebuild per
+// HISTORY_CAP - HISTORY_KEEP messages instead of one per message.
+const HISTORY_CAP = 5000;
+const HISTORY_KEEP = 4000;
+
 const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null };
 
 const MAX_PACKETS = 500;
@@ -652,7 +665,8 @@ export const useStore = create<CoreState>((set) => ({
     set((s) => {
       const merged = mergeMessages(s.messagesByKey[key] ?? [], messages);
       if (merged === s.messagesByKey[key]) return {};
-      return { messagesByKey: { ...s.messagesByKey, [key]: merged } };
+      const capped = merged.length > HISTORY_CAP ? merged.slice(-HISTORY_KEEP) : merged;
+      return { messagesByKey: { ...s.messagesByKey, [key]: capped } };
     }),
 
   applyMessageState: (id, state) =>

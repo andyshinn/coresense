@@ -63,6 +63,18 @@ function pick(held: Message | undefined, incoming: Message): Message {
   return held && sameMessage(held, incoming) ? held : incoming;
 }
 
+/** First index in an ascending list whose `ts` is >= `ts`. */
+function lowerBound(list: Message[], ts: number): number {
+  let lo = 0;
+  let hi = list.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (list[mid].ts < ts) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 export function mergeMessages(prev: Message[], incoming: Message[]): Message[] {
   if (prev.length === 0) return incoming;
   if (incoming.length === 0) return prev;
@@ -71,50 +83,54 @@ export function mergeMessages(prev: Message[], incoming: Message[]): Message[] {
   // what every caller supplies (`ORDER BY ts` on both the broadcast and the
   // fetch). Rather than trust that silently, fall back to a sort when it does
   // not hold — an out-of-order window should cost time, not corrupt the list.
+  if (!isAscending(prev) || !isAscending(incoming)) {
+    const byId = new Map<string, Message>();
+    for (const m of prev) byId.set(m.id, m);
+    for (const m of incoming) byId.set(m.id, pick(byId.get(m.id), m));
+    return [...byId.values()].sort((a, b) => a.ts - b.ts);
+  }
+
+  // Everything held older than the window's first message cannot possibly be IN
+  // that window, so it passes through untouched and never enters the lookup
+  // structures below. This is what keeps the per-broadcast cost proportional to
+  // the window (200 rows) instead of to however much history has accumulated —
+  // without it, a conversation holding 20k rows rebuilt a 20k-entry Map on
+  // every single inbound message.
+  const start = lowerBound(prev, incoming[0].ts);
+
   const held = new Map<string, Message>();
-  for (const m of prev) held.set(m.id, m);
+  for (let k = start; k < prev.length; k++) held.set(prev[k].id, prev[k]);
   const incomingIds = new Set<string>();
   for (const m of incoming) incomingIds.add(m.id);
 
   /** Emit the window's copy, but reuse the held object when it says the same. */
   const take = (m: Message): Message => pick(held.get(m.id), m);
 
-  let out: Message[];
-  if (!isAscending(prev) || !isAscending(incoming)) {
-    // The linear merge below is only correct for two ascending inputs, which is
-    // what every caller supplies (`ORDER BY ts` on both the broadcast and the
-    // fetch). Rather than trust that silently, fall back to a sort when it does
-    // not hold — an out-of-order window should cost time, not corrupt the list.
-    const byId = new Map<string, Message>(held);
-    for (const m of incoming) byId.set(m.id, take(m));
-    out = [...byId.values()].sort((a, b) => a.ts - b.ts);
-  } else {
-    out = [];
-    let i = 0;
-    let j = 0;
-    while (i < prev.length && j < incoming.length) {
-      const a = prev[i];
-      // Anything in prev that the window also carries is emitted from the
-      // window instead, at the window's position — skip it here so it cannot
-      // appear twice when timestamps tie.
-      if (incomingIds.has(a.id)) {
-        i++;
-        continue;
-      }
-      if (a.ts <= incoming[j].ts) {
-        out.push(a);
-        i++;
-      } else {
-        out.push(take(incoming[j]));
-        j++;
-      }
+  const tail: Message[] = [];
+  let i = start;
+  let j = 0;
+  while (i < prev.length && j < incoming.length) {
+    const a = prev[i];
+    // Anything held that the window also carries is emitted from the window
+    // instead, at the window's position — skip it here so it cannot appear
+    // twice when timestamps tie.
+    if (incomingIds.has(a.id)) {
+      i++;
+      continue;
     }
-    for (; i < prev.length; i++) if (!incomingIds.has(prev[i].id)) out.push(prev[i]);
-    for (; j < incoming.length; j++) out.push(take(incoming[j]));
+    if (a.ts <= incoming[j].ts) {
+      tail.push(a);
+      i++;
+    } else {
+      tail.push(take(incoming[j]));
+      j++;
+    }
   }
+  for (; i < prev.length; i++) if (!incomingIds.has(prev[i].id)) tail.push(prev[i]);
+  for (; j < incoming.length; j++) tail.push(take(incoming[j]));
 
   // A re-broadcast that says nothing new returns the very array it was given,
   // so the store can skip the update and the list can skip the diff entirely.
-  if (out.length === prev.length && out.every((m, k) => m === prev[k])) return prev;
-  return out;
+  if (tail.length === prev.length - start && tail.every((m, k) => m === prev[start + k])) return prev;
+  return start === 0 ? tail : prev.slice(0, start).concat(tail);
 }
