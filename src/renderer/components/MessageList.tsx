@@ -223,9 +223,17 @@ export function MessageList({
     }
   }
 
-  /** Land the jump: flash the row and tell the parent to drop it. */
+  /** Ids already delivered. The parent clears `jumpToId` in response, but not
+   *  before the effect can run again — StrictMode replays it on mount, and the
+   *  ref mirror means the stale id is still visible on that second pass. */
+  const consumedJumpRef = useRef<string | null>(null);
+
+  /** Land the jump: flash the row and tell the parent to drop it. The
+   *  in-flight flag is owned by the flash effect, not set here, so that every
+   *  way the flash can end also clears it. */
   const consumeJump = useCallback((id: string) => {
-    jumpInFlightRef.current = true;
+    if (consumedJumpRef.current === id) return;
+    consumedJumpRef.current = id;
     setFlashId(id);
     onJumpConsumedRef.current?.();
   }, []);
@@ -247,7 +255,15 @@ export function MessageList({
   // biome-ignore lint/correctness/useExhaustiveDependencies: jumpToId is a re-run trigger, read via ref — see above
   useEffect(() => {
     const ref = listRef.current;
-    if (!ref) return;
+    if (!ref) {
+      // No list mounted — an empty conversation renders EmptyState instead. The
+      // bookkeeping still has to advance, or the NEXT mount is diagnosed
+      // against whatever the previous conversation left behind and concludes
+      // there is nothing to do, leaving the remounted list permanently blank.
+      prevKeyRef.current = conversationKey;
+      prevMessagesRef.current = [];
+      return;
+    }
 
     const conversationChanged = prevKeyRef.current !== conversationKey;
     if (conversationChanged) {
@@ -257,6 +273,7 @@ export function MessageList({
       // this one's divider at that conversation's boundary. The rebuild below
       // already places the divider from lastReadMs, which is correct here.
       blurCursorRef.current = null;
+      consumedJumpRef.current = null;
     }
     const plan = planSync(prevMessagesRef.current, visibleMessages, {
       conversationChanged,
@@ -266,6 +283,7 @@ export function MessageList({
     prevMessagesRef.current = visibleMessages;
 
     const jump = jumpToIdRef.current;
+    const alreadyDelivered = jump != null && consumedJumpRef.current === jump;
     // A replace is the only op that can carry the landing spot itself; the rest
     // preserve the viewport, so a jump riding one of those still needs a scroll
     // afterwards. `seededJumpRef` covers the mount case, where the jump already
@@ -313,8 +331,9 @@ export function MessageList({
         break;
     }
 
-    if (!jump || jumpHandled) {
-      if (jump && jumpHandled) consumeJump(jump);
+    if (!jump || alreadyDelivered) return;
+    if (jumpHandled) {
+      consumeJump(jump);
       return;
     }
     // The target may simply not be loaded yet (older than the fetched window).
@@ -326,16 +345,24 @@ export function MessageList({
     consumeJump(jump);
   }, [conversationKey, visibleMessages, lastReadMs, jumpToId, consumeJump]);
 
-  // Clear the landing highlight on its own timer. It used to hang off the jump
+  // The landing highlight, on its own timer. It used to hang off the jump
   // effect, whose cleanup fired the moment consuming the jump flipped `jumpToId`
   // to null — cancelling the timeout and leaving the row flashing indefinitely.
+  //
+  // This also owns `jumpInFlightRef` for its whole lifetime. Setting the flag
+  // where the jump is issued and clearing it only in the timer body leaked it:
+  // switching conversation mid-flash clears flashId, which cancels the timer,
+  // so the flag stayed true and suppressed bottom-pinning for every arrival
+  // afterwards. Tying it to the effect means every way the flash can end —
+  // timer, conversation switch, a second jump, unmount — releases it.
   useEffect(() => {
     if (!flashId) return;
-    const t = setTimeout(() => {
-      setFlashId(null);
+    jumpInFlightRef.current = true;
+    const t = setTimeout(() => setFlashId(null), FLASH_MS);
+    return () => {
+      clearTimeout(t);
       jumpInFlightRef.current = false;
-    }, FLASH_MS);
-    return () => clearTimeout(t);
+    };
   }, [flashId]);
 
   // Latest rendered range, captured so a window-focus regain can re-run

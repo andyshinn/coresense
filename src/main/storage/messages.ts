@@ -119,31 +119,42 @@ export const messagesStore = {
 
   byKey(key: string, opts: { limit?: number; before?: number; around?: string } = {}): Message[] {
     const db = openDb();
-    const limit = opts.limit ?? 200;
+    // SQLite reads a negative LIMIT as "no limit", so a request for ?limit=0
+    // (or an empty/NaN/negative one) would dump an entire 50k-row conversation
+    // through the block annotator and out as a single response.
+    const limit = Number.isFinite(opts.limit) && (opts.limit as number) > 0 ? Math.floor(opts.limit as number) : 200;
 
     // Centred window, for jumping to a search hit. FTS searches the whole
     // table, so a hit is routinely older than the trailing window the
     // conversation loads with — without this the renderer simply has no row to
-    // scroll to. Half the budget each side, and the anchor is included by the
-    // `ts <=` leg. Both legs ride messages_by_key_ts (key, ts DESC).
+    // scroll to. Half the budget each side. Both legs ride
+    // messages_by_key_ts (key, ts DESC).
     if (opts.around) {
-      const anchor = db.prepare(`SELECT ts FROM messages WHERE mid = ? AND key = ?`).get(opts.around, key) as unknown as
-        | { ts: number }
-        | undefined;
+      const anchor = db
+        .prepare(`SELECT rowid AS rid, ts FROM messages WHERE mid = ? AND key = ?`)
+        .get(opts.around, key) as unknown as { rid: number; ts: number } | undefined;
       if (anchor) {
         const half = Math.max(1, Math.floor(limit / 2));
+        // The split is on (ts, rowid), not ts alone. Ordering by ts alone
+        // leaves ties in an arbitrary order, so a burst of messages sharing one
+        // timestamp could push the anchor itself out of the lower leg while the
+        // strict `ts >` upper leg excluded it too — omitting the very row that
+        // was asked for. Tie-breaking on rowid makes the anchor's membership
+        // exact rather than incidental.
         const before = db
           .prepare(
             `SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages
-             WHERE key = ? AND ts <= ? ORDER BY ts DESC LIMIT ?`,
+             WHERE key = ? AND (ts < ? OR (ts = ? AND rowid <= ?))
+             ORDER BY ts DESC, rowid DESC LIMIT ?`,
           )
-          .all(key, anchor.ts, half) as unknown as Row[];
+          .all(key, anchor.ts, anchor.ts, anchor.rid, half) as unknown as Row[];
         const after = db
           .prepare(
             `SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages
-             WHERE key = ? AND ts > ? ORDER BY ts ASC LIMIT ?`,
+             WHERE key = ? AND (ts > ? OR (ts = ? AND rowid > ?))
+             ORDER BY ts ASC, rowid ASC LIMIT ?`,
           )
-          .all(key, anchor.ts, limit - half) as unknown as Row[];
+          .all(key, anchor.ts, anchor.ts, anchor.rid, Math.max(0, limit - half)) as unknown as Row[];
         return [...before.reverse(), ...after].map(rowToMessage);
       }
       // Unknown id — fall through to the plain trailing window rather than

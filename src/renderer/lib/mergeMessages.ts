@@ -32,6 +32,37 @@ function isAscending(list: Message[]): boolean {
   return true;
 }
 
+/**
+ * Does the freshly-decoded copy say anything the held one doesn't?
+ *
+ * Every broadcast arrives as new objects off the wire, so a naive merge hands
+ * back 200 new references for 200 unchanged rows. Downstream that reads as "the
+ * whole window changed": the list re-maps and re-renders every mounted row on
+ * each single arrival, and a duplicate broadcast does the same work for nothing.
+ * Keeping the held object whenever it is equivalent makes reference identity
+ * mean what the rest of the renderer assumes it means.
+ *
+ * Only the mutable fields are compared. `meta` is compared structurally but
+ * cheaply — path count and timesHeard are the parts that actually change as
+ * receptions merge, and `blocked` flips when a block rule is added.
+ */
+function sameMessage(a: Message, b: Message): boolean {
+  return (
+    a.state === b.state &&
+    a.body === b.body &&
+    a.ts === b.ts &&
+    a.meta?.blocked === b.meta?.blocked &&
+    a.meta?.timesHeard === b.meta?.timesHeard &&
+    (a.meta?.paths?.length ?? 0) === (b.meta?.paths?.length ?? 0) &&
+    a.meta?.snr === b.meta?.snr
+  );
+}
+
+/** The held copy when nothing changed, so unchanged rows keep their identity. */
+function pick(held: Message | undefined, incoming: Message): Message {
+  return held && sameMessage(held, incoming) ? held : incoming;
+}
+
 export function mergeMessages(prev: Message[], incoming: Message[]): Message[] {
   if (prev.length === 0) return incoming;
   if (incoming.length === 0) return prev;
@@ -40,39 +71,50 @@ export function mergeMessages(prev: Message[], incoming: Message[]): Message[] {
   // what every caller supplies (`ORDER BY ts` on both the broadcast and the
   // fetch). Rather than trust that silently, fall back to a sort when it does
   // not hold — an out-of-order window should cost time, not corrupt the list.
-  if (!isAscending(prev) || !isAscending(incoming)) {
-    const byId = new Map<string, Message>();
-    for (const msg of prev) byId.set(msg.id, msg);
-    for (const msg of incoming) byId.set(msg.id, msg);
-    return [...byId.values()].sort((a, b) => a.ts - b.ts);
-  }
-
+  const held = new Map<string, Message>();
+  for (const m of prev) held.set(m.id, m);
   const incomingIds = new Set<string>();
   for (const m of incoming) incomingIds.add(m.id);
 
-  const out: Message[] = [];
-  let i = 0;
-  let j = 0;
-  while (i < prev.length && j < incoming.length) {
-    const a = prev[i];
-    // Anything in prev that the window also carries is emitted from the window
-    // instead, at the window's position — skip it here so it cannot appear
-    // twice when timestamps tie.
-    if (incomingIds.has(a.id)) {
-      i++;
-      continue;
+  /** Emit the window's copy, but reuse the held object when it says the same. */
+  const take = (m: Message): Message => pick(held.get(m.id), m);
+
+  let out: Message[];
+  if (!isAscending(prev) || !isAscending(incoming)) {
+    // The linear merge below is only correct for two ascending inputs, which is
+    // what every caller supplies (`ORDER BY ts` on both the broadcast and the
+    // fetch). Rather than trust that silently, fall back to a sort when it does
+    // not hold — an out-of-order window should cost time, not corrupt the list.
+    const byId = new Map<string, Message>(held);
+    for (const m of incoming) byId.set(m.id, take(m));
+    out = [...byId.values()].sort((a, b) => a.ts - b.ts);
+  } else {
+    out = [];
+    let i = 0;
+    let j = 0;
+    while (i < prev.length && j < incoming.length) {
+      const a = prev[i];
+      // Anything in prev that the window also carries is emitted from the
+      // window instead, at the window's position — skip it here so it cannot
+      // appear twice when timestamps tie.
+      if (incomingIds.has(a.id)) {
+        i++;
+        continue;
+      }
+      if (a.ts <= incoming[j].ts) {
+        out.push(a);
+        i++;
+      } else {
+        out.push(take(incoming[j]));
+        j++;
+      }
     }
-    if (a.ts <= incoming[j].ts) {
-      out.push(a);
-      i++;
-    } else {
-      out.push(incoming[j]);
-      j++;
-    }
+    for (; i < prev.length; i++) if (!incomingIds.has(prev[i].id)) out.push(prev[i]);
+    for (; j < incoming.length; j++) out.push(take(incoming[j]));
   }
-  for (; i < prev.length; i++) {
-    if (!incomingIds.has(prev[i].id)) out.push(prev[i]);
-  }
-  for (; j < incoming.length; j++) out.push(incoming[j]);
+
+  // A re-broadcast that says nothing new returns the very array it was given,
+  // so the store can skip the update and the list can skip the diff entirely.
+  if (out.length === prev.length && out.every((m, k) => m === prev[k])) return prev;
   return out;
 }

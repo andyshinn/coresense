@@ -61,6 +61,10 @@ import { setRendererLogLevel, setRendererLogSink } from './logger';
 import { mergeMessages } from './mergeMessages';
 import type { NeighbourSortKey } from './neighbours';
 
+/** Rows main returns per history window (`byKey`'s default limit). The renderer
+ *  holds more than this by design; a few places need to know the server's unit. */
+const SERVER_WINDOW = 200;
+
 const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null };
 
 const MAX_PACKETS = 500;
@@ -748,7 +752,25 @@ export const useStore = create<CoreState>((set) => ({
     set(() => ({ appSettings: settings }));
   },
   applyUpdateState: (state) => set(() => ({ updateState: state })),
-  applyBlockRules: (rules) => set(() => ({ blockRules: rules })),
+  // `meta.blocked` is not stored — main computes it per read and stamps it onto
+  // the history window it is about to send. That made "the next broadcast
+  // repairs every row the renderer holds" true only while the renderer held
+  // exactly one window. Now that applyMessages merges, rows that have scrolled
+  // out of the window would keep whatever annotation they last carried: a new
+  // rule would leave old messages from that sender visible (and still counting
+  // toward unread badges), and deleting a rule would leave them hidden.
+  //
+  // Dropping back to a single window's worth restores the invariant, at the
+  // cost of re-fetching history the user may have backfilled. Block-rule
+  // changes are rare and deliberate; a wrong block state is not acceptable.
+  applyBlockRules: (rules) =>
+    set((s) => {
+      const trimmed: Record<string, Message[]> = {};
+      for (const [key, list] of Object.entries(s.messagesByKey)) {
+        trimmed[key] = list.length > SERVER_WINDOW ? list.slice(-SERVER_WINDOW) : list;
+      }
+      return { blockRules: rules, messagesByKey: trimmed };
+    }),
   applyMacros: (macros) => set(() => ({ macros })),
   applyRadioSettings: (settings) => set(() => ({ radioSettings: settings })),
   applyDeviceIdentity: (identity) => set(() => ({ deviceIdentity: identity })),

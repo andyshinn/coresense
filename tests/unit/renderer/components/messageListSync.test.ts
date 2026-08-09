@@ -80,6 +80,15 @@ describe('planSync', () => {
       expect(run(prev, [...prev, msg('m2')])).toMatchObject({ updated: null });
     });
 
+    // A block rule hiding the oldest visible row while a new message lands
+    // keeps the LAST overlapping id aligned. Appending there would leave the
+    // blocked row on screen forever and never show the new head.
+    it('rebuilds instead of appending when the head also moved', () => {
+      const prev = [msg('m1'), msg('m2'), msg('m3')];
+      const next = [msg('m2'), msg('m3'), msg('m4')];
+      expect(run(prev, next).op).toBe('replace');
+    });
+
     it('emits a date separator when the appended message starts a new day', () => {
       const prev = [msg('m1')];
       const plan = run(prev, [...prev, msg('m2', { ts: T0 + DAY })]);

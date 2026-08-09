@@ -88,4 +88,35 @@ describe('messagesStore.byKey({ around })', () => {
     messagesStore.insert({ id: 'other', key: 'ch:Other', ts: T0 + 5000, body: 'x', state: 'received' } as Message);
     expect(ids(messagesStore.byKey(KEY, { around: 'other' }))).toEqual(ids(messagesStore.byKey(KEY)));
   });
+
+  // A burst of messages sharing one timestamp used to be able to push the
+  // anchor out of the lower leg while the strict `ts >` upper leg excluded it
+  // too, returning a window without the row that was asked for.
+  it('always includes the anchor when many messages share its timestamp', () => {
+    for (let i = 0; i < 12; i++) {
+      messagesStore.insert({ id: `t${i}`, key: KEY, ts: T0, body: `tie ${i}`, state: 'received' } as Message);
+    }
+    for (const id of ['t0', 't5', 't11']) {
+      for (const limit of [2, 3, 4, 10]) {
+        expect(ids(messagesStore.byKey(KEY, { around: id, limit })), `${id} @ limit ${limit}`).toContain(id);
+      }
+    }
+  });
+
+  // SQLite treats a negative LIMIT as unlimited, so ?limit=0 (or an empty or
+  // negative one) would have dumped the whole conversation.
+  it('falls back to the default window rather than returning everything for a bad limit', () => {
+    seed(500);
+    for (const limit of [0, -1, Number.NaN]) {
+      expect(messagesStore.byKey(KEY, { around: 'm250', limit }).length, `limit ${limit}`).toBe(200);
+      expect(messagesStore.byKey(KEY, { limit }).length, `limit ${limit}`).toBe(200);
+    }
+  });
+
+  it('returns a single row for limit 1', () => {
+    seed(20);
+    const rows = messagesStore.byKey(KEY, { around: 'm5', limit: 1 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe('m5');
+  });
 });

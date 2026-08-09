@@ -70,7 +70,18 @@ export const MACRO_VARIABLES: MacroVariable[] = [
     example: '{{ sender_pos.lat }}',
     available: 'reply',
   },
-  { name: 'rssi', description: "This message's RSSI", type: 'number', example: '-95', available: 'reply' },
+  {
+    name: 'rssi',
+    // The radio reports RSSI per received frame, but the transport never
+    // attaches it to a Message, so this resolves to the `?` placeholder on
+    // every real message even though the preview above shows a number. Say so
+    // rather than let someone build a macro around it and transmit "?dBm" —
+    // the same trap `hops` used to be. Use `snr`, which IS populated.
+    description: "This message's RSSI. Not currently reported per message — prefer snr.",
+    type: 'number',
+    example: '-95',
+    available: 'reply',
+  },
   { name: 'snr', description: "This message's SNR", type: 'number', example: '5.5', available: 'reply' },
   {
     name: 'hops',

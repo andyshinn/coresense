@@ -87,7 +87,16 @@ vi.mock('@virtuoso.dev/message-list', () => {
         items = [...(initialData ?? [])];
         record('mount', initialLocation);
       }
-      if (ref) ref.current = { data, scrollToItem: (loc: unknown) => record('scrollToItem', loc) };
+      // React attaches a ref during commit and NULLS IT ON UNMOUNT. The list is
+      // unmounted whenever the conversation is empty, and MessageList's sync
+      // effect branches on exactly that, so the harness has to reproduce it.
+      React.useLayoutEffect(() => {
+        if (!ref) return;
+        ref.current = { data, scrollToItem: (loc: unknown) => record('scrollToItem', loc) };
+        return () => {
+          ref.current = null;
+        };
+      });
       // The real list reports its rendered range after layout, which is what
       // drives mark-read. Without it lastMarkedRead never advances and the
       // focus-edge divider has no boundary to point at.
@@ -186,6 +195,39 @@ describe('MessageList data sync', () => {
     expect(lastOp('map')?.args[0]).toBe('auto');
   });
 
+  // The list only mounts once there is something to show, so an instance whose
+  // first render was empty keeps an empty one-shot seed forever. If the sync
+  // effect skips its bookkeeping while unmounted, coming back to a conversation
+  // it already recorded looks like "nothing changed" and the remounted list is
+  // never populated.
+  it('repopulates a conversation revisited after an empty one', () => {
+    const a = [from('m1'), from('m2')];
+    // First render has no cache — this is what freezes the empty seed.
+    const { rerender } = render(view({ conversationKey: 'ch:a', messages: [] }));
+    rerender(view({ conversationKey: 'ch:a', messages: a }));
+    expect(items.filter((i) => i.kind === 'msg')).toHaveLength(2);
+
+    // An empty conversation unmounts the list entirely.
+    rerender(view({ conversationKey: 'ch:b', messages: [] }));
+    // ...and back.
+    rerender(view({ conversationKey: 'ch:a', messages: a }));
+    expect(items.filter((i) => i.kind === 'msg')).toHaveLength(2);
+  });
+
+  // jumpInFlightRef suppresses the remote-arrival autoscroll so an incoming
+  // message can't yank a jump mid-animation. Clearing it only in the flash
+  // timer leaked it: switching conversation cancels that timer.
+  it('restores autoscroll after a jump is cut short by a conversation switch', () => {
+    const a = [from('m1'), from('m2')];
+    const { rerender } = render(view({ conversationKey: 'ch:a', messages: a, jumpToId: 'm2' }));
+    // Switch away mid-flash, then take a normal arrival elsewhere.
+    const b = [from('m5')];
+    rerender(view({ conversationKey: 'ch:b', messages: b }));
+    rerender(view({ conversationKey: 'ch:b', messages: [...b, from('m6')] }));
+
+    expect(appendPolicy({ atBottom: true, scrollInProgress: false })).toBe('smooth');
+  });
+
   it('carries a landing location on every wholesale replace', () => {
     const { rerender } = render(view({ messages: [from('m1')] }));
     rerender(view({ conversationKey: 'ch:y', messages: [from('m7'), from('m8')] }));
@@ -226,6 +268,18 @@ describe('MessageList jump-to-message', () => {
   it('consumes the jump once the target is on screen', () => {
     const onJumpConsumed = vi.fn();
     render(view({ messages: [from('m1'), from('m2')], jumpToId: 'm2', onJumpConsumed }));
+    expect(onJumpConsumed).toHaveBeenCalledTimes(1);
+  });
+
+  // The parent clears jumpToId in response, but not before the effect can run
+  // again — StrictMode replays it on mount, and the effect reads a ref mirror,
+  // so the stale id is still visible on that second pass.
+  it('does not deliver the same jump twice when the effect replays', () => {
+    const onJumpConsumed = vi.fn();
+    const msgs = [from('m1'), from('m2')];
+    const { rerender } = render(view({ messages: msgs, jumpToId: 'm2', onJumpConsumed }));
+    // Parent re-renders without having cleared the jump yet.
+    rerender(view({ messages: msgs, jumpToId: 'm2', onJumpConsumed, selectedId: 'm1' }));
     expect(onJumpConsumed).toHaveBeenCalledTimes(1);
   });
 

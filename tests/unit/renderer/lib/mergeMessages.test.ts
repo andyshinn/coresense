@@ -99,4 +99,41 @@ describe('mergeMessages', () => {
     const window = [m('a', 1), m('b', 2)];
     expect(ids(mergeMessages(mergeMessages(prev, window), window))).toEqual(['a', 'b']);
   });
+
+  // Every broadcast arrives as fresh objects off the wire. Handing those back
+  // for rows that did not change reads downstream as "the whole window changed"
+  // — the list re-maps and re-renders all 200 mounted rows on every arrival.
+  describe('reference identity', () => {
+    it('keeps the held object when the window says nothing new', () => {
+      const prev = [m('a', 1), m('b', 2)];
+      const merged = mergeMessages(prev, [m('a', 1), m('b', 2), m('c', 3)]);
+      expect(merged[0]).toBe(prev[0]);
+      expect(merged[1]).toBe(prev[1]);
+      expect(merged[2].id).toBe('c');
+    });
+
+    it('takes the incoming object when the state changed', () => {
+      const prev = [m('a', 1, { state: 'sending' })];
+      const incoming = [m('a', 1, { state: 'ack' })];
+      expect(mergeMessages(prev, incoming)[0]).toBe(incoming[0]);
+    });
+
+    it('takes the incoming object when a path was merged in', () => {
+      const prev = [m('a', 1, { meta: { timesHeard: 1 } })];
+      const incoming = [m('a', 1, { meta: { timesHeard: 2 } })];
+      expect(mergeMessages(prev, incoming)[0]).toBe(incoming[0]);
+    });
+
+    it('takes the incoming object when it became blocked', () => {
+      const prev = [m('a', 1)];
+      const incoming = [m('a', 1, { meta: { blocked: true } })];
+      expect(mergeMessages(prev, incoming)[0]).toBe(incoming[0]);
+    });
+
+    // Lets the store skip the state update entirely on a duplicate broadcast.
+    it('returns the very same array when nothing changed at all', () => {
+      const prev = [m('a', 1), m('b', 2)];
+      expect(mergeMessages(prev, [m('a', 1), m('b', 2)])).toBe(prev);
+    });
+  });
 });

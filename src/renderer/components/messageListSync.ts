@@ -106,7 +106,14 @@ export function planSync(
   if (prev.length === 0) return next.length > 0 ? rebuild() : { op: 'none' };
 
   // Tail growth — the common case: new arrivals and our own sends.
-  if (next.length > prev.length && next[prev.length - 1]?.id === prev[prev.length - 1]?.id) {
+  //
+  // Both ends are checked, not just the last overlapping id. With only the tail
+  // pinned, a batch that simultaneously drops a row from the head and adds one
+  // to the tail (a block rule hiding the oldest visible message while a jump
+  // backfill lands, say) still matched — and the append left the removed row on
+  // screen and the new head row absent, permanently. Anchoring the head too
+  // sends that case to the rebuild, where it belongs.
+  if (next.length > prev.length && next[0]?.id === prev[0]?.id && next[prev.length - 1]?.id === prev[prev.length - 1]?.id) {
     const added = next.slice(prev.length);
     return {
       op: 'append',
