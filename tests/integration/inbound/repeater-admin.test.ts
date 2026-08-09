@@ -1,13 +1,37 @@
 import { Buffer } from 'node:buffer';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createRoutes } from '../../../src/main/api/routes';
 import { adminSessions } from '../../../src/main/bridge/adminSession';
 import { bus } from '../../../src/main/events/bus';
+import { setProtocolSession } from '../../../src/main/protocol';
+import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
 import type { Contact } from '../../../src/shared/types';
 import { makeTestSession } from '../../support/session-harness';
 
 const PK = 'aa'.repeat(32);
 const PREFIX = 'aaaaaaaaaaaa'; // first 6 bytes of PK
 const tick = () => new Promise((r) => setTimeout(r, 0));
+
+function routesApp() {
+  return createRoutes({
+    port: () => 8080,
+    wsClients: () => 0,
+    bridgeStatus: () => ({ running: false, clients: 0 }) as never,
+  });
+}
+
+/** A SessionAdapter double whose only live method is repeaterSendCli. */
+function fakeCliAdapter(impl: SessionAdapter['repeaterSendCli']): SessionAdapter {
+  return { repeaterSendCli: impl } as unknown as SessionAdapter;
+}
+
+async function postCli(body: unknown) {
+  return routesApp().request(`/api/repeater/c%3A${PK}/cli`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
 
 const repeater = (): Contact => ({
   key: `c:${PK}`,
@@ -81,6 +105,17 @@ function cliReply(prefixHex: string, body: string): Buffer {
   f.writeUInt32LE(1_700_000_000, 12);
   text.copy(f, 16);
   return f;
+}
+
+// White-box reach into the library's admin-correlation map. This is a
+// deliberate assertion that abort/no-reply touch the RIGHT internal state
+// (§11: "cleared, not merely that the client saw an abort"). `ctx` is private
+// on MeshCoreSession; the cast pins the runtime shape recorded in the release
+// (`ctx.rt.adminCorr.pendingCli`, keyed by the 12-char pubkey prefix). If the
+// release relocates the map, update this one helper.
+function pendingCliMap(adapter: SessionAdapter): Map<string, unknown> {
+  return (adapter.session as unknown as { ctx: { rt: { adminCorr: { pendingCli: Map<string, unknown> } } } }).ctx.rt
+    .adminCorr.pendingCli;
 }
 
 describe('repeater administration', () => {
@@ -180,5 +215,115 @@ describe('repeater administration', () => {
     receive(cliReply(PREFIX, 'OK rebooting'));
     const reply = await p;
     expect(reply).toBe('OK rebooting');
+  });
+
+  it('registers a pendingCli entry while a reply is expected', async () => {
+    const { adapter, receive } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
+
+    const p = adapter.repeaterSendCli(`c:${PK}`, 'get radio');
+    await tick();
+    expect(pendingCliMap(adapter).size).toBe(1);
+
+    receive(cliReply(PREFIX, 'radio: 869.525,250,11,5'));
+    expect(await p).toBe('radio: 869.525,250,11,5');
+    expect(pendingCliMap(adapter).size).toBe(0);
+  });
+
+  it('resolves a no-reply send without registering a pendingCli entry', async () => {
+    const { adapter, receive } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
+
+    const p = adapter.repeaterSendCli(`c:${PK}`, 'set advert.interval 30', { expectReply: false });
+    await tick();
+    // No cliReply frame is delivered; the send resolves on transport hand-off,
+    // i.e. the local radio's RESP_SENT confirmation that it queued the frame
+    // for TX (dist/index.js `handleSent` → `emitSendState(..., "sent")`).
+    // The loopback transport never synthesizes that frame on its own, so it
+    // has to be injected here, same as every other test in this file.
+    receive(respSent('deadbeef'));
+    expect(await p).toBe('');
+    expect(pendingCliMap(adapter).size).toBe(0);
+  });
+
+  it('clears the pendingCli entry when the caller aborts mid-flight', async () => {
+    const { adapter } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
+
+    const ctrl = new AbortController();
+    const p = adapter.repeaterSendCli(`c:${PK}`, 'get radio', { signal: ctrl.signal });
+    await tick();
+    expect(pendingCliMap(adapter).size).toBe(1);
+
+    ctrl.abort();
+    await expect(p).rejects.toThrow();
+    // The entry is deleted, not left to fire its 30 s timer — the whole point.
+    expect(pendingCliMap(adapter).size).toBe(0);
+  });
+});
+
+describe('POST /api/repeater/:key/cli classification', () => {
+  afterEach(() => setProtocolSession(null));
+
+  it('returns 200 { reply } when a reply is expected and arrives', async () => {
+    setProtocolSession(fakeCliAdapter(async () => 'radio: 869.525'));
+    const res = await postCli({ command: 'get radio' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, reply: 'radio: 869.525' });
+  });
+
+  it('returns 202 { sent: true } for a no-reply command', async () => {
+    const calls: Array<{ expectReply?: boolean }> = [];
+    setProtocolSession(
+      fakeCliAdapter(async (_key, _command, opts) => {
+        calls.push({ expectReply: opts?.expectReply });
+        return '';
+      }),
+    );
+    const res = await postCli({ command: 'set advert.interval 30', expectReply: false });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ ok: true, sent: true });
+    expect(calls[0].expectReply).toBe(false);
+  });
+
+  it('classifies a reply timeout as 504 cli_timeout', async () => {
+    setProtocolSession(
+      fakeCliAdapter(async () => {
+        throw new Error('CLI command timed out after 30000ms');
+      }),
+    );
+    const res = await postCli({ command: 'get radio' });
+    expect(res.status).toBe(504);
+    expect((await res.json()) as { code: string }).toMatchObject({ code: 'cli_timeout' });
+  });
+
+  it('classifies any other failure (incl. superseded) as 503 transport', async () => {
+    setProtocolSession(
+      fakeCliAdapter(async () => {
+        throw new Error('superseded by newer CLI command');
+      }),
+    );
+    const res = await postCli({ command: 'get radio' });
+    expect(res.status).toBe(503);
+    expect((await res.json()) as { code: string; error: string }).toMatchObject({
+      code: 'transport',
+      error: 'superseded by newer CLI command',
+    });
+  });
+
+  it('coerces a non-Error rejection to 503 transport instead of crashing on .message', async () => {
+    // A rejection that is not an Error (here a bare string) must not make the
+    // classifier throw on `.includes` and surface as an opaque 500.
+    setProtocolSession(
+      fakeCliAdapter(async () => {
+        throw 'raw string failure';
+      }),
+    );
+    const res = await postCli({ command: 'get radio' });
+    expect(res.status).toBe(503);
+    expect((await res.json()) as { code: string; error: string }).toMatchObject({
+      code: 'transport',
+      error: 'raw string failure',
+    });
   });
 });

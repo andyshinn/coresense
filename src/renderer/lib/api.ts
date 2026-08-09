@@ -47,6 +47,31 @@ export function parseServerError(body: string): string | null {
   }
 }
 
+/** Thrown by `request()` on a non-2xx response. Carries the HTTP status and the
+ *  server's `code` field (when present) so callers classify without re-parsing
+ *  status text — the repeater CLI route sets `code: 'cli_timeout'` vs
+ *  `'transport'` for the transcript's four failure kinds (§5.4). */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string | null;
+  constructor(message: string, status: number, code: string | null) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/** Pull a `{ "code": "…" }` classifier out of a JSON error body, or null. */
+export function parseServerErrorCode(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as { code?: unknown };
+    return typeof parsed?.code === 'string' ? parsed.code : null;
+  } catch {
+    return null;
+  }
+}
+
 async function request<T>(client: ApiClient, path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${client.baseUrl}${path}`, {
     ...init,
@@ -58,7 +83,11 @@ async function request<T>(client: ApiClient, path: string, init: RequestInit = {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(parseServerError(body) ?? `${res.status} ${body || res.statusText}`);
+    throw new ApiError(
+      parseServerError(body) ?? `${res.status} ${body || res.statusText}`,
+      res.status,
+      parseServerErrorCode(body),
+    );
   }
   return res.json() as Promise<T>;
 }
@@ -262,10 +291,11 @@ export const api = {
     request<{ ok: true; info: RepeaterOwnerInfo }>(c, `/api/repeater/${encodeURIComponent(key)}/owner`, {
       method: 'POST',
     }),
-  repeaterCli: (c: ApiClient, key: string, command: string) =>
-    request<{ ok: true; reply: string }>(c, `/api/repeater/${encodeURIComponent(key)}/cli`, {
+  repeaterCli: (c: ApiClient, key: string, command: string, opts: { expectReply?: boolean; signal?: AbortSignal } = {}) =>
+    request<{ ok: true; reply: string } | { ok: true; sent: true }>(c, `/api/repeater/${encodeURIComponent(key)}/cli`, {
       method: 'POST',
-      body: JSON.stringify({ command }),
+      body: JSON.stringify({ command, expectReply: opts.expectReply }),
+      signal: opts.signal,
     }),
   repeaterTrace: (c: ApiClient, key: string, payload: { tag: number; authCode?: number; flags?: number; pathHex: string }) =>
     request<{ ok: true; trace: RepeaterTrace }>(c, `/api/repeater/${encodeURIComponent(key)}/trace`, {

@@ -176,8 +176,8 @@ export class SessionAdapter {
   repeaterRequestOwnerInfo(key: string) {
     return this.session.repeaterRequestOwnerInfo(key);
   }
-  repeaterSendCli(key: string, command: string) {
-    return this.session.repeaterSendCli(key, command);
+  repeaterSendCli(key: string, command: string, opts?: Parameters<MeshCoreSession['repeaterSendCli']>[2]) {
+    return this.session.repeaterSendCli(key, command, opts);
   }
   repeaterTracePath(opts: Parameters<MeshCoreSession['repeaterTracePath']>[0]) {
     return this.session.repeaterTracePath(opts);
