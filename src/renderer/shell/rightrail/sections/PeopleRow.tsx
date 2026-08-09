@@ -47,7 +47,10 @@ export function PeopleRow({
   onAddContact,
 }: PeopleRowProps) {
   const mode = useStore((s) => s.appSettings.identityColorMode ?? 'byKey');
-  const hashInput = mode === 'byName' ? row.name : row.pubkey;
+  // Self stays hueless in BOTH modes, matching ColoredUsername's handling of a
+  // null sender. Falling through to the byName branch would hash the literal
+  // 'You' into a stable colour that can collide with a real poster's.
+  const hashInput = row.self ? null : mode === 'byName' ? row.name : row.pubkey;
   const hue = hashInput === null ? IDENTITY_NEUTRAL_VAR : identityDotVar(hashInput);
 
   // The name tooltip exists only to recover a name the column clipped. Showing
@@ -142,7 +145,9 @@ export function PeopleRow({
         <TooltipTrigger asChild>
           <span className="text-right font-mono text-[11px] tabular-nums text-cs-text-muted">{fmtCount(row.msgCount)}</span>
         </TooltipTrigger>
-        <TooltipContent side="left">{`${row.msgCount} messages seen in this channel`}</TooltipContent>
+        <TooltipContent side="left">
+          {row.self ? `${row.msgCount} messages you sent to this channel` : `${row.msgCount} messages seen in this channel`}
+        </TooltipContent>
       </Tooltip>
 
       <Tooltip delayDuration={400}>
@@ -154,22 +159,27 @@ export function PeopleRow({
         <TooltipContent side="left">{fmtAgeAbsolute(row.lastSeenAt, now, timeFormat)}</TooltipContent>
       </Tooltip>
 
-      <span className="pointer-events-none absolute inset-y-0 right-1.5 flex items-center gap-0.5 bg-gradient-to-r from-transparent to-cs-bg-3 to-34% pl-6 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 motion-reduce:transition-none">
-        <RowAction
-          icon={<MessageSquare className="size-3" />}
-          label={messageHint}
-          disabled={!canMessage}
-          onClick={() => onMessage(row)}
-        />
-        {!row.inContacts && (
+      {/* Self has no actions at all — "message yourself" and "add yourself to
+          contacts" are both nonsense, and rendering them inert would only
+          invite the question. Every other row keeps the pair. */}
+      {!row.self && (
+        <span className="pointer-events-none absolute inset-y-0 right-1.5 flex items-center gap-0.5 bg-gradient-to-r from-transparent to-cs-bg-3 to-34% pl-6 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 motion-reduce:transition-none">
           <RowAction
-            icon={<UserPlus className="size-3" />}
-            label={addHint}
-            disabled={!canAdd}
-            onClick={() => onAddContact(row)}
+            icon={<MessageSquare className="size-3" />}
+            label={messageHint}
+            disabled={!canMessage}
+            onClick={() => onMessage(row)}
           />
-        )}
-      </span>
+          {!row.inContacts && (
+            <RowAction
+              icon={<UserPlus className="size-3" />}
+              label={addHint}
+              disabled={!canAdd}
+              onClick={() => onAddContact(row)}
+            />
+          )}
+        </span>
+      )}
     </div>
   );
 }

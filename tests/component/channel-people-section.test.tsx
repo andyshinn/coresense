@@ -40,7 +40,7 @@ const stats = (): ChannelStats => ({
   count7d: 6,
   distinctSenders: 2,
   roster: [
-    { fromPk: null, count: 1, lastTs: NOW }, // self — excluded
+    { fromPk: null, count: 1, lastTs: NOW }, // self — rendered as "You"
     { fromPk: 'unknown', count: 2, lastTs: NOW }, // aggregate — excluded
     { fromPk: 'name:alice', count: 3, lastTs: NOW - 3 * 3_600_000 },
     { fromPk: 'name:zora', count: 7, lastTs: NOW - 2 * 86_400_000 },
@@ -71,12 +71,27 @@ const body = (over: Partial<ComponentProps<typeof ChannelPeopleBody>> = {}) => (
 );
 
 describe('ChannelPeopleBody', () => {
-  it('drops self and the unknown aggregate from the roster', () => {
+  it('lists our own sends as "You" and still drops the unknown aggregate', () => {
     render(body());
     expect(screen.getByText('alice')).toBeTruthy();
     expect(screen.getByText('zora')).toBeTruthy();
-    expect(screen.queryByText('You')).toBeNull();
+    expect(screen.getByText('You')).toBeTruthy();
     expect(screen.queryByText('Unknown')).toBeNull();
+  });
+
+  // A channel only we have posted to used to claim nobody had been heard,
+  // directly under an Activity chart showing our own bars.
+  it('does not claim the channel is empty when only we have posted', () => {
+    render(body({ stats: { ...stats(), roster: [{ fromPk: null, count: 4, lastTs: NOW }] } }));
+    expect(screen.getByText('You')).toBeTruthy();
+    expect(screen.queryByText(/No one has been heard/)).toBeNull();
+  });
+
+  it('offers no message or add-contact action on the You row', () => {
+    render(body({ stats: { ...stats(), roster: [{ fromPk: null, count: 4, lastTs: NOW }] } }));
+    expect(screen.queryByText(/^Message /)).toBeNull();
+    expect(screen.queryByText(/Add to contacts to message/)).toBeNull();
+    expect(screen.queryByText(/No advert heard from this node yet/)).toBeNull();
   });
 
   it('renders the compact age ladder, never prose', () => {
@@ -160,10 +175,12 @@ describe('ChannelPeopleCount', () => {
     useStore.setState({ contacts: [contact()], discovered: [], peopleQuery: '', messagesByKey: {} });
   });
 
-  it('shows the plain total with no filter or query', async () => {
+  // 3 = alice + zora + You. The self bucket used to be discarded here, so this
+  // chip undercounted every channel the user had posted to.
+  it('shows the plain total with no filter or query, counting ourselves', async () => {
     getChannelStats.mockResolvedValue(stats());
     render(<ChannelPeopleCount channel={ch} client={client} />);
-    expect(await screen.findByText('2')).toBeTruthy();
+    expect(await screen.findByText('3')).toBeTruthy();
   });
 
   // Smoke case missing from the spec: the header count switches to
@@ -172,7 +189,7 @@ describe('ChannelPeopleCount', () => {
     getChannelStats.mockResolvedValue(stats());
     useStore.setState({ peopleQuery: 'zora' });
     render(<ChannelPeopleCount channel={ch} client={client} />);
-    expect(await screen.findByText('1 / 2')).toBeTruthy();
+    expect(await screen.findByText('1 / 3')).toBeTruthy();
   });
 });
 
@@ -203,13 +220,13 @@ describe('ChannelPeopleSection clears the query on unmount (I-3)', () => {
 
     const { rerender } = render(<Harness open />);
     fireEvent.change(await screen.findByLabelText('Search people'), { target: { value: 'zora' } });
-    await waitFor(() => expect(screen.getByText('1 / 2')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('1 / 3')).toBeTruthy());
 
     // Collapse: ChannelPeopleSection unmounts exactly as it would under the
     // rail's Collapsible when the user clicks the section header.
     rerender(<Harness open={false} />);
 
     await waitFor(() => expect(useStore.getState().peopleQuery).toBe(''));
-    expect(screen.getByText('2')).toBeTruthy();
+    expect(screen.getByText('3')).toBeTruthy();
   });
 });
