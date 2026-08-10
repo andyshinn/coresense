@@ -38,6 +38,19 @@
   --cs-hash-1: 70 183 174; /* teal   · 1 byte  (#46B7AE) */
   --cs-hash-2: 232 163 61; /* amber  · 2 bytes (#E8A33D) */
   --cs-hash-3: 185 138 224; /* violet · 3 bytes (#B98AE0) */
+  /* Hop-count warming ramp. HopBadge interpolates near→far in oklab as the hop
+     count climbs toward its hash mode's ceiling (see lib/hopWarmth.ts).
+     Contrast is the tint as text against the PANEL — bg / bg-2 / bg-3 — not
+     against a fill: unlike PathHashBadge this badge is unfilled, so the panel
+     is the effective background. Every interpolated point between near and far
+     clears 4.5:1 too. Light mode's endpoint is NOT the brand accent: #B45309
+     manages only 3.74:1 here, so the far end is a deeper orange that also
+     keeps the badge off --cs-hash-2's amber, which it sits beside.
+     `near` matches --cs-text-muted so a direct 0-hop message is as quiet as
+     the meta text around it, but stays a separate token so retuning muted body
+     text doesn't silently move the ramp. */
+  --cs-hop-near: 193 178 145; /* #C1B291 — 9.46 / 8.84 / 8.15 */
+  --cs-hop-far: 245 158 11; /* #F59E0B — 9.21 / 8.60 / 7.93 */
   /* Identity ramp — 12 slots, hues 30° apart, all at one low chroma so no
      identity colour can be mistaken for status (--cs-online, --cs-accent,
      --cs-danger stay exclusively semantic).
@@ -121,6 +134,8 @@
   --cs-hash-1: 19 78 74; /* teal   · 1 byte  (#134E4A) — 7.01 / 6.45 / 5.58 */
   --cs-hash-2: 120 53 15; /* amber  · 2 bytes (#78350F) — 6.71 / 6.18 / 5.36 */
   --cs-hash-3: 91 33 182; /* violet · 3 bytes (#5B21B6) — 6.56 / 6.03 / 5.22 */
+  --cs-hop-near: 92 78 56; /* #5C4E38 — 7.67 / 7.02 / 6.01 */
+  --cs-hop-far: 150 67 10; /* #96430A — 6.43 / 5.88 / 5.04 */
   --cs-trend-up: 54 83 20; /* #365314 — 6.75 / 6.21 / 5.37 */
   --cs-trend-down: 139 37 32; /* #8B2520 — 6.70 / 6.16 / 5.33 */
   --cs-id-0: 190 34 42; /* h=25  #BE222A — 5.78 / 5.29 / 4.53 */

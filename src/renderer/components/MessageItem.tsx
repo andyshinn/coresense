@@ -1,13 +1,15 @@
 import { AlertCircle, Check, Clock, Send } from 'lucide-react';
-import { firstPathStats, formatPathStats, type PathStats } from '../../shared/messagePath';
+import { firstPathStats, type PathStats } from '../../shared/messagePath';
 import type { Message, MessageStyle, TimeFormatPref } from '../../shared/types';
 import { MessageQuickBar } from '../features/message-actions/MessageQuickBar';
 import { useIdentityHash } from '../hooks/useIdentityHash';
 import type { ApiClient } from '../lib/api';
+import { isKnownHashMode } from '../lib/hopWarmth';
 import { fmtDateTime, fmtMessageTime } from '../lib/time';
 import { cn } from '../lib/utils';
 import { ColoredUsername } from './ColoredUsername';
 import { ContactAvatar } from './ContactAvatar';
+import { HopBadge } from './HopBadge';
 import { MessageBody } from './MessageBody';
 import { PathHashBadge } from './PathHashBadge';
 import { RssiChip } from './RssiChip';
@@ -179,7 +181,7 @@ export function MessageItem({
  *  timestamp leads the line, so it isn't repeated here). Renders nothing when
  *  there's neither a non-received state nor path data. */
 function TrailingMeta({ message, stats }: { message: Message; stats: PathStats }) {
-  const hasPath = stats.hops != null || stats.hashMode != null;
+  const hasPath = stats.hops != null || isKnownHashMode(stats.hashMode);
   if (message.state === 'received' && !hasPath) return null;
   return (
     <div className="flex shrink-0 flex-row items-center gap-2 font-mono text-[10px] text-cs-text-dim">
@@ -189,15 +191,19 @@ function TrailingMeta({ message, stats }: { message: Message; stats: PathStats }
   );
 }
 
-/** Hop count as text plus the path-hash mode as a badge. Renders nothing when
- *  neither hops nor mode is known. */
+/** Hop count and path-hash mode as a badge pair. Renders nothing when neither
+ *  is known. The hop badge is unfilled and the hash badge filled, which is what
+ *  keeps them legible side by side. `stats.hashMode` is never `HASH_MODE_UNKNOWN`
+ *  (0) here in practice: that sentinel is only stamped by `HeardVia`'s
+ *  synthesized paths, which feed `PathItem` alone, and the protocol library
+ *  rejects `hashSize === 4` at decode — so this call site only ever sees
+ *  `null | 1 | 2 | 3`. Not worth a test for the unreachable `0` case. */
 function PathStatsMeta({ stats }: { stats: PathStats }) {
-  const hopsLabel = formatPathStats(stats);
-  if (!hopsLabel && stats.hashMode == null) return null;
+  if (stats.hops == null && !isKnownHashMode(stats.hashMode)) return null;
   return (
     <span className="inline-flex items-center gap-1.5">
-      {hopsLabel && <span className="tabular-nums">{hopsLabel}</span>}
-      {stats.hashMode != null && <PathHashBadge bytes={stats.hashMode} />}
+      <HopBadge hops={stats.hops} hashMode={stats.hashMode} />
+      {isKnownHashMode(stats.hashMode) && <PathHashBadge bytes={stats.hashMode} />}
     </span>
   );
 }
