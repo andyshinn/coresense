@@ -3,7 +3,9 @@ import {
   buildItems,
   computeDividerInsertIdx,
   computeMarkReadTs,
+  freshUnreadDivider,
   type Item,
+  UNREAD_DIVIDER,
 } from '../../../../src/renderer/components/messageListItems';
 import { shouldShowUnread } from '../../../../src/renderer/hooks/useUnreads';
 import type { Message } from '../../../../src/shared/types';
@@ -71,6 +73,25 @@ describe('computeDividerInsertIdx', () => {
     const spliced = [...items];
     spliced.splice(idx, 0, { kind: 'divider', id: '__unread__' });
     expect(spliced.map((i) => i.kind)).toEqual(buildItems(msgs, 1).map((i: Item) => i.kind));
+  });
+});
+
+// The id is the row's React key. A replant that hands back the key the list is
+// already rendering makes React move that DOM node rather than mount a new one,
+// so the list never re-measures it and the marker keeps the height of the
+// message that used to occupy the index — the gap under 'New'.
+describe('freshUnreadDivider', () => {
+  it('never repeats an id', () => {
+    const ids = [freshUnreadDivider().id, freshUnreadDivider().id, freshUnreadDivider().id];
+    expect(new Set(ids).size).toBe(3);
+  });
+
+  it('never collides with the id a rebuild uses', () => {
+    expect(freshUnreadDivider().id).not.toBe(UNREAD_DIVIDER.id);
+  });
+
+  it('is still a divider item', () => {
+    expect(freshUnreadDivider().kind).toBe('divider');
   });
 });
 

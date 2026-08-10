@@ -2,11 +2,37 @@ import type { Message } from '../../shared/types';
 import { dayKey } from '../lib/time';
 
 export type DateItem = { kind: 'date'; id: string; ts: number };
-export type DividerItem = { kind: 'divider'; id: '__unread__' };
+export type DividerItem = { kind: 'divider'; id: string };
 export type MessageItem = { kind: 'msg'; m: Message };
 export type Item = DateItem | DividerItem | MessageItem;
 
 export const UNREAD_DIVIDER: DividerItem = { kind: 'divider', id: '__unread__' };
+
+let dividerSeq = 0;
+
+/**
+ * A 'New' divider carrying an id nothing else will ever reuse.
+ *
+ * An item's id is its React key (see computeItemKey). Replanting the marker
+ * with the constant id above makes React MOVE the existing DOM node rather than
+ * mount a new one, so the list's ResizeObserver — which only fires when an
+ * observed element's own size changes — never reports the divider again. That
+ * matters because the library seeds an inserted index's height from the size
+ * range it lands in, i.e. from the message that used to occupy that index: with
+ * no measurement to correct it, a 26px marker goes on claiming a message's
+ * worth of height, and since rows are absolutely positioned from the running
+ * total, everything below the marker renders that much too low. That is the
+ * empty gap under 'New'.
+ *
+ * Only the surgical delete+insert needs this. A wholesale rebuild is published
+ * through data.replace, which re-measures every rendered row a frame later and
+ * so heals a stale entry on its own — which is why buildItems can stay pure and
+ * keep the constant id.
+ */
+export function freshUnreadDivider(): DividerItem {
+  dividerSeq += 1;
+  return { kind: 'divider', id: `__unread__#${dividerSeq}` };
+}
 
 function dateItem(ts: number): DateItem {
   return { kind: 'date', id: `date-${dayKey(ts)}`, ts };
