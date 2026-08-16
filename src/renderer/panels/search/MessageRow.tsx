@@ -58,7 +58,11 @@ export function SearchMessageRow({
           e.stopPropagation();
           setPendingDeleteMessageId(hit.id);
         }}
-        className="absolute right-2 top-2 hidden h-7 w-7 items-center justify-center rounded-md text-cs-text-muted hover:bg-cs-danger/10 hover:text-cs-danger group-hover:flex"
+        // Revealed by opacity rather than `hidden`, matching PeopleRow: a
+        // display:none button is not tabbable, so the only way to delete a hit
+        // was with a mouse. pointer-events-none keeps the invisible button from
+        // swallowing clicks meant for the row beneath it.
+        className="pointer-events-none absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-md text-cs-text-muted opacity-0 transition-opacity hover:bg-cs-danger/10 hover:text-cs-danger group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 motion-reduce:transition-none"
       >
         <Trash2 size={14} aria-hidden="true" />
       </button>
