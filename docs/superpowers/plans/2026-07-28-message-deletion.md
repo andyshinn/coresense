@@ -944,7 +944,7 @@ Block sender…             (!isSelf)
 Delete message            (danger)
 ```
 
-> Faithful-port details: `Copy text` shows **no** toast (matching today's right-click menu); the pubkey and path copies **do** toast (matching today's overflow menu). `Copy all paths heard` renders whenever any path exists — `formatAllPathsHeard` returns non-null for `paths.length >= 1` — so it is *not* gated on `>1`.
+> Faithful-port details: every copy entry toasts, `Copy text` included. This is a deliberate departure from the right-click menu it was ported from — the quick bar's own copy button already toasts `Copied message text` for the identical action, so a silent menu entry beside it read as a bug. `Copy all paths heard` renders whenever any path exists — `formatAllPathsHeard` returns non-null for `paths.length >= 1` — so it is *not* gated on `>1`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1101,8 +1101,9 @@ export function buildMessageMenuItems({
 }: BuildMessageMenuOpts): ContextMenuEntry[] {
   const copy = (text: string, label: string) => copyToClipboard(text, () => notify.success(label));
 
-  // Copy text stays toast-free, matching the right-click menu it came from.
-  const items: ContextMenuEntry[] = [menuItem('Copy text', () => copyToClipboard(message.body), { icon: Copy })];
+  // Toasts like its siblings and like the quick bar's own copy button, which
+  // fires the same 'Copied message text' for the same action.
+  const items: ContextMenuEntry[] = [menuItem('Copy text', () => copy(message.body, 'Copied message text'), { icon: Copy })];
 
   const rawPk = message.fromPublicKeyHex;
   const hasRealPubkey = rawPk != null && rawPk !== 'unknown' && !rawPk.startsWith('name:');
