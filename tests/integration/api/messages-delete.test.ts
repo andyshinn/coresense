@@ -80,4 +80,22 @@ describe('DELETE /api/messages/:key/:id', () => {
     expect(res.status).toBe(200);
     expect(messagesStore.findById('d1')).toBeNull();
   });
+
+  // Hono has already percent-decoded the path param by the time the handler
+  // runs. Decoding a second time threw URIError on any key holding a literal
+  // '%' — '% C' is not a valid escape — which surfaced as a 500.
+  it('handles a channel name containing a literal percent sign', async () => {
+    messagesStore.insert(msg({ id: 'p1', key: 'ch:100% Club' }));
+    const res = await app().request(`/api/messages/${encodeURIComponent('ch:100% Club')}/p1`, { method: 'DELETE' });
+    expect(res.status).toBe(200);
+    expect(messagesStore.findById('p1')).toBeNull();
+  });
+
+  it('emits the percent-bearing key unmangled', async () => {
+    messagesStore.insert(msg({ id: 'p2', key: 'ch:50%off' }));
+    const seen: { key: string; ids: string[] }[] = [];
+    bus.on('messagesDeleted', (payload: { key: string; ids: string[] }) => seen.push(payload));
+    await app().request(`/api/messages/${encodeURIComponent('ch:50%off')}/p2`, { method: 'DELETE' });
+    expect(seen).toEqual([{ key: 'ch:50%off', ids: ['p2'] }]);
+  });
 });

@@ -439,19 +439,24 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     return c.json({ ok: true, hasKey: false });
   });
 
+  // Conversation keys (`ch:<name>` / `c:<pubkeyHex>`) arrive percent-encoded and
+  // Hono decodes them for us, so `c.req.param('key')` is already the real key —
+  // do NOT decodeURIComponent it again. A second pass throws URIError on any
+  // name holding a literal '%' (`ch:100% Club` → '% C' is not a valid escape),
+  // which surfaced as a 500 on every route that touched such a channel.
   api.get('/api/channels', (c) => c.json(stateHolder().getChannels()));
   api.get('/api/channels/:key/stats', (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     if (!key.startsWith('ch:')) return c.json({ error: 'not a channel key' }, 400);
     return c.json(stateHolder().getChannelStats(key));
   });
   api.get('/api/channels/:key/activity', (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     if (!key.startsWith('ch:')) return c.json({ error: 'not a channel key' }, 400);
     return c.json(stateHolder().getChannelActivity(key));
   });
   api.put('/api/channels/:key', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const body = (await c.req.json().catch(() => null)) as Channel | null;
     if (!body || body.key !== key) return c.json({ error: 'invalid body' }, 400);
     const holder = stateHolder();
@@ -460,7 +465,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     return c.json({ ok: true });
   });
   api.delete('/api/channels/:key', (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const holder = stateHolder();
     holder.removeChannel(key);
     emit.channels(holder.getChannels());
@@ -487,7 +492,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // channel already has a confirmed `idx` (i.e. it's already on the device),
   // we overwrite that slot — effectively an "edit in place".
   api.post('/api/channels/:key/push-to-device', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const holder = stateHolder();
     const channel = holder.getChannels().find((ch) => ch.key === key);
     if (!channel) return c.json({ error: `unknown channel ${key}` }, 404);
@@ -516,7 +521,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // (history is preserved). Caller can DELETE /api/channels/:key separately
   // to forget it entirely.
   api.post('/api/channels/:key/remove-from-device', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const holder = stateHolder();
     const channel = holder.getChannels().find((ch) => ch.key === key);
     if (!channel) return c.json({ error: `unknown channel ${key}` }, 404);
@@ -537,7 +542,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
 
   api.get('/api/contacts', (c) => c.json(stateHolder().getContacts()));
   api.put('/api/contacts/:key', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const body = (await c.req.json().catch(() => null)) as Contact | null;
     if (!body || body.key !== key) return c.json({ error: 'invalid body' }, 400);
     const holder = stateHolder();
@@ -546,7 +551,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     return c.json({ ok: true });
   });
   api.delete('/api/contacts/:key', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const pubkey = key.startsWith('c:') ? key.slice(2) : key;
     // Tell the radio to drop the contact first (CMD_REMOVE_CONTACT). Strict: if
     // the radio op fails (disconnected, not on radio) we leave local state alone
@@ -571,7 +576,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
 
   // Commit a discovered contact to the radio's store.
   api.post('/api/contacts/:key/add-to-radio', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const pubkey = key.startsWith('c:') ? key.slice(2) : key;
     try {
       await protocolSession().addContactToRadio(pubkey);
@@ -587,7 +592,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
 
   // Delete a contact from the radio's store (stays in the discovered pool).
   api.post('/api/contacts/:key/remove-from-radio', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const pubkey = key.startsWith('c:') ? key.slice(2) : key;
     try {
       await protocolSession().removeContactFromRadio(pubkey);
@@ -599,7 +604,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
 
   // Toggle the radio-level favourite flag.
   api.put('/api/contacts/:key/favourite', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const pubkey = key.startsWith('c:') ? key.slice(2) : key;
     const body = (await c.req.json().catch(() => null)) as { favourite?: boolean } | null;
     if (!body || typeof body.favourite !== 'boolean') {
@@ -623,7 +628,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   });
 
   api.get('/api/messages/:key', (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const limit = Number(c.req.query('limit') ?? '200');
     const before = c.req.query('before') ? Number(c.req.query('before')) : undefined;
     // `around=<mid>` returns a window centred on that message instead of the
@@ -634,7 +639,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   });
 
   api.post('/api/messages/:key', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     if (!key.startsWith('ch:') && !key.startsWith('c:')) {
       return c.json({ error: 'key must be ch:<name> or c:<pubkey>' }, 400);
     }
@@ -653,7 +658,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // /api/contacts/:key there is no radio round-trip to make and nothing to
   // desync with. A tombstone stops a re-heard packet resurrecting the row.
   api.delete('/api/messages/:key/:id', (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const id = c.req.param('id');
     if (!key.startsWith('ch:') && !key.startsWith('c:')) {
       return c.json({ error: 'key must be ch:<name> or c:<pubkey>' }, 400);
@@ -673,7 +678,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // updates the local Contact record on success. preferDirect is a local-only
   // flag — no firmware write needed.
   api.put('/api/contacts/:key/path', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const body = (await c.req.json().catch(() => null)) as {
       outPathHex?: string;
       preferDirect?: boolean;
@@ -695,7 +700,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   });
 
   api.delete('/api/contacts/:key/path', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     try {
       await protocolSession().resetContactPath(key);
       return c.json({ ok: true });
@@ -736,14 +741,14 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // Synchronous response = "did the radio accept the write"; the snapshot
   // itself arrives as a separate WS push event after the mesh round-trip.
   api.post('/api/repeater/:key/status', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const result = await protocolSession().sendStatusReq(key);
     if (!result.ok) return c.json({ error: result.error }, 503);
     return c.json({ ok: true });
   });
 
   api.post('/api/repeater/:key/telemetry', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const result = await protocolSession().sendTelemetryReq(key);
     if (!result.ok) return c.json({ error: result.error }, 503);
     return c.json({ ok: true });
@@ -753,12 +758,12 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // adminSessions store; ACL / neighbours / owner-info / CLI awaits the mesh
   // round-trip and returns the parsed result inline (5-30s typical).
   api.get('/api/repeater/:key/session', (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     return c.json({ session: adminSessions.getSession(key) });
   });
 
   api.post('/api/repeater/:key/login', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const body = (await c.req.json().catch(() => null)) as {
       password?: string;
     } | null;
@@ -774,7 +779,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   });
 
   api.post('/api/repeater/:key/logout', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     try {
       await protocolSession().repeaterLogout(key);
       return c.json({ ok: true });
@@ -784,7 +789,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   });
 
   api.post('/api/repeater/:key/acl', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     try {
       const entries = await protocolSession().repeaterRequestAcl(key);
       return c.json({ ok: true, entries });
@@ -794,7 +799,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   });
 
   api.post('/api/repeater/:key/neighbours', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const body = (await c.req.json().catch(() => ({}))) as {
       count?: number;
       offset?: number;
@@ -810,7 +815,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   });
 
   api.post('/api/repeater/:key/owner', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     try {
       const info = await protocolSession().repeaterRequestOwnerInfo(key);
       return c.json({ ok: true, info });
@@ -820,7 +825,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   });
 
   api.post('/api/repeater/:key/cli', async (c) => {
-    const key = decodeURIComponent(c.req.param('key'));
+    const key = c.req.param('key');
     const body = (await c.req.json().catch(() => null)) as { command?: string; expectReply?: boolean } | null;
     if (!body || typeof body.command !== 'string' || body.command.length === 0) {
       return c.json({ error: 'command is required' }, 400);
