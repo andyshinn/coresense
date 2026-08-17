@@ -23,8 +23,8 @@ import {
   computeDividerInsertIdx,
   computeFirstUnreadIdx,
   computeMarkReadTs,
+  freshUnreadDivider,
   type Item,
-  UNREAD_DIVIDER,
 } from './messageListItems';
 import { locationFor, planSync } from './messageListSync';
 
@@ -414,6 +414,11 @@ export function MessageList({
   // the viewport. The list is then marked read, which is correct: the user is
   // now looking at it, and the divider stays put as the visual record.
   //
+  // The replant carries a FRESH id so React mounts a new node instead of moving
+  // the old one; without that the marker keeps the height of whatever message
+  // used to sit at its new index, leaving a gap beneath it. See
+  // freshUnreadDivider.
+  //
   // This effect re-runs on nearly every render (maybeMarkRead closes over an
   // inline onMarkRead), so all the edge work is guarded by prevFocusedRef.
   useEffect(() => {
@@ -434,7 +439,7 @@ export function MessageList({
         if (idx >= 0) {
           ref.data.batch(() => {
             ref.data.findAndDelete((i) => i.kind === 'divider');
-            ref.data.insert([UNREAD_DIVIDER], idx);
+            ref.data.insert([freshUnreadDivider()], idx);
           });
         }
       }

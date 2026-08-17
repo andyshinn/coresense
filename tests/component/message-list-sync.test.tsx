@@ -341,6 +341,29 @@ describe('MessageList unread divider on refocus', () => {
     expect(items.some((i) => i.kind === 'divider')).toBe(false);
   });
 
+  // The divider's id is its React key. Replanting with the SAME key makes React
+  // move the existing DOM node instead of mounting a new one, so the list's
+  // ResizeObserver never fires for it again — and an inserted index inherits its
+  // height from the size range it lands in, i.e. from the message that used to
+  // be there. Nothing then corrects it, so a ~26px marker keeps claiming a
+  // message's worth of height and every row below renders that much too low:
+  // the empty gap under 'New'.
+  it('mints a fresh key for each replanted marker', () => {
+    const msgs = [from('m1')];
+    const { rerender } = render(view({ messages: msgs }));
+    const round1 = [...msgs, from('m2')];
+    blurAndReturn(rerender, view({ messages: msgs }), view({ messages: round1 }));
+    blurAndReturn(rerender, view({ messages: round1 }), view({ messages: [...round1, from('m3')] }));
+
+    const planted = ops
+      .filter((o) => o.name === 'insert')
+      .map((o) => (o.args[0] as Item[])[0])
+      .filter((i) => i.kind === 'divider')
+      .map((i) => i.id);
+    expect(planted).toHaveLength(2);
+    expect(planted[0]).not.toBe(planted[1]);
+  });
+
   it('replaces the previous marker rather than stacking a second one', () => {
     const msgs = [from('m1')];
     const { rerender } = render(view({ messages: msgs }));
