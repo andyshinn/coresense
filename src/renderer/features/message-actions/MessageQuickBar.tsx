@@ -1,7 +1,8 @@
-import { Copy, Info, MoreHorizontal, Plus, Reply, Trash2 } from 'lucide-react';
+import { Copy, Info, MoreHorizontal, Plus, Reply } from 'lucide-react';
 import { useState } from 'react';
 import type { MacroTemplate } from '../../../shared/macros/types';
 import type { Message } from '../../../shared/types';
+import type { BlockSenderDialogPrefill } from '../../components/BlockSenderDialog';
 import { copyToClipboard } from '../../components/ContextMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import type { ApiClient } from '../../lib/api';
@@ -24,12 +25,25 @@ interface Props {
   client: ApiClient | null;
   onReact: (name: string, emoji: string) => void;
   onReply: (name: string) => void;
+  onBlock: (prefill: BlockSenderDialogPrefill) => void;
   /** Insert rendered macro text into the composer as `@[name] <text> `. */
   onMacro?: (name: string, text: string) => void;
+  /** Retry a failed send. Absent ⇒ the overflow menu omits "Re-send". */
+  onResend?: (m: Message) => void;
 }
 
 /** Discord-style hover action pill anchored to the top-right of a message row. */
-export function MessageQuickBar({ message, isSelf, senderName, client, onReact, onReply, onMacro }: Props) {
+export function MessageQuickBar({
+  message,
+  isSelf,
+  senderName,
+  client,
+  onReact,
+  onReply,
+  onBlock,
+  onMacro,
+  onResend,
+}: Props) {
   const [open, setOpen] = useState<PopKey>(null);
   const recordEmojiUse = useStore((s) => s.recordEmojiUse);
   const macros = useStore((s) => s.macros);
@@ -133,7 +147,14 @@ export function MessageQuickBar({ message, isSelf, senderName, client, onReact, 
             <IconBtn label="Copy text" onClick={copyText}>
               <Copy size={16} aria-hidden="true" />
             </IconBtn>
-            <OverflowMenu message={message} {...P('more')}>
+            <OverflowMenu
+              message={message}
+              isSelf={isSelf}
+              senderName={senderName}
+              onBlock={onBlock}
+              onResend={onResend}
+              {...P('more')}
+            >
               <button
                 type="button"
                 aria-label="More"
@@ -162,9 +183,22 @@ export function MessageQuickBar({ message, isSelf, senderName, client, onReact, 
                 <Info size={16} aria-hidden="true" />
               </button>
             </MessageInfoPopover>
-            <IconBtn label="Delete" soon className="text-cs-danger hover:bg-cs-danger/10 hover:text-cs-danger">
-              <Trash2 size={16} aria-hidden="true" />
-            </IconBtn>
+            <OverflowMenu
+              message={message}
+              isSelf={isSelf}
+              senderName={senderName}
+              onBlock={onBlock}
+              onResend={onResend}
+              {...P('more')}
+            >
+              <button
+                type="button"
+                aria-label="More"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text"
+              >
+                <MoreHorizontal size={16} aria-hidden="true" />
+              </button>
+            </OverflowMenu>
           </>
         )}
       </div>

@@ -100,6 +100,11 @@ export function startNotifications(): void {
     // right away — this one is a direct user action, not a sync burst.
     router.recomputeBadge();
   });
+  // Deliberately not routed through router.handleMessages: that only ever
+  // processes the tail of a list, so a re-push after deleting the newest
+  // message could raise a fresh banner for an older one. Uncoalesced for the
+  // same reason as uiState — deleting a message is a direct user action.
+  bus.on('messagesDeleted', () => router.recomputeBadge());
   // The rest are list-shaped events; `contacts` alone fires once per contact
   // during a sync, so they go through a coalescer.
   subscribeBadgeRecompute(router);

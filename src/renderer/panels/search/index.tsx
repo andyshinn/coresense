@@ -189,6 +189,14 @@ export function SearchResults({ client }: Props) {
     [setActiveKey, setPendingJump],
   );
 
+  // The search panel holds page-accumulated hits in local state — nothing
+  // else prunes them, so a delete from within this panel must splice its own
+  // copy and adjust the server-reported total.
+  const handleDeleted = useCallback((id: string) => {
+    setMessages((prev) => prev.filter((h) => h.id !== id));
+    setTotalMessages((prev) => Math.max(0, prev - 1));
+  }, []);
+
   // Esc on the input: clear, restore prior conversation via back-nav, blur.
   // goBack() pops the entry typing pushed onto navPast and leaves tool:search
   // on navFuture so Cmd+Right returns here — browser-style.
@@ -262,9 +270,11 @@ export function SearchResults({ client }: Props) {
         ownerName={owner?.name ?? 'me'}
         canLoadMore={canLoadMore}
         loadingMore={loadingMore}
+        client={client}
         onLoadMore={onLoadMore}
         onConversationClick={onConversationClick}
         onMessageClick={onMessageClick}
+        onDeleted={handleDeleted}
       />
     </div>
   );

@@ -1,12 +1,14 @@
 import { AlertCircle, Check, Clock, Send } from 'lucide-react';
 import { firstPathStats, type PathStats } from '../../shared/messagePath';
 import type { Message, MessageStyle, TimeFormatPref } from '../../shared/types';
+import { DeleteConfirmPopover } from '../features/message-actions/DeleteConfirmPopover';
 import { MessageQuickBar } from '../features/message-actions/MessageQuickBar';
 import { useIdentityHash } from '../hooks/useIdentityHash';
 import type { ApiClient } from '../lib/api';
 import { isKnownHashMode } from '../lib/hopWarmth';
 import { fmtDateTime, fmtMessageTime } from '../lib/time';
 import { cn } from '../lib/utils';
+import type { BlockSenderDialogPrefill } from './BlockSenderDialog';
 import { ColoredUsername } from './ColoredUsername';
 import { ContactAvatar } from './ContactAvatar';
 import { HopBadge } from './HopBadge';
@@ -31,9 +33,20 @@ export interface MessageItemProps {
   onContextMenu?: (e: React.MouseEvent) => void;
   onReply?: (name: string) => void;
   onReact?: (name: string, emoji: string) => void;
+  /** Absent for static previews (Unreads) that render no quick bar/action menu. */
+  onBlock?: (prefill: BlockSenderDialogPrefill) => void;
+  /** True while the conversation's right-click menu is open anywhere in the
+   *  list. The menu is drawn at the cursor — which is still inside the row that
+   *  spawned it, so `group-hover` keeps the quick bar up and the two overlap.
+   *  Suppressed list-wide, not just on the owning row, because the menu can be
+   *  drawn over neighbours the cursor then travels across. */
+  contextMenuOpen?: boolean;
   /** Needed by the quick bar's macro affordances; absent ⇒ no macro cluster. */
   client?: ApiClient | null;
   onMacro?: (name: string, text: string) => void;
+  /** Retry a failed send. Forwarded as-is rather than wrapped like onBlock:
+   *  the overflow menu shows "Re-send" only when this is non-null. */
+  onResend?: (m: Message) => void;
 }
 
 const STATE_LABEL: Record<Message['state'], string> = {
@@ -66,8 +79,11 @@ export function MessageItem({
   onContextMenu,
   onReply,
   onReact,
+  onBlock,
+  contextMenuOpen,
   client,
   onMacro,
+  onResend,
 }: MessageItemProps) {
   const interactive = onSelect != null;
   const showSenderHeaderRich = style === 'rich' && !isSelf && senderName !== '';
@@ -142,7 +158,10 @@ export function MessageItem({
       className="group relative px-3 py-0.5"
       data-flash={flash ? 'true' : undefined}
     >
-      {interactive && onReact && (
+      {/* Unmounted rather than hidden while the context menu is open: the quick
+          bar's own popovers render in portals, so dimming the pill would leave
+          an open emoji picker or overflow menu on screen beside the menu. */}
+      {interactive && onReact && !contextMenuOpen && (
         <MessageQuickBar
           message={message}
           isSelf={isSelf}
@@ -150,7 +169,17 @@ export function MessageItem({
           client={client ?? null}
           onReact={onReact}
           onReply={(name) => onReply?.(name)}
+          onBlock={(prefill) => onBlock?.(prefill)}
           onMacro={onMacro}
+          onResend={onResend}
+        />
+      )}
+      {interactive && (
+        <DeleteConfirmPopover
+          messageId={message.id}
+          conversationKey={message.key}
+          preview={message.body}
+          client={client ?? null}
         />
       )}
       {interactive ? (

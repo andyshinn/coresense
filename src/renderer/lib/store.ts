@@ -341,6 +341,10 @@ interface CoreState {
   // ID of the message currently expanded in the right rail. Clears when the
   // active key changes (the selection has no meaning outside its conversation).
   selectedMessageId: string | null;
+  /** Message id whose delete confirmation is open. The row renders the
+   *  confirm popover anchored to itself, so only an id is needed. */
+  pendingDeleteMessageId: string | null;
+  setPendingDeleteMessageId: (id: string | null) => void;
   // Cmd+K palette open state. Not persisted across reloads.
   paletteOpen: boolean;
   // Keyboard-shortcuts help overlay open state. Not persisted across reloads.
@@ -371,6 +375,7 @@ interface CoreState {
   applyDevices: (devices: BleDevice[]) => void;
   applyBridge: (bridge: BridgeStatus) => void;
   applyMessages: (key: string, messages: Message[]) => void;
+  removeMessages: (key: string, ids: string[]) => void;
   applyMessageState: (id: string, state: MessageState) => void;
   /** Append a newly-heard relay path to an outgoing channel message (dedupe by
    *  MessagePath.id, bump timesHeard, advance state). Broadcast by the main
@@ -565,6 +570,7 @@ export const useStore = create<CoreState>((set) => ({
   peopleQuery: '',
   contactManager: CM_DEFAULTS,
   messagesByKey: {},
+  pendingDeleteMessageId: null,
 
   capabilities: null,
 
@@ -700,6 +706,22 @@ export const useStore = create<CoreState>((set) => ({
         });
       }
       return { messagesByKey: next };
+    }),
+
+  removeMessages: (key, ids) =>
+    set((s) => {
+      const list = s.messagesByKey[key];
+      const drop = new Set(ids);
+      const patch: Partial<CoreState> = {};
+      if (list) patch.messagesByKey = { ...s.messagesByKey, [key]: list.filter((m) => !drop.has(m.id)) };
+      // Both of these would otherwise dangle: the right rail resolves
+      // selectedMessageId with a .find(), and a pendingJumpMid pointing at a
+      // row that no longer exists never resolves — ChannelView/DMView keep
+      // handing it to useJumpBackfill, which goes on fetching history around
+      // an id the list can never land on.
+      if (s.selectedMessageId && drop.has(s.selectedMessageId)) patch.selectedMessageId = null;
+      if (s.pendingJumpMid && drop.has(s.pendingJumpMid)) patch.pendingJumpMid = null;
+      return patch;
     }),
 
   applyChannels: (channels) => set(() => ({ channels })),
@@ -927,6 +949,7 @@ export const useStore = create<CoreState>((set) => ({
       },
     })),
   setSelectedMessage: (id) => set(() => ({ selectedMessageId: id })),
+  setPendingDeleteMessageId: (id) => set(() => ({ pendingDeleteMessageId: id })),
   toggleLeftNav: () => set((s) => ({ ui: { ...s.ui, leftOpen: !s.ui.leftOpen } })),
   toggleRightRail: () => set((s) => ({ ui: { ...s.ui, rightOpen: !s.ui.rightOpen } })),
   setRightWidth: (w) => set((s) => ({ ui: { ...s.ui, rightWidth: w } })),

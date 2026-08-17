@@ -6,16 +6,16 @@ import {
   VirtuosoMessageListLicense,
   type VirtuosoMessageListMethods,
 } from '@virtuoso.dev/message-list';
-import { Copy, RotateCw, ShieldOff, User } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Contact, Message, MessageStyle, Owner } from '../../shared/types';
+import { buildMessageMenuItems } from '../features/message-actions/menuItems';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
 import { fmtDate } from '../lib/time';
 import { deriveSenderName } from '../lib/utils';
 import { VIRTUOSO_LICENSE_KEY } from '../lib/virtuosoLicense';
 import { BlockSenderDialog, type BlockSenderDialogPrefill } from './BlockSenderDialog';
-import { ContextMenu, type ContextMenuEntry, copyToClipboard, menuItem, menuSeparator } from './ContextMenu';
+import { ContextMenu } from './ContextMenu';
 import { MessageDivider } from './MessageDivider';
 import { MessageRow } from './MessageRow';
 import {
@@ -58,8 +58,15 @@ interface RowContext {
   onSelect: (id: string) => void;
   onReply?: (name: string) => void;
   onReact?: (name: string, emoji: string) => void;
+  onBlock: (prefill: BlockSenderDialogPrefill) => void;
   onMacro?: (name: string, text: string) => void;
+  // Optional all the way down (unlike onBlock, which every caller supplies):
+  // buildMessageMenuItems keys "Re-send" off `onResend != null`, so a
+  // non-null wrapper forwarder would offer the item with nothing behind it.
+  onResend?: (m: Message) => void;
   onContextMenu: (m: Message, e: React.MouseEvent) => void;
+  /** True while the right-click menu is open, so rows drop their hover bar. */
+  contextMenuOpen: boolean;
   client: ApiClient | null;
 }
 
@@ -113,6 +120,9 @@ const ItemRow: ItemContent<Item, RowContext> = ({ data, context }) => {
       senderName={senderName}
       onReply={context.onReply}
       onReact={context.onReact}
+      onBlock={context.onBlock}
+      contextMenuOpen={context.contextMenuOpen}
+      onResend={context.onResend}
       client={context.client}
       onMacro={context.onMacro}
     />
@@ -175,6 +185,7 @@ export function MessageList({
       setMenu(null);
       setFlashId(null);
       setBlockPrefill(null);
+      useStore.getState().setPendingDeleteMessageId(null);
     }
   }, [conversationKey]);
 
@@ -446,8 +457,11 @@ export function MessageList({
     onSelect,
     onReply,
     onReact,
+    onBlock: setBlockPrefill,
     onMacro,
+    onResend,
     onContextMenu: handleContextMenu,
+    contextMenuOpen: menu != null,
     client,
   };
 
@@ -489,9 +503,14 @@ export function MessageList({
               y={menu.y}
               items={buildMessageMenuItems({
                 message: menu.message,
+                isSelf: menu.message.fromPublicKeyHex === undefined,
                 onResend,
                 onViewContact: (key) => setActiveKey(key),
                 onBlock: setBlockPrefill,
+                onDelete: (m) => {
+                  setMenu(null);
+                  useStore.getState().setPendingDeleteMessageId(m.id);
+                },
                 senderName,
               })}
               onClose={() => setMenu(null)}
@@ -503,61 +522,4 @@ export function MessageList({
       )}
     </div>
   );
-}
-
-interface BuildMenuOpts {
-  message: Message;
-  onResend?: (m: Message) => void;
-  onViewContact: (key: string) => void;
-  onBlock: (prefill: BlockSenderDialogPrefill) => void;
-  senderName: string | undefined;
-}
-
-function buildMessageMenuItems({
-  message,
-  onResend,
-  onViewContact,
-  onBlock,
-  senderName,
-}: BuildMenuOpts): ContextMenuEntry[] {
-  const items: ContextMenuEntry[] = [menuItem('Copy text', () => copyToClipboard(message.body), { icon: Copy })];
-
-  const pk = message.fromPublicKeyHex;
-  if (pk && pk !== 'unknown' && !pk.startsWith('name:')) {
-    items.push(menuItem('View contact', () => onViewContact(`c:${pk}`), { icon: User }));
-  }
-
-  if (message.state === 'failed' && onResend) {
-    items.push(menuSeparator);
-    items.push(menuItem('Re-send', () => onResend(message), { icon: RotateCw }));
-  }
-
-  items.push(menuSeparator);
-  const originHop = message.meta?.paths?.[0]?.hops.find((h) => h.kind === 'origin');
-  const rawPk = message.fromPublicKeyHex;
-  const hasRealPubkey = rawPk != null && rawPk !== 'unknown' && !rawPk.startsWith('name:');
-  // Origin hop pk would carry an advert-resolved pubkey, but the current
-  // path-build pipeline never populates it for channel messages — it's always
-  // null. Treat it as the authoritative source if a future change wires it.
-  const pubkey = hasRealPubkey ? rawPk : (originHop?.pk ?? undefined);
-  // Prefix is the first 4 hex chars of the real pubkey. originHop.shortId
-  // is a 2-char name-derived display label (NOT hex), so we don't use it as
-  // a pubkey prefix — that would silently create rules like pattern='sr'
-  // that match by name lookalike, which is misleading.
-  const prefix = hasRealPubkey ? rawPk.slice(0, 4) : (originHop?.pk?.slice(0, 4) ?? undefined);
-  items.push(
-    menuItem(
-      'Block sender…',
-      () => {
-        onBlock({
-          pubkey,
-          pubkeyPrefix: prefix,
-          name: senderName || undefined,
-        });
-      },
-      { icon: ShieldOff },
-    ),
-  );
-
-  return items;
 }

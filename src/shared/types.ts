@@ -1120,6 +1120,7 @@ export type WsMessage =
   | { type: 'messages'; payload: { key: string; messages: Message[] } }
   | { type: 'messageState'; payload: { id: string; state: MessageState } }
   | { type: 'messagePathHeard'; payload: { id: string; path: MessagePath; state: MessageState } }
+  | { type: 'messagesDeleted'; payload: { key: string; ids: string[] } }
   | { type: 'owner'; payload: Owner | null }
   | { type: 'appSettings'; payload: AppSettings }
   | { type: 'radioSettings'; payload: RadioSettings }

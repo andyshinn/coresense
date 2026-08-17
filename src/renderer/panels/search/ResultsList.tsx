@@ -1,9 +1,10 @@
 import { Loader2 } from 'lucide-react';
 import type { ConversationHit, MessageHit } from '../../../shared/types';
+import type { ApiClient } from '../../lib/api';
 import { EmptyState, Section } from './atoms';
 import { ConversationRow } from './ConversationRow';
 import { shortPk } from './format';
-import { MessageRow } from './MessageRow';
+import { SearchMessageRow } from './MessageRow';
 import { partitionConversations } from './partition';
 
 interface Props {
@@ -21,9 +22,11 @@ interface Props {
   ownerName: string;
   canLoadMore: boolean;
   loadingMore: boolean;
+  client: ApiClient | null;
   onLoadMore: () => void;
   onConversationClick: (hit: ConversationHit) => void;
   onMessageClick: (hit: MessageHit) => void;
+  onDeleted: (id: string) => void;
 }
 
 export function ResultsList({
@@ -40,9 +43,11 @@ export function ResultsList({
   ownerName,
   canLoadMore,
   loadingMore,
+  client,
   onLoadMore,
   onConversationClick,
   onMessageClick,
+  onDeleted,
 }: Props) {
   // Drop hits annotated by main as matching an active block rule. The
   // totalMessages count still reflects the server's full match total — the
@@ -84,7 +89,7 @@ export function ResultsList({
             <Section title={`Messages (${visibleMessages.length} of ${totalMessages})`}>
               <ul className="space-y-1">
                 {visibleMessages.map((hit) => (
-                  <MessageRow
+                  <SearchMessageRow
                     key={`${hit.key}:${hit.id}`}
                     hit={hit}
                     channelName={channelByKey.get(hit.key)}
@@ -99,6 +104,8 @@ export function ResultsList({
                         : ownerName
                     }
                     onClick={() => onMessageClick(hit)}
+                    client={client}
+                    onDeleted={onDeleted}
                   />
                 ))}
               </ul>

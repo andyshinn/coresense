@@ -354,4 +354,48 @@ export const messagesStore = {
        )`,
     ).run(key, key, keep);
   },
+
+  /** Hard-delete messages by app-level id (`mid`), scoped to one conversation,
+   *  and tombstone exactly the ones that existed. Scoping lives here rather
+   *  than in the caller so every caller — the single-message route today, a
+   *  bulk delete tomorrow — gets the ownership check for free. The messages_ad
+   *  trigger keeps messages_fts in sync — do not touch that table here.
+   *  Returns the ids actually removed. */
+  remove(key: string, ids: string[]): string[] {
+    if (ids.length === 0) return [];
+    const db = openDb();
+    const probe = ids.map(() => '?').join(', ');
+    db.exec('BEGIN');
+    try {
+      const rows = db
+        .prepare(`SELECT mid FROM messages WHERE key = ? AND mid IN (${probe})`)
+        .all(key, ...ids) as unknown as {
+        mid: string;
+      }[];
+      if (rows.length === 0) {
+        db.exec('COMMIT');
+        return [];
+      }
+      const found = rows.map((r) => r.mid);
+      const holes = found.map(() => '?').join(', ');
+      db.prepare(`DELETE FROM messages WHERE key = ? AND mid IN (${holes})`).run(key, ...found);
+      const tombstone = db.prepare(`INSERT OR IGNORE INTO deleted_messages (mid, ts) VALUES (?, ?)`);
+      const now = Date.now();
+      for (const mid of found) tombstone.run(mid, now);
+      db.exec('COMMIT');
+      return found;
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  },
+
+  /** True when the user deleted this id. Guards the inbound write path. */
+  isDeleted(id: string): boolean {
+    const db = openDb();
+    const row = db.prepare(`SELECT 1 AS present FROM deleted_messages WHERE mid = ?`).get(id) as
+      | { present: number }
+      | undefined;
+    return row != null;
+  },
 };
