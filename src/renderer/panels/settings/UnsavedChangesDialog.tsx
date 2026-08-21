@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { flushDrafts } from '../../app/useDraftsPersistence';
+import { flushUiState } from '../../app/useUiStatePersistence';
 import { Button } from '../../components/ui/button';
 import {
   Dialog,
@@ -33,7 +35,12 @@ export function UnsavedChangesDialog({ client }: { client: ApiClient | null }) {
   const finish = () => {
     if (pendingTarget?.kind === 'quit') {
       clearPendingTarget();
-      if (client) void api.confirmQuit(client);
+      // Same boundary as menuActions' requestQuit: flush before main exits.
+      if (client)
+        void (async () => {
+          await Promise.all([flushUiState(), flushDrafts()]);
+          await api.confirmQuit(client);
+        })();
     } else {
       commitPendingTarget();
     }

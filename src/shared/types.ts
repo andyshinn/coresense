@@ -820,6 +820,26 @@ export interface UsageEntry {
 }
 export type UsageMap = Record<string, UsageEntry>;
 
+/** Persisted Logs panel view options. */
+export interface LogsFilter {
+  minLevel: LogLevel;
+  showMain: boolean;
+  showRenderer: boolean;
+  paused: boolean;
+}
+
+/** The Logs panel's two substring boxes. Session-only, at the store ROOT rather
+ *  than in UiState — same reasoning as `peopleQuery` and the search query.
+ *  They are live text inputs, so persisting them would put a keystroke back on
+ *  the ui write path; and a substring typed last week silently emptying the
+ *  Logs panel on the next launch is a bug, not a restored preference. */
+export interface LogsSearch {
+  loggerSubstring: string;
+  textSubstring: string;
+}
+
+export const DEFAULT_LOGS_SEARCH: LogsSearch = { loggerSubstring: '', textSubstring: '' };
+
 export interface UiState {
   activeKey: string;
   pinned: string[]; // keys in pin order (channel + contact keys)
@@ -831,24 +851,15 @@ export interface UiState {
   // LeftNav Collapsible open/closed flags (Channels parent, Contacts wrapper,
   // and the four ContactKind groups).
   leftNavOpen: Record<LeftNavGroupId, boolean>;
-  // Per-conversation composer drafts. Keyed by channel/contact key. Entries
-  // are deleted when the message is sent or the textarea is cleared.
-  drafts: Record<string, string>;
   // Packet log view options.
   packetLogFilter: { showCompanion: boolean };
   /** Selected window in the channel rail's Activity section. Global rather than
    *  per-channel: it is a reading habit, and a per-channel map would grow one
    *  entry per channel ever opened. */
   channelActivityWindow: ActivityWindowKey;
-  // Logs panel filter options.
-  logsFilter: {
-    minLevel: LogLevel;
-    showMain: boolean;
-    showRenderer: boolean;
-    loggerSubstring: string;
-    textSubstring: string;
-    paused: boolean;
-  };
+  // Logs panel filter options. The two substring boxes are NOT here — see
+  // LogsSearch.
+  logsFilter: LogsFilter;
   // Theme preference. Migrated from localStorage on first launch after this
   // field was added; see App.tsx hydration path.
   themePref: ThemePref;
@@ -896,15 +907,12 @@ export const DEFAULT_UI_STATE: UiState = {
     room: true,
     sensor: true,
   },
-  drafts: {},
   packetLogFilter: { showCompanion: false },
   channelActivityWindow: '24h',
   logsFilter: {
     minLevel: 'silly',
     showMain: true,
     showRenderer: true,
-    loggerSubstring: '',
-    textSubstring: '',
     paused: false,
   },
   themePref: 'auto',
@@ -940,6 +948,11 @@ export interface StateSnapshot {
   /** Runtime online-tile status (key configured / key rejected). */
   mapTileStatus: MapTileStatus;
   uiState: UiState;
+  /** Per-conversation composer drafts, keyed by channel/contact key. A sibling
+   *  of uiState rather than a field inside it: drafts change on every keystroke,
+   *  and folding them into UiState drags every ui consumer onto that path (and
+   *  every draft onto the uiState WS broadcast). Persisted to drafts.json. */
+  drafts: Record<string, string>;
   deviceIdentity: DeviceIdentity;
   autoAddConfig: AutoAddConfig;
   telemetryPolicy: TelemetryPolicy;

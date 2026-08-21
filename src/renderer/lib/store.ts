@@ -18,6 +18,7 @@ import {
   DEFAULT_DEVICE_IDENTITY,
   DEFAULT_DEVICE_INFO,
   DEFAULT_GPS_CONFIG,
+  DEFAULT_LOGS_SEARCH,
   DEFAULT_MAP_SETTINGS,
   DEFAULT_MAP_TILE_STATUS,
   DEFAULT_RADIO_SETTINGS,
@@ -30,6 +31,7 @@ import {
   type GpsConfig,
   type LeftNavGroupId,
   type LogEntry,
+  type LogsSearch,
   type MapSettings,
   type MapTileStatus,
   type Message,
@@ -259,6 +261,20 @@ interface CoreState {
   /** People rail search box. Deliberately at the store ROOT, not under `ui` —
    *  App.tsx persists `ui` and a search query should never survive a relaunch. */
   peopleQuery: string;
+
+  /** Logs panel substring boxes. Session-only and at the store ROOT: they are
+   *  live text inputs, so keeping them in `ui` put a keystroke on the persisted
+   *  write path, and a stale substring would silently empty the panel on the
+   *  next launch. Cf. `peopleQuery`. */
+  logsSearch: LogsSearch;
+  setLogsSearch: (patch: Partial<LogsSearch>) => void;
+
+  /** Per-conversation composer drafts, keyed by channel/contact key. At the
+   *  store ROOT rather than under `ui` on purpose: this changes on every
+   *  keystroke, and while it lived in `ui` every character allocated a new `ui`
+   *  object — which re-rendered anything subscribed to it. Persisted separately
+   *  to drafts.json; see app/useDraftsPersistence.ts. */
+  drafts: Record<string, string>;
 
   // Contact Manager view state (filters, sort, selection, focus)
   contactManager: ContactManagerState;
@@ -568,6 +584,8 @@ export const useStore = create<CoreState>((set) => ({
   contacts: [],
   discovered: [],
   peopleQuery: '',
+  drafts: {},
+  logsSearch: { ...DEFAULT_LOGS_SEARCH },
   contactManager: CM_DEFAULTS,
   messagesByKey: {},
   pendingDeleteMessageId: null,
@@ -643,6 +661,9 @@ export const useStore = create<CoreState>((set) => ({
       mapManifest: snapshot.mapManifest,
       mapTileStatus: snapshot.mapTileStatus ?? DEFAULT_MAP_TILE_STATUS,
       ui: snapshot.uiState,
+      // `??` for the same reason the fields above use it: an older main
+      // serving a newer renderer during dev has no drafts in its snapshot.
+      drafts: snapshot.drafts ?? {},
       // Seed in-session sort from the persisted default so an existing user
       // preference takes effect immediately on launch.
       searchSort: snapshot.appSettings.search?.defaultSort ?? 'recency',
@@ -821,16 +842,28 @@ export const useStore = create<CoreState>((set) => ({
   applyUiState: (incoming) =>
     set((s) => {
       // Idempotent: when the synced subset already matches, return {} so `ui`
-      // keeps its object identity and App.tsx's debounced PUT effect doesn't
-      // re-fire — otherwise a client would loop forever on its own echo.
+      // keeps its object identity and the persistence subscriber
+      // (app/useUiStatePersistence.ts, which filters on `s.ui !== prev.ui`)
+      // doesn't re-fire — otherwise a client would loop forever on its own echo.
+      // That early return is the loop terminator; the write coalescer is not.
+      //
       // Coalesce the usage maps: a legacy or partial producer may PUT a UiState
       // that omits one, and Object.keys(undefined) in usageMapEqual (or a
       // downstream topIds) would otherwise throw and break the WS handler for
       // every connected client.
       const incomingEmojiUsage = incoming.emojiUsage ?? {};
       const incomingMacroUsage = incoming.macroUsage ?? {};
+      // Read markers merge per key by max rather than being adopted wholesale.
+      // Two markRead advances can land inside one loopback round trip, so a
+      // stale echo would otherwise drag the cursor backwards, allocate a fresh
+      // `ui`, and bounce a PUT straight back — a 2-cycle that never settles.
+      // Max-merging makes adoption order-independent, so a stale echo collapses
+      // to what we already hold and the equality check below stops the loop.
+      // Nothing in the app marks a conversation unread again, so read markers
+      // only ever advance and this is also the correct merge between windows.
+      const mergedLastRead = mergeLastRead(s.ui.lastReadByKey, incoming.lastReadByKey);
       const same =
-        shallowEqualRecord(s.ui.lastReadByKey, incoming.lastReadByKey) &&
+        mergedLastRead === s.ui.lastReadByKey &&
         arraysEqual(s.ui.pinned, incoming.pinned) &&
         arraysEqual(s.ui.recentKeys, incoming.recentKeys) &&
         usageMapEqual(s.ui.emojiUsage, incomingEmojiUsage) &&
@@ -840,7 +873,7 @@ export const useStore = create<CoreState>((set) => ({
       return {
         ui: {
           ...s.ui,
-          lastReadByKey: incoming.lastReadByKey,
+          lastReadByKey: mergedLastRead,
           pinned: incoming.pinned,
           recentKeys: incoming.recentKeys,
           emojiUsage: incomingEmojiUsage,
@@ -973,10 +1006,10 @@ export const useStore = create<CoreState>((set) => ({
   setLeftNavGroup: (id, open) => set((s) => ({ ui: { ...s.ui, leftNavOpen: { ...s.ui.leftNavOpen, [id]: open } } })),
   setDraft: (key, text) =>
     set((s) => {
-      const next = { ...s.ui.drafts };
+      const next = { ...s.drafts };
       if (text) next[key] = text;
       else delete next[key];
-      return { ui: { ...s.ui, drafts: next } };
+      return { drafts: next };
     }),
   recordEmojiUse: (emoji) => set((s) => ({ ui: { ...s.ui, emojiUsage: recordUsage(s.ui.emojiUsage, emoji, Date.now()) } })),
   recordMacroUse: (macroId) =>
@@ -999,6 +1032,7 @@ export const useStore = create<CoreState>((set) => ({
     }),
   replaceLogs: (entries) => set(() => ({ logs: entries.slice(-MAX_LOGS) })),
   setLogsFilter: (patch) => set((s) => ({ ui: { ...s.ui, logsFilter: { ...s.ui.logsFilter, ...patch } } })),
+  setLogsSearch: (patch) => set((s) => ({ logsSearch: { ...s.logsSearch, ...patch } })),
   clearLogs: () => set(() => ({ logs: [], rendererLogs: [] })),
   setThemePref: (mode) => set((s) => ({ ui: { ...s.ui, themePref: mode } })),
   togglePin: (key) =>
@@ -1128,11 +1162,21 @@ function arraysEqual(a: string[], b: string[]): boolean {
   return a.every((v, i) => v === b[i]);
 }
 
-function shallowEqualRecord<T>(a: Record<string, T>, b: Record<string, T>): boolean {
-  if (a === b) return true;
-  const ak = Object.keys(a);
-  if (ak.length !== Object.keys(b).length) return false;
-  return ak.every((k) => a[k] === b[k]);
+/**
+ * Per-key max merge of read markers. Returns the ORIGINAL `mine` reference when
+ * the incoming map adds nothing, so callers can use identity to detect "no
+ * change" and avoid allocating a new `ui` — which is what stops a synced client
+ * from bouncing its own echo back forever.
+ */
+function mergeLastRead(mine: Record<string, number>, incoming: Record<string, number>): Record<string, number> {
+  let out: Record<string, number> | null = null;
+  for (const [key, ts] of Object.entries(incoming ?? {})) {
+    if (ts > (mine[key] ?? 0)) {
+      out ??= { ...mine };
+      out[key] = ts;
+    }
+  }
+  return out ?? mine;
 }
 
 // Usage-map values are per-id objects ({count, lastUsedMs}), not primitives, so

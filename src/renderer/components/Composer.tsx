@@ -1,6 +1,7 @@
 import { Loader2, Send } from 'lucide-react';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { RadioSettings } from '../../shared/types';
+import { flushDrafts } from '../app/useDraftsPersistence';
 import { loraAirtimeMs } from '../lib/airtime';
 import type { ApiClient } from '../lib/api';
 import { shouldSendOnKey } from '../lib/composerKeys';
@@ -28,7 +29,8 @@ interface Props {
   radioSettings: RadioSettings;
   placeholder?: string;
   // Conversation key the textarea belongs to. When provided, the in-progress
-  // text is persisted to ui.drafts so it survives restarts and view switches.
+  // text is kept in the store's `drafts` slice so it survives restarts and view
+  // switches. Deliberately not part of `ui` — see the slice's comment.
   draftKey?: string;
   // When true, focus the textarea on mount and whenever the conversation
   // (draftKey) changes, so the user can start typing immediately on navigate.
@@ -42,7 +44,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   { onSend, disabled, returnToSend, radioSettings, placeholder = 'Send a message…', draftKey, autoFocus, client },
   ref,
 ) {
-  const draft = useStore((s) => (draftKey ? (s.ui.drafts[draftKey] ?? '') : ''));
+  const draft = useStore((s) => (draftKey ? (s.drafts[draftKey] ?? '') : ''));
   const setDraft = useStore((s) => s.setDraft);
   const [localValue, setLocalValue] = useState('');
   const value = draftKey ? draft : localValue;
@@ -204,6 +206,9 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           ref={textareaRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
+          // Clicking away is a boundary: persist the draft rather than leaving
+          // it in memory until the next navigation or window blur.
+          onBlur={() => void flushDrafts()}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           rows={1}

@@ -50,6 +50,7 @@ class StateHolder {
   private mapSettings: MapSettings;
   private mapTileStatus: MapTileStatus;
   private uiState: UiState;
+  private drafts: Record<string, string>;
   private deviceIdentity: DeviceIdentity;
   private autoAddConfig: AutoAddConfig;
   private telemetryPolicy: TelemetryPolicy;
@@ -79,6 +80,9 @@ class StateHolder {
     };
     // Runtime-only status (never persisted). keyConfigured mirrors the blob.
     this.mapTileStatus = { keyConfigured: hasApiKey(), keyRejected: false };
+    // Order matters: loadDrafts() lifts the legacy `drafts` key out of
+    // ui-state.json, and loadUiState() then strips and rewrites that file.
+    this.drafts = settingsStore.loadDrafts();
     this.uiState = settingsStore.loadUiState();
     this.deviceIdentity = settingsStore.loadDeviceIdentity();
     this.autoAddConfig = settingsStore.loadAutoAddConfig();
@@ -210,6 +214,14 @@ class StateHolder {
   setUiState(next: UiState): void {
     this.uiState = next;
     settingsStore.saveUiState(next);
+  }
+
+  getDrafts(): Record<string, string> {
+    return this.drafts;
+  }
+  setDrafts(next: Record<string, string>): void {
+    this.drafts = next;
+    settingsStore.saveDrafts(next);
   }
 
   getDeviceIdentity(): DeviceIdentity {

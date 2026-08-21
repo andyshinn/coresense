@@ -15,11 +15,13 @@ export function LogsPanel() {
   const logs = useStore((s) => s.logs);
   const rendererLogs = useStore((s) => s.rendererLogs);
   const filter = useStore((s) => s.ui.logsFilter);
+  // Session-only, so it is not part of `filter` — see LogsSearch.
+  const search = useStore((s) => s.logsSearch);
   // Main logs arrive over WS; renderer logs are appended in-process. Merge the
   // two feeds and order by timestamp (same-machine clocks, so ts is reliable).
   // Array.sort is stable, so equal-ts entries keep insertion order.
   const merged = useMemo(() => [...logs, ...rendererLogs].sort((a, b) => a.ts - b.ts), [logs, rendererLogs]);
-  const visible = useMemo(() => filterLogs(merged, filter), [merged, filter]);
+  const visible = useMemo(() => filterLogs(merged, { ...filter, ...search }), [merged, filter, search]);
   const ref = useRef<VirtuosoMessageListMethods<LogEntry>>(null);
 
   const data = useMemo<VirtuosoMessageListProps<LogEntry, null>['data']>(
