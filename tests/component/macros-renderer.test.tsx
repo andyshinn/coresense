@@ -41,6 +41,7 @@ function makeSnapshot(macros: MacroTemplate[]): StateSnapshot {
     mapManifest: { missing: true, basemap: null },
     mapTileStatus: DEFAULT_MAP_TILE_STATUS,
     uiState: DEFAULT_UI_STATE,
+    drafts: {},
     deviceIdentity: DEFAULT_DEVICE_IDENTITY,
     autoAddConfig: DEFAULT_AUTO_ADD_CONFIG,
     telemetryPolicy: DEFAULT_TELEMETRY_POLICY,

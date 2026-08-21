@@ -50,14 +50,14 @@ export function LogsSourceSection() {
 
 /** Logger substring filter input for the logs right-rail filter. */
 export function LogsLoggerSection() {
-  const loggerSubstring = useStore((s) => s.ui.logsFilter.loggerSubstring);
-  const setLogsFilter = useStore((s) => s.setLogsFilter);
+  const loggerSubstring = useStore((s) => s.logsSearch.loggerSubstring);
+  const setLogsSearch = useStore((s) => s.setLogsSearch);
   return (
     <input
       type="text"
       value={loggerSubstring}
       placeholder="substring match (e.g. ble)"
-      onChange={(e) => setLogsFilter({ loggerSubstring: e.target.value })}
+      onChange={(e) => setLogsSearch({ loggerSubstring: e.target.value })}
       className="w-full rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text placeholder:text-cs-text-dim outline-none focus:border-cs-accent"
     />
   );
@@ -65,14 +65,14 @@ export function LogsLoggerSection() {
 
 /** Message text substring filter input for the logs right-rail filter. */
 export function LogsSearchSection() {
-  const textSubstring = useStore((s) => s.ui.logsFilter.textSubstring);
-  const setLogsFilter = useStore((s) => s.setLogsFilter);
+  const textSubstring = useStore((s) => s.logsSearch.textSubstring);
+  const setLogsSearch = useStore((s) => s.setLogsSearch);
   return (
     <input
       type="text"
       value={textSubstring}
       placeholder="search messages"
-      onChange={(e) => setLogsFilter({ textSubstring: e.target.value })}
+      onChange={(e) => setLogsSearch({ textSubstring: e.target.value })}
       className="w-full rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text placeholder:text-cs-text-dim outline-none focus:border-cs-accent"
     />
   );

@@ -113,6 +113,13 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(state),
     }),
+  /** Persist one conversation's composer draft. Empty text deletes the entry.
+   *  The key travels in the body — conversation keys can contain '%'. */
+  putDraft: (c: ApiClient, key: string, text: string) =>
+    request<{ ok: true }>(c, '/api/drafts', {
+      method: 'PUT',
+      body: JSON.stringify({ key, text }),
+    }),
   putAppSettings: (c: ApiClient, settings: AppSettings) =>
     request<{ ok: true }>(c, '/api/settings/app', {
       method: 'PUT',

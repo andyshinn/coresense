@@ -40,6 +40,7 @@ const FILES = {
   channels: 'channels.json',
   contacts: 'contacts.json',
   ui: 'ui-state.json',
+  drafts: 'drafts.json',
   map: 'map-settings.json',
   deviceIdentity: 'device-identity.json',
   autoAdd: 'auto-add-config.json',
@@ -136,8 +137,51 @@ export const settingsStore = {
   loadContacts: (): Contact[] => readJson(FILES.contacts, []),
   saveContacts: (v: Contact[]): void => writeJson(FILES.contacts, v),
 
-  loadUiState: (): UiState => mergeDefaults(readJson(FILES.ui, DEFAULT_UI_STATE), DEFAULT_UI_STATE),
+  loadUiState: (): UiState => {
+    const raw = readJson<Record<string, unknown>>(FILES.ui, {});
+    const merged = mergeDefaults(raw as unknown as UiState, DEFAULT_UI_STATE);
+    const bag = merged as unknown as Record<string, unknown>;
+    // mergeDefaults copies every stored key through, defaults or not. A field
+    // that has LEFT UiState therefore has to be deleted actively, or it is
+    // reloaded, re-broadcast and re-written forever. Strip the retired ones and
+    // rewrite the file once.
+    const retired: string[] = [];
+    if ('drafts' in raw) {
+      // loadDrafts() has already lifted these into drafts.json by now — holder
+      // constructs in that order.
+      delete bag.drafts;
+      retired.push('drafts');
+    }
+    const logsFilter = bag.logsFilter as Record<string, unknown> | undefined;
+    if (logsFilter && ('loggerSubstring' in logsFilter || 'textSubstring' in logsFilter)) {
+      // The Logs substring boxes are session-only now. Nothing is migrated:
+      // a substring typed a week ago silently emptying the panel on launch is
+      // the bug being fixed, so these are simply dropped.
+      delete logsFilter.loggerSubstring;
+      delete logsFilter.textSubstring;
+      retired.push('logsFilter substrings');
+    }
+    if (retired.length > 0) {
+      writeJson(FILES.ui, merged);
+      log.info(`migrated retired fields out of ui-state.json: ${retired.join(', ')}`);
+    }
+    return merged;
+  },
   saveUiState: (v: UiState): void => writeJson(FILES.ui, v),
+
+  /** Composer drafts, split out of ui-state.json so they get their own write
+   *  cadence and stay off the uiState WS broadcast. Falls back to lifting them
+   *  out of a legacy ui-state.json on first run after the split. MUST be called
+   *  before loadUiState(), which strips and rewrites that file. */
+  loadDrafts: (): Record<string, string> => {
+    const own = readJson<Record<string, string> | null>(FILES.drafts, null);
+    if (own) return own;
+    const legacy = readJson<Record<string, unknown>>(FILES.ui, {});
+    const lifted = (legacy.drafts as Record<string, string> | undefined) ?? {};
+    if (Object.keys(lifted).length > 0) writeJson(FILES.drafts, lifted);
+    return lifted;
+  },
+  saveDrafts: (v: Record<string, string>): void => writeJson(FILES.drafts, v),
 
   loadMapSettings: (): MapSettings => mergeDefaults(readJson(FILES.map, DEFAULT_MAP_SETTINGS), DEFAULT_MAP_SETTINGS),
   saveMapSettings: (v: MapSettings): void => writeJson(FILES.map, v),

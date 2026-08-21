@@ -2,17 +2,19 @@ import { MessageSquare, Star, X } from 'lucide-react';
 import { type Contact, hasValidFix } from '../../../shared/types';
 import { MARKER_TYPES, MarkerShape } from '../../components/map/markers/MarkerShape';
 import { Button } from '../../components/ui/button';
-import { type ApiClient, api } from '../../lib/api';
+import type { ApiClient } from '../../lib/api';
 import { publish as publishMapBus } from '../../lib/map/bus';
 import { useStore } from '../../lib/store';
 import { fmtRelative } from '../../lib/time';
 
 interface Props {
   contact: Contact;
+  // Unused since starring started going through the ui-state subscriber;
+  // preserved for parity with the call-site (cf. SiteInfoCard).
   client: ApiClient | null;
 }
 
-export function NodeInfoCard({ contact, client }: Props) {
+export function NodeInfoCard({ contact }: Props) {
   const setSelectedContact = useStore((s) => s.setSelectedContact);
   const setActiveKey = useStore((s) => s.setActiveKey);
   const togglePin = useStore((s) => s.togglePin);
@@ -27,13 +29,12 @@ export function NodeInfoCard({ contact, client }: Props) {
       publishMapBus({ kind: 'flyTo', lng: contact.gpsLon, lat: contact.gpsLat, zoom: 14 });
     }
   };
+  // No explicit persist: the ui-state subscriber in app/useUiStatePersistence
+  // picks up the togglePin mutation and writes it on the leading edge. The
+  // hand-rolled PUT that used to live here predates that hook and raced its
+  // dedupe, so a star could be written twice.
   const onStar = () => {
     togglePin(contact.key);
-    if (client) {
-      // togglePin updates ui state synchronously; persist after.
-      const next = useStore.getState().ui;
-      void api.putUiState(client, next);
-    }
   };
 
   return (

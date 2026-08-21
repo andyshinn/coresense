@@ -4,6 +4,8 @@ import { loadLastDevice } from '../lib/lastDevice';
 import { notify } from '../lib/notify';
 import { useStore } from '../lib/store';
 import { firstUnreadMessageId } from '../lib/utils';
+import { flushDrafts } from './useDraftsPersistence';
+import { flushUiState } from './useUiStatePersistence';
 
 export interface MenuActionHandlerDeps {
   baseUrl: string | null;
@@ -62,7 +64,12 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         if (dirty) {
           st.setPendingTarget({ kind: 'quit' });
         } else if (baseUrl && apiKey) {
-          void api.confirmQuit({ baseUrl, apiKey });
+          // Last boundary: main quits ~immediately after confirmQuit, so get
+          // any coalesced ui change and any unwritten draft onto disk first.
+          void (async () => {
+            await Promise.all([flushUiState(), flushDrafts()]);
+            await api.confirmQuit({ baseUrl, apiKey });
+          })();
         }
         break;
       }

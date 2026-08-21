@@ -1,4 +1,4 @@
-import type { LogEntry, LogLevel, UiState } from '../../../shared/types';
+import type { LogEntry, LogLevel, LogsFilter, LogsSearch } from '../../../shared/types';
 
 const LEVEL_ORDER: Record<LogLevel, number> = {
   silly: 0,
@@ -10,7 +10,7 @@ const LEVEL_ORDER: Record<LogLevel, number> = {
   fatal: 6,
 };
 
-export function filterLogs(entries: LogEntry[], filter: UiState['logsFilter']): LogEntry[] {
+export function filterLogs(entries: LogEntry[], filter: LogsFilter & LogsSearch): LogEntry[] {
   const minLevelId = LEVEL_ORDER[filter.minLevel];
   const loggerNeedle = filter.loggerSubstring.toLowerCase().trim();
   const textNeedle = filter.textSubstring.toLowerCase().trim();

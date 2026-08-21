@@ -107,6 +107,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       mapManifest: await buildTileManifest(),
       mapTileStatus: holder.getMapTileStatus(),
       uiState: holder.getUiState(),
+      drafts: holder.getDrafts(),
       deviceIdentity: holder.getDeviceIdentity(),
       autoAddConfig: holder.getAutoAddConfig(),
       telemetryPolicy: holder.getTelemetryPolicy(),
@@ -124,6 +125,26 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     if (!body) return c.json({ error: 'invalid body' }, 400);
     stateHolder().setUiState(body);
     emit.uiState(body);
+    return c.json({ ok: true });
+  });
+
+  // Composer drafts, one key at a time. Deliberately NOT part of the UiState
+  // payload and deliberately NOT broadcast: draft text is per-window
+  // in-progress typing, so fanning it to every connected client would fight a
+  // second window's typist — and the server binds to 0.0.0.0 when the proxy is
+  // configured with bindAll. The key travels in the BODY rather than the path
+  // because conversation keys can contain a literal '%' (e.g. `ch:100% Club`),
+  // which is the double-decode footgun fixed in c3ab086; see the note on the
+  // `:key` routes below. Empty text deletes the entry.
+  api.put('/api/drafts', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { key?: unknown; text?: unknown } | null;
+    if (!body || typeof body.key !== 'string' || typeof body.text !== 'string') {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    const next = { ...stateHolder().getDrafts() };
+    if (body.text) next[body.key] = body.text;
+    else delete next[body.key];
+    stateHolder().setDrafts(next);
     return c.json({ ok: true });
   });
 

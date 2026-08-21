@@ -1,6 +1,7 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { UiState } from '../shared/types';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { createMenuActionHandler } from './app/menuActions';
+import { useDraftsPersistence } from './app/useDraftsPersistence';
+import { useUiStatePersistence } from './app/useUiStatePersistence';
 import { createWsMessageHandler } from './app/wsHandlers';
 import { ApiKeyGate } from './components/ApiKeyGate';
 import { PacketLogHost, PathLearnedDialogHost, StatusBarHost } from './components/AppHosts';
@@ -20,7 +21,6 @@ import { AppShell } from './shell/AppShell';
 // aren't used until the user navigates to them).
 const MainPane = lazy(() => import('./shell/MainPane').then((m) => ({ default: m.MainPane })));
 
-const UI_STATE_DEBOUNCE_MS = 500;
 const FALLBACK_BASE_URL = 'http://127.0.0.1:7654';
 
 export function App() {
@@ -41,8 +41,6 @@ export function App() {
   const systemDark = useStore((s) => s.systemDark);
   const setSystemDark = useStore((s) => s.setSystemDark);
   const [hydrated, setHydrated] = useState(false);
-
-  const ui = useStore((s) => s.ui);
 
   // Action references are stable across renders (zustand returns the same
   // function instance) — pulling them via getState() inside callbacks avoids
@@ -181,21 +179,12 @@ export function App() {
     clearLegacyThemePref();
   }, [hydrated, setThemePrefStore]);
 
-  // Debounced persistence of UI state changes to ui-state.json. Skipped until
-  // the first snapshot arrives so we don't overwrite the on-disk version with
-  // the in-memory default.
-  const lastSentRef = useRef<UiState | null>(null);
-  useEffect(() => {
-    if (!client || !hydrated) return;
-    if (lastSentRef.current === ui) return;
-    const handle = setTimeout(() => {
-      lastSentRef.current = ui;
-      void api.putUiState(client, ui).catch(() => {
-        // Non-fatal; renderer state is the source of truth for this session.
-      });
-    }, UI_STATE_DEBOUNCE_MS);
-    return () => clearTimeout(handle);
-  }, [ui, client, hydrated]);
+  // Debounced persistence of UI state changes to ui-state.json. Subscribes to
+  // the store outside the render cycle — see the hook for why reading `ui`
+  // through useStore here made every keystroke re-render the whole app.
+  useUiStatePersistence(client, hydrated);
+  // Drafts persist separately, on boundaries rather than a timer — see the hook.
+  useDraftsPersistence(client, hydrated);
 
   const wsUrl = useMemo(() => {
     if (!baseUrl || !apiKey) return null;
