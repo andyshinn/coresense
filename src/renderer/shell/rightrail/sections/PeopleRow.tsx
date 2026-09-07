@@ -1,5 +1,5 @@
 import { MessageSquare, UserPlus } from 'lucide-react';
-import { type ReactNode, useLayoutEffect, useRef, useState } from 'react';
+import { memo, type ReactNode, useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { TimeFormatPref } from '../../../../shared/types';
@@ -28,19 +28,26 @@ interface PeopleRowProps {
   now: number;
   maxCount: number;
   showVolume: boolean;
-  railWidth: number;
+  /** Re-measure trigger for the clipped-name tooltip. The rail's *settled* px
+   *  width (see useSettledRailWidth), never the live one — a live width here
+   *  would re-render every row on every drag frame, which is issue #35. */
+  remeasureAt: number;
   timeFormat: TimeFormatPref;
   onOpen: (row: RosterRow) => void;
   onMessage: (row: RosterRow) => void;
   onAddContact: (row: RosterRow) => void;
 }
 
-export function PeopleRow({
+/** Memoised: the rail re-renders on every frame of a resize drag, and a
+ *  busy channel puts several hundred of these below it. Every member of the
+ *  body's `rowProps` is referentially stable across a frame, so the comparator
+ *  actually bails — which it did not while the live `railWidth` was a prop. */
+export const PeopleRow = memo(function PeopleRow({
   row,
   now,
   maxCount,
   showVolume,
-  railWidth,
+  remeasureAt,
   timeFormat,
   onOpen,
   onMessage,
@@ -55,19 +62,21 @@ export function PeopleRow({
 
   // The name tooltip exists only to recover a name the column clipped. Showing
   // it on every row would fire a tooltip on the whole list. Rows are keyed by
-  // `r.id`, so an instance survives a rail resize — re-measure whenever
-  // `railWidth` changes (it also crosses the showVolume breakpoint, which
+  // `r.id`, so an instance survives a rail resize — re-measure whenever the
+  // rail width changes (it also crosses the showVolume breakpoint, which
   // changes the name track's own width by 38px) or the name itself changes,
-  // rather than only once at mount. No ResizeObserver: railWidth already
-  // comes from the store via the body, so this is a plain dependency, not a
-  // new subscription.
+  // rather than only once at mount. No ResizeObserver (there can be 577 of
+  // these): `remeasureAt` is the settled rail width, handed down by the body,
+  // so this is a plain dependency and not a new subscription. It lands ~120ms
+  // after the drag stops, which is the deliberate trade — a clipped-name
+  // tooltip may be one drag stale mid-gesture, and nothing else reads it.
   const nameRef = useRef<HTMLButtonElement>(null);
   const [clipped, setClipped] = useState(false);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: row.name/showVolume/railWidth are re-measure triggers, not read inside the effect
+  // biome-ignore lint/correctness/useExhaustiveDependencies: row.name/showVolume/remeasureAt are re-measure triggers, not read inside the effect
   useLayoutEffect(() => {
     const el = nameRef.current;
     if (el) setClipped(el.scrollWidth > el.clientWidth);
-  }, [row.name, showVolume, railWidth]);
+  }, [row.name, showVolume, remeasureAt]);
 
   // Three tiers, and they map 1:1 onto what the row can do:
   //   filled + hued  saved contact          -> message
@@ -156,7 +165,9 @@ export function PeopleRow({
             {fmtAge(row.lastSeenAt, now)}
           </span>
         </TooltipTrigger>
-        <TooltipContent side="left">{fmtAgeAbsolute(row.lastSeenAt, now, timeFormat)}</TooltipContent>
+        <TooltipContent side="left">
+          <AgeAbsolute ts={row.lastSeenAt} now={now} pref={timeFormat} />
+        </TooltipContent>
       </Tooltip>
 
       {/* Self has no actions at all — "message yourself" and "add yourself to
@@ -182,6 +193,14 @@ export function PeopleRow({
       )}
     </div>
   );
+});
+
+/** Formats lazily. Radix keeps `TooltipContent`'s children behind a Presence, so
+ *  a closed tooltip never calls this — whereas the bare string child it replaces
+ *  ran `fmtAgeAbsolute` (three `toLocale*` calls deep) for all 577 rows on every
+ *  render, for a tooltip nobody had opened. */
+function AgeAbsolute({ ts, now, pref }: { ts: number; now: number; pref: TimeFormatPref }) {
+  return <>{fmtAgeAbsolute(ts, now, pref)}</>;
 }
 
 function RowAction({

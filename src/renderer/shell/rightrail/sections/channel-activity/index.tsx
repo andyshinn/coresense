@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import type { ActivityWindowKey, Channel, ChannelActivity } from '../../../../../shared/types';
 import { useChannelActivity } from '../../../../hooks/useChannelActivity';
 import type { ApiClient } from '../../../../lib/api';
 import { useStore } from '../../../../lib/store';
 import { Placeholder } from '../../atoms';
-import { type ActivityMode, COLLAPSE_WIDTH, trendPct } from './activity';
+import { railIsWide } from '../../railWidth';
+import { type ActivityMode, trendPct } from './activity';
 import { RhythmFooter } from './RhythmFooter';
 import { TrendChip } from './TrendChip';
 import { VolumeChart } from './VolumeChart';
@@ -91,10 +92,21 @@ export function ActivityBody({
   );
 }
 
-export function ChannelActivitySection({ channel, client }: { channel: Channel; client: ApiClient | null }) {
+/** Memoised, and subscribed to the breakpoint rather than the px width. The
+ *  rail invokes `section.body()` inline in JSX, so it hands this a fresh element
+ *  on every render; selecting `s.ui.rightWidth` here re-rendered the chart on
+ *  every frame of a resize drag even though `mode` only has two values. See
+ *  railIsWide and issue #35. */
+export const ChannelActivitySection = memo(function ChannelActivitySection({
+  channel,
+  client,
+}: {
+  channel: Channel;
+  client: ApiClient | null;
+}) {
   const { activity, loading, error } = useChannelActivity(channel.key, client);
   // The rail's own px width is already in the store, so no ResizeObserver is needed.
-  const railWidth = useStore((s) => s.ui.rightWidth);
+  const wide = useStore((s) => railIsWide(s.ui.rightWidth));
   const win = useStore((s) => s.ui.channelActivityWindow);
   const setWin = useStore((s) => s.setChannelActivityWindow);
   return (
@@ -102,9 +114,9 @@ export function ChannelActivitySection({ channel, client }: { channel: Channel; 
       activity={activity}
       loading={loading}
       error={error}
-      mode={railWidth < COLLAPSE_WIDTH ? 'collapsed' : 'full'}
+      mode={wide ? 'full' : 'collapsed'}
       win={win}
       onWindow={setWin}
     />
   );
-}
+});

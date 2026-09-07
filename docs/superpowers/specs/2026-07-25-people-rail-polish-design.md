@@ -774,7 +774,7 @@ assertion in those files must seed state first.
 
 | | Why |
 |---|---|
-| List virtualisation | Dropped from scope. The rail stays one scroll container and the section stays plain flow content. The shared `useNowTick` removes the real per-row cost. Revisit if the roster grows unbounded — the SQL has no `LIMIT`. |
+| List virtualisation | Dropped from scope. The rail stays one scroll container and the section stays plain flow content. The shared `useNowTick` removes the real per-row cost. Revisit if the roster grows unbounded — the SQL has no `LIMIT`. **Revisit fired (issue #35, 2026-09):** `ch:Public` reached 577 distinct posters and a rail-resize drag re-rendered every row per frame. Resolved with a plain 60-row paint cap plus a `Show all {n}` reveal (`PEOPLE_ROW_CAP` / `capRows` in `peopleModel.ts`), **not** a virtualiser: `react-virtuoso` inside the rail's shared `overflow-y-auto` scroller would need `customScrollParent` + `GroupedVirtuoso` for the recency buckets, so the decision above still stands — the rail is still one scroll container of plain flow content. Search and the header count still run over the full roster; only the paint is capped. |
 | Bundling Commit Mono / Inter | Own licensing gate and a `.design-sync/config.json` lockstep. §5.3 makes the design fit the font we actually render. |
 | `AppSettings.theme` is dead | Nothing reads it; the live theme is `ui.themePref` (`App.tsx:36,58`, `Cmd-T`). Worth a one-line PR of its own. Do **not** model `identityColorMode` on it. |
 | Rail-local contact detail | Row click navigates via `setActiveKey`, as today. Swapping `ContactDetail` into the rail needs detail-override state and a back affordance — a rail-architecture change. |

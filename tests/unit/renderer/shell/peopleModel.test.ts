@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { RosterRow } from '../../../../src/renderer/shell/rightrail/sections/peopleModel';
 import {
   bucketFor,
+  capRows,
   filterRoster,
   fmtAge,
   fmtCount,
   groupByBucket,
   maxCount,
+  PEOPLE_ROW_CAP,
   sortRoster,
   toRosterRows,
   volumeWidth,
@@ -282,5 +284,57 @@ describe('the You row behaves like any other participant', () => {
 
   it('is searchable by name', () => {
     expect(filterRoster([self], 'all', 'you').map((r) => r.name)).toEqual(['You']);
+  });
+});
+
+// The People rail paints at most PEOPLE_ROW_CAP rows and reveals the rest on
+// demand (issue #35). The cap is a paint-time slice applied AFTER sort/filter,
+// so search still sees the whole roster.
+describe('capRows', () => {
+  const rows = (n: number) => Array.from({ length: n }, (_, i) => row({ id: `r${i}`, name: `p${i}` }));
+
+  it('passes a short list straight through, by identity', () => {
+    const input = rows(10);
+    const out = capRows(input, PEOPLE_ROW_CAP);
+    expect(out.rows).toBe(input);
+    expect(out.hidden).toBe(0);
+  });
+
+  it('withholds nothing at exactly the cap', () => {
+    const out = capRows(rows(PEOPLE_ROW_CAP), PEOPLE_ROW_CAP);
+    expect(out.rows.length).toBe(PEOPLE_ROW_CAP);
+    expect(out.hidden).toBe(0);
+  });
+
+  it('withholds exactly one at cap + 1', () => {
+    const out = capRows(rows(PEOPLE_ROW_CAP + 1), PEOPLE_ROW_CAP);
+    expect(out.rows.length).toBe(PEOPLE_ROW_CAP);
+    expect(out.hidden).toBe(1);
+  });
+
+  it("keeps the caller's order — the cap is a prefix, not a sample", () => {
+    const out = capRows(rows(100), 3);
+    expect(out.rows.map((r) => r.name)).toEqual(['p0', 'p1', 'p2']);
+    expect(out.hidden).toBe(97);
+  });
+
+  it('handles an empty roster', () => {
+    expect(capRows([], PEOPLE_ROW_CAP)).toEqual({ rows: [], hidden: 0 });
+  });
+
+  // Capping BEFORE grouping is what stops a bucket header rendering above zero
+  // visible rows, and keeps each header's count describing what is on screen.
+  it('grouping the capped set never yields an empty bucket', () => {
+    const spread = [
+      ...Array.from({ length: 5 }, (_, i) => row({ id: `t${i}`, lastSeenAt: NOW - i * MIN })),
+      ...Array.from({ length: 5 }, (_, i) => row({ id: `y${i}`, lastSeenAt: NOW - DAY - i * MIN })),
+      ...Array.from({ length: 5 }, (_, i) => row({ id: `w${i}`, lastSeenAt: NOW - 3 * DAY - i * MIN })),
+    ];
+    const { rows: visible, hidden } = capRows(spread, 7);
+    expect(hidden).toBe(8);
+    const buckets = groupByBucket(visible, NOW);
+    expect(buckets.map((b) => b.id)).toEqual(['today', 'yesterday']);
+    for (const b of buckets) expect(b.rows.length).toBeGreaterThan(0);
+    expect(buckets.reduce((n, b) => n + b.rows.length, 0)).toBe(7);
   });
 });

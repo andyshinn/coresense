@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect } from 'react';
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import type { Channel, ChannelStats, PeopleFilter, PeopleSort } from '../../../../shared/types';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { useChannelStats } from '../../../hooks/useChannelStats';
@@ -6,14 +6,26 @@ import { useNowTick } from '../../../hooks/useNowTick';
 import { type ApiClient, api } from '../../../lib/api';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
-import { RAIL_COLLAPSE_WIDTH } from '../railWidth';
+import { railIsWide } from '../railWidth';
+import { useSettledRailWidth } from '../useSettledRailWidth';
 import { PeopleControls } from './PeopleControls';
 import { PeopleRow } from './PeopleRow';
-import { filterRoster, groupByBucket, maxCount, type RosterRow, sortRoster, toRosterRows } from './peopleModel';
+import {
+  capRows,
+  filterRoster,
+  groupByBucket,
+  maxCount,
+  PEOPLE_ROW_CAP,
+  type RosterRow,
+  sortRoster,
+  toRosterRows,
+} from './peopleModel';
 
 interface BodyProps {
   stats: ChannelStats | null;
-  railWidth: number;
+  /** At or above RAIL_COLLAPSE_WIDTH. A boolean, never the px width: the raw
+   *  width changes on every drag frame and would re-render every row with it. */
+  wide: boolean;
   sort: PeopleSort;
   filter: PeopleFilter;
   query: string;
@@ -24,11 +36,15 @@ interface BodyProps {
   /** Save a poster we have a pubkey for. Only ever called for rows whose
    *  UserPlus is enabled, i.e. `pubkey !== null && !inContacts && !blocked`. */
   onAddContact: (row: RosterRow) => void;
+  /** Identity of the roster on screen. The section does not remount when the
+   *  channel changes (the rail keys its Collapsible on a constant section id),
+   *  so this is what collapses an expanded list back to the cap. */
+  resetKey?: string;
 }
 
 export function ChannelPeopleBody({
   stats,
-  railWidth,
+  wide,
   sort,
   filter,
   query,
@@ -37,11 +53,67 @@ export function ChannelPeopleBody({
   onFilter,
   onOpenContact,
   onAddContact,
+  resetKey = '',
 }: BodyProps) {
   const now = useNowTick();
   const contacts = useStore((s) => s.contacts);
   const discovered = useStore((s) => s.discovered);
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
+  // Not `s.ui.rightWidth`: rows need a px width only to re-measure clipping, and
+  // this delivers one per settled drag instead of one per frame.
+  const settledRailWidth = useSettledRailWidth();
+  // Which roster the user asked to see in full. Comparing against `resetKey`
+  // rather than resetting in an effect means a channel switch collapses the
+  // list during the same render, with no intermediate uncapped paint.
+  const [expandedFor, setExpandedFor] = useState<string | null>(null);
+
+  // Everything below is hoisted ABOVE the `stats === null` early return: hooks
+  // must run in the same order on every render, and the skeleton path returns
+  // before the list is ever derived. `stats?.roster ?? []` covers that case.
+  const roster = stats?.roster;
+  const all = useMemo(() => toRosterRows(roster ?? [], contacts, discovered), [roster, contacts, discovered]);
+  const shown = useMemo(() => sortRoster(filterRoster(all, filter, query), sort), [all, filter, query, sort]);
+  const max = useMemo(() => maxCount(shown), [shown]);
+
+  // Search and filter run over the FULL roster above; only the paint is capped,
+  // so the header count and every search result stay complete.
+  const expanded = expandedFor === resetKey;
+  const { rows: visible, hidden } = useMemo(
+    () => (expanded ? { rows: shown, hidden: 0 } : capRows(shown, PEOPLE_ROW_CAP)),
+    [shown, expanded],
+  );
+  const buckets = useMemo(() => (sort === 'recent' ? groupByBucket(visible, now) : []), [visible, now, sort]);
+
+  const showVolume = wide && sort !== 'name';
+
+  // onOpen and onMessage are the same action today (both just open the
+  // contact), kept as one shared handler rather than two byte-identical
+  // closures — PeopleRow still calls them by their own names since they are
+  // conceptually distinct actions (row click vs. the message affordance) that
+  // simply happen to coincide for now.
+  const onRowAction = useCallback(
+    (r: RosterRow) => {
+      if (r.contactKey) onOpenContact(r.contactKey);
+    },
+    [onOpenContact],
+  );
+
+  // Every member must be referentially stable across a drag frame or `PeopleRow`'s
+  // memo comparator fails and all of them re-render anyway — which is exactly
+  // what the raw `railWidth` member used to do.
+  const rowProps = useMemo(
+    () => ({
+      now,
+      maxCount: max,
+      showVolume,
+      remeasureAt: settledRailWidth,
+      timeFormat,
+      onOpen: onRowAction,
+      onMessage: onRowAction,
+      onAddContact,
+    }),
+    [now, max, showVolume, settledRailWidth, timeFormat, onRowAction, onAddContact],
+  );
 
   // `stats === null` is the single source of truth for "no data yet" — it
   // covers the in-flight fetch AND the client === null case (which never
@@ -60,35 +132,9 @@ export function ChannelPeopleBody({
     );
   }
 
-  const all = toRosterRows(stats.roster, contacts, discovered);
   if (all.length === 0) {
     return <EmptyNote>No one has been heard in this channel yet.</EmptyNote>;
   }
-
-  const wide = railWidth >= RAIL_COLLAPSE_WIDTH;
-  const shown = sortRoster(filterRoster(all, filter, query), sort);
-  const max = maxCount(shown);
-  const showVolume = wide && sort !== 'name';
-
-  // onOpen and onMessage are the same action today (both just open the
-  // contact), kept as one shared handler rather than two byte-identical
-  // closures — PeopleRow still calls them by their own names since they are
-  // conceptually distinct actions (row click vs. the message affordance) that
-  // simply happen to coincide for now.
-  const onRowAction = (r: RosterRow) => {
-    if (r.contactKey) onOpenContact(r.contactKey);
-  };
-
-  const rowProps = {
-    now,
-    maxCount: max,
-    showVolume,
-    railWidth,
-    timeFormat,
-    onOpen: onRowAction,
-    onMessage: onRowAction,
-    onAddContact,
-  };
 
   return (
     <div className="pb-1.5">
@@ -111,7 +157,7 @@ export function ChannelPeopleBody({
           <EmptyNote>No one matches that filter.</EmptyNote>
         )
       ) : sort === 'recent' ? (
-        groupByBucket(shown, now).map((bucket) => (
+        buckets.map((bucket) => (
           <div key={bucket.id}>
             <div className="flex items-center gap-1.5 px-3 pb-1.5 pt-[13px] first:pt-1.5">
               <span className="font-mono text-[9px] uppercase tracking-[0.08em] text-cs-text-dim">{bucket.label}</span>
@@ -124,7 +170,18 @@ export function ChannelPeopleBody({
           </div>
         ))
       ) : (
-        shown.map((r) => <PeopleRow key={r.id} row={r} {...rowProps} />)
+        visible.map((r) => <PeopleRow key={r.id} row={r} {...rowProps} />)
+      )}
+
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpandedFor(resetKey)}
+          className="mt-1 w-full px-3 py-1.5 text-left font-mono text-[10px] uppercase tracking-[0.08em] text-cs-text-dim hover:text-cs-text"
+        >
+          Show all {shown.length}
+          <span className="ml-1.5 normal-case tracking-normal opacity-75">({hidden} more)</span>
+        </button>
       )}
     </div>
   );
@@ -134,8 +191,18 @@ function EmptyNote({ children }: { children: ReactNode }) {
   return <p className="px-3 py-4 text-[11.5px] text-cs-text-dim">{children}</p>;
 }
 
-/** Header count: `156`, or `«n» / 156` while a query or filter narrows it. */
-export function ChannelPeopleCount({ channel, client }: { channel: Channel; client: ApiClient | null }) {
+/** Header count: `156`, or `«n» / 156` while a query or filter narrows it.
+ *
+ *  Memoised because the rail evaluates `trailing={section.trailing?.()}` outside
+ *  the Collapsible's open guard, so this re-derives the roster even while the
+ *  People section is collapsed — once per drag frame, before the memo. */
+export const ChannelPeopleCount = memo(function ChannelPeopleCount({
+  channel,
+  client,
+}: {
+  channel: Channel;
+  client: ApiClient | null;
+}) {
   const { stats } = useChannelStats(channel.key, client);
   const contacts = useStore((s) => s.contacts);
   const discovered = useStore((s) => s.discovered);
@@ -143,9 +210,12 @@ export function ChannelPeopleCount({ channel, client }: { channel: Channel; clie
   const prefs = useStore((s) => s.ui.peopleRail[channel.key]);
   const filter = prefs?.filter ?? 'all';
 
-  const all = toRosterRows(stats?.roster ?? [], contacts, discovered);
+  const roster = stats?.roster;
+  const all = useMemo(() => toRosterRows(roster ?? [], contacts, discovered), [roster, contacts, discovered]);
+  // Counts the FULL roster, never the capped list the body paints.
+  const shown = useMemo(() => filterRoster(all, filter, query), [all, filter, query]);
+
   if (all.length === 0) return null;
-  const shown = filterRoster(all, filter, query);
   const narrowed = query !== '' || filter !== 'all';
 
   return (
@@ -153,11 +223,20 @@ export function ChannelPeopleCount({ channel, client }: { channel: Channel; clie
       {narrowed ? `${shown.length} / ${all.length}` : all.length}
     </span>
   );
-}
+});
 
-export function ChannelPeopleSection({ channel, client }: { channel: Channel; client: ApiClient | null }) {
+export const ChannelPeopleSection = memo(function ChannelPeopleSection({
+  channel,
+  client,
+}: {
+  channel: Channel;
+  client: ApiClient | null;
+}) {
   const { stats } = useChannelStats(channel.key, client);
-  const railWidth = useStore((s) => s.ui.rightWidth);
+  // A boolean, not `s.ui.rightWidth` — see railIsWide. Subscribing to the px
+  // value here would re-render this section (and therefore the whole roster) on
+  // every drag frame no matter how many memo boundaries sit below it.
+  const wide = useStore((s) => railIsWide(s.ui.rightWidth));
   const query = useStore((s) => s.peopleQuery);
   const setQuery = useStore((s) => s.setPeopleQuery);
   const prefs = useStore((s) => s.ui.peopleRail[channel.key]);
@@ -201,18 +280,25 @@ export function ChannelPeopleSection({ channel, client }: { channel: Channel; cl
     [client],
   );
 
+  const onSort = useCallback((sort: PeopleSort) => setPeopleRail(channel.key, { sort }), [channel.key, setPeopleRail]);
+  const onFilter = useCallback(
+    (filter: PeopleFilter) => setPeopleRail(channel.key, { filter }),
+    [channel.key, setPeopleRail],
+  );
+
   return (
     <ChannelPeopleBody
       stats={stats}
-      railWidth={railWidth}
+      wide={wide}
       sort={prefs?.sort ?? 'recent'}
       filter={prefs?.filter ?? 'all'}
       query={query}
       onQuery={setQuery}
-      onSort={(sort) => setPeopleRail(channel.key, { sort })}
-      onFilter={(filter) => setPeopleRail(channel.key, { filter })}
+      onSort={onSort}
+      onFilter={onFilter}
       onOpenContact={setActiveKey}
       onAddContact={addContact}
+      resetKey={channel.key}
     />
   );
-}
+});
