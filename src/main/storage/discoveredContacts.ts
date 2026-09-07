@@ -168,8 +168,16 @@ export const discoveredStore = {
     invalidateFlagCache(pubkey);
   },
 
-  /** Mark on_radio for exactly the given set (used after a full GET_CONTACTS
-   *  sync): rows in the set → 1, everything else → 0. */
+  /** Mark on_radio for exactly the given set: rows in the set → 1, everything
+   *  else → 0. Called from the `contactsSynced` hook in adapterEvents, which
+   *  fires only on a genuine RESP_END_OF_CONTACTS — the set must be the radio's
+   *  COMPLETE contents, or this clears flags for contacts that merely weren't
+   *  reached. It is the only thing that ever clears on_radio for a row the lib
+   *  no longer reports, so without it the mirror drifts upward forever (#30).
+   *
+   *  Clears the whole flag cache by design: the blanket UPDATE invalidates what
+   *  applyRadioFlags last wrote for every row, so the next `discovered` frame
+   *  re-writes the lib's pool once. That is once per sync, not per frame. */
   reconcileOnRadio(onRadioPubkeys: string[]): void {
     const db = openDb();
     db.exec('UPDATE discovered_contacts SET on_radio = 0');
