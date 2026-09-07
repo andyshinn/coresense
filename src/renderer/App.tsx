@@ -117,10 +117,10 @@ export function App() {
   );
 
   useEffect(() => {
-    // First-party window: preload tells us the exact server port, so dev
-    // (7754+) and prod (7654+) instances never collide — and `fallback` is
-    // null, because retrying the well-known port would attach this window to
-    // some *other* CoreSense instance (issue #21).
+    // First-party window: preload tells us the exact port our own server bound,
+    // so a dev instance (7754) and an installed one (7654) never cross wires —
+    // and `fallback` is null, because retrying the well-known port would attach
+    // this window to some *other* CoreSense instance (issue #21).
     const { candidate, fallback } = resolveBaseUrl(window.coresense?.httpPort, window.location);
     void (async () => {
       try {

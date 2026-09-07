@@ -26,6 +26,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  dialog,
   ipcMain,
   Menu,
   type MenuItemConstructorOptions,
@@ -471,10 +472,30 @@ function createWindow() {
 
 app.on('ready', () => {
   bootstrap().catch((err) => {
-    log.fatal(`failed to start: ${(err as Error).stack ?? err}`);
+    reportFatalStartupError(err as Error);
     app.quit();
   });
 });
+
+/**
+ * A bootstrap failure happens before the window exists, so there is no UI to
+ * report it in — the app just vanishes. Log the full stack for a bug report,
+ * and put the human-readable part in a native error box so the user is not
+ * left guessing why nothing opened. The common case by far is a port already
+ * held by another CoreSense (see server.ts's portInUseError).
+ */
+function reportFatalStartupError(err: Error): void {
+  log.fatal(`failed to start: ${err.stack ?? err}`);
+  // Automated runs (the Playwright harness sets CORESENSE_FAKE_TRANSPORT) must
+  // never block on a modal nobody can dismiss.
+  if (process.env.CORESENSE_FAKE_TRANSPORT) return;
+  try {
+    dialog.showErrorBox('CoreSense could not start', err.message || String(err));
+  } catch {
+    // showErrorBox can throw on a headless/unusable display; the log line above
+    // is still written.
+  }
+}
 
 let isShuttingDown = false;
 let shutdownPromise: Promise<void> | null = null;

@@ -1,7 +1,6 @@
 import { readFile, stat } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
 import { extname, join, normalize } from 'node:path';
-import { type ServerType, serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { type WebSocket, WebSocketServer } from 'ws';
@@ -44,6 +43,7 @@ import { apiKeyAuth, checkWsKey } from './api/middleware/auth';
 import { createRoutes } from './api/routes';
 import type { BridgeHandle } from './bridge';
 import { bus } from './events/bus';
+import { listenOnPort } from './http-listen';
 import { resolveHttpPort } from './http-port';
 import { getLogBuffer } from './log';
 import { stateHolder } from './state/holder';
@@ -51,8 +51,6 @@ import { discoveredStore } from './storage/discoveredContacts';
 import { transportManager } from './transport/manager';
 import { currentUpdateState } from './updates/controller';
 import { isMainWindowFocused } from './window/registry';
-
-const MAX_PORT_PROBES = 50;
 
 interface StartServerResult {
   port: number;
@@ -69,9 +67,9 @@ export async function startServer(
   bridge: BridgeHandle,
   opts: StartServerOptions = {},
 ): Promise<StartServerResult> {
-  // CORESENSE_HTTP_PORT overrides the dev/prod default; `0` binds an ephemeral
-  // port. An explicitly requested port disables the collision walk below.
-  const { port: startPort, allowFallback } = resolveHttpPort(process.env, opts.dev ?? false);
+  // A fixed port: CORESENSE_HTTP_PORT if set (`0` binds an ephemeral port),
+  // otherwise the dev/prod default. Never probed, never relocated.
+  const requestedPort = resolveHttpPort(process.env, opts.dev ?? false);
   const bindAddress = opts.bindAddress ?? '127.0.0.1';
   const app = new Hono();
   const clients = new Set<WebSocket>();
@@ -122,8 +120,8 @@ export async function startServer(
     });
   }
 
-  let boundPort = startPort;
-  const httpServer = await listenWithFallback(app.fetch, startPort, bindAddress, allowFallback, (p) => {
+  let boundPort = requestedPort;
+  const httpServer = await listenOnPort(app.fetch, requestedPort, bindAddress, (p) => {
     boundPort = p;
   });
 
@@ -353,37 +351,4 @@ function mimeFor(ext: string): string {
     default:
       return 'application/octet-stream';
   }
-}
-
-type FetchHandler = Parameters<typeof serve>[0]['fetch'];
-
-function listenWithFallback(
-  fetch: FetchHandler,
-  startPort: number,
-  hostname: string,
-  allowFallback: boolean,
-  onBound: (port: number) => void,
-): Promise<ServerType> {
-  return new Promise((resolve, reject) => {
-    let attempt = 0;
-    const tryPort = (port: number) => {
-      const server = serve({ fetch, port, hostname }, (info) => {
-        // With port 0 the OS picks; info.port carries the real bound port.
-        onBound(info.port);
-        resolve(server);
-      });
-      server.on('error', (err: NodeJS.ErrnoException) => {
-        // Only walk to the next port when the port was a *default*. When it was
-        // asked for explicitly (CORESENSE_HTTP_PORT), reject and let bootstrap
-        // fail loudly instead of listening somewhere the caller never expects.
-        if (allowFallback && err.code === 'EADDRINUSE' && attempt < MAX_PORT_PROBES) {
-          attempt += 1;
-          tryPort(port + 1);
-        } else {
-          reject(err);
-        }
-      });
-    };
-    tryPort(startPort);
-  });
 }
