@@ -375,8 +375,6 @@ export interface LogEntry {
   args?: unknown[]; // structured extras (JSON-serializable), optional
 }
 
-export type ThemePrefValue = 'auto' | 'dark' | 'light';
-
 /** How a person's identity colour is derived.
  *  'byKey'  — hue only when a real pubkey is known; everyone else is neutral.
  *  'byName' — hue from the display name, so everyone gets one. */
@@ -406,7 +404,9 @@ export interface UpdateState {
 }
 
 export interface AppSettings {
-  theme: ThemePrefValue;
+  // No `theme` here on purpose: the live theme preference is `UiState.themePref`
+  // (what App.tsx applies and Cmd-T cycles). An AppSettings.theme existed once,
+  // was never read by anything, and is stripped on load — see issue #22.
   /** How a person's identity colour is derived — see `IdentityColorMode`. */
   identityColorMode: IdentityColorMode;
   /** Density for the channel/DM conversation message list. */
@@ -517,7 +517,6 @@ export interface AppSettings {
 export type ContactGrouping = 'nested' | 'top-level';
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
-  theme: 'auto',
   identityColorMode: 'byKey',
   messageStyle: 'rich',
   unreadsStyle: 'compact',

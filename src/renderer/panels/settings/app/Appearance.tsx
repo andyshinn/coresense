@@ -1,5 +1,5 @@
 import { Sun } from 'lucide-react';
-import type { AppSettings as AppSettingsType, IdentityColorMode, ThemePrefValue } from '../../../../shared/types';
+import type { AppSettings as AppSettingsType, IdentityColorMode } from '../../../../shared/types';
 import { Row, Select } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { useStore } from '../../../lib/store';
@@ -30,7 +30,6 @@ const IDENTITY_COLOR_OPTIONS = [
 ] as const;
 
 const eqAppearance = (a: AppSettingsType, b: AppSettingsType) =>
-  a.theme === b.theme &&
   a.messageStyle === b.messageStyle &&
   a.unreadsStyle === b.unreadsStyle &&
   a.timeFormat === b.timeFormat &&
@@ -38,6 +37,13 @@ const eqAppearance = (a: AppSettingsType, b: AppSettingsType) =>
 
 export function AppearanceSection({ client }: SectionProps) {
   const saved = useStore((s) => s.appSettings);
+  // The theme is the one control here that is NOT part of the saved draft: it
+  // lives in ui state (ui-state.json), which is what App.tsx actually applies
+  // and what Cmd-T cycles. Reading and writing that same field is what keeps
+  // the selector honest in both directions - it applies, and it re-renders
+  // when the theme is changed from outside this panel. See issue #22.
+  const themePref = useStore((s) => s.ui.themePref);
+  const setThemePref = useStore((s) => s.setThemePref);
   const { draft, setDraft, dirty, saving, save } = useSettingsSection({
     id: 'app-appearance',
     saved,
@@ -46,7 +52,6 @@ export function AppearanceSection({ client }: SectionProps) {
       saveApp(
         client,
         {
-          theme: d.theme,
           identityColorMode: d.identityColorMode,
           messageStyle: d.messageStyle,
           unreadsStyle: d.unreadsStyle,
@@ -69,15 +74,8 @@ export function AppearanceSection({ client }: SectionProps) {
     >
       <Row
         label="Theme"
-        description="Auto follows your OS setting (Cmd-T cycles)."
-        changed={draft.theme !== saved.theme}
-        control={
-          <Select
-            value={draft.theme}
-            options={THEME_OPTIONS}
-            onChange={(theme) => setDraft((s) => ({ ...s, theme: theme as ThemePrefValue }))}
-          />
-        }
+        description="Applies immediately - no Save needed. Auto follows your OS setting (Cmd-T cycles)."
+        control={<Select value={themePref} options={THEME_OPTIONS} onChange={setThemePref} />}
       />
       <Row
         label="Identity colour"

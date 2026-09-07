@@ -112,7 +112,21 @@ function appSettingsSeed(): AppSettings {
 export const settingsStore = {
   loadAppSettings: (): AppSettings => {
     const seed = appSettingsSeed();
-    return mergeDefaults(readJson(FILES.app, seed), seed);
+    const merged = mergeDefaults(readJson(FILES.app, seed), seed);
+    const bag = merged as unknown as Record<string, unknown>;
+    // mergeDefaults copies every stored key through, defaults or not. A field
+    // that has LEFT AppSettings therefore has to be deleted actively, or it is
+    // reloaded, re-broadcast and re-written forever — same trap as loadUiState.
+    // `theme` is dropped rather than migrated into UiState.themePref: it was
+    // written by a selector that never applied anything (issue #22), so
+    // adopting it could override the theme the user really picked with the
+    // Cmd-T cycle. Nothing is lost — the value never had an effect.
+    if ('theme' in bag) {
+      delete bag.theme;
+      writeJson(FILES.app, merged);
+      log.info('migrated retired field out of app-settings.json: theme');
+    }
+    return merged;
   },
   saveAppSettings: (v: AppSettings): void => writeJson(FILES.app, v),
 
