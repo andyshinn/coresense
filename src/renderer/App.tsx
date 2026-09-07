@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { createMenuActionHandler } from './app/menuActions';
+import { resolveBaseUrl } from './app/resolveBaseUrl';
 import { useDraftsPersistence } from './app/useDraftsPersistence';
 import { useUiStatePersistence } from './app/useUiStatePersistence';
 import { createWsMessageHandler } from './app/wsHandlers';
@@ -20,8 +21,6 @@ import { AppShell } from './shell/AppShell';
 // Lazy: MainPane drags in every panel module (~1.5k LOC of forms/tables that
 // aren't used until the user navigates to them).
 const MainPane = lazy(() => import('./shell/MainPane').then((m) => ({ default: m.MainPane })));
-
-const FALLBACK_BASE_URL = 'http://127.0.0.1:7654';
 
 export function App() {
   // The Electron preload injects `window.coresense.apiKey` — the first-party
@@ -118,28 +117,29 @@ export function App() {
   );
 
   useEffect(() => {
-    // First-party window: preload tells us the exact server port. Skip the
-    // probe entirely so dev (7754+) and prod (7654+) instances never collide.
-    const injectedPort = window.coresense?.httpPort;
-    const candidate = injectedPort
-      ? `http://127.0.0.1:${injectedPort}`
-      : window.location.protocol.startsWith('http')
-        ? `${window.location.protocol}//${window.location.host}`
-        : FALLBACK_BASE_URL;
+    // First-party window: preload tells us the exact server port, so dev
+    // (7754+) and prod (7654+) instances never collide — and `fallback` is
+    // null, because retrying the well-known port would attach this window to
+    // some *other* CoreSense instance (issue #21).
+    const { candidate, fallback } = resolveBaseUrl(window.coresense?.httpPort, window.location);
     void (async () => {
       try {
         const caps = await fetchCapabilities(candidate);
         setBaseUrl(candidate);
         setPort(caps.httpPort);
         setConfigPath(caps.configPath);
-      } catch {
+      } catch (err) {
+        if (!fallback) {
+          notify.error(`Could not reach CoreSense server: ${(err as Error).message}`, err);
+          return;
+        }
         try {
-          const caps = await fetchCapabilities(FALLBACK_BASE_URL);
-          setBaseUrl(FALLBACK_BASE_URL);
+          const caps = await fetchCapabilities(fallback);
+          setBaseUrl(fallback);
           setPort(caps.httpPort);
           setConfigPath(caps.configPath);
-        } catch (err) {
-          notify.error(`Could not reach CoreSense server: ${(err as Error).message}`, err);
+        } catch (fallbackErr) {
+          notify.error(`Could not reach CoreSense server: ${(fallbackErr as Error).message}`, fallbackErr);
         }
       }
     })();

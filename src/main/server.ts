@@ -44,6 +44,7 @@ import { apiKeyAuth, checkWsKey } from './api/middleware/auth';
 import { createRoutes } from './api/routes';
 import type { BridgeHandle } from './bridge';
 import { bus } from './events/bus';
+import { resolveHttpPort } from './http-port';
 import { getLogBuffer } from './log';
 import { stateHolder } from './state/holder';
 import { discoveredStore } from './storage/discoveredContacts';
@@ -51,8 +52,6 @@ import { transportManager } from './transport/manager';
 import { currentUpdateState } from './updates/controller';
 import { isMainWindowFocused } from './window/registry';
 
-const DEFAULT_PORT_PROD = 7654;
-const DEFAULT_PORT_DEV = 7754;
 const MAX_PORT_PROBES = 50;
 
 interface StartServerResult {
@@ -70,7 +69,9 @@ export async function startServer(
   bridge: BridgeHandle,
   opts: StartServerOptions = {},
 ): Promise<StartServerResult> {
-  const defaultPort = opts.dev ? DEFAULT_PORT_DEV : DEFAULT_PORT_PROD;
+  // CORESENSE_HTTP_PORT overrides the dev/prod default; `0` binds an ephemeral
+  // port. An explicitly requested port disables the collision walk below.
+  const { port: startPort, allowFallback } = resolveHttpPort(process.env, opts.dev ?? false);
   const bindAddress = opts.bindAddress ?? '127.0.0.1';
   const app = new Hono();
   const clients = new Set<WebSocket>();
@@ -121,8 +122,8 @@ export async function startServer(
     });
   }
 
-  let boundPort = defaultPort;
-  const httpServer = await listenWithFallback(app.fetch, defaultPort, bindAddress, (p) => {
+  let boundPort = startPort;
+  const httpServer = await listenWithFallback(app.fetch, startPort, bindAddress, allowFallback, (p) => {
     boundPort = p;
   });
 
@@ -360,17 +361,22 @@ function listenWithFallback(
   fetch: FetchHandler,
   startPort: number,
   hostname: string,
+  allowFallback: boolean,
   onBound: (port: number) => void,
 ): Promise<ServerType> {
   return new Promise((resolve, reject) => {
     let attempt = 0;
     const tryPort = (port: number) => {
       const server = serve({ fetch, port, hostname }, (info) => {
+        // With port 0 the OS picks; info.port carries the real bound port.
         onBound(info.port);
         resolve(server);
       });
       server.on('error', (err: NodeJS.ErrnoException) => {
-        if (err.code === 'EADDRINUSE' && attempt < MAX_PORT_PROBES) {
+        // Only walk to the next port when the port was a *default*. When it was
+        // asked for explicitly (CORESENSE_HTTP_PORT), reject and let bootstrap
+        // fail loudly instead of listening somewhere the caller never expects.
+        if (allowFallback && err.code === 'EADDRINUSE' && attempt < MAX_PORT_PROBES) {
           attempt += 1;
           tryPort(port + 1);
         } else {

@@ -75,7 +75,22 @@ if (started) {
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
-const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
+// Two different questions used to share one `isDev` flag, and they disagree in
+// exactly one case: a production-built main bundle run *unpackaged* — which is
+// what the e2e harness and a hand-run `electron .vite/build/index.js` do. That
+// made a test run claim the installed app's HTTP port (issue #21).
+//
+// "Is the renderer served by Vite's dev server?" — a build-time define that
+// constant-folds to undefined in every `build` output. Decides where the
+// renderer HTML comes from, how strict the CSP is, and whether DevTools open.
+const viteDevServerUrl = MAIN_WINDOW_VITE_DEV_SERVER_URL;
+// "Is this a dev instance?" — runtime identity. Decides which ports and which
+// mDNS namespace this process claims, so it must agree with the predicates
+// that already redirect userData (storage/paths.ts) and seed the dev proxy
+// port (storage/settings.ts). Read app.isPackaged directly rather than
+// isPackaged() from runtime/appInfo so this does not depend on setAppInfo()
+// having run first.
+const isDevInstance = !app.isPackaged;
 
 let serverHandle: { port: number; close: () => Promise<void> } | null = null;
 let bridgeHandle: BridgeHandle | null = null;
@@ -117,16 +132,16 @@ async function bootstrap() {
   const bindAll = proxy.enabled && proxy.bindAll;
   const bindAddress = bindAll ? '0.0.0.0' : '127.0.0.1';
   bridgeHandle = await startBridge({
-    dev: isDev,
+    dev: isDevInstance,
     enableTcp: proxy.enabled,
     bindAddress,
     tcpPort: proxy.port,
   });
   log.info(`bridge: TCP=${bridgeHandle.tcpPort ?? 'off'}`);
 
-  const rendererDir = isDev ? null : path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`);
+  const rendererDir = viteDevServerUrl ? null : path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`);
 
-  serverHandle = await startServer(rendererDir, bridgeHandle, { dev: isDev, bindAddress });
+  serverHandle = await startServer(rendererDir, bridgeHandle, { dev: isDevInstance, bindAddress });
   log.info(`server listening on http://${bindAddress}:${serverHandle.port}`);
 
   // mDNS is published once both ports are known. Records are only advertised
@@ -144,7 +159,7 @@ async function bootstrap() {
   }
   const mdnsPlan = buildMdnsServices({
     hostname: canonicalHostname,
-    dev: isDev,
+    dev: isDevInstance,
     advertise: bindAll && proxy.mdns,
     bridgeEnabled: proxy.enabled,
     bridgeTcpPort: bridgeHandle.tcpPort,
@@ -201,7 +216,7 @@ function hardenSession() {
     // PNG as an Image (img-src). TODO: bundle these into resources/ for a
     // fully offline build.
     const MAP_ASSETS = 'https://protomaps.github.io';
-    const csp = isDev
+    const csp = viteDevServerUrl
       ? "default-src 'self'; " +
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; " +
         "style-src 'self' 'unsafe-inline'; " +
@@ -451,7 +466,7 @@ function createWindow() {
     void mainWindow.loadURL(appUrl);
   }
 
-  if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });
+  if (viteDevServerUrl) mainWindow.webContents.openDevTools({ mode: 'detach' });
 }
 
 app.on('ready', () => {
