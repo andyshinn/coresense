@@ -36,12 +36,14 @@ import {
   shell,
 } from 'electron';
 import started from 'electron-squirrel-startup';
+import { planBridgeBinding } from '../shared/ports';
 import { applyAboutPanel } from './about';
 import { getApiKey } from './api/middleware/auth';
 import { blockingStore } from './blocking/store';
 import { type BridgeHandle, startBridge } from './bridge';
 import { buildMdnsServices, type MdnsHandle, startMdns } from './bridge/mdns';
 import { emit } from './events/bus';
+import { resolveHttpPort } from './http-port';
 import { child, log } from './log';
 import { applyLoggingSettings } from './logging/apply';
 import { folderPath } from './logging/fileSink';
@@ -132,9 +134,21 @@ async function bootstrap() {
   // 0.0.0.0 and expose the API on the LAN.
   const bindAll = proxy.enabled && proxy.bindAll;
   const bindAddress = bindAll ? '0.0.0.0' : '127.0.0.1';
+
+  // Resolve our own HTTP port BEFORE the bridge binds anything, and hand the
+  // same number to startServer below so the two cannot disagree. proxy.port is
+  // user-editable and the bridge binds first, so a proxy port set to the HTTP
+  // port would take it and leave the API server unable to start — fatal, with
+  // no window in which to undo the setting. Drop the TCP listener instead and
+  // keep the app: the reason travels in BridgeStatus to the Proxy panel.
+  const httpPort = resolveHttpPort(process.env, isDevInstance);
+  const bridgePlan = planBridgeBinding(proxy, httpPort);
+  if (bridgePlan.conflict) log.error(`bridge: TCP listener not started — ${bridgePlan.conflict}`);
+
   bridgeHandle = await startBridge({
     dev: isDevInstance,
-    enableTcp: proxy.enabled,
+    enableTcp: bridgePlan.enableTcp,
+    portConflict: bridgePlan.conflict,
     bindAddress,
     tcpPort: proxy.port,
   });
@@ -142,7 +156,7 @@ async function bootstrap() {
 
   const rendererDir = viteDevServerUrl ? null : path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`);
 
-  serverHandle = await startServer(rendererDir, bridgeHandle, { dev: isDevInstance, bindAddress });
+  serverHandle = await startServer(rendererDir, bridgeHandle, { port: httpPort, bindAddress });
   log.info(`server listening on http://${bindAddress}:${serverHandle.port}`);
 
   // mDNS is published once both ports are known. Records are only advertised

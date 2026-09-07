@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { getManifest, validateTemplate } from '../../shared/macros';
 import type { MacroContext } from '../../shared/macros/types';
+import { checkProxyPort } from '../../shared/ports';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -183,6 +184,14 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   api.put('/api/settings/app', async (c) => {
     const body = (await c.req.json().catch(() => null)) as AppSettings | null;
     if (!body) return c.json({ error: 'invalid body' }, 400);
+    // Refuse a TCP proxy port the app cannot give away — above all its own HTTP
+    // port, which the bridge would bind first and so stop the API server from
+    // starting on the next boot (see shared/ports.ts). Enforced here rather
+    // than only in the UI because this endpoint is reachable directly.
+    if (body.proxy) {
+      const conflict = checkProxyPort(body.proxy.port, port());
+      if (conflict) return c.json({ error: conflict }, 400);
+    }
     stateHolder().setAppSettings(body);
     emit.appSettings(body);
     applyLoggingSettings(body.logging);

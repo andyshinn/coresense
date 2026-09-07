@@ -1,4 +1,5 @@
 import { RefreshCw, Wifi } from 'lucide-react';
+import { checkProxyPort } from '../../../../shared/ports';
 import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { NumberInput, Row, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
@@ -17,6 +18,11 @@ const eqProxy = (a: AppSettingsType, b: AppSettingsType) => {
 export function ProxySection({ client }: SectionProps) {
   const saved = useStore((s) => s.appSettings);
   const bridge = useStore((s) => s.bridge);
+  // The app's own API port. The bridge binds before the API server does, so a
+  // proxy port equal to this one would stop the app booting; the settings API
+  // rejects it too (shared/ports.ts) — this just catches it before the round
+  // trip. Null until the first snapshot hydrates capabilities.
+  const httpPort = useStore((s) => s.capabilities?.httpPort ?? null);
   const { draft, setDraft, dirty, saving, save } = useSettingsSection({
     id: 'app-proxy',
     saved,
@@ -31,11 +37,18 @@ export function ProxySection({ client }: SectionProps) {
   // currently-running bridge means the user needs to restart. Compare against
   // BridgeStatus rather than tracking a local "saved at mount" snapshot so the
   // banner is correct after revisiting the panel.
+  const portError = p.enabled && httpPort != null ? checkProxyPort(p.port, httpPort) : null;
+  // Set at boot when the configured port could not be given to the listener.
+  // Relaunching would only hit the same wall, so this replaces the restart
+  // banner rather than joining it.
+  const portConflict = bridge?.portConflict ?? null;
+
   const runningEnabled = bridge?.tcpPort != null;
   const runningBindAll = bridge?.bindAddress === '0.0.0.0';
   const runningMdns = bridge?.mdnsServiceName != null;
   const restartNeeded =
     !!bridge &&
+    !portConflict &&
     !dirty &&
     (p0.enabled !== runningEnabled ||
       (p0.enabled && p0.bindAll !== runningBindAll) ||
@@ -55,9 +68,14 @@ export function ProxySection({ client }: SectionProps) {
       description="Lets the official MeshCore mobile app (or another desktop client) share this radio over LAN."
       dirty={dirty}
       saving={saving}
-      canSave={!!client}
+      canSave={!!client && !portError}
       onSave={save}
     >
+      {portConflict && (
+        <div className="mb-2 rounded border border-cs-warn/40 bg-cs-warn/10 px-2.5 py-1.5 text-[11px] text-cs-warn">
+          TCP proxy is not running. {portConflict}
+        </div>
+      )}
       {restartNeeded && (
         <div className="mb-2 flex items-center justify-between gap-3 rounded border border-cs-warn/40 bg-cs-warn/10 px-2.5 py-1.5 text-[11px] text-cs-warn">
           <span>Bridge settings changed. Restart the app to apply.</span>
@@ -87,6 +105,7 @@ export function ProxySection({ client }: SectionProps) {
       <Row
         label="TCP port"
         description="Port the bridge listens on for raw TCP proxy clients."
+        warning={portError ?? undefined}
         changed={p.port !== p0.port}
         control={
           <NumberInput value={p.port} min={1} max={65535} disabled={!p.enabled} onChange={(v) => setP({ port: v })} />

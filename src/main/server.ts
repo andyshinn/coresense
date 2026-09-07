@@ -58,6 +58,12 @@ interface StartServerResult {
 }
 
 interface StartServerOptions {
+  /**
+   * Exact port to bind. Callers that also need to know the port *before*
+   * startServer runs (bootstrap checks it against the TCP proxy port) resolve
+   * it themselves and pass it here, so there is one source of truth.
+   */
+  port?: number;
   dev?: boolean;
   bindAddress?: string;
 }
@@ -67,9 +73,10 @@ export async function startServer(
   bridge: BridgeHandle,
   opts: StartServerOptions = {},
 ): Promise<StartServerResult> {
-  // A fixed port: CORESENSE_HTTP_PORT if set (`0` binds an ephemeral port),
-  // otherwise the dev/prod default. Never probed, never relocated.
-  const requestedPort = resolveHttpPort(process.env, opts.dev ?? false);
+  // A fixed port: whatever the caller resolved, else CORESENSE_HTTP_PORT if
+  // set (`0` binds an ephemeral port), else the dev/prod default. Never
+  // probed, never relocated.
+  const requestedPort = opts.port ?? resolveHttpPort(process.env, opts.dev ?? false);
   const bindAddress = opts.bindAddress ?? '127.0.0.1';
   const app = new Hono();
   const clients = new Set<WebSocket>();

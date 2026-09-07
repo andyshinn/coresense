@@ -40,14 +40,28 @@ export function listenOnPort(
  * Replace the bare `listen EADDRINUSE 127.0.0.1:7654` with something a user can
  * act on. This message is the only explanation they get: the failure happens
  * before the window exists, so bootstrap can only show it and quit.
+ *
+ * It deliberately does not assert a single cause. "Another copy of CoreSense"
+ * is the likeliest one but not the only one, and confidently naming the wrong
+ * culprit sends the user looking in the wrong place.
  */
 export function portInUseError(cause: Error, port: number, hostname: string): Error {
   const err = new Error(
     `Port ${port} on ${hostname} is already in use, so the CoreSense API server could not start. ` +
-      'Another copy of CoreSense is most likely already running — quit it and try again. ' +
-      `To use a different port, set ${HTTP_PORT_ENV} (e.g. ${HTTP_PORT_ENV}=${port + 100}).`,
+      'Something else on this machine is holding it — commonly another copy of CoreSense, or an ' +
+      'unrelated program. ' +
+      `To run on a different port, set ${HTTP_PORT_ENV} (e.g. ${HTTP_PORT_ENV}=${suggestedPort(port)}).`,
     { cause },
   );
   err.name = 'PortInUseError';
   return err;
+}
+
+/**
+ * A port to suggest in the message above. It must not be one CoreSense already
+ * reserves — the obvious `port + 100` would point a prod collision on 7654
+ * straight at 7754, the dev instance's port.
+ */
+function suggestedPort(failed: number): number {
+  return failed === 8654 ? 8754 : 8654;
 }

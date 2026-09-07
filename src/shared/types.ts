@@ -51,6 +51,12 @@ export interface BridgeStatus {
   tcpClients: number;
   mdnsServiceName: string | null;
   radioConnected: boolean;
+  /** Why the TCP listener is not running, when the configured port is one the
+   *  app cannot give it (see shared/ports.ts). Null in the normal case. This
+   *  rides along in the status snapshot so the reason survives until the
+   *  renderer connects — a boot-time toast would be emitted before any client
+   *  is listening. */
+  portConflict: string | null;
 }
 
 /** Post-connect handshake progress. `phase` is the high-level state the UI

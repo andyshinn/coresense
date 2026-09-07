@@ -1,6 +1,9 @@
-import type { AddressInfo } from 'node:net';
+import { type AddressInfo, createServer, type Server } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { listenOnPort, portInUseError } from '../../../src/main/http-listen';
+import { DEFAULT_HTTP_PORT_DEV, DEFAULT_HTTP_PORT_PROD } from '../../../src/main/http-port';
+import { planBridgeBinding } from '../../../src/shared/ports';
+import { BRIDGE_DEFAULT_TCP_PORT, BRIDGE_DEFAULT_TCP_PORT_DEV } from '../../../src/shared/types';
 
 const HOST = '127.0.0.1';
 const ok = () => new Response('ok');
@@ -93,10 +96,76 @@ describe('listenOnPort', () => {
 });
 
 describe('portInUseError', () => {
-  it('suggests a port that is not the one that failed', () => {
+  const RESERVED = [DEFAULT_HTTP_PORT_PROD, DEFAULT_HTTP_PORT_DEV, BRIDGE_DEFAULT_TCP_PORT, BRIDGE_DEFAULT_TCP_PORT_DEV];
+
+  it('names the port that failed', () => {
+    expect(portInUseError(new Error('boom'), 7654, '127.0.0.1').message).toContain('7654');
+  });
+
+  it.each([...RESERVED, 8654, 1, 65535])('never steers onto a reserved port (from %i)', (failed) => {
+    // `port + 100` used to be the hint, which sent a prod collision on 7654
+    // straight at 7754 — the port this app reserves for a dev instance.
+    const match = /CORESENSE_HTTP_PORT=(\d+)/.exec(portInUseError(new Error('boom'), failed, '127.0.0.1').message);
+    expect(match).not.toBeNull();
+    const suggested = Number(match?.[1]);
+    expect(RESERVED).not.toContain(suggested);
+    expect(suggested).not.toBe(failed);
+  });
+
+  it('does not confidently misdiagnose the cause', () => {
+    // The self-collision case (this app's own TCP proxy holding the port) is
+    // one of several, so the text must hedge rather than assert.
     const msg = portInUseError(new Error('boom'), 7654, '127.0.0.1').message;
-    expect(msg).toContain('7654');
-    expect(msg).toContain('CORESENSE_HTTP_PORT=7754');
-    expect(msg).toMatch(/another copy of coresense/i);
+    expect(msg).toMatch(/commonly|likely|often|possibly/i);
+    expect(msg).not.toMatch(/is already running/i);
+  });
+});
+
+// The TCP proxy port is user-editable and the bridge binds it BEFORE the HTTP
+// server binds its own. With no walk to a free port, a proxy port set to the
+// HTTP port would leave the API server unable to start — and bootstrap quits
+// before a window exists, so the setting could only be undone by hand-editing
+// app-settings.json. These two tests pin the guard and prove it is what saves
+// the boot, using the real listener against real sockets.
+describe('boot with a proxy port equal to the HTTP port', () => {
+  async function freePort(): Promise<number> {
+    let port = -1;
+    const probe = await listenOnPort(ok, 0, HOST, (p) => {
+      port = p;
+    });
+    await new Promise<void>((resolve) => probe.close(() => resolve()));
+    return port;
+  }
+
+  function bindRaw(port: number): Promise<Server> {
+    return new Promise((resolve) => {
+      const server = track(createServer());
+      server.listen(port, HOST, () => resolve(server));
+    });
+  }
+
+  it('does not bind the listener, so the app still boots', async () => {
+    const httpPort = await freePort();
+    const plan = planBridgeBinding({ enabled: true, port: httpPort }, httpPort);
+    expect(plan.conflict).not.toBeNull();
+
+    // bootstrap: the bridge goes first, but only when the plan allows it.
+    if (plan.enableTcp) await bindRaw(httpPort);
+
+    let bound = -1;
+    track(
+      await listenOnPort(ok, httpPort, HOST, (p) => {
+        bound = p;
+      }),
+    );
+    expect(bound).toBe(httpPort);
+  });
+
+  it('would be fatal without the guard', async () => {
+    // Same sequence with the plan ignored — this is what the app did before the
+    // guard, and the rejection here is the app quitting with no window.
+    const httpPort = await freePort();
+    await bindRaw(httpPort);
+    await expect(listenOnPort(ok, httpPort, HOST, () => {})).rejects.toThrow(/already in use/i);
   });
 });
