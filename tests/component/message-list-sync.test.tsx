@@ -235,6 +235,26 @@ describe('MessageList data sync', () => {
     const opts = lastOp('replace')?.args[1] as { initialLocation?: unknown };
     expect(opts?.initialLocation).toEqual({ index: 'LAST', align: 'end' });
   });
+
+  // A jump backfill fetches a window AROUND its target, so the batch that
+  // splices older history in front can overlap what is already on screen and
+  // carry a newer state on one of those rows. A bare prepend renders the older
+  // rows and leaves the overlapping one stale until something else forces a
+  // re-map.
+  it('reconciles changed rows alongside a head-growth prepend', () => {
+    const loaded = [from('m5'), from('m6')];
+    const { rerender } = render(view({ messages: loaded }));
+    ops.length = 0;
+    rerender(view({ messages: [from('m3'), from('m4'), loaded[0], { ...loaded[1], state: 'ack' }] }));
+
+    expect(lastOp('replace')).toBeUndefined();
+    expect(lastOp('prepend')).toBeDefined();
+    expect(lastOp('map')?.args[0]).toBe('auto');
+    // The harness's map() mutates its real item array, so this proves the
+    // reconciliation reached the list rather than just the plan.
+    const row = items.find((i) => i.kind === 'msg' && i.m.id === 'm6');
+    expect(row?.kind === 'msg' && row.m.state).toBe('ack');
+  });
 });
 
 describe('MessageList jump-to-message', () => {
