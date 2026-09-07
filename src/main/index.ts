@@ -26,6 +26,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  dialog,
   ipcMain,
   Menu,
   type MenuItemConstructorOptions,
@@ -35,12 +36,14 @@ import {
   shell,
 } from 'electron';
 import started from 'electron-squirrel-startup';
+import { planBridgeBinding } from '../shared/ports';
 import { applyAboutPanel } from './about';
 import { getApiKey } from './api/middleware/auth';
 import { blockingStore } from './blocking/store';
 import { type BridgeHandle, startBridge } from './bridge';
 import { buildMdnsServices, type MdnsHandle, startMdns } from './bridge/mdns';
 import { emit } from './events/bus';
+import { resolveHttpPort } from './http-port';
 import { child, log } from './log';
 import { applyLoggingSettings } from './logging/apply';
 import { folderPath } from './logging/fileSink';
@@ -75,7 +78,22 @@ if (started) {
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
-const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
+// Two different questions used to share one `isDev` flag, and they disagree in
+// exactly one case: a production-built main bundle run *unpackaged* — which is
+// what the e2e harness and a hand-run `electron .vite/build/index.js` do. That
+// made a test run claim the installed app's HTTP port (issue #21).
+//
+// "Is the renderer served by Vite's dev server?" — a build-time define that
+// constant-folds to undefined in every `build` output. Decides where the
+// renderer HTML comes from, how strict the CSP is, and whether DevTools open.
+const viteDevServerUrl = MAIN_WINDOW_VITE_DEV_SERVER_URL;
+// "Is this a dev instance?" — runtime identity. Decides which ports and which
+// mDNS namespace this process claims, so it must agree with the predicates
+// that already redirect userData (storage/paths.ts) and seed the dev proxy
+// port (storage/settings.ts). Read app.isPackaged directly rather than
+// isPackaged() from runtime/appInfo so this does not depend on setAppInfo()
+// having run first.
+const isDevInstance = !app.isPackaged;
 
 let serverHandle: { port: number; close: () => Promise<void> } | null = null;
 let bridgeHandle: BridgeHandle | null = null;
@@ -116,17 +134,29 @@ async function bootstrap() {
   // 0.0.0.0 and expose the API on the LAN.
   const bindAll = proxy.enabled && proxy.bindAll;
   const bindAddress = bindAll ? '0.0.0.0' : '127.0.0.1';
+
+  // Resolve our own HTTP port BEFORE the bridge binds anything, and hand the
+  // same number to startServer below so the two cannot disagree. proxy.port is
+  // user-editable and the bridge binds first, so a proxy port set to the HTTP
+  // port would take it and leave the API server unable to start — fatal, with
+  // no window in which to undo the setting. Drop the TCP listener instead and
+  // keep the app: the reason travels in BridgeStatus to the Proxy panel.
+  const httpPort = resolveHttpPort(process.env, isDevInstance);
+  const bridgePlan = planBridgeBinding(proxy, httpPort);
+  if (bridgePlan.conflict) log.error(`bridge: TCP listener not started — ${bridgePlan.conflict}`);
+
   bridgeHandle = await startBridge({
-    dev: isDev,
-    enableTcp: proxy.enabled,
+    dev: isDevInstance,
+    enableTcp: bridgePlan.enableTcp,
+    portConflict: bridgePlan.conflict,
     bindAddress,
     tcpPort: proxy.port,
   });
   log.info(`bridge: TCP=${bridgeHandle.tcpPort ?? 'off'}`);
 
-  const rendererDir = isDev ? null : path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`);
+  const rendererDir = viteDevServerUrl ? null : path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`);
 
-  serverHandle = await startServer(rendererDir, bridgeHandle, { dev: isDev, bindAddress });
+  serverHandle = await startServer(rendererDir, bridgeHandle, { port: httpPort, bindAddress });
   log.info(`server listening on http://${bindAddress}:${serverHandle.port}`);
 
   // mDNS is published once both ports are known. Records are only advertised
@@ -144,7 +174,7 @@ async function bootstrap() {
   }
   const mdnsPlan = buildMdnsServices({
     hostname: canonicalHostname,
-    dev: isDev,
+    dev: isDevInstance,
     advertise: bindAll && proxy.mdns,
     bridgeEnabled: proxy.enabled,
     bridgeTcpPort: bridgeHandle.tcpPort,
@@ -201,7 +231,7 @@ function hardenSession() {
     // PNG as an Image (img-src). TODO: bundle these into resources/ for a
     // fully offline build.
     const MAP_ASSETS = 'https://protomaps.github.io';
-    const csp = isDev
+    const csp = viteDevServerUrl
       ? "default-src 'self'; " +
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; " +
         "style-src 'self' 'unsafe-inline'; " +
@@ -451,15 +481,35 @@ function createWindow() {
     void mainWindow.loadURL(appUrl);
   }
 
-  if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });
+  if (viteDevServerUrl) mainWindow.webContents.openDevTools({ mode: 'detach' });
 }
 
 app.on('ready', () => {
   bootstrap().catch((err) => {
-    log.fatal(`failed to start: ${(err as Error).stack ?? err}`);
+    reportFatalStartupError(err as Error);
     app.quit();
   });
 });
+
+/**
+ * A bootstrap failure happens before the window exists, so there is no UI to
+ * report it in — the app just vanishes. Log the full stack for a bug report,
+ * and put the human-readable part in a native error box so the user is not
+ * left guessing why nothing opened. The common case by far is a port already
+ * held by another CoreSense (see server.ts's portInUseError).
+ */
+function reportFatalStartupError(err: Error): void {
+  log.fatal(`failed to start: ${err.stack ?? err}`);
+  // Automated runs (the Playwright harness sets CORESENSE_FAKE_TRANSPORT) must
+  // never block on a modal nobody can dismiss.
+  if (process.env.CORESENSE_FAKE_TRANSPORT) return;
+  try {
+    dialog.showErrorBox('CoreSense could not start', err.message || String(err));
+  } catch {
+    // showErrorBox can throw on a headless/unusable display; the log line above
+    // is still written.
+  }
+}
 
 let isShuttingDown = false;
 let shutdownPromise: Promise<void> | null = null;

@@ -9,6 +9,9 @@ export interface BridgeOptions {
   bindAddress?: string;
   enableTcp?: boolean;
   dev?: boolean;
+  /** Reason the caller refused to enable the TCP listener, surfaced in
+   *  BridgeStatus so the settings UI can explain it. See shared/ports.ts. */
+  portConflict?: string | null;
 }
 
 export interface BridgeHandle {
@@ -45,6 +48,7 @@ export async function startBridge(opts: BridgeOptions = {}): Promise<BridgeHandl
     lanAddress: resolveLanAddress(bindAddress),
     tcpPort: tcp?.port ?? null,
     mdnsServiceName: null,
+    portConflict: opts.portConflict ?? null,
   });
 
   return {

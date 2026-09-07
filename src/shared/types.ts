@@ -36,8 +36,13 @@ export interface RawPacket {
 // so a developer can run an installed build alongside `pnpm start` without
 // fighting over the same port. The values are also the seed for
 // DEFAULT_APP_SETTINGS.proxy.port — first-run only; user edits take over.
-export const BRIDGE_DEFAULT_TCP_PORT = 7655;
-export const BRIDGE_DEFAULT_TCP_PORT_DEV = 7755;
+//
+// Every port CoreSense claims is even and at least 2 clear of the next, so no
+// default can collide with another (issue #21): HTTP 7654 / bridge 7656 for an
+// installed build, HTTP 7754 / bridge 7756 for dev. Nothing probes or walks —
+// see src/main/http-port.ts.
+export const BRIDGE_DEFAULT_TCP_PORT = 7656;
+export const BRIDGE_DEFAULT_TCP_PORT_DEV = 7756;
 
 export interface BridgeStatus {
   tcpPort: number | null;
@@ -46,6 +51,12 @@ export interface BridgeStatus {
   tcpClients: number;
   mdnsServiceName: string | null;
   radioConnected: boolean;
+  /** Why the TCP listener is not running, when the configured port is one the
+   *  app cannot give it (see shared/ports.ts). Null in the normal case. This
+   *  rides along in the status snapshot so the reason survives until the
+   *  renderer connects — a boot-time toast would be emitted before any client
+   *  is listening. */
+  portConflict: string | null;
 }
 
 /** Post-connect handshake progress. `phase` is the high-level state the UI

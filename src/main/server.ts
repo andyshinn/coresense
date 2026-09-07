@@ -1,7 +1,6 @@
 import { readFile, stat } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
 import { extname, join, normalize } from 'node:path';
-import { type ServerType, serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { type WebSocket, WebSocketServer } from 'ws';
@@ -44,6 +43,8 @@ import { apiKeyAuth, checkWsKey } from './api/middleware/auth';
 import { createRoutes } from './api/routes';
 import type { BridgeHandle } from './bridge';
 import { bus } from './events/bus';
+import { listenOnPort } from './http-listen';
+import { resolveHttpPort } from './http-port';
 import { getLogBuffer } from './log';
 import { stateHolder } from './state/holder';
 import { discoveredStore } from './storage/discoveredContacts';
@@ -51,16 +52,18 @@ import { transportManager } from './transport/manager';
 import { currentUpdateState } from './updates/controller';
 import { isMainWindowFocused } from './window/registry';
 
-const DEFAULT_PORT_PROD = 7654;
-const DEFAULT_PORT_DEV = 7754;
-const MAX_PORT_PROBES = 50;
-
 interface StartServerResult {
   port: number;
   close: () => Promise<void>;
 }
 
 interface StartServerOptions {
+  /**
+   * Exact port to bind. Callers that also need to know the port *before*
+   * startServer runs (bootstrap checks it against the TCP proxy port) resolve
+   * it themselves and pass it here, so there is one source of truth.
+   */
+  port?: number;
   dev?: boolean;
   bindAddress?: string;
 }
@@ -70,7 +73,10 @@ export async function startServer(
   bridge: BridgeHandle,
   opts: StartServerOptions = {},
 ): Promise<StartServerResult> {
-  const defaultPort = opts.dev ? DEFAULT_PORT_DEV : DEFAULT_PORT_PROD;
+  // A fixed port: whatever the caller resolved, else CORESENSE_HTTP_PORT if
+  // set (`0` binds an ephemeral port), else the dev/prod default. Never
+  // probed, never relocated.
+  const requestedPort = opts.port ?? resolveHttpPort(process.env, opts.dev ?? false);
   const bindAddress = opts.bindAddress ?? '127.0.0.1';
   const app = new Hono();
   const clients = new Set<WebSocket>();
@@ -121,8 +127,8 @@ export async function startServer(
     });
   }
 
-  let boundPort = defaultPort;
-  const httpServer = await listenWithFallback(app.fetch, defaultPort, bindAddress, (p) => {
+  let boundPort = requestedPort;
+  const httpServer = await listenOnPort(app.fetch, requestedPort, bindAddress, (p) => {
     boundPort = p;
   });
 
@@ -352,32 +358,4 @@ function mimeFor(ext: string): string {
     default:
       return 'application/octet-stream';
   }
-}
-
-type FetchHandler = Parameters<typeof serve>[0]['fetch'];
-
-function listenWithFallback(
-  fetch: FetchHandler,
-  startPort: number,
-  hostname: string,
-  onBound: (port: number) => void,
-): Promise<ServerType> {
-  return new Promise((resolve, reject) => {
-    let attempt = 0;
-    const tryPort = (port: number) => {
-      const server = serve({ fetch, port, hostname }, (info) => {
-        onBound(info.port);
-        resolve(server);
-      });
-      server.on('error', (err: NodeJS.ErrnoException) => {
-        if (err.code === 'EADDRINUSE' && attempt < MAX_PORT_PROBES) {
-          attempt += 1;
-          tryPort(port + 1);
-        } else {
-          reject(err);
-        }
-      });
-    };
-    tryPort(startPort);
-  });
 }

@@ -41,6 +41,7 @@ export class BridgeHub extends EventEmitter {
   private lanAddress: string | null = null;
   private tcpPort: number | null = null;
   private mdnsServiceName: string | null = null;
+  private portConflict: string | null = null;
   private readonly inboxRouter: InboxRouter;
 
   constructor() {
@@ -61,11 +62,13 @@ export class BridgeHub extends EventEmitter {
     lanAddress: string | null;
     tcpPort: number | null;
     mdnsServiceName: string | null;
+    portConflict?: string | null;
   }): void {
     this.bindAddress = opts.bindAddress;
     this.lanAddress = opts.lanAddress;
     this.tcpPort = opts.tcpPort;
     this.mdnsServiceName = opts.mdnsServiceName;
+    this.portConflict = opts.portConflict ?? null;
     this.emit('statusChanged');
   }
 
@@ -117,6 +120,7 @@ export class BridgeHub extends EventEmitter {
       tcpClients: this.clients.size,
       mdnsServiceName: this.mdnsServiceName,
       radioConnected: this.radioConnected,
+      portConflict: this.portConflict,
     };
   }
 
