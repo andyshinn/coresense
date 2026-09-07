@@ -24,7 +24,10 @@ const stats = (count: number): ChannelStats => ({
   roster: [],
   perDay: [0, 0, 0, 0, 0, 0, 0],
 });
-const msg = (id: string): Message => ({ id, key: 'ch:X', ts: 1, body: 'b', state: 'received' });
+const msg = (id: string, ts = 1, key = 'ch:X'): Message => ({ id, key, ts, body: 'b', state: 'received' });
+// Three messages with distinct timestamps: enough for a mid-array revision to
+// be invisible to a length + lastTs version.
+const transcript = (): Message[] => [msg('m1', 1000), msg('m2', 2000), msg('m3', 3000)];
 
 beforeEach(() => {
   getChannelStats.mockReset();
@@ -53,26 +56,76 @@ describe('useChannelStats', () => {
     await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(2));
   });
 
-  // Regression test for I-2: `applyMessageState` (store.ts) rebuilds EVERY
-  // key's `messagesByKey` array — a new array identity, same length and same
-  // last timestamp — on any message's pending → sent → delivered transition,
-  // even for channels the transitioning message doesn't belong to. The old
-  // effect keyed on array identity, so this unrelated churn refetched every
-  // open channel's stats. Keying on a length+lastTs "version" instead must
-  // NOT refetch when a new array has the same shape.
-  it('does not refetch when messagesByKey[key] gets a new array of the same shape', async () => {
+  // Regression test for I-2, and the load-bearing property of the whole
+  // version scalar: `applyMessageState` (store.ts) rebuilds EVERY key's
+  // `messagesByKey` array — a new array identity, same contents — on any
+  // message's pending → sent → delivered transition, even for channels the
+  // transitioning message doesn't belong to. The original effect keyed on
+  // array identity, so an unrelated DM's churn refetched every open channel's
+  // stats (request amplification). A same-contents rebuild must NOT refetch.
+  //
+  // The seeded transcript is deliberately multi-message: with a single
+  // message, a version that only looked at the first and last entry would
+  // pass this test without actually covering the array.
+  it('does not refetch when an unrelated key transitions state and rebuilds every array', async () => {
     getChannelStats.mockResolvedValue(stats(3));
-    useStore.setState({ messagesByKey: { 'ch:X': [msg('m1')] } });
+    useStore.setState({
+      messagesByKey: { 'ch:X': transcript(), 'dm:Y': [msg('d1', 5000, 'dm:Y')] },
+    });
     renderHook(() => useChannelStats('ch:X', client));
     await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(1));
 
-    // A fresh array, same length, same last message ts — exactly what
-    // applyMessageState produces for a channel whose own messages didn't
-    // change state.
-    act(() => useStore.setState({ messagesByKey: { 'ch:X': [{ ...msg('m1') }] } }));
+    // Exactly what applyMessageState('d1', 'ack') produces: every key's
+    // array mapped to a new array, only the matching id's object replaced.
+    act(() =>
+      useStore.setState((s) => {
+        const next: Record<string, Message[]> = {};
+        for (const [k, list] of Object.entries(s.messagesByKey)) {
+          next[k] = list.map((m) => (m.id === 'd1' ? { ...m, state: 'ack' as const } : m));
+        }
+        return { messagesByKey: next };
+      }),
+    );
     // Give any (incorrect) refetch a chance to fire before asserting it didn't.
     await new Promise((r) => setTimeout(r, 0));
     expect(getChannelStats).toHaveBeenCalledTimes(1);
+  });
+
+  // Issue #23: firstTs/count24h/count7d/perDay and each roster entry's lastTs
+  // are all derived from timestamps, so a revision to a message that is
+  // neither first nor last genuinely changes the stats. Length and last ts are
+  // both unchanged here — only a fold over every ts can see this.
+  it("refetches when a mid-array message's ts is revised", async () => {
+    getChannelStats.mockResolvedValue(stats(3));
+    useStore.setState({ messagesByKey: { 'ch:X': transcript() } });
+    renderHook(() => useChannelStats('ch:X', client));
+    await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(1));
+
+    act(() => useStore.setState({ messagesByKey: { 'ch:X': [msg('m1', 1000), msg('m2', 2500), msg('m3', 3000)] } }));
+    await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(2));
+  });
+
+  // Guards against a fold that accidentally drops the last-ts term.
+  it("refetches when the last message's ts is revised", async () => {
+    getChannelStats.mockResolvedValue(stats(3));
+    useStore.setState({ messagesByKey: { 'ch:X': transcript() } });
+    renderHook(() => useChannelStats('ch:X', client));
+    await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(1));
+
+    act(() => useStore.setState({ messagesByKey: { 'ch:X': [msg('m1', 1000), msg('m2', 2000), msg('m3', 4000)] } }));
+    await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(2));
+  });
+
+  // A pure reorder keeps length, and can keep the last ts too. The fold is
+  // position-weighted so it still moves.
+  it('refetches when the transcript is reordered', async () => {
+    getChannelStats.mockResolvedValue(stats(3));
+    useStore.setState({ messagesByKey: { 'ch:X': transcript() } });
+    renderHook(() => useChannelStats('ch:X', client));
+    await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(1));
+
+    act(() => useStore.setState({ messagesByKey: { 'ch:X': [msg('m2', 2000), msg('m1', 1000), msg('m3', 3000)] } }));
+    await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(2));
   });
 
   // Secondary fix in I-2: the shared in-flight cache used to key on channel

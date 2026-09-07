@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ChannelStats, Message } from '../../shared/types';
 import { type ApiClient, api } from '../lib/api';
 import { useStore } from '../lib/store';
@@ -7,14 +7,13 @@ import { useStore } from '../lib/store';
 // section body both call this hook for the same channel in the same render
 // pass; without sharing, expanding the section would double every fetch.
 //
-// The cache is keyed on a cheap scalar "version" of the message list — length
-// plus the last message's timestamp — rather than the array's identity.
-// Channel stats (count, lastTs, roster) depend only on those two things, but
-// `store.ts`'s `applyMessageState` rebuilds EVERY key's array (new identity,
-// same length/order) on any message's state transition. Keying on identity
-// meant an unrelated DM's pending → sent → delivered churn replaced this
-// channel's array too, re-running the effect and re-hitting the server for
-// data that provably hasn't changed.
+// The cache is keyed on a cheap scalar "version" of the message list rather
+// than the array's identity, because `store.ts`'s `applyMessageState` rebuilds
+// EVERY key's array (new identity, same contents) on any message's state
+// transition. Keying on identity meant an unrelated DM's pending → sent →
+// delivered churn replaced this channel's array too, re-running the effect and
+// re-hitting the server for data that provably hasn't changed. See
+// `statsVersion` for the two properties that scalar has to keep.
 const inflight = new Map<string, { version: string; promise: Promise<ChannelStats> }>();
 
 /** Distinguishes requests against different servers/credentials so a stale
@@ -24,8 +23,33 @@ function clientId(client: ApiClient): string {
   return `${client.baseUrl}#${client.apiKey}`;
 }
 
+/** A cheap scalar identity for the message list the stats are derived from.
+ *  Two properties have to hold at once:
+ *
+ *  1. It MOVES whenever any message's `ts` changes — not just the last one's.
+ *     `firstTs`, `lastTs`, `count24h`, `count7d`, `perDay` and every roster
+ *     entry's `lastTs` are all derived from timestamps server-side, so a
+ *     revision to a mid-array `ts` really does change the answer. A
+ *     `length:lastTs` version missed that entirely (issue #23): the version
+ *     stayed put, the in-flight cache replayed the previous promise, and the
+ *     section kept rendering stale figures.
+ *  2. It STAYS PUT when the array is rebuilt with the same contents, per the
+ *     `applyMessageState` note on `inflight` above. This is the constraint
+ *     that rules out simply keying on the array identity.
+ *
+ *  The `ts` term is a positional 32-bit fold (the classic `h * 31 + x` string
+ *  hash shape). It is O(n) in the message count, so it runs behind a `useMemo`
+ *  keyed on the array identity — one pass per store rebuild, not one per
+ *  render. Position weighting also catches a pure reorder, and staying in 32
+ *  bits avoids the precision trap a raw sum would hit: at HISTORY_CAP = 5000,
+ *  ms-epoch timestamps sum to ~8.7e15, within 3% of Number.MAX_SAFE_INTEGER.
+ *  `length` and `lastTs` are kept as explicit terms so the common append case
+ *  is unmistakably distinct without relying on the hash. */
 function statsVersion(messages: Message[] | undefined): string {
-  return `${messages?.length ?? -1}:${messages?.at(-1)?.ts ?? 0}`;
+  if (!messages) return '-1:0:0';
+  let h = 0;
+  for (const m of messages) h = (Math.imul(h, 31) + (m.ts | 0)) | 0;
+  return `${messages.length}:${messages.at(-1)?.ts ?? 0}:${h}`;
 }
 
 function sharedStats(client: ApiClient, key: string, version: string): Promise<ChannelStats> {
@@ -62,7 +86,7 @@ export function useChannelStats(
   client: ApiClient | null,
 ): { stats: ChannelStats | null; loading: boolean; error: string | null } {
   const messages = useStore((s) => s.messagesByKey[key]);
-  const version = statsVersion(messages);
+  const version = useMemo(() => statsVersion(messages), [messages]);
   const [stats, setStats] = useState<ChannelStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
