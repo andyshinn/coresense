@@ -103,6 +103,34 @@ describe('planSync', () => {
       expect(plan.op).toBe('prepend');
       expect(plan.op === 'prepend' && ids(plan.items)).toEqual(['m3', 'm4']);
     });
+
+    // A jump backfill fetches a window AROUND its target, so the batch that
+    // splices older history in front can also re-deliver rows already on
+    // screen — with a newer state on them. A bare prepend renders the older
+    // rows and silently keeps the stale copy of the overlapping one.
+    it('prepends the older batch and still maps a row that changed in the same batch', () => {
+      const prev = [msg('m3'), msg('m4')];
+      const next = [msg('m1'), msg('m2'), prev[0], { ...prev[1], state: 'ack' as const }];
+      const plan = run(prev, next);
+      expect(plan.op).toBe('prepend');
+      expect(plan.op === 'prepend' && plan.updated?.get('m4')?.state).toBe('ack');
+      expect(plan.op === 'prepend' && plan.updated?.has('m3')).toBe(false);
+    });
+
+    it('leaves updated null when the overlapping suffix is untouched', () => {
+      const prev = [msg('m5')];
+      expect(run(prev, [msg('m3'), msg('m4'), ...prev])).toMatchObject({ op: 'prepend', updated: null });
+    });
+
+    // Only the HEAD of the overlap is pinned by the branch's id check, so a
+    // batch that splices older history in front while the tail also moves used
+    // to match — and the prepend then left the departed row on screen and the
+    // new tail row absent, permanently.
+    it('rebuilds instead of prepending when the tail also moved', () => {
+      const prev = [msg('m2'), msg('m3'), msg('m4')];
+      const next = [msg('m1'), msg('m2'), msg('m3'), msg('m9')];
+      expect(run(prev, next).op).toBe('replace');
+    });
   });
 
   describe('in-place updates', () => {

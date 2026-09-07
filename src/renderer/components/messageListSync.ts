@@ -29,8 +29,10 @@ export type SyncPlan =
   /** Tail growth. `updated` carries any already-rendered message whose object
    *  identity changed in the same batch, which a bare append would drop. */
   | { op: 'append'; items: Item[]; isOwnSend: boolean; updated: Map<string, Message> | null }
-  /** Head growth (load-older). */
-  | { op: 'prepend'; items: Item[] }
+  /** Head growth (load-older, and the overlap a jump backfill leaves behind).
+   *  `updated` carries the same thing the append variant's does — a backfill
+   *  window can re-deliver rows that are already on screen. */
+  | { op: 'prepend'; items: Item[]; updated: Map<string, Message> | null }
   /** Same ids in the same order — state or path merges only. */
   | { op: 'update'; updated: Map<string, Message> };
 
@@ -69,15 +71,39 @@ export function locationFor(items: Item[], jumpToId?: string | null): ListLocati
   return { index: 'LAST', align: 'end' };
 }
 
-/** Overlapping messages whose object identity changed, or null when none did.
- *  Compares the first `count` entries by reference — the store hands out frozen
- *  objects, so a changed reference is a changed message. */
-function changedPrefix(prev: Message[], next: Message[], count: number): Map<string, Message> | null {
+/** The two windows disagree on an id somewhere inside the overlap, so whatever
+ *  structural op proposed them would corrupt the list and the caller must fall
+ *  through to a rebuild. */
+const MISMATCH = Symbol('overlap-mismatch');
+
+/**
+ * Overlapping messages whose object identity changed, null when none did, or
+ * MISMATCH when the two windows are not actually the same rows.
+ *
+ * Compares `prev[0..count-1]` against `next[nextStart..]` by reference — the
+ * store hands out frozen objects, so a changed reference is a changed message.
+ * `nextStart` is what makes this usable for a prepend, where the overlap sits at
+ * the END of `next` rather than at its head.
+ *
+ * The id check is not just a guard against comparing unrelated rows: a growth
+ * branch anchors only the ENDS of the overlap, so an id that moved in the middle
+ * of it slips through. Reporting that instead of silently skipping the row is
+ * what sends the batch to the rebuild, where it belongs.
+ */
+function changedOverlap(
+  prev: Message[],
+  next: Message[],
+  count: number,
+  nextStart = 0,
+): Map<string, Message> | null | typeof MISMATCH {
   let out: Map<string, Message> | null = null;
   for (let i = 0; i < count; i++) {
-    if (next[i] !== prev[i] && next[i].id === prev[i].id) {
+    const before = prev[i];
+    const after = next[nextStart + i];
+    if (after?.id !== before.id) return MISMATCH;
+    if (after !== before) {
       out ??= new Map();
-      out.set(next[i].id, next[i]);
+      out.set(after.id, after);
     }
   }
   return out;
@@ -114,29 +140,41 @@ export function planSync(
   // screen and the new head row absent, permanently. Anchoring the head too
   // sends that case to the rebuild, where it belongs.
   if (next.length > prev.length && next[0]?.id === prev[0]?.id && next[prev.length - 1]?.id === prev[prev.length - 1]?.id) {
-    const added = next.slice(prev.length);
-    return {
-      op: 'append',
-      items: buildAppended(added, prev[prev.length - 1]),
-      // Self-sent messages carry no sender pubkey. Our own send must become
-      // visible even when we are scrolled up; someone else's must not yank us.
-      isOwnSend: added.some((m) => m.fromPublicKeyHex === undefined),
-      updated: changedPrefix(prev, next, prev.length),
-    };
+    const updated = changedOverlap(prev, next, prev.length);
+    if (updated !== MISMATCH) {
+      const added = next.slice(prev.length);
+      return {
+        op: 'append',
+        items: buildAppended(added, prev[prev.length - 1]),
+        // Self-sent messages carry no sender pubkey. Our own send must become
+        // visible even when we are scrolled up; someone else's must not yank us.
+        isOwnSend: added.some((m) => m.fromPublicKeyHex === undefined),
+        updated,
+      };
+    }
   }
 
-  // Head growth (load-older pagination).
-  if (next.length > prev.length && next[next.length - prev.length]?.id === prev[0]?.id) {
-    return { op: 'prepend', items: buildPrepended(next.slice(0, next.length - prev.length), prev[0]) };
+  // Head growth — load-older pagination, and the window a jump backfill fetches
+  // AROUND its target. That window can overlap the rows already on screen and
+  // re-deliver them with a newer state, so the prepend has to reconcile the
+  // overlap for the same reason the append above does; a bare prepend renders
+  // the older rows and leaves the changed one stale. The overlap here is
+  // prev[0..] against next[delta..], not a shared prefix.
+  const delta = next.length - prev.length;
+  if (delta > 0 && next[delta]?.id === prev[0]?.id) {
+    const updated = changedOverlap(prev, next, prev.length, delta);
+    if (updated !== MISMATCH) {
+      return { op: 'prepend', items: buildPrepended(next.slice(0, delta), prev[0]), updated };
+    }
   }
 
   // Same ids in the same order — a state change or a path merge. Date and
   // divider items are untouched: neither of those updates moves a message's
   // timestamp across a calendar day, and anything that reorders fails the id
   // check and falls through to the rebuild below, which re-derives separators.
-  if (next.length === prev.length && next.every((m, i) => m.id === prev[i].id)) {
-    const updated = changedPrefix(prev, next, prev.length);
-    return updated ? { op: 'update', updated } : { op: 'none' };
+  if (next.length === prev.length) {
+    const updated = changedOverlap(prev, next, prev.length);
+    if (updated !== MISMATCH) return updated ? { op: 'update', updated } : { op: 'none' };
   }
 
   return rebuild();

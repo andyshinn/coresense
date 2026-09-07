@@ -333,6 +333,12 @@ export function MessageList({
         // This is the shape a jump backfill takes: older history spliced in
         // front of what was already loaded. Prepend preserves the viewport, so
         // the scroll below is what actually delivers the jump.
+        //
+        // Map before the structural op, the same order the append case uses.
+        // applyUpdates matches by id across whatever is currently in the list,
+        // so either order works — one convention keeps the two growth branches
+        // readable side by side.
+        if (plan.updated) applyUpdates(ref, plan.updated);
         ref.data.prepend(plan.items);
         break;
       case 'update':
