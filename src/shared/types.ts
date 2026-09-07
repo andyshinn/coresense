@@ -875,6 +875,11 @@ export interface UiState {
   // Per-conversation last-read marker (ms). A message with ts > marker is
   // unread. Drives the "scroll to first unread" behavior in MessageList and
   // the unread divider.
+  // Retention: nothing in the renderer removes entries, so main prunes markers
+  // whose channel/contact is gone (older than a grace window) on load only —
+  // applyUiState max-merges this map and never deletes, so a prune done any
+  // later is resurrected by the next full-object PUT. See pruneLastRead in
+  // src/main/storage/settings.ts.
   lastReadByKey: Record<string, number>;
   // Most-recently-visited keys, newest first. Drives the Cmd+K "Recent"
   // section. Capped at RECENT_KEYS_MAX entries; persisted across sessions

@@ -109,6 +109,48 @@ function appSettingsSeed(): AppSettings {
   };
 }
 
+/** Grace period before a read marker with no live conversation is dropped.
+ *  It guards exactly one hazard: contacts.json persisted PARTIAL because the
+ *  app was killed mid-first-sync (holder persistence is coalesced at 1s), which
+ *  would make freshly-set markers look dead on the next launch. That is a
+ *  session-scale risk, so the window is days rather than months — a 30-day one
+ *  would retain a third of the dead markers on real data for no extra
+ *  protection. Worst case if it is ever too short is a stale unread badge for
+ *  one conversation: every unread consumer counts MESSAGES, not markers, so a
+ *  marker with no messages behind it is a no-op. */
+const LAST_READ_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Drop read markers whose conversation is gone. `lastReadByKey` only ever
+ *  grows — markRead adds a key per conversation visited and markAllRead* seeds
+ *  one per channel AND contact — and nothing removes entries when a contact is
+ *  deleted or a discovered node ages out, so the map grows without bound with
+ *  mesh size (98% of a 106 KB real-world ui-state.json).
+ *
+ *  Pure, and only ever called from the LOAD path. That is not a style choice:
+ *  applyUiState merges read markers per key by MAX and never deletes
+ *  (mergeLastRead in src/renderer/lib/store.ts), so a prune performed anywhere
+ *  a client has already hydrated — on save, on a timer, in removeContact — is
+ *  undone by that client's next full-object PUT. */
+function pruneLastRead(
+  map: Record<string, number>,
+  liveKeys: ReadonlySet<string>,
+  now: number,
+): { next: Record<string, number>; dropped: number } {
+  const next: Record<string, number> = {};
+  let dropped = 0;
+  for (const [key, ts] of Object.entries(map)) {
+    // Conversation keys only. `tool:` and anything added later have no
+    // channel/contact to be live against, so they are never candidates.
+    const isConversation = key.startsWith('ch:') || key.startsWith('c:');
+    if (isConversation && !liveKeys.has(key) && now - ts > LAST_READ_GRACE_MS) {
+      dropped++;
+      continue;
+    }
+    next[key] = ts;
+  }
+  return { next, dropped };
+}
+
 export const settingsStore = {
   loadAppSettings: (): AppSettings => {
     const seed = appSettingsSeed();
@@ -137,7 +179,10 @@ export const settingsStore = {
   loadContacts: (): Contact[] => readJson(FILES.contacts, []),
   saveContacts: (v: Contact[]): void => writeJson(FILES.contacts, v),
 
-  loadUiState: (): UiState => {
+  /** @param liveKeys Conversation keys (`ch:`/`c:`) that still exist, used to
+   *  drop dead read markers — see pruneLastRead. Optional: omit it (or pass an
+   *  empty set) to skip the prune entirely. */
+  loadUiState: (liveKeys?: ReadonlySet<string>): UiState => {
     const raw = readJson<Record<string, unknown>>(FILES.ui, {});
     const merged = mergeDefaults(raw as unknown as UiState, DEFAULT_UI_STATE);
     const bag = merged as unknown as Record<string, unknown>;
@@ -161,9 +206,20 @@ export const settingsStore = {
       delete logsFilter.textSubstring;
       retired.push('logsFilter substrings');
     }
-    if (retired.length > 0) {
+    // Read markers for conversations that no longer exist. Skipped when the
+    // caller has no live keys — first run, or a missing/corrupt contacts.json
+    // falling back to [] — since every marker would look dead against an empty
+    // set.
+    const pruned = liveKeys && liveKeys.size > 0 ? pruneLastRead(merged.lastReadByKey ?? {}, liveKeys, Date.now()) : null;
+    if (pruned && pruned.dropped > 0) merged.lastReadByKey = pruned.next;
+    // One rewrite covers both migrations; the log lines stay distinct so a
+    // support log says which one actually fired.
+    if (retired.length > 0 || (pruned && pruned.dropped > 0)) {
       writeJson(FILES.ui, merged);
-      log.info(`migrated retired fields out of ui-state.json: ${retired.join(', ')}`);
+      if (retired.length > 0) log.info(`migrated retired fields out of ui-state.json: ${retired.join(', ')}`);
+      if (pruned && pruned.dropped > 0) {
+        log.info(`pruned ${pruned.dropped} read marker(s) for gone conversations from ui-state.json`);
+      }
     }
     return merged;
   },

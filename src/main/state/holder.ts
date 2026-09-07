@@ -83,7 +83,13 @@ class StateHolder {
     // Order matters: loadDrafts() lifts the legacy `drafts` key out of
     // ui-state.json, and loadUiState() then strips and rewrites that file.
     this.drafts = settingsStore.loadDrafts();
-    this.uiState = settingsStore.loadUiState();
+    // The live-key set prunes read markers for conversations that no longer
+    // exist. It is built from the PERSISTED lists, loaded just above: no
+    // transport is connected yet, so there is no contact sync in flight to race
+    // — and no WS client is attached, so nothing can PUT the unpruned map back.
+    this.uiState = settingsStore.loadUiState(
+      new Set([...this.channels.map((c) => c.key), ...this.contacts.map((c) => c.key)]),
+    );
     this.deviceIdentity = settingsStore.loadDeviceIdentity();
     this.autoAddConfig = settingsStore.loadAutoAddConfig();
     this.telemetryPolicy = settingsStore.loadTelemetryPolicy();
