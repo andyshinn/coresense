@@ -50,6 +50,34 @@ describe('applyUiState echo handling', () => {
     expect(useStore.getState().ui.lastReadByKey).toEqual({ 'ch:a': 1000, 'ch:b': 40 });
   });
 
+  // The two tests below are the anchor for main's load-time read-marker prune
+  // (pruneLastRead in src/main/storage/settings.ts). They pin the behavior that
+  // forces the prune to run at load and nowhere else.
+  test('a key the incoming payload omits is NOT removed locally', () => {
+    setUi({ lastReadByKey: { 'ch:a': 1000, 'c:gone': 1000 } });
+
+    useStore.getState().applyUiState(incoming({ lastReadByKey: { 'ch:a': 1000 } }));
+
+    // mergeLastRead is a per-key MAX merge that never deletes. So a prune
+    // performed in main AFTER a client has hydrated is undone the moment that
+    // client's next `ui` change PUTs its full, unpruned map back. Pruning on
+    // save, on a timer, or in removeContact would silently no-op for exactly
+    // this reason.
+    expect(useStore.getState().ui.lastReadByKey).toEqual({ 'ch:a': 1000, 'c:gone': 1000 });
+  });
+
+  test('a client hydrating from a pruned payload cannot resurrect the dropped keys', () => {
+    // Startup shape: main pruned before any window existed, so the client's
+    // local map is empty when the pruned payload arrives.
+    setUi({ lastReadByKey: {} });
+
+    useStore.getState().applyUiState(incoming({ lastReadByKey: { 'ch:a': 1000 } }));
+
+    // Whatever this client PUTs next is built from `ui`, so the dropped keys
+    // have nowhere to come back from.
+    expect(useStore.getState().ui.lastReadByKey).toEqual({ 'ch:a': 1000 });
+  });
+
   test('applying a peer ui never disturbs local drafts', () => {
     useStore.setState({ drafts: { 'ch:a': 'mine, still typing' } });
 
