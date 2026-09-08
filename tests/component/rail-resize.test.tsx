@@ -157,7 +157,7 @@ describe('rail resize does not re-render the People roster (issue #35)', () => {
 
   // The clipped-name tooltip re-measures off the rail width. Dropping the live
   // width is what makes the drag cheap, so the trigger moved to a ~120ms
-  // trailing debounce (useSettledRailWidth). Both halves matter: nothing during
+  // trailing debounce (useRailSettleTick). Both halves matter: nothing during
   // the drag, exactly one re-measure after it.
   it('re-measures the rows once after the drag settles, not during it', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -178,6 +178,39 @@ describe('rail resize does not re-render the People roster (issue #35)', () => {
         vi.advanceTimersByTime(200);
       });
       expect(rowRenders.n - afterMount).toBe(rows);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // ...and it must still re-measure when the drag ends on the width it started
+  // on. That is an ordinary gesture rather than a pixel coincidence: both rail
+  // clamps (MIN_WIDTH 240 / MAX_WIDTH 640) turn "drag past the stop and let go"
+  // into exactly this. Handing rows the settled *width* would make React bail
+  // on the no-op setState and skip the re-measure — while the frames in between
+  // have already crossed 304px and measured every row against a name track the
+  // rail no longer has, leaving the tooltip pinned shut on genuinely clipped
+  // names. Hence a counter, which always changes. See useRailSettleTick.
+  it('re-measures after a drag that crosses the breakpoint and returns to its starting width', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await mountSection();
+      const rows = screen.getAllByText(/^person-\d+$/).length;
+
+      for (const w of [360, 320, 300, 280, 300, 320, 360, 400]) {
+        setWidth(w);
+        act(() => {
+          vi.advanceTimersByTime(16);
+        });
+      }
+
+      // Every breakpoint crossing above has already been accounted for; what is
+      // left is purely the settle.
+      const beforeSettle = rowRenders.n;
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(rowRenders.n - beforeSettle).toBe(rows);
     } finally {
       vi.useRealTimers();
     }
@@ -320,6 +353,51 @@ describe('ResizeHandle coalesces pointermoves into one frame', () => {
     // The queued frame must not publish a second time.
     flush();
     expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  // `releasePointerCapture` is the only statement in the handler that can throw
+  // (NotFoundError, if the pointer is no longer active — Firefox shipped
+  // exactly that from inside this very handler, mozilla bug 1556703). It is
+  // therefore last. Were it first, a throw would skip the whole cleanup and
+  // leave `startRef` set, and since React does not route event-handler throws
+  // to an error boundary the component would stay mounted in that state: moving
+  // the mouse over the handle with no button down would go on resizing the rail
+  // until the next successful drag. The browser implicitly releases capture
+  // after this event regardless, so a failed release costs nothing.
+  it('ends the drag cleanly even when releasePointerCapture throws', () => {
+    const onChange = vi.fn();
+    const handle = mountHandle(onChange);
+    const release = Element.prototype.releasePointerCapture;
+    Element.prototype.releasePointerCapture = () => {
+      throw new DOMException('InvalidPointerId', 'NotFoundError');
+    };
+    // jsdom reports a throwing listener to window.onerror rather than
+    // propagating it out of dispatchEvent; swallow it so the run stays clean.
+    const onError = (e: Event) => e.preventDefault();
+    window.addEventListener('error', onError);
+
+    try {
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: 500 });
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 450 });
+      fireEvent.pointerUp(handle, { pointerId: 1, clientX: 450 });
+
+      // The flush still happened, so the drag lands on the pointer...
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith(370);
+
+      // ...the queued frame was still cancelled...
+      flush();
+      expect(onChange).toHaveBeenCalledTimes(1);
+
+      // ...and the drag is genuinely over: a button-less hover across the
+      // handle publishes nothing.
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 200 });
+      flush();
+      expect(onChange).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener('error', onError);
+      Element.prototype.releasePointerCapture = release;
+    }
   });
 
   it('drops the pending frame when Esc cancels the drag', () => {

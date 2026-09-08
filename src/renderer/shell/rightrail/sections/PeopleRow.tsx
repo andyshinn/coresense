@@ -28,9 +28,10 @@ interface PeopleRowProps {
   now: number;
   maxCount: number;
   showVolume: boolean;
-  /** Re-measure trigger for the clipped-name tooltip. The rail's *settled* px
-   *  width (see useSettledRailWidth), never the live one — a live width here
-   *  would re-render every row on every drag frame, which is issue #35. */
+  /** Re-measure trigger for the clipped-name tooltip. An opaque counter that
+   *  ticks once per settled drag (see useRailSettleTick) — never the live px
+   *  width, which would re-render every row on every drag frame (issue #35).
+   *  Compared, never read: only the fact that it changed matters. */
   remeasureAt: number;
   timeFormat: TimeFormatPref;
   onOpen: (row: RosterRow) => void;
@@ -66,10 +67,10 @@ export const PeopleRow = memo(function PeopleRow({
   // rail width changes (it also crosses the showVolume breakpoint, which
   // changes the name track's own width by 38px) or the name itself changes,
   // rather than only once at mount. No ResizeObserver (there can be 577 of
-  // these): `remeasureAt` is the settled rail width, handed down by the body,
-  // so this is a plain dependency and not a new subscription. It lands ~120ms
-  // after the drag stops, which is the deliberate trade — a clipped-name
-  // tooltip may be one drag stale mid-gesture, and nothing else reads it.
+  // these): `remeasureAt` is a settle counter handed down by the body, so this
+  // is a plain dependency and not a new subscription. It lands ~120ms after the
+  // drag stops, which is the deliberate trade — a clipped-name tooltip may be
+  // one drag stale mid-gesture, and nothing else reads it.
   const nameRef = useRef<HTMLButtonElement>(null);
   const [clipped, setClipped] = useState(false);
   // biome-ignore lint/correctness/useExhaustiveDependencies: row.name/showVolume/remeasureAt are re-measure triggers, not read inside the effect

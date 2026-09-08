@@ -57,7 +57,8 @@ export function ResizeHandle({ width, onChange }: { width: number; onChange: (w:
 
   const onPointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      e.currentTarget.releasePointerCapture(e.pointerId);
+      const target = e.currentTarget;
+      const { pointerId } = e;
       // Flush the last coalesced move before ending the drag, so releasing
       // mid-frame lands on the pointer rather than up to one frame behind it.
       const pending = pendingRef.current;
@@ -65,6 +66,16 @@ export function ResizeHandle({ width, onChange }: { width: number; onChange: (w:
       discardPending();
       startRef.current = null;
       if (dragging && pending !== null) onChangeRef.current(pending);
+      // Released LAST, because it is the only statement here that can throw
+      // (`NotFoundError` if the pointer is no longer active — Firefox used to
+      // do this from inside the very handler that ends the drag). The browser
+      // implicitly releases capture right after this event either way, so a
+      // failed release costs nothing; a release that ran *first* and threw
+      // would skip every line above it and leave `startRef` set, which means
+      // `onPointerMove` keeps resizing the rail on a button-less hover. React
+      // does not route event-handler throws to an error boundary, so that
+      // state would persist silently.
+      target.releasePointerCapture(pointerId);
     },
     [discardPending],
   );

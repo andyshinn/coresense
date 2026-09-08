@@ -7,7 +7,7 @@ import { type ApiClient, api } from '../../../lib/api';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
 import { railIsWide } from '../railWidth';
-import { useSettledRailWidth } from '../useSettledRailWidth';
+import { useRailSettleTick } from '../useRailSettleTick';
 import { PeopleControls } from './PeopleControls';
 import { PeopleRow } from './PeopleRow';
 import {
@@ -59,9 +59,10 @@ export function ChannelPeopleBody({
   const contacts = useStore((s) => s.contacts);
   const discovered = useStore((s) => s.discovered);
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
-  // Not `s.ui.rightWidth`: rows need a px width only to re-measure clipping, and
-  // this delivers one per settled drag instead of one per frame.
-  const settledRailWidth = useSettledRailWidth();
+  // Not `s.ui.rightWidth`: rows re-measure clipping against the real px width,
+  // but only need to be *told* to; this ticks once per settled drag instead of
+  // once per frame.
+  const settleTick = useRailSettleTick();
   // Which roster the user asked to see in full. Comparing against `resetKey`
   // rather than resetting in an effect means a channel switch collapses the
   // list during the same render, with no intermediate uncapped paint.
@@ -106,13 +107,13 @@ export function ChannelPeopleBody({
       now,
       maxCount: max,
       showVolume,
-      remeasureAt: settledRailWidth,
+      remeasureAt: settleTick,
       timeFormat,
       onOpen: onRowAction,
       onMessage: onRowAction,
       onAddContact,
     }),
-    [now, max, showVolume, settledRailWidth, timeFormat, onRowAction, onAddContact],
+    [now, max, showVolume, settleTick, timeFormat, onRowAction, onAddContact],
   );
 
   // `stats === null` is the single source of truth for "no data yet" — it
