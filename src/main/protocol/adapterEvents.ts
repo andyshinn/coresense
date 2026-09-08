@@ -91,7 +91,11 @@ function wireContacts(session: MeshCoreSession): void {
     // through to coresense's sqlite mirror — remove/favourite commands emit
     // `discovered` but never `contactObserved`, so re-reading our own store would
     // miss them. Per-row (not reconcileOnRadio) so contacts the lib hasn't
-    // re-synced this session keep their persisted flags.
+    // re-synced this session keep their persisted flags: the lib's pool is
+    // in-memory and per-session while ours is persistent, so a blanket
+    // reconcile here would clear on_radio for every row the lib simply hasn't
+    // mentioned yet. Rows the lib no longer knows about are cleared once per
+    // sync by the `contactsSynced` handler below.
     //
     // The lib re-sends the WHOLE pool on every contact frame, so this must stay
     // cheap to repeat: applyRadioFlags batches the writes into one transaction
@@ -113,6 +117,28 @@ function wireContacts(session: MeshCoreSession): void {
   // verifiable, and the log line is the answer to "did it load them all?".
   ev.on('contactsSynced', ({ count }) => {
     const holder = stateHolder();
+    // Reconcile the mirror's on_radio flags against the radio's contents (#30).
+    // The per-row write-through above only ever SETS on_radio; nothing clears it
+    // for a row the lib stopped reporting, so a contact removed from the radio
+    // stays on_radio=1 forever and the Contact Manager's "On radio" count drifts
+    // upward without bound. This is the only place we know the radio's COMPLETE
+    // contents: the lib emits `contactsSynced` solely on a genuine
+    // RESP_END_OF_CONTACTS, so an iteration abandoned by a disconnect or a
+    // stalled radio never reaches here and can't clear flags for contacts it
+    // never got to. Reconciling before the list() below also keeps the summary's
+    // on-radio number (and the log line) honest rather than reporting the drift.
+    //
+    // The flag is global, not per-device: on_radio means "on the CURRENTLY
+    // CONNECTED radio". Nothing in storage is device-scoped, so for a user who
+    // alternates radios the previous radio's contacts move back to Discovered on
+    // the next connect — correct under that reading, and per-device flags would
+    // mean a schema migration plus every read path and the Contact Manager UI.
+    discoveredStore.reconcileOnRadio(holder.getContacts().map((c) => c.publicKeyHex));
+    // The lib flushed its `discovered` snapshot before emitting this, so nothing
+    // else is going to re-broadcast the pool; without an explicit schedule the
+    // renderer keeps showing the pre-reconcile flags until the next contact event.
+    scheduleDiscoveredEmit();
+
     const stored = holder.getContacts().length;
     const onRadio = discoveredStore.list(holder.getBlockRules()).filter((r) => r.onRadio).length;
     const summary = summarizeContactSync(count, stored, onRadio);

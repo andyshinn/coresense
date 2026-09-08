@@ -106,3 +106,46 @@ describe('discoveredStore.applyRadioFlags', () => {
     expect(() => discoveredStore.applyRadioFlags([])).not.toThrow();
   });
 });
+
+// reconcileOnRadio is the only thing that ever CLEARS on_radio for a row the
+// lib no longer reports (#30). It clears the flag cache wholesale, which the
+// write-through must tolerate.
+describe('discoveredStore.reconcileOnRadio', () => {
+  it('sets rows in the set to 1 and everything else to 0', () => {
+    seed(4);
+    discoveredStore.applyRadioFlags(flagsFor(4, true, false));
+
+    discoveredStore.reconcileOnRadio([record(0).publicKeyHex, record(2).publicKeyHex]);
+
+    expect(discoveredStore.get(record(0).publicKeyHex)?.on_radio).toBe(1);
+    expect(discoveredStore.get(record(1).publicKeyHex)?.on_radio).toBe(0);
+    expect(discoveredStore.get(record(2).publicKeyHex)?.on_radio).toBe(1);
+    expect(discoveredStore.get(record(3).publicKeyHex)?.on_radio).toBe(0);
+  });
+
+  it('flips the flag rather than deleting the row, and leaves favourite alone', () => {
+    seed(2);
+    discoveredStore.applyRadioFlags(flagsFor(2, true, true));
+
+    discoveredStore.reconcileOnRadio([]);
+
+    const row = discoveredStore.get(record(0).publicKeyHex);
+    expect(row).not.toBeNull();
+    expect(row?.name).toBe('Node 0');
+    expect(row?.on_radio).toBe(0);
+    expect(row?.favourite).toBe(1);
+  });
+
+  it('lets applyRadioFlags write again after the reconcile cleared the cache', () => {
+    seed(2);
+    discoveredStore.applyRadioFlags(flagsFor(2, true, false));
+
+    // Without the cache invalidation, applyRadioFlags would consider these rows
+    // already on-radio and skip them — leaving the mirror stuck at 0.
+    discoveredStore.reconcileOnRadio([]);
+    discoveredStore.applyRadioFlags(flagsFor(2, true, false));
+
+    expect(discoveredStore.get(record(0).publicKeyHex)?.on_radio).toBe(1);
+    expect(discoveredStore.get(record(1).publicKeyHex)?.on_radio).toBe(1);
+  });
+});
