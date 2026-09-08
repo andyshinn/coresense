@@ -56,7 +56,7 @@ const body = (over: Partial<ComponentProps<typeof ChannelPeopleBody>> = {}) => (
   <TooltipProvider>
     <ChannelPeopleBody
       stats={stats()}
-      railWidth={320}
+      wide
       sort="recent"
       filter="all"
       query=""
@@ -159,7 +159,7 @@ describe('ChannelPeopleBody', () => {
   });
 
   it('drops the sort and filter toggles on a narrow rail', () => {
-    render(body({ railWidth: 290 }));
+    render(body({ wide: false }));
     expect(screen.getByLabelText('Search people')).toBeTruthy();
     expect(screen.queryByLabelText('Sort people')).toBeNull();
   });

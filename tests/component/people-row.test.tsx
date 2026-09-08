@@ -1,9 +1,9 @@
-import { render } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { fireEvent, render, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { IDENTITY_NEUTRAL_VAR, identityDotVar } from '@/lib/contactColor';
 import { useStore } from '@/lib/store';
-import { PeopleRow } from '@/shell/rightrail/sections/PeopleRow';
+import { fmtAgeAbsolute, PeopleRow } from '@/shell/rightrail/sections/PeopleRow';
 import type { RosterRow } from '@/shell/rightrail/sections/peopleModel';
 
 // The dot is the row's whole reason for existing: fill answers "is it saved?",
@@ -27,15 +27,15 @@ function baseRow(overrides: Partial<RosterRow> = {}): RosterRow {
   };
 }
 
-function renderRow(row: RosterRow, railWidth = 320) {
+function renderRow(row: RosterRow, remeasureAt = 320, now = 2_000) {
   return render(
     <TooltipProvider>
       <PeopleRow
         row={row}
-        now={2_000}
+        now={now}
         maxCount={10}
         showVolume={false}
-        railWidth={railWidth}
+        remeasureAt={remeasureAt}
         timeFormat="auto"
         onOpen={() => {}}
         onMessage={() => {}}
@@ -118,5 +118,42 @@ describe('PeopleRow self row', () => {
     useStore.setState((s) => ({ appSettings: { ...s.appSettings, identityColorMode: 'byName' } }));
     const { container } = renderRow(baseRow({ name: 'alice' }));
     expect(dotOf(container).style.boxShadow).toContain(identityDotVar('alice'));
+  });
+});
+
+// Issue #35: `fmtAgeAbsolute` was a plain string child of `TooltipContent`, so
+// it ran for every row on every render for a tooltip nobody had opened — 577
+// rows x three `toLocale*` calls per parent re-render. It is now a child
+// component, which Radix keeps behind a Presence and only calls when the
+// tooltip actually mounts.
+//
+// The visible parts of a row (`fmtAge`, `fmtCount`, the identity dot) are pure
+// arithmetic, so *any* `Date.prototype.toLocale*` call during a closed-tooltip
+// render is the absolute timestamp being computed eagerly.
+describe('PeopleRow age tooltip', () => {
+  const LOCALE_METHODS = ['toLocaleTimeString', 'toLocaleString', 'toLocaleDateString'] as const;
+
+  const TS = new Date('2026-07-25T09:15:00').getTime();
+  const LATER = TS + 3 * 86_400_000;
+
+  // The age column's own trigger (the compact "3d"), not the name or count ones.
+  const ageTrigger = (container: HTMLElement) =>
+    container.querySelector('[data-slot="tooltip-trigger"].text-\\[10\\.5px\\]') as HTMLElement;
+
+  it('does not format the absolute timestamp while the tooltip is closed', () => {
+    const spies = LOCALE_METHODS.map((m) => vi.spyOn(Date.prototype, m));
+    try {
+      const { container } = renderRow(baseRow({ lastSeenAt: TS }), 320, LATER);
+      expect(ageTrigger(container).textContent).toBe('3d');
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+
+  it('still formats it once the tooltip opens', async () => {
+    const { container } = renderRow(baseRow({ lastSeenAt: TS }), 320, LATER);
+    fireEvent.focusIn(ageTrigger(container));
+    await waitFor(() => expect(document.body.textContent).toContain(fmtAgeAbsolute(TS, LATER, 'auto')));
   });
 });

@@ -215,3 +215,29 @@ export function volumeWidth(count: number, max: number): string {
   if (max <= 0) return '0%';
   return `${Math.max(6, (count / max) * 100)}%`;
 }
+
+/** Rows the list paints before the "Show all" reveal.
+ *
+ *  A busy public channel can have several hundred distinct posters (`ch:Public`
+ *  has 577) and the SQL behind the roster has no LIMIT, so the section used to
+ *  build one DOM row — each with 3-5 Radix tooltip roots — per poster. 60 is
+ *  about four screens of a 24px row in a 320px rail: enough that the cap is
+ *  invisible on every ordinary channel, few enough that the pathological one
+ *  costs a tenth of what it did. The 2026-07-25 people-rail design spec put
+ *  virtualisation out of scope but named "revisit if the roster grows
+ *  unbounded" as the trigger; this is that revisit, taken as a plain cap rather
+ *  than a virtualiser so the rail stays one scroll container. */
+export const PEOPLE_ROW_CAP = 60;
+
+/** First `cap` rows plus how many were withheld.
+ *
+ *  Deliberately applied BEFORE `groupByBucket`, not after: grouping the capped
+ *  set means a bucket header can never appear above zero visible rows, and each
+ *  header's count describes what is actually on screen. The full total stays
+ *  available for the reveal affordance and the section's header count. Returns
+ *  the input array itself when nothing is withheld, so callers can memoise on
+ *  identity. */
+export function capRows(rows: RosterRow[], cap: number): { rows: RosterRow[]; hidden: number } {
+  if (rows.length <= cap) return { rows, hidden: 0 };
+  return { rows: rows.slice(0, cap), hidden: rows.length - cap };
+}
