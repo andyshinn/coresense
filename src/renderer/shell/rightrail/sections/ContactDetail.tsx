@@ -121,12 +121,16 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
 
   // Three states, and the difference matters: never measured, measured but the
   // radio gave no usable reception time (its RTC can be unset), and measured.
-  const observedTitle =
+  const observedWhen =
     rc.observedHops == null
       ? 'Inbound: hops the radio counted on the last advert it heard from this node. The radio caches only its 16 most recently heard, so this is often unavailable.'
       : rc.observedAtMs == null
         ? 'Inbound: measured from a cached advert the radio timestamped with an unset clock.'
         : `Inbound: measured from the advert the radio received ${fmtRelative(rc.observedAtMs)} — the radio's own clock, not ours.`;
+  // The measured path bytes, which are otherwise stored, projected and
+  // broadcast with nothing reading them. Empty for a direct reception, and the
+  // outbound Path section below is a different direction entirely.
+  const observedTitle = rc.observedPathHex ? `${observedWhen} Inbound path: ${rc.observedPathHex}.` : observedWhen;
 
   return (
     <div className="space-y-3 text-cs-text-muted">

@@ -22,6 +22,13 @@ export interface DiscoveredContact {
    *  listing what it stores) and never our own outbound traffic, so committing
    *  a contact to the radio can't bump it. Undefined until first reception.
    *
+   *  One value here does NOT come from our own clock: a RESP_ADVERT_PATH reply
+   *  carries the radio's own reception time for an advert it heard while we were
+   *  not attached, and that is a real reception we would otherwise report as
+   *  "never". It is adopted only after a plausibility check and only when it is
+   *  NEWER than what we already hold (see state/advertPath.ts), so a radio with
+   *  an unset or skewed RTC can never move this column.
+   *
    *  Widened from "last live advert" in #45: a node we DM daily was showing
    *  "never" because only PUSH_NEW_ADVERT wrote here, and every Last-heard
    *  filter (hour/day/week) drops rows with no value at all. */
@@ -48,8 +55,10 @@ export interface DiscoveredContact {
   observedPathHex?: string;
   /** When the RADIO received that advert, ms. Its RTC, not our clock and not the
    *  advertising node's clock (see lastHeardMs / lastAdvertMs respectively). A
-   *  radio with an unset RTC reports something near the epoch, so treat it as a
-   *  hint rather than an authority. */
+   *  radio with an unset RTC reports something near the epoch, which is why it
+   *  is range-checked before it is allowed to advance `lastHeardMs` — but a
+   *  plausible value IS firmware-authoritative proof of a reception, and is used
+   *  as one (state/advertPath.ts). */
   observedAtMs?: number;
   /** First time WE heard this pubkey (our clock), ms. Tracked app-side. */
   firstHeardMs: number;
@@ -126,6 +135,35 @@ export function formatHops(hops: number | undefined, opts?: { direct?: string })
  *  item 8 closed. */
 export function formatObservedHops(hops: number | undefined): string {
   return hops == null ? 'not measured' : formatHops(hops);
+}
+
+/** The single hop count a DIRECTION-LESS surface should show — the Contact
+ *  Manager's "Hops" column in both layouts, and the sort behind it.
+ *
+ *  The measured INBOUND value wins when there is one. The column exists to
+ *  answer "how far away is this node", and out_path_len — the only thing it
+ *  ever showed — is 0xFF ("Flood") for the overwhelming majority of a real
+ *  pool, so for those rows a measurement is the only number that exists at all
+ *  (#45 item 7). The rail still shows both, labelled, because that surface has
+ *  the room to; this one has a single cell and has to choose.
+ *
+ *  `??`, not `||`: 0 is a real measurement on both sides. */
+export function cellHops(c: { hops?: number; observedHops?: number }): number | undefined {
+  return c.observedHops ?? c.hops;
+}
+
+/** Render that cell. The inbound value carries an explicit "in" marker, because
+ *  a bare number in a column that is sometimes outbound and sometimes inbound
+ *  would be exactly the silent direction-swap this item was raised about. The
+ *  outbound fallback is left unmarked and unchanged — "Flood" is already a
+ *  statement about sending. `hopsCellTitle` spells both out on hover. */
+export function formatHopsCell(c: { hops?: number; observedHops?: number }): string {
+  return c.observedHops == null ? formatHops(c.hops) : `${formatHops(c.observedHops)} in`;
+}
+
+/** Hover text for that cell: both directions, always, whichever one is showing. */
+export function hopsCellTitle(c: { hops?: number; observedHops?: number }): string {
+  return `Heard (inbound): ${formatObservedHops(c.observedHops)} · Path (outbound): ${formatHops(c.hops)}`;
 }
 
 /** The one rendering of "when did we last receive anything from this node",

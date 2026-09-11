@@ -27,7 +27,7 @@ function app() {
   });
 }
 
-function seed(pubkey = PK): void {
+function seed(pubkey = PK, opts: { nowMs?: number; heardLive?: boolean } = {}): void {
   discoveredStore.upsert(
     {
       publicKeyHex: pubkey,
@@ -41,7 +41,7 @@ function seed(pubkey = PK): void {
       gpsLon: 0,
       lastmod: 1,
     } as Models.ContactRecord,
-    { onRadio: true, nowMs: 1_750_000_000_000, heardLive: false },
+    { onRadio: true, nowMs: opts.nowMs ?? 1_750_000_000_000, heardLive: opts.heardLive ?? false },
   );
 }
 
@@ -248,5 +248,61 @@ describe('POST /api/contacts/:key/advert-path', () => {
     }
 
     expect(getAdvertPath).toHaveBeenCalledTimes(2);
+  });
+});
+
+// The reply's recvTimestampUnix is the RADIO's record that it received an
+// advert from this node — frequently while coresense was not attached, and for
+// a contact that arrived through a GET_CONTACTS walk it is the only reception
+// time that will ever exist (a walk deliberately never advances last_heard_ms).
+// Dropping it left such a node reading "never" on every surface and excluded
+// from every Last-heard window, while the app held firmware-authoritative proof
+// it was heard minutes ago (#45 items 7 and 9).
+describe('POST /api/contacts/:key/advert-path — the reception time is a last-heard', () => {
+  const minutesAgoUnix = (m: number) => Math.floor((Date.now() - m * 60_000) / 1000);
+
+  it('adopts a plausible radio reception time as last heard', async () => {
+    transportManager.setState('connected');
+    seed();
+    expect(row()?.last_heard_ms).toBe(0); // a contact walk heard nothing
+    const recv = minutesAgoUnix(10);
+    spySession({ path: () => Promise.resolve({ recvTimestampUnix: recv, hops: 2, pathHex: 'aabb' }) });
+
+    await post();
+
+    expect(row()?.last_heard_ms).toBe(recv * 1000);
+  });
+
+  it('never moves the clock backwards over a reception we timed ourselves', async () => {
+    transportManager.setState('connected');
+    // Seeded as a LIVE advert, so the SQL `last_heard_ms < ?` guard is what has
+    // to refuse the older value — not markHeard's write throttle.
+    const ourReception = Date.now() - 60_000;
+    seed(PK, { nowMs: ourReception, heardLive: true });
+    spySession({ path: () => Promise.resolve({ recvTimestampUnix: minutesAgoUnix(30), hops: 2, pathHex: 'aabb' }) });
+
+    await post();
+
+    expect(row()?.last_heard_ms).toBe(ourReception);
+  });
+
+  // A radio whose RTC was never set reports something near the epoch, and one
+  // that is fast would park last_heard_ms ahead of now — where, because the
+  // column only moves forward, it would block every REAL reception after it.
+  it.each([
+    ['an unset clock (0)', 0],
+    ['an epoch-ish clock', 60],
+    ['a clock in the future', Math.floor(Date.now() / 1000) + 86_400],
+    ['a reading older than the sanity window', Math.floor(Date.now() / 1000) - 30 * 86_400],
+  ])('ignores %s', async (_label, recv) => {
+    transportManager.setState('connected');
+    seed();
+    spySession({ path: () => Promise.resolve({ recvTimestampUnix: recv, hops: 2, pathHex: 'aabb' }) });
+
+    await post();
+
+    // The measurement itself still lands; only the last-heard column is refused.
+    expect(row()?.observed_hops).toBe(2);
+    expect(row()?.last_heard_ms).toBe(0);
   });
 });

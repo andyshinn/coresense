@@ -1,6 +1,6 @@
 import { Ban, ChevronDown, DoorOpen, Minus, Plus, RadioTower, Star, Thermometer, User } from 'lucide-react';
 import { useState } from 'react';
-import { type DiscoveredContact, formatHops, formatLastHeard } from '../../../shared/contacts/discovered';
+import { type DiscoveredContact, formatHopsCell, formatLastHeard, hopsCellTitle } from '../../../shared/contacts/discovered';
 import type { ContactKind } from '../../../shared/types';
 import { BlockSenderDialog } from '../../components/BlockSenderDialog';
 import { copyToClipboard } from '../../components/ContextMenu';
@@ -53,12 +53,21 @@ export function StatusPill({ c }: { c: DiscoveredContact }) {
   );
 }
 
-/** The Contact Manager's hop cell, in both layouts. Deliberately NOT HopBadge:
- *  that one renders nothing for a null hop count, which here would blank the
- *  cell for every contact without a learned route — the majority of a real
- *  pool. `formatHops` keeps "Flood" visible instead. */
-export function HopChip({ hops }: { hops?: number }) {
-  return <span className="font-mono text-[10.5px] text-cs-text-muted">{formatHops(hops)}</span>;
+/** The Contact Manager's hop cell. Deliberately NOT HopBadge: that one renders
+ *  nothing for a null hop count, which here would blank the cell for every
+ *  contact without a learned route — the majority of a real pool. `formatHops`
+ *  keeps "Flood" visible instead.
+ *
+ *  Shows the MEASURED INBOUND count when there is one (marked "in"), falling
+ *  back to the outbound route otherwise — see formatHopsCell. The list layout
+ *  renders the same string from the same helper; the title shows both
+ *  directions either way. */
+export function HopChip({ hops, observedHops }: { hops?: number; observedHops?: number }) {
+  return (
+    <span className="font-mono text-[10.5px] text-cs-text-muted" title={hopsCellTitle({ hops, observedHops })}>
+      {formatHopsCell({ hops, observedHops })}
+    </span>
+  );
 }
 
 export function RowActions({ c, client }: { c: DiscoveredContact; client: ApiClient | null }) {
@@ -185,7 +194,11 @@ export function TableView({ rows, client }: { rows: DiscoveredContact[]; client:
           <th className={cn(th, 'w-24')}>
             <SortHeader field="type" label="Type" />
           </th>
-          <th className={cn(th, 'w-16')}>
+          {/* Wide enough for the longest string the cell can hold — "63 hops in",
+              the 6-bit hop ceiling with the inbound marker. table-fixed sizes
+              the column from this header, and the cell is whitespace-nowrap, so
+              a narrower one would spill the marker over the next column. */}
+          <th className={cn(th, 'w-22')}>
             <SortHeader field="hops" label="Hops" />
           </th>
           <th className={cn(th, 'w-27')}>
@@ -255,7 +268,7 @@ export function TableView({ rows, client }: { rows: DiscoveredContact[]; client:
               </td>
               <td className={cn('whitespace-nowrap px-2 text-[11.5px] text-cs-text-muted', pad)}>{KIND_LABEL[c.kind]}</td>
               <td className={cn('whitespace-nowrap px-2', pad)}>
-                <HopChip hops={c.hops} />
+                <HopChip hops={c.hops} observedHops={c.observedHops} />
               </td>
               <td
                 className={cn('whitespace-nowrap px-2 font-mono text-[11px] text-cs-text-dim', pad)}
@@ -299,7 +312,7 @@ export function ListRow({ c, client }: { c: DiscoveredContact; client: ApiClient
   // because it carries its own colour token and would sit brighter than the
   // rest of this meta line; the wording is what must not diverge.
   const lastLabel = formatLastHeard(c.lastHeardMs, fmtRelative);
-  const hopsLabel = formatHops(c.hops);
+  const hopsLabel = formatHopsCell(c);
 
   return (
     // biome-ignore lint/a11y/useSemanticElements: cannot be a <button> because RowActions renders nested buttons
@@ -331,7 +344,7 @@ export function ListRow({ c, client }: { c: DiscoveredContact; client: ApiClient
           {c.favourite && <Star className="size-3 shrink-0 fill-cs-warn text-cs-warn" aria-hidden="true" />}
         </div>
         <div className="truncate font-mono text-[10.5px] text-cs-text-dim">
-          {KIND_LABEL[c.kind]} · {lastLabel} · {hopsLabel}
+          {KIND_LABEL[c.kind]} · {lastLabel} · <span title={hopsCellTitle(c)}>{hopsLabel}</span>
           {showKeys && ` · ${pk}`}
         </div>
       </div>

@@ -32,10 +32,10 @@ import type { DiscoveredContact } from '../../src/shared/contacts/discovered';
 const PK = 'd4'.repeat(32);
 const client = { baseUrl: 'http://x', apiKey: 'k' };
 
-function seed(over: Partial<DiscoveredContact> = {}): void {
-  const row: DiscoveredContact = {
-    key: `c:${PK}`,
-    publicKeyHex: PK,
+function makeRow(publicKeyHex: string, over: Partial<DiscoveredContact> = {}): DiscoveredContact {
+  return {
+    key: `c:${publicKeyHex}`,
+    publicKeyHex,
     name: 'Erin',
     kind: 'chat',
     firstHeardMs: 1_750_000_000_000,
@@ -44,7 +44,15 @@ function seed(over: Partial<DiscoveredContact> = {}): void {
     blocked: false,
     ...over,
   };
-  useStore.setState({ discovered: [row], contacts: [] });
+}
+
+function seed(over: Partial<DiscoveredContact> = {}): void {
+  useStore.setState({ discovered: [makeRow(PK, over)], contacts: [] });
+}
+
+/** Both contacts in the pool, so the rail resolves either focus. */
+function seedPair(other: string): void {
+  useStore.setState({ discovered: [makeRow(PK), makeRow(other, { name: 'Frank' })], contacts: [] });
 }
 
 /** The value cell of a labelled rail row. */
@@ -227,5 +235,114 @@ describe('ContactDetail automatic measurement', () => {
     vi.advanceTimersByTime(600);
 
     expect(getAdvertPath).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The memo above is "one automatic attempt per contact per session". It used to
+// be armed BEFORE the request went out, which spent that single attempt on
+// things that never reached the radio at all — and left the row reading "not
+// measured" for the rest of the session with only the 12px refresh icon to fix
+// it. Both triggers below are ordinary, not edge cases: the rail focuses a
+// contact as soon as the LOCAL api server answers, which is seconds before a
+// BLE link exists, and the in-flight guard was a bare boolean on a component
+// instance the rail re-uses as the focus moves.
+describe('ContactDetail automatic measurement — a spent attempt must have happened', () => {
+  it('re-measures after an automatic attempt the radio never answered', async () => {
+    seed();
+    getAdvertPath.mockRejectedValueOnce(new ApiError('no radio attached', 503, null));
+    const first = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    vi.advanceTimersByTime(600);
+    await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));
+    // Still silent: an automatic pass must not toast about a radio that is not
+    // there yet.
+    expect(notify.error).not.toHaveBeenCalled();
+    first.unmount();
+
+    // The radio is up now. The contact has not used its attempt.
+    getAdvertPath.mockResolvedValue({ cached: true, hops: 2, pathHex: 'aabb' });
+    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    vi.advanceTimersByTime(600);
+
+    await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(2));
+  });
+
+  it('re-measures a contact that was not on the radio when we first asked', async () => {
+    seed({ onRadio: false });
+    getAdvertPath.mockRejectedValueOnce(new ApiError('contact is not on the radio', 422, 'NOT_ON_RADIO'));
+    const first = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    vi.advanceTimersByTime(600);
+    await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));
+    first.unmount();
+
+    // One "Add to radio" click later it is measurable, and the attempt it never
+    // really got is still available.
+    seed({ onRadio: true });
+    getAdvertPath.mockResolvedValue({ cached: false });
+    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    vi.advanceTimersByTime(600);
+
+    await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(2));
+  });
+
+  it('does not let one contact in flight swallow the next one clicked', async () => {
+    const OTHER = 'e5'.repeat(32);
+    seed();
+    // A command the radio is still chewing on — up to the lib's 5s timeout.
+    let finish!: (v: unknown) => void;
+    getAdvertPath.mockReturnValueOnce(new Promise((r) => (finish = r)));
+    const view = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    vi.advanceTimersByTime(600);
+    await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));
+
+    // Same component instance, new focus: the rail renders ContactDetail at a
+    // stable tree position and only changes the prop.
+    getAdvertPath.mockResolvedValue({ cached: false });
+    view.rerender(<ContactDetail publicKeyHex={OTHER} client={client} showPath={false} />);
+    vi.advanceTimersByTime(600);
+
+    await waitFor(() => expect(getAdvertPath).toHaveBeenCalledWith(client, `c:${OTHER}`, { force: false }));
+    finish({ cached: true, hops: 1 });
+  });
+
+  it('still measures a contact whose turn came while another was outstanding', async () => {
+    const OTHER = 'e5'.repeat(32);
+    seed();
+    let finish!: (v: unknown) => void;
+    getAdvertPath.mockReturnValueOnce(new Promise((r) => (finish = r)));
+    const view = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    vi.advanceTimersByTime(600);
+    await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));
+
+    // Focus moves to OTHER and back before the first command comes home. OTHER
+    // must not have been marked measured by an attempt that never ran.
+    getAdvertPath.mockResolvedValue({ cached: false });
+    view.rerender(<ContactDetail publicKeyHex={OTHER} client={client} showPath={false} />);
+    vi.advanceTimersByTime(600);
+    await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(2));
+    finish({ cached: true, hops: 1 });
+
+    const calls = getAdvertPath.mock.calls.map((c) => c[1]);
+    expect(calls).toContain(`c:${PK}`);
+    expect(calls).toContain(`c:${OTHER}`);
+  });
+
+  it('lets the button through for a contact a previous measurement is blocking', async () => {
+    const OTHER = 'e5'.repeat(32);
+    seedPair(OTHER);
+    let finish!: (v: unknown) => void;
+    getAdvertPath.mockReturnValueOnce(new Promise((r) => (finish = r)));
+    const view = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    vi.advanceTimersByTime(600);
+    await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));
+
+    view.rerender(<ContactDetail publicKeyHex={OTHER} client={client} showPath={false} />);
+    getAdvertPath.mockResolvedValue({ cached: true, hops: 3, pathHex: 'aabbcc' });
+    fireEvent.click(button());
+
+    // Forced, reported, and not silently dropped on the previous contact's
+    // in-flight flag.
+    await waitFor(() => expect(getAdvertPath).toHaveBeenCalledWith(client, `c:${OTHER}`, { force: true }));
+    await waitFor(() => expect(notify.success).toHaveBeenCalledWith('Heard 3 hops away'));
+    finish({ cached: true, hops: 1 });
   });
 });

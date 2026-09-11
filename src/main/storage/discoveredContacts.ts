@@ -261,7 +261,13 @@ export const discoveredStore = {
    *
    *  UPDATE-only for the same reason markHeard is — a measurement for a pubkey
    *  we have no advert for must not synthesise a nameless row — and returns true
-   *  only when a row actually moved, so callers can skip the broadcast.
+   *  only when a row actually moved, so callers can skip the broadcast. The
+   *  value guard in the WHERE clause is what makes that claim true: without it
+   *  `changes` is 1 for any existing row, so re-measuring a node to the same
+   *  answer costs a full-pool projection and a websocket push to every client
+   *  for nothing — and the advert-triggered sampler re-measures inside the
+   *  window the advert's own write already opened, so it is a SECOND full
+   *  broadcast per advert.
    *
    *  `hops: 0` is a legitimate measurement (heard direct) and is stored as 0;
    *  -1 stays reserved for "never measured".
@@ -275,9 +281,10 @@ export const discoveredStore = {
       .prepare(
         `UPDATE discovered_contacts
             SET observed_hops = ?, observed_path_hex = ?, observed_at_unix = ?
-          WHERE pubkey = ?`,
+          WHERE pubkey = ?
+            AND (observed_hops <> ? OR observed_path_hex <> ? OR observed_at_unix <> ?)`,
       )
-      .run(p.hops, p.pathHex, p.recvUnix, pubkey);
+      .run(p.hops, p.pathHex, p.recvUnix, pubkey, p.hops, p.pathHex, p.recvUnix);
     return Number(res.changes) > 0;
   },
 

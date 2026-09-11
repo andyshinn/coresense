@@ -18,6 +18,25 @@ const log = child('contacts');
  *  it; nothing automatic does. */
 export const ADVERT_PATH_COOLDOWN_MS = 60_000;
 
+/** How old a radio-reported advert reception may be and still be believed as a
+ *  last-heard.
+ *
+ *  RESP_ADVERT_PATH carries the RADIO's clock, not ours, and a radio whose RTC
+ *  was never set reports something near the epoch — so the value cannot simply
+ *  be trusted into an our-clock column. It also cannot simply be discarded: it
+ *  is firmware-authoritative proof that this node WAS heard, frequently while
+ *  coresense was not attached, and dropping it leaves a node the radio heard ten
+ *  minutes ago reading "never" everywhere and excluded from every Last-heard
+ *  filter (#45 item 9's exact symptom).
+ *
+ *  A week is generous for the thing being described — the backing store is a
+ *  16-entry ring of the most recently heard nodes — while still rejecting an
+ *  unset RTC by orders of magnitude. Future timestamps are rejected outright: a
+ *  fast clock would otherwise park last_heard_ms ahead of now and, because the
+ *  column only ever moves forward, silently block every REAL reception after
+ *  it. */
+export const MAX_OBSERVED_HEARD_AGE_MS = 7 * 86_400_000;
+
 export type AdvertPathResult =
   /** A real answer. `fromCache` means it came from the sqlite mirror under the
    *  cooldown above rather than from a fresh radio round trip. */
@@ -69,6 +88,17 @@ function stored(pubkey: string): AdvertPathResult {
   };
 }
 
+/** A radio-reported advert reception time as an our-clock ms value, or null when
+ *  it is not believable enough to write into `last_heard_ms`. Exported for the
+ *  tests that pin each rejection. */
+export function adoptableHeardMs(recvUnix: number, nowMs: number = Date.now()): number | null {
+  if (!Number.isFinite(recvUnix) || recvUnix <= 0) return null;
+  const ms = recvUnix * 1000;
+  if (ms > nowMs) return null;
+  if (nowMs - ms > MAX_OBSERVED_HEARD_AGE_MS) return null;
+  return ms;
+}
+
 async function ask(pubkey: string, key: string): Promise<AdvertPathResult> {
   // Stamp before the round trip, not after. A command that times out is exactly
   // the one we must not re-issue in a tight loop, and the lib's own request
@@ -80,9 +110,21 @@ async function ask(pubkey: string, key: string): Promise<AdvertPathResult> {
     // cached path was OUT_PATH_UNKNOWN" — see SessionAdapter.getAdvertPath).
     // Nothing is written: a miss must not overwrite an older real measurement.
     if (!p) return { status: 'notCached' };
-    if (discoveredStore.setObservedPath(pubkey, { hops: p.hops, pathHex: p.pathHex, recvUnix: p.recvTimestampUnix })) {
-      scheduleDiscoveredEmit();
-    }
+    const rowChanged = discoveredStore.setObservedPath(pubkey, {
+      hops: p.hops,
+      pathHex: p.pathHex,
+      recvUnix: p.recvTimestampUnix,
+    });
+    // The reply's reception time is a real last-heard, and often the only one we
+    // will ever get for this node: the radio hears adverts while we are detached
+    // and a GET_CONTACTS walk (heardLive: false) deliberately never advances the
+    // column, so without this a node the radio heard minutes ago reads "never"
+    // and is dropped from every Last-heard window. Range-checked because the
+    // value is the radio's RTC; markHeard is monotonic, so a stale one is a
+    // no-op rather than a step backwards.
+    const heard = adoptableHeardMs(p.recvTimestampUnix);
+    const bumped = heard !== null && discoveredStore.markHeard(pubkey, heard);
+    if (rowChanged || bumped) scheduleDiscoveredEmit();
     log.debug(`advert path ${pubkey.slice(0, 12)}: ${p.hops} hops`);
     return { status: 'measured', hops: p.hops, pathHex: p.pathHex, recvUnix: p.recvTimestampUnix, fromCache: false };
   } catch (err) {

@@ -135,3 +135,39 @@ describe('measurements survive the contact write-through', () => {
     expect(projected()?.observedHops).toBe(5);
   });
 });
+
+// `changes > 0` is true for ANY existing row, so the "returns true only when a
+// row moved" contract — which callers use to decide whether to project the
+// whole pool and push it to every websocket client — needs a value guard in the
+// WHERE clause to be true at all. It matters most on the advert-triggered path:
+// that write lands inside the 1s coalescer window the advert's own write
+// already opened, so an unconditional "changed" is a SECOND full-pool broadcast
+// for every advert from an on-radio node.
+describe('setObservedPath reports a real change only', () => {
+  it('is a no-op when the radio repeats the answer it already gave', () => {
+    seed();
+    const measurement = { hops: 2, pathHex: 'aabb', recvUnix: 1_760_000_000 };
+    expect(discoveredStore.setObservedPath(PK, measurement)).toBe(true);
+
+    expect(discoveredStore.setObservedPath(PK, { ...measurement })).toBe(false);
+    expect(projected()?.observedHops).toBe(2);
+  });
+
+  it('reports a change when any one of the three columns moves', () => {
+    seed();
+    discoveredStore.setObservedPath(PK, { hops: 2, pathHex: 'aabb', recvUnix: 1_760_000_000 });
+
+    // A newer reception of the same path is still news.
+    expect(discoveredStore.setObservedPath(PK, { hops: 2, pathHex: 'aabb', recvUnix: 1_760_000_060 })).toBe(true);
+    expect(discoveredStore.setObservedPath(PK, { hops: 3, pathHex: 'aabb', recvUnix: 1_760_000_060 })).toBe(true);
+    expect(discoveredStore.setObservedPath(PK, { hops: 3, pathHex: 'aabbcc', recvUnix: 1_760_000_060 })).toBe(true);
+  });
+
+  // The first measurement of a node the radio heard direct writes 0 into a
+  // column whose "never measured" sentinel is -1 and an empty path into a
+  // column whose default is ''. Only the hop count moves, and it has to count.
+  it('reports the first zero-hop measurement as a change', () => {
+    seed();
+    expect(discoveredStore.setObservedPath(PK, { hops: 0, pathHex: '', recvUnix: 0 })).toBe(true);
+  });
+});

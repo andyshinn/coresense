@@ -1,4 +1,4 @@
-import type { DiscoveredContact } from '../../shared/contacts/discovered';
+import { cellHops, type DiscoveredContact } from '../../shared/contacts/discovered';
 import type { CmHeard, CmSortField, CmStateTab, ContactManagerState } from './store';
 
 export interface CmCounts {
@@ -52,11 +52,16 @@ function compare(a: DiscoveredContact, b: DiscoveredContact, field: CmSortField)
     case 'type':
       return a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name);
     case 'hops':
+      // Sorts on whatever the cell actually renders — the measured inbound
+      // count when there is one, the outbound route otherwise (cellHops). A
+      // comparator reading a different field from its own column silently
+      // reorders rows the user can see the numbers for.
+      //
       // The `?? 0` is unreachable for an unknown-hop row: deriveContactView
       // partitions those out before this runs (see UNKNOWN_LAST). It is a type
       // narrowing, NOT a sort position — the old `?? 99` was the latter, which
       // is the bug.
-      return (a.hops ?? 0) - (b.hops ?? 0);
+      return (cellHops(a) ?? 0) - (cellHops(b) ?? 0);
     case 'key':
       return a.publicKeyHex.localeCompare(b.publicKeyHex);
     default:
@@ -78,7 +83,10 @@ function compare(a: DiscoveredContact, b: DiscoveredContact, field: CmSortField)
  *  both directions and ordered by name among themselves, so the flip only ever
  *  reorders rows that actually have a value to compare. */
 const UNKNOWN_LAST: Partial<Record<CmSortField, (c: DiscoveredContact) => boolean>> = {
-  hops: (c) => c.hops == null,
+  // Unknown means the CELL has no number — a row with a measured inbound count
+  // and no learned outbound route has one, and pinning it with the unmeasured
+  // rows would bury the only contacts the Hops column can speak for at all.
+  hops: (c) => cellHops(c) == null,
   lastHeard: (c) => c.lastHeardMs == null,
 };
 

@@ -15,13 +15,31 @@ const FOCUS_SETTLE_MS = 500;
  *  "the radio has nothing cached", which stores nothing, so an effect keyed on
  *  the row's value would re-ask on every one of the websocket pushes that the
  *  rail re-renders on. One automatic attempt per contact per session; the button
- *  is the retry. */
+ *  is the retry.
+ *
+ *  Only an attempt the RADIO actually answered is recorded (see `Outcome`). The
+ *  memo used to be armed before the request went out, which burned a contact's
+ *  one automatic attempt on things that never reached the radio at all — the
+ *  rail focuses a contact as soon as the local API server is up, seconds before
+ *  a BLE link exists, and a request skipped because another contact's was in
+ *  flight never left the renderer. Both left the row reading "not measured" for
+ *  the rest of the session. */
 const autoMeasured = new Set<string>();
 
 /** Test seam — the memo above is module state keyed by pubkey. */
 export function resetAdvertPathMemo(): void {
   autoMeasured.clear();
 }
+
+/** What one attempt did, for the memo above.
+ *
+ *  `answered` — the radio was asked and said something about this node (a hop
+ *    count, or "nothing cached"); that is the attempt the memo spends.
+ *  `retryable` — no radio attached yet, a dropped link, or a contact that is
+ *    not on the radio YET; a later visit can legitimately do better.
+ *  `skipped` — nothing was issued at all (no client/key, or this same contact
+ *    is already in flight). */
+type Outcome = 'answered' | 'retryable' | 'skipped';
 
 function describe(hops: number | undefined): string {
   if (hops === 0) return 'Heard direct — 0 hops';
@@ -47,34 +65,47 @@ export function useAdvertPath(
   opts: { auto?: boolean } = {},
 ): { measuring: boolean; measure: () => Promise<void> } {
   const auto = opts.auto ?? false;
-  const [measuring, setMeasuring] = useState(false);
-  // A ref, not the state flag: the websocket push that follows a successful
-  // measurement re-renders this component, and a stale `measuring` closure
-  // would let a second request through.
-  const busy = useRef(false);
+  // Which pubkeys this hook has outstanding. A ref, not the state below: the
+  // websocket push that follows a successful measurement re-renders this
+  // component, and a stale closure over a state flag would let a second request
+  // through. Keyed by pubkey, not a bare boolean, because the rail re-uses ONE
+  // ContactDetail instance as the focus moves — a boolean survived the switch,
+  // so an outstanding measurement for contact A silently swallowed B's (button
+  // press included: no request, no spinner, no toast) for as long as A's
+  // command took to time out, which is up to the lib's 5s request timeout.
+  const busy = useRef<Set<string>>(new Set());
+  // The same set, mirrored into state so the spinner can render. `measuring` is
+  // therefore about THIS contact rather than about the component: a request
+  // still outstanding for the previously focused one must not leave the button
+  // spinning — and disabled — for the contact now on screen.
+  const [inFlight, setInFlight] = useState<readonly string[]>([]);
 
   const run = useCallback(
-    async (silent: boolean) => {
-      if (!client || !publicKeyHex || busy.current) return;
-      busy.current = true;
-      setMeasuring(true);
+    async (silent: boolean): Promise<Outcome> => {
+      const pubkey = publicKeyHex;
+      if (!client || !pubkey || busy.current.has(pubkey)) return 'skipped';
+      busy.current.add(pubkey);
+      setInFlight([...busy.current]);
       try {
-        const res = await api.getAdvertPath(client, `c:${publicKeyHex}`, { force: !silent });
-        if (silent) return;
-        if (!res.cached) notify.info('Radio has no recent advert path for this node');
-        else notify.success(describe(res.hops));
-      } catch (err) {
-        if (silent) return;
-        // The radio not storing this contact is a state, not a fault — the app
-        // knows plenty of nodes the radio doesn't.
-        if (err instanceof ApiError && err.code === 'NOT_ON_RADIO') {
-          notify.info('Add this contact to the radio before measuring its advert path');
-        } else {
-          notify.error(`Could not measure heard hops: ${(err as Error).message}`, err);
+        const res = await api.getAdvertPath(client, `c:${pubkey}`, { force: !silent });
+        if (!silent) {
+          if (!res.cached) notify.info('Radio has no recent advert path for this node');
+          else notify.success(describe(res.hops));
         }
+        return 'answered';
+      } catch (err) {
+        // The radio not storing this contact is a state, not a fault — the app
+        // knows plenty of nodes the radio doesn't — and it is a state one click
+        // on "Add to radio" changes, so it stays retryable.
+        if (err instanceof ApiError && err.code === 'NOT_ON_RADIO') {
+          if (!silent) notify.info('Add this contact to the radio before measuring its advert path');
+          return 'retryable';
+        }
+        if (!silent) notify.error(`Could not measure heard hops: ${(err as Error).message}`, err);
+        return 'retryable';
       } finally {
-        busy.current = false;
-        setMeasuring(false);
+        busy.current.delete(pubkey);
+        setInFlight([...busy.current]);
       }
     },
     [client, publicKeyHex],
@@ -82,14 +113,25 @@ export function useAdvertPath(
 
   useEffect(() => {
     if (!auto || !client || !publicKeyHex || autoMeasured.has(publicKeyHex)) return;
+    const pubkey = publicKeyHex;
     const timer = setTimeout(() => {
-      autoMeasured.add(publicKeyHex);
-      void run(true);
+      // Memoised AFTER the attempt and only on an answer. Arming it up front
+      // spent the contact's single automatic attempt on requests that never
+      // reached the radio — the app focuses a contact as soon as the local API
+      // server answers, which is seconds before a BLE link exists.
+      void run(true).then((outcome) => {
+        if (outcome === 'answered') autoMeasured.add(pubkey);
+      });
     }, FOCUS_SETTLE_MS);
     // Focus moved on before the window elapsed: that contact never gets asked
     // about at all, which is the whole point of the delay.
     return () => clearTimeout(timer);
   }, [auto, client, publicKeyHex, run]);
 
-  return { measuring, measure: useCallback(() => run(false), [run]) };
+  return {
+    measuring: publicKeyHex != null && inFlight.includes(publicKeyHex),
+    measure: useCallback(async () => {
+      await run(false);
+    }, [run]),
+  };
 }
