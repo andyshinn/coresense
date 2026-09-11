@@ -80,6 +80,15 @@ export class SessionAdapter {
   setContactPreferDirect(key: string, preferDirect: boolean) {
     return this.session.setContactPreferDirect(key, preferDirect);
   }
+  /** Actively re-enumerate the radio's contact store (CMD_GET_CONTACTS) outside
+   *  the handshake. The lib serialises it against a running sync with its own
+   *  withSyncLock, and the resulting RESP_CONTACT stream lands on the normal
+   *  contactObserved/contacts/discovered/contactsSynced handlers — so callers
+   *  broadcast nothing themselves. Gives the user a contact-refresh lever that
+   *  isn't "disconnect and reconnect" (#45 item 6). */
+  getContacts() {
+    return this.session.getContacts();
+  }
 
   // radio / device
   setPathHashMode(size: 1 | 2 | 3) {

@@ -33,6 +33,7 @@ import { sendMessage } from '../messaging/sendMessage';
 import { protocolSession } from '../protocol';
 import { ContactTableFullError, UnknownContactError } from '../protocol/errors';
 import { appLifecycle } from '../runtime/appLifecycle';
+import { noteHeard, scheduleDiscoveredEmit } from '../state/contactSync';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { messagesStore } from '../storage/messages';
@@ -42,6 +43,38 @@ import { updatesController } from '../updates/controller';
 import { markQuitConfirmed } from '../window/quit';
 import { getConfigPath } from './middleware/auth';
 import { buildTileManifest, registerTileRoutes } from './tiles';
+
+/** Write a hand-set (or reset) out-path through to the discovered mirror.
+ *
+ *  meshcore-ts's setContactPath/resetContactPath write the radio and then their
+ *  own in-memory contact map; they emit neither `contactObserved` nor
+ *  `discovered`, so nothing reaches coresense's sqlite mirror. The Contact
+ *  Manager reads its hop count from that mirror — and so does the rail, since
+ *  resolveContact prefers the discovered row's `hops` — which left both showing
+ *  the pre-edit value until the next full GET_CONTACTS.
+ *
+ *  `outPathHex` empty means OUT_PATH_UNKNOWN (0xFF): no learned route, the radio
+ *  floods. Otherwise the byte is repacked exactly as the firmware stores it,
+ *  `((hashSize - 1) << 6) | hopCount` (see shared/contacts/discovered.ts), using
+ *  the same radio path-hash mode the library validated the path length against
+ *  before writing the frame. */
+function mirrorOutPath(contactKey: string, outPathHex: string): void {
+  const pubkey = contactKey.startsWith('c:') ? contactKey.slice(2) : contactKey;
+  if (outPathHex.length === 0) {
+    discoveredStore.setOutPath(pubkey, 0xff, '');
+    scheduleDiscoveredEmit();
+    return;
+  }
+  const hashSize = stateHolder().getRadioSettings().pathHashMode;
+  const hops = outPathHex.length / 2 / hashSize;
+  // The library rejects a path that isn't a whole number of hops, so this is
+  // belt-and-braces: writing a fractional or out-of-range hop count would pack
+  // a byte hopsFromOutPathLen can't read back. Leaving the row alone is strictly
+  // better than corrupting it.
+  if (!Number.isInteger(hops) || hops < 0 || hops > 0x3f) return;
+  discoveredStore.setOutPath(pubkey, ((hashSize - 1) << 6) | hops, outPathHex);
+  scheduleDiscoveredEmit();
+}
 
 interface RoutesDeps {
   port: () => number;
@@ -604,6 +637,33 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     return c.json(discoveredStore.list(holder.getBlockRules()));
   });
 
+  // Re-read the radio's contact store on demand (#45 item 6). Before this the
+  // only way to pick up a contact the radio learned after the handshake — or to
+  // repair a mirror that drifted — was to disconnect and reconnect.
+  //
+  // Emits nothing by hand: the walk drives the lib's contactObserved/contacts/
+  // discovered/contactsSynced events, which adapterEvents already writes through
+  // and broadcasts (coalesced). A manual emit here would just double-send a
+  // full-pool payload.
+  api.post('/api/contacts/refresh', async (c) => {
+    if (transportManager.getState().state !== 'connected') {
+      return c.json({ error: 'no radio attached' }, 503);
+    }
+    // A handshake sync is already walking the same contact stream. The lib's
+    // withSyncLock would QUEUE a second walk rather than reject it, so without
+    // this the user's click buys them a duplicate ~25s of serial traffic that
+    // starts only once the first one finishes.
+    if (protocolSession().getSyncProgress().phase === 'syncing') {
+      return c.json({ ok: true, skipped: true });
+    }
+    try {
+      const list = await protocolSession().getContacts();
+      return c.json({ ok: true, count: list.length });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
   // Commit a discovered contact to the radio's store.
   api.post('/api/contacts/:key/add-to-radio', async (c) => {
     const key = c.req.param('key');
@@ -723,6 +783,11 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
         manual: true,
         preferDirect: body.preferDirect,
       });
+      // Radio first, mirror second: the lib touches only its own contact map, so
+      // without this the discovered row keeps its pre-edit out_path_len and the
+      // Contact Manager's hop cell (and the rail, which prefers the discovered
+      // row) lies until the next full GET_CONTACTS.
+      mirrorOutPath(key, outPathHex);
       return c.json({ ok: true });
     } catch (err) {
       return c.json({ error: (err as Error).message }, 503);
@@ -733,6 +798,8 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const key = c.req.param('key');
     try {
       await protocolSession().resetContactPath(key);
+      // Back to OUT_PATH_UNKNOWN, so the hop cell reads "Flood" immediately.
+      mirrorOutPath(key, '');
       return c.json({ ok: true });
     } catch (err) {
       return c.json({ error: (err as Error).message }, 503);
@@ -871,6 +938,10 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
         signal: c.req.raw.signal,
       });
       if (!expectReply) return c.json({ ok: true, sent: true }, 202);
+      // The reply packet came from this repeater — the lib correlates pending
+      // CLI sends by the sender's pubkey prefix, so a resolved reply is a real
+      // reception from `key` and not a guess (#45 item 9).
+      noteHeard(key);
       return c.json({ ok: true, reply }, 200);
     } catch (err) {
       // Coerce defensively: a non-Error rejection (thrown string, or an object
@@ -889,6 +960,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   });
 
   api.post('/api/repeater/:key/trace', async (c) => {
+    const key = c.req.param('key');
     const body = (await c.req.json().catch(() => null)) as {
       tag?: number;
       authCode?: number;
@@ -905,6 +977,12 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
         flags: body.flags,
         pathHex: body.pathHex,
       });
+      // A returned trace means the node at the end of `pathHex` turned the
+      // packet around. TRACE_DATA itself carries only per-hop HASHES, so the
+      // identity comes from the caller's own `:key` — the contact it asked to
+      // trace. Attribution is therefore only as good as that assertion, which
+      // is why it lives here rather than in the decode path (#45 item 9).
+      noteHeard(key);
       return c.json({ ok: true, trace });
     } catch (err) {
       return c.json({ error: (err as Error).message }, 503);

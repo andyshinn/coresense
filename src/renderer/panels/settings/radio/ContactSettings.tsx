@@ -126,8 +126,12 @@ export function ContactSettingsSection({ client }: SectionProps) {
           />
         }
       />
+      {/* Field name is `pullToRefresh` for on-disk compatibility only; see the
+          note on AutoAddConfig. The behaviour it now drives is a periodic
+          GET_CONTACTS while connected. */}
       <Row
-        label="Pull to refresh"
+        label="Auto-refresh contacts"
+        description="Re-reads the radio's contact list every 15 minutes while connected. The Contacts panel's refresh button does it on demand."
         changed={draft.pullToRefresh !== saved.pullToRefresh}
         control={
           <Toggle checked={draft.pullToRefresh} onChange={(pullToRefresh) => setDraft((s) => ({ ...s, pullToRefresh }))} />

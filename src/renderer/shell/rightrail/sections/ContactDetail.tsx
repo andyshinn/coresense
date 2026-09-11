@@ -1,5 +1,6 @@
 import { Ban, MapPin, MessageSquare, Minus, Plus, Radio, Share2, ShieldCheck, Star, TerminalSquare } from 'lucide-react';
 import { useState } from 'react';
+import { formatHops } from '../../../../shared/contacts/discovered';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import { copyToClipboard } from '../../../components/ContextMenu';
 import { PathHashBadge } from '../../../components/PathHashBadge';
@@ -229,7 +230,11 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
         <KeyValueRow
           label="Last heard"
           value={rc.lastHeardMs == null ? 'not heard yet' : fmtRelative(rc.lastHeardMs)}
-          title={rc.lastHeardMs == null ? undefined : fmtDateTime(rc.lastHeardMs, timeFormat)}
+          title={
+            rc.lastHeardMs == null
+              ? 'Nothing received from this node yet'
+              : `Last reception on our clock — advert, message, ack or reply — ${fmtDateTime(rc.lastHeardMs, timeFormat)}`
+          }
         />
         <KeyValueRow
           label="Advertised"
@@ -241,11 +246,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
           value={rc.firstHeardMs == null ? '—' : fmtRelative(rc.firstHeardMs)}
           title={rc.firstHeardMs == null ? undefined : fmtDateTime(rc.firstHeardMs, timeFormat)}
         />
-        <KeyValueRow
-          label="Hops away"
-          value={rc.hops == null ? 'Flood' : `${rc.hops} hop${rc.hops === 1 ? '' : 's'}`}
-          mono
-        />
+        <KeyValueRow label="Hops away" value={formatHops(rc.hops)} mono />
         {rc.outPathHashSize != null && (
           <KeyValueRow label="Path hash size" value={<PathHashBadge bytes={rc.outPathHashSize} />} />
         )}

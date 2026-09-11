@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hashSizeFromOutPathLen, hopsFromOutPathLen } from '../../../src/shared/contacts/discovered';
+import { formatHops, hashSizeFromOutPathLen, hopsFromOutPathLen } from '../../../src/shared/contacts/discovered';
 
 // MeshCore packs the contact `out_path_len` byte as `((hashSize - 1) << 6) | hopCount`
 // (firmware Packet::setPathHashSizeAndCount / getPathByteLen), NOT a raw byte
@@ -42,5 +42,39 @@ describe('hashSizeFromOutPathLen', () => {
     // which is outside PathHashSize — it must not leak into hop splitting.
     expect(hashSizeFromOutPathLen(0xc0)).toBeUndefined();
     expect(hashSizeFromOutPathLen(0xc3)).toBeUndefined();
+  });
+});
+
+// One formatter for every surface that renders a contact's hop state. The
+// states it has to keep apart are "no learned route → the radio floods"
+// (undefined), "known direct route" (0) and "N relay hops" — and none of them
+// may render as blank, which is what an `hops || '—'` style check would do to 0.
+describe('formatHops', () => {
+  it('calls an unknown out_path what it is — the radio will flood', () => {
+    expect(formatHops(undefined)).toBe('Flood');
+  });
+  it('renders 0 as a real value, not as missing data', () => {
+    expect(formatHops(0)).toBe('0 hops');
+  });
+  it('singularises exactly one hop', () => {
+    expect(formatHops(1)).toBe('1 hop');
+  });
+  it('pluralises two or more', () => {
+    expect(formatHops(2)).toBe('2 hops');
+  });
+  it('handles the 6-bit hop-count ceiling', () => {
+    expect(formatHops(63)).toBe('63 hops');
+  });
+
+  // The overrides exist for surfaces with their own established vocabulary —
+  // the repeater login button mirrors meshcore_py's `effective`, where a known
+  // 0-hop route reads "Direct".
+  it('lets a caller override the direct wording without touching the rest', () => {
+    expect(formatHops(0, { direct: 'Direct' })).toBe('Direct');
+    expect(formatHops(3, { direct: 'Direct' })).toBe('3 hops');
+    expect(formatHops(undefined, { direct: 'Direct' })).toBe('Flood');
+  });
+  it('lets a caller override the unknown wording', () => {
+    expect(formatHops(undefined, { unknown: 'not measured' })).toBe('not measured');
   });
 });

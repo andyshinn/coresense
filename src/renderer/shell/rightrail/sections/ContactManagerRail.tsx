@@ -1,4 +1,16 @@
-import { Ban, ChevronLeft, Download, type LucideIcon, Minus, Plus, Settings, Star, Trash2, Upload } from 'lucide-react';
+import {
+  Ban,
+  ChevronLeft,
+  Download,
+  type LucideIcon,
+  Minus,
+  Plus,
+  RefreshCw,
+  Settings,
+  Star,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import { useState } from 'react';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import {
@@ -10,6 +22,7 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 import { KeyValueRow } from '../../../components/ui/KeyValueRow';
+import { useContactRefresh } from '../../../hooks/useContactRefresh';
 import { type ApiClient, api } from '../../../lib/api';
 import { deriveContactView } from '../../../lib/contactManagerView';
 import { notify } from '../../../lib/notify';
@@ -165,6 +178,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
   const blockRulesCount = useStore((s) => s.blockRules.length);
   const [showClear, setShowClear] = useState(false);
   const [showBlock, setShowBlock] = useState(false);
+  const { refreshing, refresh: refreshFromRadio } = useContactRefresh(client);
 
   const view = deriveContactView(discovered, cm, Date.now());
   const rows = view.rows;
@@ -230,6 +244,13 @@ function ListActions({ client }: { client: ApiClient | null }) {
           <span className="font-mono text-[9.5px] text-cs-text-dim">FILTERED · {rows.length} shown</span>
         </div>
         <div className="space-y-1.5">
+          <RailActionButton
+            icon={RefreshCw}
+            label="Refresh from radio"
+            sub={refreshing ? 'reading…' : 're-read contact store'}
+            disabled={!client || refreshing}
+            onClick={refreshFromRadio}
+          />
           <RailActionButton
             icon={Plus}
             label="Add all filtered"

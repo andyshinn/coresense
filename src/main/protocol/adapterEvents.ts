@@ -1,9 +1,10 @@
 import type { MeshCoreSession } from '@andyshinn/meshcore-ts';
 import { emit, summarizeContactSync } from '../events/bus';
 import { child } from '../log';
-import { applyLibContacts, ingestObservedContact, scheduleDiscoveredEmit } from '../state/contactSync';
+import { applyLibContacts, ingestObservedContact, noteHeard, scheduleDiscoveredEmit } from '../state/contactSync';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
+import { messagesStore } from '../storage/messages';
 import { mergeSyncedChannels } from './mergeChannels';
 
 const log = child('contacts');
@@ -73,9 +74,21 @@ export function wireSessionEvents(session: MeshCoreSession): void {
   });
   ev.on('channelPresence', (keys) => emit.channelPresence(keys));
   ev.on('syncProgress', (p) => emit.syncProgress(p));
-  ev.on('pathLearned', (e) => emit.pathLearned(e));
-  ev.on('repeaterStatus', (s) => emit.repeaterStatus(s));
-  ev.on('repeaterTelemetry', (s) => emit.repeaterTelemetry(s));
+  // The three identity-bearing pushes below are all receptions FROM the named
+  // contact, so each one is a last-heard signal (#45 item 9). A path learn in
+  // particular means a send to that node completed a round trip.
+  ev.on('pathLearned', (e) => {
+    noteHeard(e.contactKey);
+    emit.pathLearned(e);
+  });
+  ev.on('repeaterStatus', (s) => {
+    noteHeard(s.contactKey);
+    emit.repeaterStatus(s);
+  });
+  ev.on('repeaterTelemetry', (s) => {
+    noteHeard(s.contactKey);
+    emit.repeaterTelemetry(s);
+  });
   ev.on('contactsFull', () => emit.error('radio contact store is full — remove or favourite contacts to make room'));
 
   wireContacts(session); // Task C2
@@ -156,14 +169,28 @@ function wireMessages(session: MeshCoreSession): void {
   const holder = stateHolder();
   ev.on('messageUpserted', (m) => {
     holder.recordLibMessage(m);
+    // An inbound DM is a reception from its sender. `noteHeard` filters the
+    // cases that aren't: a channel post carries `name:<n>` rather than a pubkey,
+    // and coresense's own outbound messages never come through here at all (the
+    // sender writes them straight to the holder) — but an unresolved DM sender
+    // arrives as a 6-byte prefix, which must not be treated as a pubkey.
+    noteHeard(m.fromPublicKeyHex);
     emit.messages(m.key, holder.getMessagesForKey(m.key));
   });
   ev.on('messageState', (id, state) => {
     holder.setMessageState(id, state);
+    // An ack is the one send-side transition that is a genuine RECEPTION: the
+    // peer's ACK packet reached our radio. The holder's setter returns void, so
+    // read the message back for its conversation key (`c:<pubkey>` for a DM;
+    // a channel key can't pass noteHeard's pubkey check, and never acks anyway).
+    if (state === 'ack') noteHeard(messagesStore.findById(id)?.key);
     emit.messageState(id, state);
   });
   // The lib emits only { id, path } (it doesn't track this message's state —
   // we do); coresense owns the 'sent' → 'heard' transition.
+  //
+  // Deliberately NOT a last-heard signal: MessagePath.hops are per-hop path
+  // HASHES, not identities, so there is no pubkey to attribute the reception to.
   ev.on('messagePathHeard', ({ id, path }) => {
     const state = holder.appendMessagePath(id, path);
     if (state) emit.messagePathHeard({ id, path, state });

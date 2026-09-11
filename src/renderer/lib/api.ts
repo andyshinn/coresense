@@ -268,6 +268,12 @@ export const api = {
       method: 'DELETE',
     }),
   fetchDiscovered: (c: ApiClient) => request<DiscoveredContact[]>(c, `/api/discovered-contacts`),
+  /** Ask the radio to re-enumerate its contact store. The refreshed rows arrive
+   *  over the websocket (`contacts`/`discovered`), not in this response — the
+   *  body is just the count the radio delivered, or `skipped` when a handshake
+   *  sync was already walking the same stream. */
+  refreshContacts: (c: ApiClient) =>
+    request<{ ok: true; count?: number; skipped?: boolean }>(c, '/api/contacts/refresh', { method: 'POST' }),
   addToRadio: (c: ApiClient, key: string) =>
     request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/add-to-radio`, {
       method: 'POST',

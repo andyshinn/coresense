@@ -67,10 +67,22 @@ function invalidateFlagCache(pubkey?: string): void {
   else lastWrittenFlags.delete(pubkey);
 }
 
-/** Reset the flag cache. Exported for tests, which reuse the module across
- *  fresh temp databases. */
+/** When markHeard last wrote last_heard_ms for a pubkey, on our clock.
+ *  `messageUpserted` fires once per inbound message, so on a busy link an
+ *  unthrottled bump is one sqlite write per received packet into the same table
+ *  the discovered-emit coalescer already exists to protect. A "last heard"
+ *  column does not need second resolution. */
+const lastHeardWrites = new Map<string, number>();
+
+/** Skip a repeat bump for the same pubkey inside this window. */
+const HEARD_THROTTLE_MS = 30_000;
+
+/** Reset this module's caches. Exported for tests, which reuse the module
+ *  across fresh temp databases — any module state keyed by pubkey has to be
+ *  dropped here or it leaks across files (see tests/support/sqlite-temp.ts). */
 export function resetDiscoveredFlagCache(): void {
   lastWrittenFlags.clear();
+  lastHeardWrites.clear();
 }
 
 export const discoveredStore = {
@@ -110,7 +122,9 @@ export const discoveredStore = {
    *  `heardLive` distinguishes a real PUSH_NEW_ADVERT (we actually heard the
    *  node) from a GET_CONTACTS resync (the device just listing what it stores).
    *  last_heard_ms is our-clock and only advances on a live advert, so it never
-   *  moves on a resync — committing a contact to the radio can't bump it. */
+   *  moves on a resync — committing a contact to the radio can't bump it.
+   *  Non-advert receptions (messages, acks, path learns, admin replies) go
+   *  through markHeard instead; this stays the advert-only door. */
   upsert(record: Models.ContactRecord, opts: { onRadio: boolean; nowMs: number; heardLive: boolean }): void {
     const db = openDb();
     const heardMs = opts.heardLive ? opts.nowMs : 0;
@@ -160,6 +174,64 @@ export const discoveredStore = {
     const db = openDb();
     const row = db.prepare(`SELECT * FROM discovered_contacts WHERE pubkey = ?`).get(pubkey) as Row | undefined;
     return row ?? null;
+  },
+
+  /** Advance last_heard_ms for a pubkey we just received something from — a DM,
+   *  an ack, a path learn, a repeater status/telemetry push, a CLI reply. The
+   *  advert path keeps using `upsert`; this is the door for everything else
+   *  (#45 item 9), which is why the column now means "last reception" rather
+   *  than "last advert".
+   *
+   *  UPDATE-only on purpose: a reception from a pubkey with no discovered row
+   *  must NOT synthesise a half-empty one — we have no name, type, flags or
+   *  advert for it, and a row like that would show up in the Contact Manager as
+   *  a nameless ghost.
+   *
+   *  `last_heard_ms < ?` mirrors the MAX() in upsert's conflict clause so an
+   *  out-of-order or replayed bump can never move the clock backwards.
+   *
+   *  Deliberately does NOT invalidateFlagCache: `lastWrittenFlags` tracks only
+   *  on_radio|favourite, neither of which this touches, so invalidating would
+   *  force applyRadioFlags to re-write the whole pool on the next `discovered`
+   *  frame — the exact per-frame rewrite that cache exists to prevent.
+   *
+   *  Returns true only when a row actually moved, so callers can skip the
+   *  broadcast when nothing changed. */
+  markHeard(pubkey: string, nowMs: number): boolean {
+    const last = lastHeardWrites.get(pubkey);
+    if (last !== undefined && nowMs - last < HEARD_THROTTLE_MS) return false;
+
+    const db = openDb();
+    const res = db
+      .prepare(`UPDATE discovered_contacts SET last_heard_ms = ? WHERE pubkey = ? AND last_heard_ms < ?`)
+      .run(nowMs, pubkey, nowMs);
+    const changed = Number(res.changes) > 0;
+    // Only remember successful writes. A pubkey with no row (or a clock that
+    // didn't advance) shouldn't arm a 30s throttle against the first real bump
+    // it could have taken.
+    if (changed) lastHeardWrites.set(pubkey, nowMs);
+    return changed;
+  },
+
+  /** Mirror a path the user set (or reset) by hand into the discovered row.
+   *  The lib's setContactPath/resetContactPath write the radio and then their
+   *  OWN in-memory contact map — they emit neither `contactObserved` nor
+   *  `discovered`, so nothing writes through to this table and the Contact
+   *  Manager's hop cell keeps the pre-edit byte until the next full
+   *  GET_CONTACTS. Since resolveContact prefers the discovered row's `hops`
+   *  over the on-radio contact's, the rail goes stale with it.
+   *
+   *  `outPathLen` is the PACKED firmware byte — `((hashSize - 1) << 6) |
+   *  hopCount`, or 0xFF for "no path, flood" — not a byte count, so that
+   *  hopsFromOutPathLen/hashSizeFromOutPathLen keep reading it correctly.
+   *  UPDATE-only, for the same reason markHeard is. */
+  setOutPath(pubkey: string, outPathLen: number, outPathHex: string): void {
+    const db = openDb();
+    db.prepare(`UPDATE discovered_contacts SET out_path_len = ?, out_path_hex = ? WHERE pubkey = ?`).run(
+      outPathLen,
+      outPathHex,
+      pubkey,
+    );
   },
 
   setOnRadio(pubkey: string, onRadio: boolean): void {

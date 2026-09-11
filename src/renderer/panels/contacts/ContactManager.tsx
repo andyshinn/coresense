@@ -1,10 +1,31 @@
+import { RefreshCw } from 'lucide-react';
 import { useMemo } from 'react';
+import { useContactRefresh } from '../../hooks/useContactRefresh';
 import type { ApiClient } from '../../lib/api';
 import { deriveContactView } from '../../lib/contactManagerView';
 import { useStore } from '../../lib/store';
+import { cn } from '../../lib/utils';
 import { CapacityMeter } from './CapacityMeter';
 import { ListRow, SelectAllBar, TableView } from './ContactRows';
 import { Toolbar } from './Toolbar';
+
+/** Re-read the radio's contact store on demand — the user's lever for "the
+ *  radio knows someone the app doesn't" short of a reconnect (#45 item 6). */
+function RefreshButton({ client }: { client: ApiClient | null }) {
+  const { refreshing, refresh } = useContactRefresh(client);
+  return (
+    <button
+      type="button"
+      onClick={refresh}
+      disabled={!client || refreshing}
+      title="Re-read the contact list from the radio"
+      aria-label="Refresh contacts from radio"
+      className="grid size-7 place-items-center rounded-md border border-cs-border text-cs-text-muted hover:bg-cs-bg-3 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} aria-hidden="true" />
+    </button>
+  );
+}
 
 export function ContactManager({ client }: { client: ApiClient | null }) {
   const discovered = useStore((s) => s.discovered);
@@ -18,7 +39,8 @@ export function ContactManager({ client }: { client: ApiClient | null }) {
           <h1 className="text-sm font-semibold text-cs-text">Contacts</h1>
           <p className="font-mono text-[10px] text-cs-text-dim">discovered node adverts</p>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
+          <RefreshButton client={client} />
           <CapacityMeter />
         </div>
       </header>

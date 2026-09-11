@@ -727,7 +727,13 @@ export interface AutoAddConfig {
   /** App-side filter: drop adverts whose path has more hops than this. `null`
    *  = no limit. The radio doesn't apply this; the companion does pre-upsert. */
   maxHops: number | null;
-  /** App-side: pull-to-refresh in the contact list. */
+  /** App-side: re-read the radio's contact store on a timer while connected
+   *  (see main/state/contactRefresh.ts). The key is a misnomer kept on purpose
+   *  — it shipped as an unimplemented mobile "pull to refresh" idiom, and
+   *  settingsStore.loadAutoAddConfig merges the persisted JSON over the
+   *  defaults, so renaming it would read as absent and silently reset every
+   *  user's saved choice to the `true` default below. The LABEL is what
+   *  changed (#45 item 6). */
   pullToRefresh: boolean;
   /** App-side: show pubkey prefix next to names in lists. */
   showPublicKeys: boolean;
