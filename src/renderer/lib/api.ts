@@ -267,6 +267,18 @@ export const api = {
     request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/path`, {
       method: 'DELETE',
     }),
+  /** Ask the radio for its cached INBOUND advert path for one contact (#45 item
+   *  7). `cached: false` is the ordinary "the radio hasn't heard this node
+   *  lately" answer, not a failure. A measurement is persisted server-side and
+   *  arrives as a `discovered` websocket push, so the response body is for the
+   *  toast, not for rendering. `force` skips the server's re-ask cooldown and is
+   *  for an explicit user action only. */
+  getAdvertPath: (c: ApiClient, key: string, opts: { force?: boolean } = {}) =>
+    request<{ cached: boolean; hops?: number; pathHex?: string; recvTimestampUnix?: number; fromCache?: boolean }>(
+      c,
+      `/api/contacts/${encodeURIComponent(key)}/advert-path${opts.force ? '?force=1' : ''}`,
+      { method: 'POST' },
+    ),
   fetchDiscovered: (c: ApiClient) => request<DiscoveredContact[]>(c, `/api/discovered-contacts`),
   /** Ask the radio to re-enumerate its contact store. The refreshed rows arrive
    *  over the websocket (`contacts`/`discovered`), not in this response — the

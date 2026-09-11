@@ -26,6 +26,31 @@ export interface DiscoveredContact {
    *  "never" because only PUSH_NEW_ADVERT wrote here, and every Last-heard
    *  filter (hour/day/week) drops rows with no value at all. */
   lastHeardMs?: number;
+  /** Hops the radio counted on the last advert it actually HEARD from this node
+   *  (CMD_GET_ADVERT_PATH → RESP_ADVERT_PATH). This is an INBOUND measurement
+   *  and is deliberately a field of its own: `hops` above is derived from
+   *  out_path_len, the LEARNED OUTBOUND route we would use to SEND. A mesh is
+   *  routinely asymmetric, so the two legitimately differ and neither may
+   *  overwrite the other (#45 item 7).
+   *
+   *  0 is a real measurement — "the advert arrived direct" — not an absence.
+   *  Undefined means nobody has measured it yet, which is NOT the same state as
+   *  `hops === undefined` ("no stored route → flood"); see formatObservedHops.
+   *
+   *  The firmware's backing store is a 16-entry RAM ring keyed on a 7-BYTE
+   *  pubkey PREFIX (companion_radio `AdvertPath.pubkey_prefix[7]`, compared with
+   *  memcmp) and evicted oldest-first, so this is a sample of one recent advert
+   *  rather than a durable property of the node — and, being a prefix match, not
+   *  full-key fidelity. */
+  observedHops?: number;
+  /** The path bytes that advert arrived over, hex. Empty for a 0-hop (direct)
+   *  reception, which is why `observedHops` — never this — is the presence test. */
+  observedPathHex?: string;
+  /** When the RADIO received that advert, ms. Its RTC, not our clock and not the
+   *  advertising node's clock (see lastHeardMs / lastAdvertMs respectively). A
+   *  radio with an unset RTC reports something near the epoch, so treat it as a
+   *  hint rather than an authority. */
+  observedAtMs?: number;
   /** First time WE heard this pubkey (our clock), ms. Tracked app-side. */
   firstHeardMs: number;
   onRadio: boolean;
@@ -78,6 +103,29 @@ export function formatHops(hops: number | undefined, opts?: { direct?: string })
   if (hops == null) return 'Flood';
   if (hops === 0) return opts?.direct ?? '0 hops';
   return `${hops} hop${hops === 1 ? '' : 's'}`;
+}
+
+/** Render an OBSERVED (inbound) hop count — what the radio counted on the last
+ *  advert it heard from a node.
+ *
+ *  This is not a fourth wording for the state formatHops already owns, and it
+ *  must not become one: the hop COUNT itself is still formatted by formatHops,
+ *  so 0 stays "0 hops" and N stays "N hops" on every surface. Only the absent
+ *  case differs, because it is a genuinely different absence:
+ *
+ *    formatHops(undefined)         → "Flood"        no stored OUTBOUND route, so
+ *                                                   a send is flooded. A fact
+ *                                                   about routing.
+ *    formatObservedHops(undefined) → "not measured" nobody has asked the radio,
+ *                                                   or its 16-slot advert-path
+ *                                                   ring no longer holds this
+ *                                                   node. A fact about us.
+ *
+ *  Printing "Flood" here would claim we know something about the inbound path
+ *  that we do not, and blanking it would re-open the missing-vs-zero confusion
+ *  item 8 closed. */
+export function formatObservedHops(hops: number | undefined): string {
+  return hops == null ? 'not measured' : formatHops(hops);
 }
 
 /** The one rendering of "when did we last receive anything from this node",

@@ -22,6 +22,13 @@ export interface ResolvedContact {
   lastAdvertMs?: number;
   /** Our clock — last live advert reception. Undefined until first heard. */
   lastHeardMs?: number;
+  /** Inbound hops from the radio's cached advert path. Never merged with
+   *  `hops` above, which is the outbound route — and sourced only from the
+   *  discovered row, because the on-radio `Contact` has no inbound field to fall
+   *  back to. Undefined = not measured; 0 = heard direct. */
+  observedHops?: number;
+  /** Radio-RTC reception time of that advert, ms. */
+  observedAtMs?: number;
   contact: Contact | null;
   rssi?: number;
   snr?: number;
@@ -58,6 +65,8 @@ export function resolveContact(
     firstHeardMs: d?.firstHeardMs,
     lastAdvertMs: d?.lastAdvertMs ?? c?.lastSeenMs,
     lastHeardMs: d?.lastHeardMs,
+    observedHops: d?.observedHops,
+    observedAtMs: d?.observedAtMs,
     contact: c,
     rssi: c?.rssi,
     snr: c?.snr,

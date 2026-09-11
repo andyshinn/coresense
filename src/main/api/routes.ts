@@ -33,6 +33,7 @@ import { sendMessage } from '../messaging/sendMessage';
 import { protocolSession } from '../protocol';
 import { ContactTableFullError, UnknownContactError } from '../protocol/errors';
 import { appLifecycle } from '../runtime/appLifecycle';
+import { fetchAdvertPath } from '../state/advertPath';
 import { refreshContacts } from '../state/contactRefresh';
 import { noteHeard, scheduleDiscoveredEmit } from '../state/contactSync';
 import { stateHolder } from '../state/holder';
@@ -715,6 +716,49 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     } catch (err) {
       if (err instanceof UnknownContactError) return c.json({ error: err.message }, 422);
       return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  // Measure one contact's INBOUND hop count (#45 item 7) — what the radio
+  // counted on the last advert it heard from this node, which is a different
+  // direction from the out_path_len-derived `hops` the app has always shown.
+  //
+  // A POST because it is a radio round trip with a persisted side effect, and
+  // per-contact because that is the only shape the firmware supports: there is
+  // no bulk form of CMD_GET_ADVERT_PATH, and a pool-wide walk would be hundreds
+  // of commands for a value shown one row at a time.
+  //
+  // The guards (connected / on-radio / in-flight / cooldown) all live in
+  // state/advertPath.fetchAdvertPath, which the advert-triggered sampler shares
+  // — a guard split between the route and the sampler would guard neither.
+  api.post('/api/contacts/:key/advert-path', async (c) => {
+    const key = c.req.param('key');
+    // `force=1` is the user pressing the button: skip the cooldown, but still
+    // share an in-flight request rather than issuing a second command.
+    const res = await fetchAdvertPath(key, { force: c.req.query('force') === '1' });
+    switch (res.status) {
+      case 'offline':
+        return c.json({ error: 'no radio attached' }, 503);
+      case 'notOnRadio':
+        // 422, not 503: nothing is broken. The lib would have thrown resolving
+        // the key through the radio's contact map, and reporting the ~60% of a
+        // real pool that is discovered-only as "radio error" is a lie.
+        return c.json({ error: 'contact is not on the radio', code: 'NOT_ON_RADIO' }, 422);
+      case 'failed':
+        return c.json({ error: res.message }, 503);
+      case 'notCached':
+        // 200, not 404: "the radio has not heard this node lately" is the
+        // expected answer for most contacts, and 404 would read as "no such
+        // contact". The row is left exactly as it was.
+        return c.json({ cached: false });
+      default:
+        return c.json({
+          cached: true,
+          hops: res.hops,
+          pathHex: res.pathHex,
+          recvTimestampUnix: res.recvUnix,
+          fromCache: res.fromCache,
+        });
     }
   });
 

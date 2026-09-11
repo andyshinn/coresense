@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatHops,
   formatLastHeard,
+  formatObservedHops,
   hashSizeFromOutPathLen,
   hopsFromOutPathLen,
 } from '../../../src/shared/contacts/discovered';
@@ -96,5 +97,23 @@ describe('formatLastHeard', () => {
   });
   it('treats 0 as a real timestamp rather than an absence', () => {
     expect(formatLastHeard(0, relative)).toBe('rel(0)');
+  });
+});
+
+// The inbound counterpart (#45 item 7). The hop COUNT is still formatHops —
+// one vocabulary — but the absent case is a different absence and must read as
+// one: "Flood" is a claim about routing, and we have no such claim to make
+// about an advert nobody has asked the radio about.
+describe('formatObservedHops', () => {
+  it('says nobody has measured it, rather than claiming a flood route', () => {
+    expect(formatObservedHops(undefined)).toBe('not measured');
+    expect(formatObservedHops(undefined)).not.toBe(formatHops(undefined));
+  });
+  it('renders 0 as "heard direct", not as missing data', () => {
+    expect(formatObservedHops(0)).toBe('0 hops');
+  });
+  it('shares formatHops wording for every measured value', () => {
+    expect(formatObservedHops(1)).toBe('1 hop');
+    expect(formatObservedHops(4)).toBe('4 hops');
   });
 });

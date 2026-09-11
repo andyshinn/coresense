@@ -1,6 +1,7 @@
 import type { MeshCoreSession } from '@andyshinn/meshcore-ts';
 import { emit, summarizeContactSync } from '../events/bus';
 import { child } from '../log';
+import { sampleAdvertPathAfterAdvert } from '../state/advertPath';
 import { applyLibContacts, ingestObservedContact, noteHeard, scheduleDiscoveredEmit } from '../state/contactSync';
 import { endContactWalk, noteContactWalkStreaming } from '../state/contactWalk';
 import { stateHolder } from '../state/holder';
@@ -108,7 +109,15 @@ export function wireSessionEvents(session: MeshCoreSession): void {
 
 function wireContacts(session: MeshCoreSession): void {
   const ev = session.events;
-  ev.on('contactObserved', (record, source) => ingestObservedContact(record, source));
+  ev.on('contactObserved', (record, source) => {
+    ingestObservedContact(record, source);
+    // A live advert is the one moment the radio's 16-slot advert-path ring is
+    // guaranteed to hold this node, so it is the only trigger that makes the
+    // inbound hop count fill in on its own (#45 item 7). A 'sync' record is the
+    // radio listing what it stores, not a reception — sampling on that would be
+    // one command per contact for an answer that is almost always a miss.
+    if (source === 'advert') sampleAdvertPathAfterAdvert(record.publicKeyHex);
+  });
   ev.on('contacts', (contacts) => applyLibContacts(contacts));
   ev.on('discovered', (libRows) => {
     // The lib owns the authoritative discovered pool. Write its on_radio/favourite

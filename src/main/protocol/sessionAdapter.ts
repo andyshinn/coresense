@@ -89,6 +89,29 @@ export class SessionAdapter {
   getContacts() {
     return this.session.getContacts();
   }
+  /** The radio's cached INBOUND advert path for a contact (CMD_GET_ADVERT_PATH),
+   *  or null when its 16-slot RAM ring no longer holds this node. That null is
+   *  the normal answer, not an error.
+   *
+   *  THROWS for a contact the radio doesn't store: the lib resolves the contact
+   *  key to a full pubkey through the radio's contact map and raises when it
+   *  misses. Call hasRadioContact() first rather than catching that (#45 item 7).
+   *
+   *  Note the library cannot distinguish "cached as flood/unknown" from "not
+   *  cached": decodeAdvertPath has no 0xFF branch, so an OUT_PATH_UNKNOWN reply
+   *  computes a 252-byte path, fails its own length guard and returns null like
+   *  a miss. Both surface here as null, which is why the UI says "no recent
+   *  advert path" rather than "flood". */
+  getAdvertPath(key: string) {
+    return this.session.getAdvertPath(key);
+  }
+  /** Does the radio's contact map hold this key? Reads the library's OWN map —
+   *  the exact one getAdvertPath resolves through — rather than coresense's
+   *  holder mirror, which is fed by a coalesced `contacts` event and so lags a
+   *  contact the radio auto-added a moment ago. */
+  hasRadioContact(key: string) {
+    return this.session.state.getContact(key) !== null;
+  }
 
   // radio / device
   setPathHashMode(size: 1 | 2 | 3) {
