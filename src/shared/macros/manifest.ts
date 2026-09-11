@@ -48,15 +48,17 @@ export const MACRO_VARIABLES: MacroVariable[] = [
     // Dead, and not fixable here. The contact record the radio sends carries no
     // link metrics at all: writeContactRespFrame emits pubkey, type, flags,
     // out_path, name, last_advert, gps and lastmod, then stops
-    // (docs/firmware/MyMesh.cpp:165-186) — and PUSH_ADVERT (0x80) /
-    // PUSH_NEW_ADVERT (0x8A) reuse that same frame. So nothing ever assigns
-    // Contact.rssi or Contact.snr: not meshcore-ts's contact builder, not
-    // applyLibContacts, which only merges pinned/muted over the lib's list.
+    // (docs/firmware/MyMesh.cpp:165-186). PUSH_NEW_ADVERT (0x8A) reuses that
+    // exact frame; PUSH_ADVERT (0x80) carries strictly less — a bare
+    // [code][pubkey 32B] 33-byte frame (MyMesh.cpp:349-357). So nothing ever
+    // assigns Contact.rssi or Contact.snr: not meshcore-ts's contact builder,
+    // not applyLibContacts, which only merges pinned/muted over the lib's list.
     // Both fields have sat unwritten on the type since before the lib swap.
     // The fix is NOT to keep the sample context looking plausible — it is to
-    // attach last-heard metrics to a Contact upstream, by correlating the 0x88
-    // RX-log push (the only frame carrying getLastRSSI()) with the contact it
-    // came from. That is the same correlation `rssi` needs; see issue #33.
+    // attach last-heard metrics to a Contact upstream. RSSI reaches the app
+    // only on the 0x84/0x88/0x8e pushes; 0x88 is the one worth correlating,
+    // because it carries the whole received mesh packet and so identifies which
+    // contact the metrics belong to. Same correlation `rssi` needs; issue #33.
     description: "The peer's last-heard RSSI. Not currently reported per contact — no substitute.",
     type: 'number',
     example: '-80',
@@ -104,10 +106,12 @@ export const MACRO_VARIABLES: MacroVariable[] = [
     // The radio reports RSSI per received frame, but only on the 0x84/0x88/0x8e
     // push frames — the V3 message frames carry SNR and two reserved bytes, so
     // nothing attaches RSSI to a Message and this resolves to the `?`
-    // placeholder on every real message even though the preview above shows a
-    // number. Say so rather than let someone build a macro around it and
-    // transmit "?dBm" — the same trap `hops` used to be. Use `snr`, which IS
-    // populated. (meshcore-ts 0.7.1 "fixed" this by reading a reserved byte and
+    // placeholder on every real message. Say so rather than let someone build a
+    // macro around it and transmit "?dBm" — the same trap `hops` used to be.
+    // Use `snr`, which IS populated. The Studio preview used to show -95 here
+    // regardless of that; `populated: false` below is what stops it — see
+    // blankNeverPopulated in the renderer's macros/lib/sampleContext.ts.
+    // (meshcore-ts 0.7.1 "fixed" this by reading a reserved byte and
     // reported 0 dBm on everything; 0.7.2 reverted it. Populating this for real
     // means correlating the 0x88 RX-log push — coresense issue #33.)
     description: "This message's RSSI. Not currently reported per message — prefer snr.",
