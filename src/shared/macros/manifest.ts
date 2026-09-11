@@ -43,8 +43,37 @@ export const MACRO_VARIABLES: MacroVariable[] = [
     example: '1700000000000',
     available: 'always',
   },
-  { name: 'peer_rssi', description: "The peer's last-heard RSSI", type: 'number', example: '-80', available: 'always' },
-  { name: 'peer_snr', description: "The peer's last-heard SNR", type: 'number', example: '7', available: 'always' },
+  {
+    name: 'peer_rssi',
+    // Dead, and not fixable here. The contact record the radio sends carries no
+    // link metrics at all: writeContactRespFrame emits pubkey, type, flags,
+    // out_path, name, last_advert, gps and lastmod, then stops
+    // (docs/firmware/MyMesh.cpp:165-186) — and PUSH_ADVERT (0x80) /
+    // PUSH_NEW_ADVERT (0x8A) reuse that same frame. So nothing ever assigns
+    // Contact.rssi or Contact.snr: not meshcore-ts's contact builder, not
+    // applyLibContacts, which only merges pinned/muted over the lib's list.
+    // Both fields have sat unwritten on the type since before the lib swap.
+    // The fix is NOT to keep the sample context looking plausible — it is to
+    // attach last-heard metrics to a Contact upstream, by correlating the 0x88
+    // RX-log push (the only frame carrying getLastRSSI()) with the contact it
+    // came from. That is the same correlation `rssi` needs; see issue #33.
+    description: "The peer's last-heard RSSI. Not currently reported per contact — no substitute.",
+    type: 'number',
+    example: '-80',
+    available: 'always',
+    populated: false,
+  },
+  {
+    name: 'peer_snr',
+    // Same dead field as peer_rssi above, from the same frame that never carried
+    // it. On a reply the message-level `snr` IS populated and is the SNR of that
+    // peer's transmission, which is the closest working thing.
+    description: "The peer's last-heard SNR. Not currently reported per contact — on a reply, prefer snr.",
+    type: 'number',
+    example: '7',
+    available: 'always',
+    populated: false,
+  },
   { name: 'peer_hops', description: "The peer's last-heard hop count", type: 'number', example: '1', available: 'always' },
   { name: 'message_body', description: 'The replied-to message text', type: 'string', example: 'hello', available: 'reply' },
   {
@@ -85,6 +114,7 @@ export const MACRO_VARIABLES: MacroVariable[] = [
     type: 'number',
     example: '-95',
     available: 'reply',
+    populated: false,
   },
   { name: 'snr', description: "This message's SNR", type: 'number', example: '5.5', available: 'reply' },
   {
@@ -135,6 +165,17 @@ export function getManifest(): MacroManifest {
   return { variables: MACRO_VARIABLES, filters: MACRO_FILTERS };
 }
 
+/**
+ * A fully-populated context, used as the fixture every engine-level consumer
+ * needs a complete shape from: the lint structure root, validateTemplate's
+ * trial render, and the render tests.
+ *
+ * Every key is deliberately non-null — including the `populated: false` ones,
+ * whose values here are fiction. Blanking them at this layer would weaken the
+ * lint root and turn validateTemplate's trial render into a different one from
+ * the template it is checking. The Studio preview is where the truth matters,
+ * and it blanks them itself: see the renderer's sampleContext.ts.
+ */
 export function buildSampleContext(): MacroContext {
   return {
     my_name: 'N0CALL',

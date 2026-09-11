@@ -87,6 +87,12 @@ export interface MacroVariable {
   type: 'string' | 'number' | 'position' | 'array' | 'boolean';
   example: string;
   available: MacroVarAvailability;
+  /** Set to false on a variable nothing in the app ever populates: it is still
+   *  accepted and documented (macros in the wild reference it), but it resolves
+   *  to the `?` placeholder on every real send. The Studio preview blanks these
+   *  so what the author sees is what the radio transmits. Omit it otherwise —
+   *  `populated: true` is the default and would be noise on 25 entries. */
+  populated?: false;
 }
 
 export interface MacroFilterDoc {
