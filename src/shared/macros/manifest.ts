@@ -72,11 +72,15 @@ export const MACRO_VARIABLES: MacroVariable[] = [
   },
   {
     name: 'rssi',
-    // The radio reports RSSI per received frame, but the transport never
-    // attaches it to a Message, so this resolves to the `?` placeholder on
-    // every real message even though the preview above shows a number. Say so
-    // rather than let someone build a macro around it and transmit "?dBm" —
-    // the same trap `hops` used to be. Use `snr`, which IS populated.
+    // The radio reports RSSI per received frame, but only on the 0x84/0x88/0x8e
+    // push frames — the V3 message frames carry SNR and two reserved bytes, so
+    // nothing attaches RSSI to a Message and this resolves to the `?`
+    // placeholder on every real message even though the preview above shows a
+    // number. Say so rather than let someone build a macro around it and
+    // transmit "?dBm" — the same trap `hops` used to be. Use `snr`, which IS
+    // populated. (meshcore-ts 0.7.1 "fixed" this by reading a reserved byte and
+    // reported 0 dBm on everything; 0.7.2 reverted it. Populating this for real
+    // means correlating the 0x88 RX-log push — coresense issue #33.)
     description: "This message's RSSI. Not currently reported per message — prefer snr.",
     type: 'number',
     example: '-95',
