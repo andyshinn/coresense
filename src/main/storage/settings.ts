@@ -260,8 +260,22 @@ export const settingsStore = {
     mergeDefaults(readJson(FILES.deviceIdentity, DEFAULT_DEVICE_IDENTITY), DEFAULT_DEVICE_IDENTITY),
   saveDeviceIdentity: (v: DeviceIdentity): void => writeJson(FILES.deviceIdentity, v),
 
-  loadAutoAddConfig: (): AutoAddConfig =>
-    mergeDefaults(readJson(FILES.autoAdd, DEFAULT_AUTO_ADD_CONFIG), DEFAULT_AUTO_ADD_CONFIG),
+  loadAutoAddConfig: (): AutoAddConfig => {
+    const merged = mergeDefaults(readJson(FILES.autoAdd, DEFAULT_AUTO_ADD_CONFIG), DEFAULT_AUTO_ADD_CONFIG);
+    const bag = merged as unknown as Record<string, unknown>;
+    // `pullToRefresh` was a toggle nothing ever read, persisted as `true` for
+    // everyone. Its replacement (`autoRefreshContacts`) drives a real periodic
+    // GET_CONTACTS walk, so the old value is deliberately NOT carried over —
+    // nobody gets opted into radio traffic by a setting that never did anything.
+    // Deleted actively because mergeDefaults copies every stored key through;
+    // see loadAppSettings' `theme`.
+    if ('pullToRefresh' in bag) {
+      delete bag.pullToRefresh;
+      writeJson(FILES.autoAdd, merged);
+      log.info('migrated retired field out of auto-add.json: pullToRefresh');
+    }
+    return merged;
+  },
   saveAutoAddConfig: (v: AutoAddConfig): void => writeJson(FILES.autoAdd, v),
 
   loadTelemetryPolicy: (): TelemetryPolicy =>

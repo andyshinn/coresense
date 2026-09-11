@@ -47,6 +47,7 @@ import { listenOnPort } from './http-listen';
 import { resolveHttpPort } from './http-port';
 import { getLogBuffer } from './log';
 import { startContactAutoRefresh, stopContactAutoRefresh } from './state/contactRefresh';
+import { endContactWalk } from './state/contactWalk';
 import { stateHolder } from './state/holder';
 import { discoveredStore } from './storage/discoveredContacts';
 import { transportManager } from './transport/manager';
@@ -202,8 +203,16 @@ export async function startServer(
     // this is the single place transport state is applied. Start/stop here so
     // the timer can't outlive the link (the tick re-checks anyway, but an armed
     // timer against a dead transport is just noise).
-    if (state === 'connected') startContactAutoRefresh();
-    else stopContactAutoRefresh();
+    if (state === 'connected') {
+      startContactAutoRefresh();
+    } else {
+      stopContactAutoRefresh();
+      // A contact walk cannot outlive the link that was carrying it, and its
+      // END_OF_CONTACTS is never coming. Release the guard here or the next
+      // connect's refresh button answers "already syncing" until the stale
+      // timeout expires.
+      endContactWalk();
+    }
     broadcast({ type: 'transportState', payload: { state, deviceId } });
   };
   const onScanResults = (devices: BleDevice[]) => broadcast({ type: 'scanResults', payload: devices });

@@ -16,7 +16,7 @@ const eqAutoAdd = (a: AutoAddConfig, b: AutoAddConfig) =>
   a.sensor === b.sensor &&
   a.overwriteOldest === b.overwriteOldest &&
   a.maxHops === b.maxHops &&
-  a.pullToRefresh === b.pullToRefresh &&
+  a.autoRefreshContacts === b.autoRefreshContacts &&
   a.showPublicKeys === b.showPublicKeys;
 
 export function ContactSettingsSection({ client }: SectionProps) {
@@ -126,15 +126,15 @@ export function ContactSettingsSection({ client }: SectionProps) {
           />
         }
       />
-      {/* Field name is `pullToRefresh` for on-disk compatibility only; see the
-          note on AutoAddConfig. The behaviour it now drives is a periodic
-          GET_CONTACTS while connected. */}
       <Row
         label="Auto-refresh contacts"
-        description="Re-reads the radio's contact list every 15 minutes while connected. The Contacts panel's refresh button does it on demand."
-        changed={draft.pullToRefresh !== saved.pullToRefresh}
+        description="Off by default. When on, re-reads the radio's whole contact list every 15 minutes while connected — tens of seconds of companion-link traffic each time. The Contacts panel's refresh button does it on demand instead."
+        changed={draft.autoRefreshContacts !== saved.autoRefreshContacts}
         control={
-          <Toggle checked={draft.pullToRefresh} onChange={(pullToRefresh) => setDraft((s) => ({ ...s, pullToRefresh }))} />
+          <Toggle
+            checked={draft.autoRefreshContacts}
+            onChange={(autoRefreshContacts) => setDraft((s) => ({ ...s, autoRefreshContacts }))}
+          />
         }
       />
       <Row

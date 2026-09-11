@@ -2,6 +2,7 @@ import type { MeshCoreSession } from '@andyshinn/meshcore-ts';
 import { emit, summarizeContactSync } from '../events/bus';
 import { child } from '../log';
 import { applyLibContacts, ingestObservedContact, noteHeard, scheduleDiscoveredEmit } from '../state/contactSync';
+import { endContactWalk, noteContactWalkStreaming } from '../state/contactWalk';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { messagesStore } from '../storage/messages';
@@ -46,8 +47,8 @@ export function wireSessionEvents(session: MeshCoreSession): void {
   });
   ev.on('autoAddConfig', (a) => {
     // The lib owns the radio-driven fields; coresense keeps two app-only UI
-    // fields (pullToRefresh/showPublicKeys) the lib's type doesn't carry, so
-    // preserve them from the current holder value rather than dropping them.
+    // fields (autoRefreshContacts/showPublicKeys) the lib's type doesn't carry,
+    // so preserve them from the current holder value rather than dropping them.
     const prev = holder.getAutoAddConfig();
     const next = {
       mode: a.mode,
@@ -57,7 +58,7 @@ export function wireSessionEvents(session: MeshCoreSession): void {
       sensor: a.sensor,
       overwriteOldest: a.overwriteOldest,
       maxHops: a.maxHops,
-      pullToRefresh: prev.pullToRefresh,
+      autoRefreshContacts: prev.autoRefreshContacts,
       showPublicKeys: prev.showPublicKeys,
     };
     holder.setAutoAddConfig(next);
@@ -73,7 +74,17 @@ export function wireSessionEvents(session: MeshCoreSession): void {
     emit.channels(merged);
   });
   ev.on('channelPresence', (keys) => emit.channelPresence(keys));
-  ev.on('syncProgress', (p) => emit.syncProgress(p));
+  ev.on('syncProgress', (p) => {
+    // `contacts.done < total` means RESP_CONTACT frames are still arriving, i.e.
+    // the radio is mid-walk RIGHT NOW. That is the only reliable signal we get:
+    // `phase` is set by the handshake and nothing else, and the lib's
+    // END_OF_CONTACTS waiter resolves on a 10s timeout, so both the handshake's
+    // walk and a getContacts() walk can still be streaming long after `phase`
+    // says 'done'. Starting a second walk on top of one of those makes the lib
+    // delete contacts (see state/contactWalk.ts).
+    if (p.contacts.total > 0 && p.contacts.done < p.contacts.total) noteContactWalkStreaming();
+    emit.syncProgress(p);
+  });
   // The three identity-bearing pushes below are all receptions FROM the named
   // contact, so each one is a last-heard signal (#45 item 9). A path learn in
   // particular means a send to that node completed a round trip.
@@ -129,6 +140,9 @@ function wireContacts(session: MeshCoreSession): void {
   // reaches the renderer any more — this summary is what makes a sync
   // verifiable, and the log line is the answer to "did it load them all?".
   ev.on('contactsSynced', ({ count }) => {
+    // RESP_END_OF_CONTACTS — the one honest "the walk is over" signal, and so
+    // the one place the refresh guard may be released.
+    endContactWalk();
     const holder = stateHolder();
     // Reconcile the mirror's on_radio flags against the radio's contents (#30).
     // The per-row write-through above only ever SETS on_radio; nothing clears it

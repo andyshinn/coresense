@@ -33,6 +33,7 @@ import { sendMessage } from '../messaging/sendMessage';
 import { protocolSession } from '../protocol';
 import { ContactTableFullError, UnknownContactError } from '../protocol/errors';
 import { appLifecycle } from '../runtime/appLifecycle';
+import { refreshContacts } from '../state/contactRefresh';
 import { noteHeard, scheduleDiscoveredEmit } from '../state/contactSync';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
@@ -53,15 +54,22 @@ import { buildTileManifest, registerTileRoutes } from './tiles';
  *  resolveContact prefers the discovered row's `hops` — which left both showing
  *  the pre-edit value until the next full GET_CONTACTS.
  *
- *  `outPathHex` empty means OUT_PATH_UNKNOWN (0xFF): no learned route, the radio
- *  floods. Otherwise the byte is repacked exactly as the firmware stores it,
- *  `((hashSize - 1) << 6) | hopCount` (see shared/contacts/discovered.ts), using
- *  the same radio path-hash mode the library validated the path length against
- *  before writing the frame. */
-function mirrorOutPath(contactKey: string, outPathHex: string): void {
+ *  The byte is repacked exactly as the firmware stores it, `((hashSize - 1) <<
+ *  6) | hopCount` (see shared/contacts/discovered.ts), using the same radio
+ *  path-hash mode the library validated the path length against before writing
+ *  the frame.
+ *
+ *  An EMPTY `outPathHex` means different things to the two callers, and the
+ *  mirror has to match whichever frame actually went out — otherwise the next
+ *  refresh silently flips the hop cell under the user:
+ *    - PUT with no hops → encodeAddUpdateContact writes `out_path_len = 0`
+ *      (`path.length === 0 ? 0 : …`), i.e. a known ZERO-HOP route.
+ *    - DELETE → CMD_RESET_PATH, which clears the stored route back to
+ *      OUT_PATH_UNKNOWN (0xFF), i.e. no route at all and the radio floods. */
+function mirrorOutPath(contactKey: string, outPathHex: string, opts: { emptyMeans: 'direct' | 'unknown' }): void {
   const pubkey = contactKey.startsWith('c:') ? contactKey.slice(2) : contactKey;
   if (outPathHex.length === 0) {
-    discoveredStore.setOutPath(pubkey, 0xff, '');
+    discoveredStore.setOutPath(pubkey, opts.emptyMeans === 'unknown' ? 0xff : 0x00, '');
     scheduleDiscoveredEmit();
     return;
   }
@@ -645,22 +653,23 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // discovered/contactsSynced events, which adapterEvents already writes through
   // and broadcasts (coalesced). A manual emit here would just double-send a
   // full-pool payload.
+  //
+  // The guards live in state/contactRefresh.refreshContacts(), NOT here: the
+  // periodic re-read calls the same function, and the in-flight flag only works
+  // if every caller shares it. Two overlapping walks make the library delete
+  // real contacts (see state/contactWalk.ts), so `skipped` is a correctness
+  // answer, not just politeness.
   api.post('/api/contacts/refresh', async (c) => {
-    if (transportManager.getState().state !== 'connected') {
-      return c.json({ error: 'no radio attached' }, 503);
-    }
-    // A handshake sync is already walking the same contact stream. The lib's
-    // withSyncLock would QUEUE a second walk rather than reject it, so without
-    // this the user's click buys them a duplicate ~25s of serial traffic that
-    // starts only once the first one finishes.
-    if (protocolSession().getSyncProgress().phase === 'syncing') {
-      return c.json({ ok: true, skipped: true });
-    }
-    try {
-      const list = await protocolSession().getContacts();
-      return c.json({ ok: true, count: list.length });
-    } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+    const res = await refreshContacts();
+    switch (res.status) {
+      case 'offline':
+        return c.json({ error: 'no radio attached' }, 503);
+      case 'failed':
+        return c.json({ error: res.message }, 503);
+      case 'skipped':
+        return c.json({ ok: true, skipped: true });
+      default:
+        return c.json({ ok: true, count: res.count });
     }
   });
 
@@ -787,7 +796,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       // without this the discovered row keeps its pre-edit out_path_len and the
       // Contact Manager's hop cell (and the rail, which prefers the discovered
       // row) lies until the next full GET_CONTACTS.
-      mirrorOutPath(key, outPathHex);
+      mirrorOutPath(key, outPathHex, { emptyMeans: 'direct' });
       return c.json({ ok: true });
     } catch (err) {
       return c.json({ error: (err as Error).message }, 503);
@@ -799,7 +808,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     try {
       await protocolSession().resetContactPath(key);
       // Back to OUT_PATH_UNKNOWN, so the hop cell reads "Flood" immediately.
-      mirrorOutPath(key, '');
+      mirrorOutPath(key, '', { emptyMeans: 'unknown' });
       return c.json({ ok: true });
     } catch (err) {
       return c.json({ error: (err as Error).message }, 503);

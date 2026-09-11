@@ -1,6 +1,7 @@
 import { child } from '../log';
 import { protocolSession } from '../protocol';
 import { transportManager } from '../transport/manager';
+import { beginContactWalk, endContactWalk, endContactWalkIfSilent, isContactWalkInFlight } from './contactWalk';
 import { stateHolder } from './holder';
 
 const log = child('contacts');
@@ -16,39 +17,77 @@ const log = child('contacts');
  *  radio auto-added while we weren't looking without the link spending a
  *  meaningful fraction of its time re-listing contacts. Deliberately not
  *  user-configurable — the manual refresh button is the knob for "I want it
- *  now". */
+ *  now", and the setting is opt-in precisely because this is not free. */
 export const CONTACT_AUTO_REFRESH_MS = 15 * 60_000;
 
-let timer: ReturnType<typeof setInterval> | null = null;
-/** A walk we started and haven't seen finish. The lib's withSyncLock QUEUES a
- *  second walk rather than rejecting it, so without this a radio slower than
- *  the interval would accumulate back-to-back walks and effectively stop
- *  delivering messages. */
-let inFlight = false;
+export type ContactRefreshResult =
+  | { status: 'ok'; count: number }
+  | { status: 'skipped' }
+  | { status: 'offline' }
+  | { status: 'failed'; message: string };
 
-/** One automatic pass. Every guard is re-checked per tick rather than at start
- *  time, because all three can change under us while the timer runs. */
-async function tick(): Promise<void> {
-  if (inFlight) return;
-  // The user's toggle. Read live so flipping it takes effect on the next tick
-  // rather than on the next connect.
-  if (!stateHolder().getAutoAddConfig().pullToRefresh) return;
-  if (transportManager.getState().state !== 'connected') return;
-  // A handshake sync is already walking the same stream; queuing behind it would
-  // just re-read what it is in the middle of delivering.
-  if (protocolSession().getSyncProgress().phase === 'syncing') return;
+/** The ONE way to re-read the radio's contact store. Both callers — the manual
+ *  `POST /api/contacts/refresh` and the periodic tick below — go through here,
+ *  because the guard has to be shared to be a guard at all:
+ *
+ *   - the renderer's per-hook `refreshing` flag is per React component, and the
+ *     Contacts panel mounts two refresh controls at once (header button + right
+ *     rail), each with its own;
+ *   - `getSyncProgress().phase === 'syncing'` only ever catches a HANDSHAKE.
+ *     meshcore-ts sets that phase in handshakeInner and nowhere else, so a walk
+ *     started by getContacts() leaves it on 'done' the whole time;
+ *   - the lib's own `withSyncLock` QUEUES a second walk rather than rejecting
+ *     it, and only until `getContacts()` resolves — which on a big radio is the
+ *     10s END_OF_CONTACTS waiter timing out, mid-stream.
+ *
+ *  Overlapping walks are not merely wasteful: they make the library delete real
+ *  contacts (see contactWalk.ts). Hence the shared guard rather than "await the
+ *  promise" — two conditions, because neither covers the other:
+ *    `pending`               our own request hasn't settled, so the lib's sync
+ *                            lock is still held and a second call would queue.
+ *    isContactWalkInFlight() frames are still arriving after our request
+ *                            settled, i.e. the request resolved mid-stream on
+ *                            the lib's 10s waiter timeout. */
+let pending = false;
 
-  inFlight = true;
+export async function refreshContacts(): Promise<ContactRefreshResult> {
+  if (transportManager.getState().state !== 'connected') return { status: 'offline' };
+  // A walk is already running: ours, another caller's, or the handshake's.
+  if (pending || isContactWalkInFlight()) return { status: 'skipped' };
+  // Cheap early out for the handshake's walk before its first frame lands.
+  if (protocolSession().getSyncProgress().phase === 'syncing') return { status: 'skipped' };
+
+  pending = true;
+  beginContactWalk();
   try {
     const list = await protocolSession().getContacts();
-    log.debug(`auto-refresh re-read ${list.length} contacts`);
+    // Resolution means either END_OF_CONTACTS (the guard was already released by
+    // the `contactsSynced` handler) or the lib's 10s waiter timing out. Only
+    // release here if no contact frame ever arrived, i.e. nothing is streaming.
+    endContactWalkIfSilent();
+    return { status: 'ok', count: list.length };
   } catch (err) {
-    // A refresh that fails is not worth bothering the user about — the next
-    // tick retries, and a real disconnect surfaces through transportState.
-    log.warn(`auto-refresh failed: ${(err as Error).message}`);
+    endContactWalk();
+    return { status: 'failed', message: (err as Error).message };
   } finally {
-    inFlight = false;
+    pending = false;
   }
+}
+
+let timer: ReturnType<typeof setInterval> | null = null;
+
+/** One automatic pass. Every guard is re-checked per tick rather than at start
+ *  time, because all of them can change under us while the timer runs. */
+async function tick(): Promise<void> {
+  // The user's opt-in. Read live so flipping it takes effect on the next tick
+  // rather than on the next connect.
+  if (!stateHolder().getAutoAddConfig().autoRefreshContacts) return;
+
+  const res = await refreshContacts();
+  if (res.status === 'ok') log.debug(`auto-refresh re-read ${res.count} contacts`);
+  // A refresh that fails is not worth bothering the user about — the next tick
+  // retries, and a real disconnect surfaces through transportState.
+  else if (res.status === 'failed') log.warn(`auto-refresh failed: ${res.message}`);
 }
 
 /** Start the periodic re-read. Idempotent: calling it while already running

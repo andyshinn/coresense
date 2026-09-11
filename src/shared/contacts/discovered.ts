@@ -68,13 +68,29 @@ export function hashSizeFromOutPathLen(outPathLen: number): PathHashSize | undef
  *    0         → a known direct route. Zero is a value, not an absence.
  *    N         → N relay hops.
  *
- *  `opts` exists for surfaces with their own established vocabulary rather than
- *  as a general escape hatch: the repeater login button mirrors meshcore_py's
- *  `effective` ("Direct" for a known 0-hop route), so it overrides `direct`. */
-export function formatHops(hops: number | undefined, opts?: { unknown?: string; direct?: string }): string {
-  if (hops == null) return opts?.unknown ?? 'Flood';
+ *  The single `direct` override exists for one surface with its own established
+ *  vocabulary, not as a general escape hatch: the repeater login button mirrors
+ *  meshcore_py's `effective`, where a known 0-hop route reads "Direct". There is
+ *  deliberately no override for the unknown case — "Flood" is the whole point of
+ *  having one formatter, and a second wording for it would re-open exactly the
+ *  drift this replaced. */
+export function formatHops(hops: number | undefined, opts?: { direct?: string }): string {
+  if (hops == null) return 'Flood';
   if (hops === 0) return opts?.direct ?? '0 hops';
   return `${hops} hop${hops === 1 ? '' : 's'}`;
+}
+
+/** The one rendering of "when did we last receive anything from this node",
+ *  shared for the same reason formatHops is: the Contact Manager's table said
+ *  "—", its list layout said "never" and the contact rail said "not heard yet",
+ *  for one identical state — and the table/list pair sits behind a layout toggle,
+ *  so the word changed under the user on the same row (#45 item 8).
+ *
+ *  Takes the relative formatter rather than importing one: `fmtRelative` is
+ *  renderer-side (Intl.RelativeTimeFormat plus the app's thresholds) and this
+ *  module is shared with the main process. */
+export function formatLastHeard(lastHeardMs: number | undefined, relative: (ms: number) => string): string {
+  return lastHeardMs == null ? 'never' : relative(lastHeardMs);
 }
 
 /** Map a MeshCore ADV_TYPE byte (1 chat, 2 repeater, 3 room, 4 sensor) to the

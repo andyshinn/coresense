@@ -3,9 +3,11 @@ import { setProtocolSession } from '../../../src/main/protocol';
 import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
 import {
   isContactAutoRefreshRunning,
+  refreshContacts,
   startContactAutoRefresh,
   stopContactAutoRefresh,
 } from '../../../src/main/state/contactRefresh';
+import { endContactWalk, noteContactWalkStreaming } from '../../../src/main/state/contactWalk';
 import { stateHolder } from '../../../src/main/state/holder';
 import { transportManager } from '../../../src/main/transport/manager';
 import { DEFAULT_AUTO_ADD_CONFIG, DEFAULT_SYNC_PROGRESS, type SyncProgress } from '../../../src/shared/types';
@@ -20,7 +22,7 @@ function spySession(opts: { contacts?: () => Promise<unknown[]>; phase?: SyncPro
 }
 
 function setAutoRefresh(on: boolean) {
-  stateHolder().setAutoAddConfig({ ...DEFAULT_AUTO_ADD_CONFIG, pullToRefresh: on });
+  stateHolder().setAutoAddConfig({ ...DEFAULT_AUTO_ADD_CONFIG, autoRefreshContacts: on });
 }
 
 beforeEach(() => {
@@ -31,14 +33,30 @@ beforeEach(() => {
 
 afterEach(() => {
   stopContactAutoRefresh();
+  endContactWalk();
   vi.useRealTimers();
   setProtocolSession(null);
 });
 
-// The "Auto-refresh contacts" setting (persisted as `pullToRefresh`) had no
-// implementation at all before #45 item 6 — the toggle wrote a field nothing
-// read. This is the behaviour it now buys.
+// "Auto-refresh contacts" replaces a toggle (`pullToRefresh`) that had no
+// implementation at all before #45 item 6 — it wrote a field nothing read. This
+// is the behaviour it now buys, and why it is opt-in.
 describe('contact auto-refresh', () => {
+  // The old key defaulted to true and is persisted as true for everyone who
+  // ever opened Settings. Inheriting it would have signed the entire installed
+  // base up for a ~15-25s companion-link contact walk every 15 minutes that
+  // nobody asked for, so the replacement starts off.
+  it('is off by default — a background radio walk has to be opted into', async () => {
+    expect(DEFAULT_AUTO_ADD_CONFIG.autoRefreshContacts).toBe(false);
+
+    const { getContacts } = spySession();
+    stateHolder().setAutoAddConfig({ ...DEFAULT_AUTO_ADD_CONFIG });
+    startContactAutoRefresh(INTERVAL);
+
+    await vi.advanceTimersByTimeAsync(INTERVAL * 5);
+    expect(getContacts).not.toHaveBeenCalled();
+  });
+
   it('re-reads the contact store once per interval while connected and enabled', async () => {
     const { getContacts } = spySession();
     startContactAutoRefresh(INTERVAL);
@@ -126,6 +144,41 @@ describe('contact auto-refresh', () => {
     await vi.advanceTimersByTimeAsync(INTERVAL);
     await vi.advanceTimersByTimeAsync(INTERVAL);
     expect(getContacts).toHaveBeenCalledTimes(2);
+  });
+
+  // The tick and the manual button are two callers of one entry point, so the
+  // in-flight flag has to be shared. It used to be private to this module, with
+  // the route keeping none at all.
+  it('stands down while a manual refresh is already walking', async () => {
+    let finish!: (v: unknown[]) => void;
+    const { getContacts } = spySession({ contacts: () => new Promise<unknown[]>((r) => (finish = r)) });
+
+    const manual = refreshContacts();
+    await vi.waitFor(() => expect(getContacts).toHaveBeenCalledTimes(1));
+    startContactAutoRefresh(INTERVAL);
+
+    await vi.advanceTimersByTimeAsync(INTERVAL * 2);
+    expect(getContacts).toHaveBeenCalledTimes(1);
+
+    finish([]);
+    await manual;
+  });
+
+  it('makes a manual refresh skip while its own walk is still streaming', async () => {
+    const { getContacts } = spySession({
+      contacts: () => {
+        // The lib's 10s END_OF_CONTACTS waiter resolving mid-stream.
+        noteContactWalkStreaming();
+        return Promise.resolve([]);
+      },
+    });
+    startContactAutoRefresh(INTERVAL);
+
+    await vi.advanceTimersByTimeAsync(INTERVAL);
+    expect(getContacts).toHaveBeenCalledTimes(1);
+
+    expect(await refreshContacts()).toEqual({ status: 'skipped' });
+    expect(getContacts).toHaveBeenCalledTimes(1);
   });
 
   it('is idempotent to start and safe to stop twice', async () => {

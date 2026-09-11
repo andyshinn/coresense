@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { formatHops, hashSizeFromOutPathLen, hopsFromOutPathLen } from '../../../src/shared/contacts/discovered';
+import {
+  formatHops,
+  formatLastHeard,
+  hashSizeFromOutPathLen,
+  hopsFromOutPathLen,
+} from '../../../src/shared/contacts/discovered';
 
 // MeshCore packs the contact `out_path_len` byte as `((hashSize - 1) << 6) | hopCount`
 // (firmware Packet::setPathHashSizeAndCount / getPathByteLen), NOT a raw byte
@@ -74,7 +79,22 @@ describe('formatHops', () => {
     expect(formatHops(3, { direct: 'Direct' })).toBe('3 hops');
     expect(formatHops(undefined, { direct: 'Direct' })).toBe('Flood');
   });
-  it('lets a caller override the unknown wording', () => {
-    expect(formatHops(undefined, { unknown: 'not measured' })).toBe('not measured');
+});
+
+// The last-heard half of the same drift: the Contact Manager's table rendered
+// "—", its list layout "never" and the contact rail "not heard yet" for one
+// identical state — and the first two sit behind a layout toggle, so the word
+// changed under the user on the same row.
+describe('formatLastHeard', () => {
+  const relative = (ms: number) => `rel(${ms})`;
+
+  it('has one word for never-heard, whatever the surface', () => {
+    expect(formatLastHeard(undefined, relative)).toBe('never');
+  });
+  it("defers to the caller's relative formatter when there is a value", () => {
+    expect(formatLastHeard(1_750_000_000_000, relative)).toBe('rel(1750000000000)');
+  });
+  it('treats 0 as a real timestamp rather than an absence', () => {
+    expect(formatLastHeard(0, relative)).toBe('rel(0)');
   });
 });

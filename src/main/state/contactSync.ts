@@ -100,11 +100,11 @@ const FULL_PUBKEY_HEX = /^[0-9a-f]{64}$/i;
  *
  *  Broadcasts only when a row actually moved, through the same 1s coalescer the
  *  advert path uses, so a burst of inbound traffic collapses to one push. */
-export function noteHeard(keyOrPubkey: string | undefined, nowMs = Date.now()): void {
+export function noteHeard(keyOrPubkey: string | undefined): void {
   if (!keyOrPubkey) return;
   const pubkey = keyOrPubkey.startsWith('c:') ? keyOrPubkey.slice(2) : keyOrPubkey;
   if (!FULL_PUBKEY_HEX.test(pubkey)) return;
-  if (discoveredStore.markHeard(pubkey, nowMs)) scheduleDiscoveredEmit();
+  if (discoveredStore.markHeard(pubkey, Date.now())) scheduleDiscoveredEmit();
 }
 
 /** Merge coresense-only fields (pinned/muted) from current holder contacts into

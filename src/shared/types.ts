@@ -728,13 +728,16 @@ export interface AutoAddConfig {
    *  = no limit. The radio doesn't apply this; the companion does pre-upsert. */
   maxHops: number | null;
   /** App-side: re-read the radio's contact store on a timer while connected
-   *  (see main/state/contactRefresh.ts). The key is a misnomer kept on purpose
-   *  — it shipped as an unimplemented mobile "pull to refresh" idiom, and
-   *  settingsStore.loadAutoAddConfig merges the persisted JSON over the
-   *  defaults, so renaming it would read as absent and silently reset every
-   *  user's saved choice to the `true` default below. The LABEL is what
-   *  changed (#45 item 6). */
-  pullToRefresh: boolean;
+   *  (see main/state/contactRefresh.ts).
+   *
+   *  Defaults OFF and deliberately does NOT inherit the old `pullToRefresh`
+   *  key. That key shipped as an unimplemented mobile "pull to refresh" idiom
+   *  defaulting to true, so every existing user has it persisted as true
+   *  without ever having asked for anything; reusing it would have opted the
+   *  entire installed base into a ~15-25s companion-link contact walk every 15
+   *  minutes. A background radio operation has to be something the user turned
+   *  on (#45 item 6). */
+  autoRefreshContacts: boolean;
   /** App-side: show pubkey prefix next to names in lists. */
   showPublicKeys: boolean;
 }
@@ -746,7 +749,7 @@ export const DEFAULT_AUTO_ADD_CONFIG: AutoAddConfig = {
   sensor: true,
   overwriteOldest: true,
   maxHops: null,
-  pullToRefresh: true,
+  autoRefreshContacts: false,
   showPublicKeys: true,
 };
 

@@ -1,6 +1,6 @@
 import { Ban, MapPin, MessageSquare, Minus, Plus, Radio, Share2, ShieldCheck, Star, TerminalSquare } from 'lucide-react';
 import { useState } from 'react';
-import { formatHops } from '../../../../shared/contacts/discovered';
+import { formatHops, formatLastHeard } from '../../../../shared/contacts/discovered';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import { copyToClipboard } from '../../../components/ContextMenu';
 import { PathHashBadge } from '../../../components/PathHashBadge';
@@ -229,7 +229,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
         {distance != null && <KeyValueRow label="Distance away" value={fmtDistance(distance)} mono />}
         <KeyValueRow
           label="Last heard"
-          value={rc.lastHeardMs == null ? 'not heard yet' : fmtRelative(rc.lastHeardMs)}
+          value={formatLastHeard(rc.lastHeardMs, fmtRelative)}
           title={
             rc.lastHeardMs == null
               ? 'Nothing received from this node yet'

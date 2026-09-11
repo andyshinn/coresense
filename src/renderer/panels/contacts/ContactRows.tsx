@@ -1,6 +1,6 @@
 import { Ban, ChevronDown, DoorOpen, Minus, Plus, RadioTower, Star, Thermometer, User } from 'lucide-react';
 import { useState } from 'react';
-import { type DiscoveredContact, formatHops } from '../../../shared/contacts/discovered';
+import { type DiscoveredContact, formatHops, formatLastHeard } from '../../../shared/contacts/discovered';
 import type { ContactKind } from '../../../shared/types';
 import { BlockSenderDialog } from '../../components/BlockSenderDialog';
 import { copyToClipboard } from '../../components/ContextMenu';
@@ -267,7 +267,7 @@ export function TableView({ rows, client }: { rows: DiscoveredContact[]; client:
                 className={cn('whitespace-nowrap px-2 font-mono text-[11px] text-cs-text-dim', pad)}
                 title={c.lastHeardMs == null ? undefined : fmtDateTime(c.lastHeardMs, timeFormat)}
               >
-                {c.lastHeardMs == null ? '—' : fmtRelative(c.lastHeardMs)}
+                {formatLastHeard(c.lastHeardMs, fmtRelative)}
               </td>
               <td className={cn('px-2', pad)}>
                 <StatusPill c={c} />
@@ -293,10 +293,12 @@ export function ListRow({ c, client }: { c: DiscoveredContact; client: ApiClient
   const pk = c.publicKeyHex;
   const isSelected = selected.includes(pk);
   const isFocused = focusKey === pk;
-  const lastLabel = c.lastHeardMs == null ? 'never' : fmtRelative(c.lastHeardMs);
-  // Same formatter the table's HopChip uses — not the component itself, which
-  // carries its own colour token and would sit brighter than the rest of this
-  // meta line. What must not diverge is the wording, and that now can't.
+  // Both of these share the table layout's formatters — this row and the table
+  // are the same data behind a layout toggle, so a word that differs between
+  // them changes under the user for no reason. HopChip itself isn't reused
+  // because it carries its own colour token and would sit brighter than the
+  // rest of this meta line; the wording is what must not diverge.
+  const lastLabel = formatLastHeard(c.lastHeardMs, fmtRelative);
   const hopsLabel = formatHops(c.hops);
 
   return (

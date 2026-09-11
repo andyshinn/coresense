@@ -122,6 +122,27 @@ describe('PUT /api/contacts/:key/path — discovered mirror', () => {
     expect(discoveredStore.list([]).find((r) => r.publicKeyHex === PK)?.hops).toBe(1);
   });
 
+  // Saving an empty hop list is NOT the same command as "clear path", and the
+  // mirror has to match the frame that went out or the next refresh flips the
+  // cell under the user: encodeAddUpdateContact writes `out_path_len = 0` for an
+  // empty path (`path.length === 0 ? 0 : …`), which is a known ZERO-HOP route,
+  // not OUT_PATH_UNKNOWN. Mirroring 0xFF here made the row read "Flood" until a
+  // GET_CONTACTS silently turned it into "0 hops".
+  it('mirrors an emptied path as the zero-hop route the radio actually stored', async () => {
+    stateHolder().setRadioSettings({ ...DEFAULT_RADIO_SETTINGS, pathHashMode: 2 });
+    seed(0x42, 'aabbccdd');
+    spySession();
+
+    const res = await putPath('');
+
+    expect(res.status).toBe(200);
+    expect(discoveredStore.get(PK)?.out_path_len).toBe(0x00);
+    expect(discoveredStore.get(PK)?.out_path_hex).toBe('');
+    // What a RESP_CONTACT carrying out_path_len 0 would project, so a refresh
+    // changes nothing.
+    expect(discoveredStore.list([]).find((r) => r.publicKeyHex === PK)?.hops).toBe(0);
+  });
+
   // Radio first, mirror second — the same strictness contacts-delete enforces.
   // A local write the radio rejected would desync the app from the firmware.
   it('leaves the mirror untouched when the radio rejects the write', async () => {

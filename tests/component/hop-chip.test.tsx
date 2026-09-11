@@ -8,13 +8,14 @@ import type { DiscoveredContact } from '../../src/shared/contacts/discovered';
 vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() } }));
 vi.mock('@/lib/api', () => ({ api: { addToRadio: vi.fn(), removeFromRadio: vi.fn() } }));
 
-function contact(hops: number | undefined): DiscoveredContact {
+function contact(hops: number | undefined, lastHeardMs?: number): DiscoveredContact {
   return {
     key: `c:${'ab'.repeat(32)}`,
     publicKeyHex: 'ab'.repeat(32),
     name: 'Node A',
     kind: 'chat',
     hops,
+    lastHeardMs,
     firstHeardMs: 1_750_000_000_000,
     onRadio: true,
     favourite: false,
@@ -88,5 +89,35 @@ describe('table and list layouts agree on hop wording', () => {
   it('shows Flood rather than an em-dash in both layouts', () => {
     expect(tableHopText(undefined)).toBe('Flood');
     expect(listHopText(undefined)).toBe('Flood');
+  });
+});
+
+/** The last-heard cell in the table layout (column 7). */
+function tableLastHeardText(lastHeardMs?: number): string {
+  const { container } = render(<TableView rows={[contact(1, lastHeardMs)]} client={null} />);
+  return (container.querySelectorAll('tbody td')[6]?.textContent ?? '').trim();
+}
+
+/** The last-heard segment of the list layout's meta line. */
+function listLastHeardText(lastHeardMs?: number): string {
+  const { container } = render(<ListRow c={contact(1, lastHeardMs)} client={null} />);
+  const meta = Array.from(container.querySelectorAll('div'))
+    .filter((d) => d.textContent?.includes(' · '))
+    .at(-1);
+  return (meta?.textContent ?? '').split(' · ')[1]?.trim() ?? '';
+}
+
+// Same story as the hop cell: the table said "—" and the list said "never" for
+// the identical row, and the layout toggle swaps between them in place.
+describe('table and list layouts agree on last-heard wording', () => {
+  it('uses one word for a contact nothing has ever been received from', () => {
+    expect(tableLastHeardText(undefined)).toBe('never');
+    expect(listLastHeardText(undefined)).toBe('never');
+  });
+
+  it('agrees for a contact with a real reception time', () => {
+    const heard = Date.now() - 3 * 60 * 60_000;
+    expect(tableLastHeardText(heard)).toBe(listLastHeardText(heard));
+    expect(tableLastHeardText(heard).length).toBeGreaterThan(0);
   });
 });
