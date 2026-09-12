@@ -95,7 +95,7 @@ const viteDevServerUrl = MAIN_WINDOW_VITE_DEV_SERVER_URL;
 // having run first.
 const isDevInstance = !app.isPackaged;
 
-let serverHandle: { port: number; close: () => Promise<void>; hasOpenClients: () => boolean } | null = null;
+let serverHandle: Awaited<ReturnType<typeof startServer>> | null = null;
 /** Someone is connected to receive a `requestQuit` broadcast (see shouldDeferQuit). */
 const rendererConnected = (): boolean => serverHandle?.hasOpenClients() ?? false;
 let bridgeHandle: BridgeHandle | null = null;
@@ -393,7 +393,7 @@ function createWindow() {
   mainWindow.on('blur', () => emit.windowFocus(false));
 
   // Defer the close button so the renderer can prompt about unsaved Settings
-  // changes. It replies via POST /api/app/quit, which re-issues the close.
+  // changes. It replies via POST /api/app/quit, which quits the app.
   mainWindow.on('close', (event) => {
     if (isShuttingDown || isQuitConfirmed()) return;
     event.preventDefault();
