@@ -16,9 +16,13 @@ export interface DiscoveredContact {
    *  with a wrong RTC can report a time in the future or far past. Shown as the
    *  secondary "advertised" timestamp, never used for the "last heard" sort. */
   lastAdvertMs?: number;
-  /** Last time WE actually heard a live advert (our clock), ms. Set only on a
-   *  real PUSH_NEW_ADVERT, never on a GET_CONTACTS resync — so committing a
-   *  contact to the radio doesn't bump it. Undefined until first live advert. */
+  /** Last time WE actually heard a live advert (our clock), ms. Advanced by any
+   *  live advert — a PUSH_ADVERT (0x80) refresh of a stored contact and a
+   *  PUSH_NEW_ADVERT (0x8a), which since meshcore-ts 0.8.0 means the radio
+   *  REFUSED to store the node — but never on a GET_CONTACTS resync, so
+   *  committing a contact to the radio doesn't bump it. Reception only: it says
+   *  nothing about whether the radio holds the contact. Undefined until the
+   *  first live advert. */
   lastHeardMs?: number;
   /** First time WE heard this pubkey (our clock), ms. Tracked app-side. */
   firstHeardMs: number;
