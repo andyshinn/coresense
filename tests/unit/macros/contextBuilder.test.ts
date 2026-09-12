@@ -1,6 +1,8 @@
 // tests/unit/macros/contextBuilder.test.ts
 import { describe, expect, it } from 'vitest';
 import { buildReplyContext, buildSendContext } from '../../../src/main/macros/contextBuilder';
+import { createMacroEngine } from '../../../src/shared/macros/engine';
+import { renderTemplate } from '../../../src/shared/macros/render';
 import type { Contact, DeviceIdentity, DeviceInfo, Message, Owner } from '../../../src/shared/types';
 
 const owner: Owner = { name: 'N0CALL', publicKeyHex: 'aabbccdd', publicKeyShort: 'aabbccdd' };
@@ -8,15 +10,20 @@ const deviceInfo = { batteryMv: 4100 } as DeviceInfo;
 const deviceIdentity = { lat: 37.7749, lon: -122.4194 } as DeviceIdentity;
 const self = { owner, deviceInfo, deviceIdentity };
 
+// Shaped like a contact @andyshinn/meshcore-ts actually emits: key, pubkey,
+// name, kind, lastSeenMs (from last_advert), hops (from out_path_len), favourite
+// (flags bit 0), the out-path pair and the advert's GPS fix — and NO rssi/snr,
+// because no frame the radio sends carries them. It used to set rssi: -80 /
+// snr: 7, which is a contact that has never existed on any mesh and which hid
+// the fact that {{ peer_rssi }} and {{ peer_snr }} are dead.
 const alice: Contact = {
   key: 'c:alice',
   publicKeyHex: 'alicepk',
   name: 'Alice',
   kind: 'chat',
   lastSeenMs: 1700000000000,
-  rssi: -80,
-  snr: 7,
   hops: 1,
+  favourite: false,
   gpsLat: 37.8,
   gpsLon: -122.27,
 };
@@ -212,5 +219,63 @@ describe('buildReplyContext', () => {
     const ctx = reply({ repeaters: [repeater('Tarrytown', 'a137f2aa')] });
     const ends = ctx.paths[0].all_hops.filter((h) => h.kind !== 'hop');
     expect(ends.map((h) => h.pk)).toEqual([null, null]);
+  });
+});
+
+// Regression: `{{ peer_rssi }}` and `{{ peer_snr }}` were documented with no
+// caveat and previewed as -80 / 7, while every real send transmitted "?". They
+// read Contact.rssi / Contact.snr, which nothing writes — the contact record the
+// radio sends stops at gps/lastmod, so the library never has a value to put
+// there. Asserted against the library-shaped `alice` above, NOT a fixture that
+// sets the dead fields; that is precisely how the `{{ hops }}` bug in #32 and
+// the `{{ rssi }}` one in #33 both survived their own tests.
+describe('peer_rssi / peer_snr (dead — no frame carries a contact link metric)', () => {
+  const engine = createMacroEngine({ defaultDistanceUnit: 'metric' });
+  const render = (t: string, ctx: object) => renderTemplate(engine, t, ctx as Record<string, unknown>);
+
+  const message: Message = {
+    id: 'm1',
+    key: 'c:alicepk',
+    fromPublicKeyHex: 'alicepk',
+    body: 'hi',
+    ts: 1700000000000,
+    state: 'received',
+    meta: { snr: 5.5 },
+  };
+
+  const send = () => buildSendContext({ self, peerContact: alice, channelName: null });
+  const reply = () =>
+    buildReplyContext({ self, message, senderContact: alice, channelName: null, repeaters: [], now: message.ts });
+
+  it('resolves both to null on a new send', () => {
+    const ctx = send();
+    expect(ctx.peer_rssi).toBeNull();
+    expect(ctx.peer_snr).toBeNull();
+  });
+
+  it('resolves both to null on a reply, where the peer is the message sender', () => {
+    const ctx = reply();
+    expect(ctx.peer_name).toBe('Alice'); // the contact itself resolved fine
+    expect(ctx.peer_rssi).toBeNull();
+    expect(ctx.peer_snr).toBeNull();
+  });
+
+  it('renders the ? placeholder, which is what a macro built on them transmits', () => {
+    for (const ctx of [send(), reply()]) {
+      expect(render('Heard you at {{ peer_rssi }}dBm', ctx)).toEqual({ ok: true, text: 'Heard you at ?dBm' });
+      expect(render('{{ peer_snr }}dB', ctx)).toEqual({ ok: true, text: '?dB' });
+    }
+  });
+
+  it('leaves the peer fields that ARE populated alone', () => {
+    const ctx = send();
+    expect(ctx.peer_hops).toBe(1); // derived by the lib from out_path_len
+    expect(ctx.peer_last_seen).toBe(1700000000000);
+    expect(ctx.peer_pos).toEqual({ lat: 37.8, lon: -122.27 });
+  });
+
+  it('still resolves the message-level snr on a reply — the working substitute', () => {
+    expect(reply().snr).toBe(5.5);
+    expect(render('{{ snr }}dB', reply())).toEqual({ ok: true, text: '5.5dB' });
   });
 });

@@ -109,8 +109,18 @@ export interface Contact {
   name: string;
   kind: ContactKind;
   lastSeenMs?: number;
+  /** Last-heard link metrics. Declared to mirror @andyshinn/meshcore-ts's
+   *  Contact, but NOTHING assigns either one — the companion protocol's contact
+   *  record has no room for them (writeContactRespFrame ends at gps/lastmod),
+   *  PUSH_NEW_ADVERT (0x8A) reuses that frame, and PUSH_ADVERT (0x80) is a bare
+   *  [code][pubkey] frame carrying even less. Treat every read as undefined; the
+   *  `{{ peer_rssi }}` / `{{ peer_snr }}` macros resolve through these and are
+   *  documented as unpopulated because of it. Filling them means correlating the
+   *  0x88 RX-log push onto the contact, upstream in the library (issue #33). */
   rssi?: number;
   snr?: number;
+  /** Relay count to this contact, derived by the library from the advert's
+   *  out_path_len — unlike rssi/snr above, this one is real. */
   hops?: number;
   pinned?: boolean;
   /** Radio-level favourite — maps to the firmware contact flag bit 0, which
