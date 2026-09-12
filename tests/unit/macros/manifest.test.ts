@@ -52,10 +52,33 @@ describe('macro manifest', () => {
   });
 
   it('sample context populates every manifest variable (no nulls)', () => {
+    // Including the `populated: false` ones: this is the fixture the lint root
+    // and validateTemplate's trial render are built from, and both need a
+    // complete shape. The preview blanks them instead — see sampleContext.ts.
     const ctx = buildSampleContext() as unknown as Record<string, unknown>;
     for (const v of MACRO_VARIABLES) {
       expect(ctx[v.name], `${v.name} should be populated`).not.toBeNull();
       expect(ctx[v.name], `${v.name} should be defined`).not.toBeUndefined();
     }
+  });
+
+  // The caveat on `rssi` was added for #32, silently dropped by 569a175, and
+  // restored by 68813db. Three attempts, no test. These variables only lie once
+  // the warning goes missing, so pin both the flag and the wording: a change
+  // that populates one for real has to delete its caveat here too, deliberately.
+  describe('variables nothing populates are flagged and say so', () => {
+    const DEAD = ['peer_rssi', 'peer_snr', 'rssi'];
+
+    it.each(DEAD)('%s is marked populated: false', (name) => {
+      expect(MACRO_VARIABLES.find((v) => v.name === name)?.populated).toBe(false);
+    });
+
+    it.each(DEAD)('%s warns in its description rather than reading as a live value', (name) => {
+      expect(MACRO_VARIABLES.find((v) => v.name === name)?.description).toMatch(/not currently reported/i);
+    });
+
+    it('flags nothing else — every other variable resolves from a field something writes', () => {
+      expect(MACRO_VARIABLES.filter((v) => v.populated === false).map((v) => v.name)).toEqual(DEAD);
+    });
   });
 });

@@ -78,11 +78,13 @@ export function PreviewPane({ value, mode, onModeChange, distanceUnit, validatio
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        {/* The caption describes the sample context, so it can only name link
+            metrics the context actually carries. `rssi` is never populated and
+            the preview blanks it (see its manifest entry), which left this line
+            rendering a dangling "—dBm" — dropped rather than reinstated. */}
         <p className="mb-2 text-[10px] text-cs-text-dim" data-testid="preview-caption">
           {mode === 'reply'
-            ? `Replying to ${ctx.sender_name ?? '—'} · ${ctx.rssi ?? '—'}dBm / ${ctx.snr ?? '—'} snr · ${
-                ctx.paths[0]?.length ?? 0
-              } hops`
+            ? `Replying to ${ctx.sender_name ?? '—'} · ${ctx.snr ?? '—'} snr · ${ctx.paths[0]?.length ?? 0} hops`
             : `New message to ${ctx.peer_name ?? '—'} · always-available variables only`}
         </p>
 

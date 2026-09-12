@@ -4,6 +4,8 @@
 // PUSH_LOGIN_SUCCESS / PUSH_LOGIN_FAIL frames carry the same tag back to us;
 // we use it to wake the original caller's awaiter.
 
+import type { RepeaterAclRole } from '../../shared/types';
+
 export type AdminMode = 'local' | 'remote';
 export type AdminRole = 'admin' | 'guest';
 
@@ -14,6 +16,10 @@ export interface AdminSessionState {
   role: AdminRole;
   permissionsBits: number;
   aclPermissionsBits: number | null;
+  /** `aclPermissionsBits` decoded into a role name; null when the login reply
+   *  carried no ACL byte. Decoded in the main process because the renderer
+   *  cannot import meshcore-ts. */
+  aclRole: RepeaterAclRole | null;
   firmwareVerLevel: number | null;
   loggedInAt: number;
 }

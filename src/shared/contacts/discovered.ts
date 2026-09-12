@@ -18,9 +18,14 @@ export interface DiscoveredContact {
   lastAdvertMs?: number;
   /** Last time WE genuinely received ANYTHING from this node (our clock), ms.
    *  Advert, DM, ack, path learn, repeater status/telemetry or CLI reply — any
-   *  identity-bearing reception. Never a GET_CONTACTS resync (the device just
-   *  listing what it stores) and never our own outbound traffic, so committing
-   *  a contact to the radio can't bump it. Undefined until first reception.
+   *  identity-bearing reception. On the advert side that is both a PUSH_ADVERT
+   *  (0x80) refresh of a stored contact and a PUSH_NEW_ADVERT (0x8a), which
+   *  since meshcore-ts 0.8.0 means the radio REFUSED to store the node — either
+   *  way we demodulated a real advert. Never a GET_CONTACTS resync (the device
+   *  just listing what it stores) and never our own outbound traffic, so
+   *  committing a contact to the radio can't bump it. Reception only: it says
+   *  nothing about whether the radio holds the contact. Undefined until the
+   *  first reception.
    *
    *  One value here does NOT come from our own clock: a RESP_ADVERT_PATH reply
    *  carries the radio's own reception time for an advert it heard while we were

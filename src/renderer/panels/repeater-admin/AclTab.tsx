@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Contact, RepeaterAclEntry } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
+import { ACL_ROLE_LABEL } from './aclRole';
 
 interface Props {
   contact: Contact;
@@ -72,7 +73,7 @@ export function AclTab({ contact, client, disabled }: Props) {
               <tr key={e.pubKeyPrefixHex} className="border-b border-cs-border/40">
                 <td className="py-0.5 font-mono text-cs-text">{e.pubKeyPrefixHex}</td>
                 <td className="py-0.5 font-mono text-cs-text">0x{e.permissions.toString(16).padStart(2, '0')}</td>
-                <td className="py-0.5 text-cs-text-muted">{e.isAdmin ? 'admin' : e.isGuest ? 'guest' : '—'}</td>
+                <td className="py-0.5 text-cs-text-muted">{ACL_ROLE_LABEL[e.role]}</td>
               </tr>
             ))}
           </tbody>

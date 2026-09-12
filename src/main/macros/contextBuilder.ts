@@ -76,6 +76,14 @@ function peerFields(contact: Contact | null) {
     peer_id: contact?.publicKeyHex ?? null,
     peer_pos: pos(contact?.gpsLat, contact?.gpsLon),
     peer_last_seen: contact?.lastSeenMs ?? null,
+    // Always null in practice, and these reads are the only thing keeping the
+    // fields alive. The radio's contact record carries no link metrics at all —
+    // writeContactRespFrame stops after gps/lastmod — so neither meshcore-ts's
+    // contact builder nor applyLibContacts ever assigns Contact.rssi / .snr.
+    // Kept as reads, not deleted, because the day a last-heard metric is
+    // correlated onto a Contact (from the 0x88 RX-log push — see issue #33 and
+    // the manifest entries) this is where it lands. `hops` below is different:
+    // the lib derives it from outPathLen, so it genuinely resolves.
     peer_rssi: contact?.rssi ?? null,
     peer_snr: contact?.snr ?? null,
     peer_hops: contact?.hops ?? null,

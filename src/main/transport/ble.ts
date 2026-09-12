@@ -122,6 +122,23 @@ export class BleTransport implements ITransport {
   }
 
   async scan(): Promise<void> {
+    // Refuse while a link is up rather than lying about the transport state for
+    // the rest of the session. emit.transportState('scanning') below carries no
+    // deviceId, so applying it blanks the connected radio's id, and stopScan()
+    // used to restore 'idle' only when no peripheral was held — so a scan
+    // started while connected left transportManager latched at 'scanning' with
+    // the GATT link still alive and frames still flowing. Everything gated on
+    // that value then misbehaves for the rest of the session: contact refresh
+    // and advert-path measurement report 'offline', the auto-add write silently
+    // no-ops, the 15-minute auto-refresh timer is never re-armed, and four
+    // settings routes take their "app-only, no radio attached" branch and
+    // return ok without ever writing to the wire. It also wipes `discovered`,
+    // which findPeripheral's fast path reads. The panel's ScanButton is only
+    // rendered when the state isn't 'connected', but the command palette's
+    // "Scan for radios" was reachable at any time, so this was a live path.
+    if (this.peripheral) {
+      throw new Error(`Already connected to ${this.peripheral.id} — disconnect before scanning`);
+    }
     await waitForPoweredOn();
     this.discovered.clear();
     emit.scanResults([]);
@@ -137,12 +154,24 @@ export class BleTransport implements ITransport {
   }
 
   async stopScan(): Promise<void> {
+    // Only scan() arms this timer, so it is also the answer to "was a scan
+    // actually running" — which is what decides whether this call owes the app
+    // a state to replace the 'scanning' with.
+    const wasScanning = this.scanTimer !== null;
     if (this.scanTimer) {
       clearTimeout(this.scanTimer);
       this.scanTimer = null;
     }
     await new Promise<void>((resolve) => noble.stopScanning(() => resolve()));
+    // Restore the truth, not just the disconnected case. scan() refuses while a
+    // peripheral is held, so the connected branch is belt-and-braces for a link
+    // that came up while a scan window was still open — without it the
+    // 'scanning' would stick for the life of the link, because connect() holds
+    // the only other emit of 'connected'. Gated on wasScanning so that
+    // connect()'s own opening stopScan() doesn't announce a stale 'connected'
+    // one line before it announces 'connecting'.
     if (!this.peripheral) emit.transportState('idle');
+    else if (wasScanning) emit.transportState('connected', this.peripheral.id);
   }
 
   async connect(deviceId: string): Promise<void> {
@@ -301,19 +330,36 @@ export class BleTransport implements ITransport {
       if (peripheral) return Promise.resolve(peripheral);
     }
     return new Promise((resolve, reject) => {
+      let timer: NodeJS.Timeout | null = null;
       const onDiscover = (p: Peripheral) => {
         if (p.id === deviceId) {
-          noble.removeListener('discover', onDiscover);
-          noble.stopScanning();
+          // Ends the scan window on the success path too, which clears the
+          // timer that otherwise survives a successful connect and later
+          // rejects an already-settled promise.
+          endScanWindow();
           resolve(p);
         }
+      };
+      const endScanWindow = () => {
+        if (timer) clearTimeout(timer);
+        timer = null;
+        noble.removeListener('discover', onDiscover);
+        noble.stopScanning();
       };
       void waitForPoweredOn()
         .then(() => {
           noble.on('discover', onDiscover);
           noble.startScanning([normalizeUuid(MESHCORE_SERVICE_UUID)], false, (err) => err && reject(err));
-          setTimeout(() => {
-            noble.removeListener('discover', onDiscover);
+          // Stop scanning before rejecting. Nothing on connect()'s failure path
+          // calls stopScan(), so a timeout that only dropped the listener left
+          // noble scanning for the rest of the process: the constructor's own
+          // 'discover' listener kept refilling `discovered` and re-arming
+          // emitTimer, so emit.scanResults fired every 200ms — a WS broadcast
+          // to every client and a permanently powered BLE radio — while the UI
+          // reported 'idle'. Reconnecting to a radio that is switched off is
+          // the everyday way in.
+          timer = setTimeout(() => {
+            endScanWindow();
             reject(new Error(`Device ${deviceId} not found within scan window`));
           }, SCAN_TIMEOUT_MS);
         })

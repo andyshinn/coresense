@@ -50,7 +50,7 @@ describe('retired AutoAddConfig.pullToRefresh migration out of auto-add-config.j
   });
 
   test('leaves every other stored auto-add setting untouched', async () => {
-    write({ mode: 'selected', chat: false, repeater: true, maxHops: 3, pullToRefresh: true, showPublicKeys: false });
+    write({ mode: 'selected', chat: false, repeater: true, radioMaxHops: 3, pullToRefresh: true, showPublicKeys: false });
 
     const cfg = settingsStore.loadAutoAddConfig();
     await flushSettings();
@@ -58,7 +58,7 @@ describe('retired AutoAddConfig.pullToRefresh migration out of auto-add-config.j
     expect(cfg.mode).toBe('selected');
     expect(cfg.chat).toBe(false);
     expect(cfg.repeater).toBe(true);
-    expect(cfg.maxHops).toBe(3);
+    expect(cfg.radioMaxHops).toBe(3);
     expect(cfg.showPublicKeys).toBe(false);
     // Defaults still fill in for keys the stored file predates.
     expect(cfg.overwriteOldest).toBe(true);
