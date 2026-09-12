@@ -65,9 +65,16 @@ export class SessionAdapter {
    *
    *  Seeding makes "the field the radio hasn't mentioned" equal what we already
    *  had, so the emit is a no-op for those fields and a genuine correction for
-   *  the ones the radio did report. It also gives the library's `shouldAutoAdd`
-   *  (which gates its post-advert GET_CONTACTS re-sync on `mode`) the real
-   *  mode instead of a permanent 'all'. */
+   *  the ones the radio did report.
+   *
+   *  It does NOT hand a `mode` to the library's `shouldAutoAdd`, the gate on its
+   *  post-advert GET_CONTACTS re-sync. As of meshcore-ts 0.8.1 that gate reads
+   *  bit 0 of `manualAddContacts` and, only when that bit is set, the per-kind
+   *  flags — never `mode`, which the library neither reads nor writes. `mode` is
+   *  seeded for symmetry only, and adapterEvents derives its own `mode` from bit
+   *  0 rather than reading the library's back. That is the right way round:
+   *  honouring a stored `mode` would let our copy suppress a re-sync that a
+   *  radio reporting bit 0 clear has already justified. */
   private seedAutoAddConfig(): void {
     const cfg = stateHolder().getAutoAddConfig();
     this.session.state.setAutoAddConfig({
