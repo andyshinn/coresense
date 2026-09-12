@@ -63,7 +63,7 @@ import { flushSettings } from './storage/settings';
 import { transportManager } from './transport/manager';
 import { installStartupTransport } from './transport/select';
 import { startUpdates } from './updates/wiring';
-import { isQuitConfirmed } from './window/quit';
+import { isQuitConfirmed, shouldDeferQuit } from './window/quit';
 import { getMainWindow, setMainWindow } from './window/registry';
 import { flushWindowState, loadWindowState, trackWindow } from './window/state';
 
@@ -95,7 +95,9 @@ const viteDevServerUrl = MAIN_WINDOW_VITE_DEV_SERVER_URL;
 // having run first.
 const isDevInstance = !app.isPackaged;
 
-let serverHandle: { port: number; close: () => Promise<void> } | null = null;
+let serverHandle: { port: number; close: () => Promise<void>; hasOpenClients: () => boolean } | null = null;
+/** Someone is connected to receive a `requestQuit` broadcast (see shouldDeferQuit). */
+const rendererConnected = (): boolean => serverHandle?.hasOpenClients() ?? false;
 let bridgeHandle: BridgeHandle | null = null;
 let mdnsHandle: MdnsHandle | null = null;
 
@@ -395,7 +397,12 @@ function createWindow() {
   mainWindow.on('close', (event) => {
     if (isShuttingDown || isQuitConfirmed()) return;
     event.preventDefault();
-    emit.menuAction({ kind: 'requestQuit' });
+    if (shouldDeferQuit({ confirmed: false, hasWindow: true, rendererConnected: rendererConnected() })) {
+      emit.menuAction({ kind: 'requestQuit' });
+    } else {
+      // Nobody is connected to answer; quit now, exactly as a confirmed close does.
+      app.quit();
+    }
   });
 
   // Mouse back/forward buttons on Windows/Linux. macOS doesn't fire app-command
@@ -539,7 +546,13 @@ app.on('before-quit', (event) => {
   if (isShuttingDown) return;
   // First quit attempt with a window still up: let the renderer decide whether
   // unsaved Settings changes need a prompt. It replies via POST /api/app/quit.
-  if (!isQuitConfirmed() && getMainWindow()) {
+  if (
+    shouldDeferQuit({
+      confirmed: isQuitConfirmed(),
+      hasWindow: getMainWindow() !== null,
+      rendererConnected: rendererConnected(),
+    })
+  ) {
     event.preventDefault();
     emit.menuAction({ kind: 'requestQuit' });
     return;
