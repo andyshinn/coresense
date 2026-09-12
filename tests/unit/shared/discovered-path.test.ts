@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cellHops,
   formatHops,
+  formatHopsCell,
   formatLastHeard,
+  formatObservedHops,
   hashSizeFromOutPathLen,
+  hopsCellTitle,
   hopsFromOutPathLen,
 } from '../../../src/shared/contacts/discovered';
 
@@ -96,5 +100,63 @@ describe('formatLastHeard', () => {
   });
   it('treats 0 as a real timestamp rather than an absence', () => {
     expect(formatLastHeard(0, relative)).toBe('rel(0)');
+  });
+});
+
+// The inbound counterpart (#45 item 7). The hop COUNT is still formatHops —
+// one vocabulary — but the absent case is a different absence and must read as
+// one: "Flood" is a claim about routing, and we have no such claim to make
+// about an advert nobody has asked the radio about.
+describe('formatObservedHops', () => {
+  it('says nobody has measured it, rather than claiming a flood route', () => {
+    expect(formatObservedHops(undefined)).toBe('not measured');
+    expect(formatObservedHops(undefined)).not.toBe(formatHops(undefined));
+  });
+  it('renders 0 as "heard direct", not as missing data', () => {
+    expect(formatObservedHops(0)).toBe('0 hops');
+  });
+  it('shares formatHops wording for every measured value', () => {
+    expect(formatObservedHops(1)).toBe('1 hop');
+    expect(formatObservedHops(4)).toBe('4 hops');
+  });
+});
+
+// The Contact Manager has ONE hop cell and has to choose a direction for it.
+// It used to render out_path_len unconditionally, which is 0xFF ("Flood") for
+// the overwhelming majority of a real pool — so a node we have a measured
+// inbound hop count for still read "Flood", and the sort buried it with the
+// rows that have no number at all (#45 item 7).
+describe('cellHops — the value a direction-less hop cell shows', () => {
+  it('prefers a measured inbound count over an unlearned outbound route', () => {
+    expect(cellHops({ hops: undefined, observedHops: 2 })).toBe(2);
+  });
+  it('prefers the measurement even when an outbound route exists', () => {
+    // Asymmetric mesh: 5 hops out, 2 hops in. The one the user heard wins.
+    expect(cellHops({ hops: 5, observedHops: 2 })).toBe(2);
+  });
+  it('keeps a 0-hop measurement rather than falling through to the route', () => {
+    expect(cellHops({ hops: 4, observedHops: 0 })).toBe(0);
+  });
+  it('falls back to the outbound route when nothing has been measured', () => {
+    expect(cellHops({ hops: 3 })).toBe(3);
+    expect(cellHops({ hops: 0 })).toBe(0);
+  });
+  it('is undefined only when neither direction has a value', () => {
+    expect(cellHops({})).toBeUndefined();
+  });
+});
+
+describe('formatHopsCell', () => {
+  it('marks an inbound value so the column never swaps direction silently', () => {
+    expect(formatHopsCell({ hops: undefined, observedHops: 2 })).toBe('2 hops in');
+    expect(formatHopsCell({ hops: 5, observedHops: 0 })).toBe('0 hops in');
+  });
+  it('leaves the outbound fallback exactly as it always read', () => {
+    expect(formatHopsCell({ hops: undefined })).toBe('Flood');
+    expect(formatHopsCell({ hops: 1 })).toBe('1 hop');
+  });
+  it('names both directions on hover whichever one is showing', () => {
+    expect(hopsCellTitle({ hops: undefined, observedHops: 2 })).toBe('Heard (inbound): 2 hops · Path (outbound): Flood');
+    expect(hopsCellTitle({ hops: 1 })).toBe('Heard (inbound): not measured · Path (outbound): 1 hop');
   });
 });

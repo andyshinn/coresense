@@ -94,7 +94,17 @@ export function openDb(): DatabaseSync {
       first_heard_ms  INTEGER NOT NULL,
       last_heard_ms   INTEGER NOT NULL DEFAULT 0,
       on_radio        INTEGER NOT NULL DEFAULT 0,
-      favourite       INTEGER NOT NULL DEFAULT 0
+      favourite       INTEGER NOT NULL DEFAULT 0,
+      -- The INBOUND advert path, sampled from the radio's own 16-entry cache
+      -- with CMD_GET_ADVERT_PATH (#45 item 7). Deliberately separate from
+      -- out_path_len, which is the LEARNED OUTBOUND route: an asymmetric mesh
+      -- makes the two legitimately differ, so neither may overwrite the other.
+      -- -1 is the "never measured" sentinel because 0 is a REAL value (the
+      -- advert arrived direct) and cannot double as one. observed_at_unix is the
+      -- RADIO's RTC seconds, not our clock.
+      observed_hops     INTEGER NOT NULL DEFAULT -1,
+      observed_path_hex TEXT    NOT NULL DEFAULT '',
+      observed_at_unix  INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS discovered_by_last_advert ON discovered_contacts (last_advert_unix DESC);
     CREATE INDEX IF NOT EXISTS discovered_by_on_radio    ON discovered_contacts (on_radio);
@@ -112,6 +122,30 @@ export function openDb(): DatabaseSync {
       ts  INTEGER NOT NULL
     );
   `);
+
+  // The observed_* columns above were added after the app shipped (#45 item 7),
+  // and `CREATE TABLE IF NOT EXISTS` does nothing for a database that already
+  // has the table — so without these every existing install would open fine and
+  // then read `undefined` for the new columns on every SELECT *. There is no
+  // migration framework here by design (see the DDL above): the house pattern is
+  // a guarded ADD COLUMN, which throws "duplicate column name" once the column
+  // is present, making the failure the success signal on every later boot.
+  //
+  // Do NOT delete these once the columns are in the DDL. That was done to the
+  // last_heard_ms migration on the grounds that "dev wipes the DB", which stops
+  // being true the moment the app ships through a release.
+  for (const ddl of [
+    'ALTER TABLE discovered_contacts ADD COLUMN observed_hops INTEGER NOT NULL DEFAULT -1',
+    "ALTER TABLE discovered_contacts ADD COLUMN observed_path_hex TEXT NOT NULL DEFAULT ''",
+    'ALTER TABLE discovered_contacts ADD COLUMN observed_at_unix INTEGER NOT NULL DEFAULT 0',
+  ]) {
+    try {
+      db.exec(ddl);
+    } catch {
+      // column already exists — nothing to do
+    }
+  }
+
   log.info(`opened ${path}`);
   return db;
 }

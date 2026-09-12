@@ -152,3 +152,33 @@ describe('deriveContactView — tab counts', () => {
     expect(names(view.rows)).toEqual(['Discovered']);
   });
 });
+
+// The cell prefers the measured INBOUND count, so the comparator behind the
+// column has to read the same value. A comparator keyed on `hops` alone pinned
+// a row showing "2 hops in" into the unknown group next to the rows showing
+// "Flood" — the sort disagreeing with the numbers the user can see (#45 item 7).
+describe('deriveContactView — hops sort follows the rendered value', () => {
+  const rows = [
+    contact('Measured', { hops: undefined, observedHops: 2 }),
+    contact('Routed', { hops: 4 }),
+    contact('Unknown', { hops: undefined }),
+    contact('Direct', { hops: undefined, observedHops: 0 }),
+  ];
+
+  it('sorts a measured inbound count among the rows that have a number', () => {
+    const view = deriveContactView(rows, cm({ sortField: 'hops', sortDir: 'asc' }), NOW);
+    expect(names(view.rows)).toEqual(['Direct', 'Measured', 'Routed', 'Unknown']);
+  });
+
+  it('does not pin a measured row with the ones that have no value at all', () => {
+    const desc = deriveContactView(rows, cm({ sortField: 'hops', sortDir: 'desc' }), NOW);
+    expect(names(desc.rows)).toEqual(['Routed', 'Measured', 'Direct', 'Unknown']);
+  });
+
+  it('compares the inbound value, not the outbound one, when both exist', () => {
+    // 6 hops out but heard 1 hop in: it belongs next to the 1-hop row.
+    const asymmetric = [contact('Near', { hops: 6, observedHops: 1 }), contact('Far', { hops: 1, observedHops: 5 })];
+    const view = deriveContactView(asymmetric, cm({ sortField: 'hops', sortDir: 'asc' }), NOW);
+    expect(names(view.rows)).toEqual(['Near', 'Far']);
+  });
+});

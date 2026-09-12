@@ -65,9 +65,16 @@ export class SessionAdapter {
    *
    *  Seeding makes "the field the radio hasn't mentioned" equal what we already
    *  had, so the emit is a no-op for those fields and a genuine correction for
-   *  the ones the radio did report. It also gives the library's `shouldAutoAdd`
-   *  (which gates its post-advert GET_CONTACTS re-sync on `mode`) the real
-   *  mode instead of a permanent 'all'. */
+   *  the ones the radio did report.
+   *
+   *  It does NOT hand a `mode` to the library's `shouldAutoAdd`, the gate on its
+   *  post-advert GET_CONTACTS re-sync. As of meshcore-ts 0.8.1 that gate reads
+   *  bit 0 of `manualAddContacts` and, only when that bit is set, the per-kind
+   *  flags — never `mode`, which the library neither reads nor writes. `mode` is
+   *  seeded for symmetry only, and adapterEvents derives its own `mode` from bit
+   *  0 rather than reading the library's back. That is the right way round:
+   *  honouring a stored `mode` would let our copy suppress a re-sync that a
+   *  radio reporting bit 0 clear has already justified. */
   private seedAutoAddConfig(): void {
     const cfg = stateHolder().getAutoAddConfig();
     this.session.state.setAutoAddConfig({
@@ -180,6 +187,45 @@ export class SessionAdapter {
    *  isn't "disconnect and reconnect" (#45 item 6). */
   getContacts() {
     return this.session.getContacts();
+  }
+  /** The radio's cached INBOUND advert path for a contact (CMD_GET_ADVERT_PATH),
+   *  or null when its 16-slot RAM ring no longer holds this node. That null is
+   *  the normal answer, not an error.
+   *
+   *  THROWS for a contact the radio doesn't store: the lib resolves the contact
+   *  key to a full pubkey through the radio's contact map and raises when it
+   *  misses. Call hasRadioContact() first rather than catching that (#45 item 7).
+   *
+   *  Since meshcore-ts 0.8.1 that null means one of two things: RESP_ERR
+   *  NOT_FOUND (the ring has no entry), or a link that dropped mid-round-trip.
+   *  The library's teardown resolves the shared ack FIFO as `{ ok: false }`
+   *  BEFORE it rejects the typed queue, and requestOrNull's ack entry resolves
+   *  null without inspecting `ok`, so an abandoned request is indistinguishable
+   *  from a miss in the value itself — state/advertPath.ts separates them by
+   *  whether the link is still up when it reads the null. (A request TIMEOUT
+   *  does reject, as ProtocolTimeoutError, so that one is distinguishable.)
+   *  What 0.8.1 removed from the null is a
+   *  THIRD meaning: a reply whose path_len is the 0xFF flood / no-path sentinel
+   *  now decodes successfully and is flagged
+   *  `{ hops: 0, pathHex: '', flood: true }`. (Through 0.7.2 it
+   *  arrived as null instead, because unpacking 0xFF claimed 252 path bytes and
+   *  failed decodeAdvertPath's own length guard; 0.8.0 special-cased the length
+   *  but not the meaning, so it came back as a bare `hops: 0` indistinguishable
+   *  from a genuine direct reception.)
+   *
+   *  So a caller must branch on `flood` BEFORE reading `hops` — those zero hops
+   *  mean "no path known", not "heard direct". The flag is only ever
+   *  present-and-true, so test truthiness. state/advertPath.ts is where that
+   *  branch lives, and it is the only caller. */
+  getAdvertPath(key: string) {
+    return this.session.getAdvertPath(key);
+  }
+  /** Does the radio's contact map hold this key? Reads the library's OWN map —
+   *  the exact one getAdvertPath resolves through — rather than coresense's
+   *  holder mirror, which is fed by a coalesced `contacts` event and so lags a
+   *  contact the radio auto-added a moment ago. */
+  hasRadioContact(key: string) {
+    return this.session.state.getContact(key) !== null;
   }
 
   // radio / device

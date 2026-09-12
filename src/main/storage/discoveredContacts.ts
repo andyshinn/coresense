@@ -24,6 +24,11 @@ interface Row {
   last_heard_ms: number;
   on_radio: number;
   favourite: number;
+  /** -1 until measured; 0 is a real value (advert heard direct). */
+  observed_hops: number;
+  observed_path_hex: string;
+  /** Radio RTC seconds, not our clock. 0 = never measured. */
+  observed_at_unix: number;
 }
 
 function rowToDiscovered(row: Row, blockRules: BlockRule[]): DiscoveredContact {
@@ -45,6 +50,11 @@ function rowToDiscovered(row: Row, blockRules: BlockRule[]): DiscoveredContact {
     gpsLon: hasFix ? row.gps_lon : undefined,
     lastAdvertMs: row.last_advert_unix > 0 ? row.last_advert_unix * 1000 : undefined,
     lastHeardMs: row.last_heard_ms > 0 ? row.last_heard_ms : undefined,
+    // >= 0, not truthiness: 0 hops means the radio heard the advert direct, and
+    // `row.observed_hops || undefined` would silently report that as unmeasured.
+    observedHops: row.observed_hops >= 0 ? row.observed_hops : undefined,
+    observedPathHex: row.observed_path_hex || undefined,
+    observedAtMs: row.observed_at_unix > 0 ? row.observed_at_unix * 1000 : undefined,
     firstHeardMs: row.first_heard_ms,
     onRadio: row.on_radio !== 0,
     favourite: row.favourite !== 0,
@@ -133,7 +143,15 @@ export const discoveredStore = {
    *  real advert. last_heard_ms is our-clock and only advances on a live
    *  advert, so it never moves on a resync — committing a contact to the radio
    *  can't bump it. Non-advert receptions (messages, acks, path learns, admin
-   *  replies) go through markHeard instead; this stays the advert-only door. */
+   *  replies) go through markHeard instead; this stays the advert-only door.
+   *
+   *  The observed_* columns are ABSENT from both the INSERT list and the
+   *  ON CONFLICT DO UPDATE SET list, and must stay that way. On an INSERT
+   *  SQLite fills them from their DEFAULTs; on a conflict they are simply not
+   *  mentioned, so every measurement survives every later advert and every
+   *  GET_CONTACTS resync. Adding them to the conflict list would wipe the whole
+   *  pool's inbound hop counts on each contact walk — the one thing that makes
+   *  this feature look broken while every test still passes. */
   upsert(record: Models.ContactRecord, opts: { onRadio: boolean; nowMs: number; heardLive: boolean }): void {
     const db = openDb();
     const heardMs = opts.heardLive ? opts.nowMs : 0;
@@ -241,6 +259,42 @@ export const discoveredStore = {
       outPathHex,
       pubkey,
     );
+  },
+
+  /** Record the radio's cached INBOUND advert path for a contact — the reply to
+   *  CMD_GET_ADVERT_PATH (#45 item 7).
+   *
+   *  Writes only the observed_* columns. It must never touch out_path_len:
+   *  that is the learned OUTBOUND route, a different direction and a different
+   *  question, and collapsing the two is the bug this whole item exists to fix.
+   *
+   *  UPDATE-only for the same reason markHeard is — a measurement for a pubkey
+   *  we have no advert for must not synthesise a nameless row — and returns true
+   *  only when a row actually moved, so callers can skip the broadcast. The
+   *  value guard in the WHERE clause is what makes that claim true: without it
+   *  `changes` is 1 for any existing row, so re-measuring a node to the same
+   *  answer costs a full-pool projection and a websocket push to every client
+   *  for nothing — and the advert-triggered sampler re-measures inside the
+   *  window the advert's own write already opened, so it is a SECOND full
+   *  broadcast per advert.
+   *
+   *  `hops: 0` is a legitimate measurement (heard direct) and is stored as 0;
+   *  -1 stays reserved for "never measured".
+   *
+   *  Deliberately does NOT invalidateFlagCache: `lastWrittenFlags` tracks only
+   *  on_radio|favourite, neither of which this touches, so invalidating would
+   *  force a full-pool rewrite on the next `discovered` frame. */
+  setObservedPath(pubkey: string, p: { hops: number; pathHex: string; recvUnix: number }): boolean {
+    const db = openDb();
+    const res = db
+      .prepare(
+        `UPDATE discovered_contacts
+            SET observed_hops = ?, observed_path_hex = ?, observed_at_unix = ?
+          WHERE pubkey = ?
+            AND (observed_hops <> ? OR observed_path_hex <> ? OR observed_at_unix <> ?)`,
+      )
+      .run(p.hops, p.pathHex, p.recvUnix, pubkey, p.hops, p.pathHex, p.recvUnix);
+    return Number(res.changes) > 0;
   },
 
   setOnRadio(pubkey: string, onRadio: boolean): void {

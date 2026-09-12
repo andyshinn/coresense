@@ -18,15 +18,15 @@ import { makeTestSession, type TestSession } from '../../support/session-harness
 // transport, and for the snapshot assertion the real HTTP server's subscriber
 // rather than a stand-in for it.
 //
-// NOTE ON WHAT THESE CATCH TODAY. Against the 0.8.0 this branch pins, the first
-// two cases pass whether or not the re-emit is present, because the library
-// emits nothing for them to duplicate — they are guards that arm themselves on
-// the next minor bump, and they were confirmed to fail (a second
-// `['connected', undefined]`, and transportManager holding no device id) with
-// the re-emit restored against a 0.8.1 build. The restart case below fails on
-// 0.8.0 today. Keeping all three together is deliberate: the bug is one
-// mechanism, and splitting it by which version happens to expose which half
-// would leave the next reader to rediscover the connection.
+// NOTE ON WHAT THESE CATCH. On meshcore-ts 0.8.0 the first two cases passed
+// whether or not the re-emit was present, because the library emitted nothing
+// for them to duplicate. Against the published 0.8.1 this project now pins they
+// are live: with the re-emit restored, the bus sees a second
+// `['connected', undefined]` and transportManager ends up holding no device id.
+// The restart case fails without SessionAdapter's `wired` guard on both
+// versions. Keeping all three together is deliberate: the bug is one mechanism,
+// and splitting it by which version happens to expose which half would leave
+// the next reader to rediscover the connection.
 
 const RESP_SELF_INFO_HEX = `05${'00'.repeat(70)}`;
 

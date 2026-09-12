@@ -16,8 +16,8 @@ importers:
         specifier: ^0.1.1
         version: 0.1.1
       '@andyshinn/meshcore-ts':
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: ^0.8.1
+        version: 0.8.1
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -246,8 +246,8 @@ packages:
     resolution: {integrity: sha512-H3XmAG1v2pN0fM1Yd0hSiIWT7EhONc3mOWlZkAMhjDfWPgHMOkTqCVCNkDMRoDpfFXl4+WfRodAWE7GJxuSpEQ==}
     engines: {node: '>=20.19.0'}
 
-  '@andyshinn/meshcore-ts@0.8.0':
-    resolution: {integrity: sha512-EpWMIRAoy7YB7k04b4AI8Kld8T/wHKgY32E9JPVw2R8rQwr00PTbGghljLDB//3R/kL1/Q0sPAE1GuMiobYf+w==}
+  '@andyshinn/meshcore-ts@0.8.1':
+    resolution: {integrity: sha512-ZL1S6YlTxC19VtUBvDQSGuA6XJr+d6tUe7OVQQ+j72heJskvfeu0/njaMrkmJ0VVW8WEgwN0dM+8zAiPyZcUrg==}
     engines: {node: '>=22'}
 
   '@asamuzakjp/css-color@5.1.11':
@@ -4941,7 +4941,7 @@ snapshots:
     dependencies:
       execa: 9.6.1
 
-  '@andyshinn/meshcore-ts@0.8.0': {}
+  '@andyshinn/meshcore-ts@0.8.1': {}
 
   '@asamuzakjp/css-color@5.1.11':
     dependencies:

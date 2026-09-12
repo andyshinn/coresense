@@ -267,6 +267,32 @@ export const api = {
     request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/path`, {
       method: 'DELETE',
     }),
+  /** Ask the radio for its cached INBOUND advert path for one contact (#45 item
+   *  7). `cached: false` is the ordinary "the radio hasn't heard this node
+   *  lately" answer, not a failure. A measurement is persisted server-side and
+   *  arrives as a `discovered` websocket push, so the response body is for the
+   *  toast, not for rendering. `force` skips the server's re-ask cooldown and is
+   *  for an explicit user action only.
+   *
+   *  `reason: 'noPath'` narrows that `cached: false`: the radio DOES hold an
+   *  entry for this node, it just cached the flood / no-path sentinel instead
+   *  of a path, so there is a reception time (which may have advanced the row's
+   *  Last heard) but no hop count. Absent on a plain miss.
+   *
+   *  `fromCache` is on every answer except `noPath`. With `cached: false` and
+   *  `fromCache: true` the radio was NOT asked — the request fell inside the
+   *  server's cooldown and the mirror has no measurement — so it is not the
+   *  radio's "nothing cached", only the absence of anything better. A forced
+   *  request never gets one. */
+  getAdvertPath: (c: ApiClient, key: string, opts: { force?: boolean } = {}) =>
+    request<{
+      cached: boolean;
+      reason?: 'noPath';
+      hops?: number;
+      pathHex?: string;
+      recvTimestampUnix?: number;
+      fromCache?: boolean;
+    }>(c, `/api/contacts/${encodeURIComponent(key)}/advert-path${opts.force ? '?force=1' : ''}`, { method: 'POST' }),
   fetchDiscovered: (c: ApiClient) => request<DiscoveredContact[]>(c, `/api/discovered-contacts`),
   /** Ask the radio to re-enumerate its contact store. The refreshed rows arrive
    *  over the websocket (`contacts`/`discovered`), not in this response — the

@@ -20,8 +20,28 @@ export interface ResolvedContact {
   firstHeardMs?: number;
   /** Node's own advert clock (unreliable). */
   lastAdvertMs?: number;
-  /** Our clock — last live advert reception. Undefined until first heard. */
+  /** Our clock — last reception of ANY kind (advert, DM, ack, path learn, admin
+   *  reply), plus a range-checked radio-reported advert reception. Undefined
+   *  until first reception. See shared/contacts/discovered.ts for the contract. */
   lastHeardMs?: number;
+  /** Inbound hops from the radio's cached advert path. Never merged with
+   *  `hops` above, which is the outbound route — and sourced only from the
+   *  discovered row, because the on-radio `Contact` has no inbound field to fall
+   *  back to. Undefined = not measured (nobody asked, the radio's 16-slot ring
+   *  no longer holds this node, or it holds it with no path cached); 0 = heard
+   *  direct, and only ever that. */
+  observedHops?: number;
+  /** The path bytes that advert arrived over, hex. Empty/undefined for a 0-hop
+   *  reception, so `observedHops` — never this — is the presence test.
+   *
+   *  The radio's OTHER empty path — the 0xFF flood / no-path sentinel, which
+   *  also reaches the library as zero hops and an empty path — never gets this
+   *  far: state/advertPath.ts recognises it by its `flood` flag and persists
+   *  nothing, precisely so that an empty path stored here still means "arrived
+   *  direct" rather than "we have no idea". */
+  observedPathHex?: string;
+  /** Radio-RTC reception time of that advert, ms. */
+  observedAtMs?: number;
   contact: Contact | null;
   rssi?: number;
   snr?: number;
@@ -58,6 +78,9 @@ export function resolveContact(
     firstHeardMs: d?.firstHeardMs,
     lastAdvertMs: d?.lastAdvertMs ?? c?.lastSeenMs,
     lastHeardMs: d?.lastHeardMs,
+    observedHops: d?.observedHops,
+    observedPathHex: d?.observedPathHex,
+    observedAtMs: d?.observedAtMs,
     contact: c,
     rssi: c?.rssi,
     snr: c?.snr,

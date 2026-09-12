@@ -1,6 +1,18 @@
-import { Ban, MapPin, MessageSquare, Minus, Plus, Radio, Share2, ShieldCheck, Star, TerminalSquare } from 'lucide-react';
+import {
+  Ban,
+  MapPin,
+  MessageSquare,
+  Minus,
+  Plus,
+  Radio,
+  RefreshCw,
+  Share2,
+  ShieldCheck,
+  Star,
+  TerminalSquare,
+} from 'lucide-react';
 import { useState } from 'react';
-import { formatHops, formatLastHeard } from '../../../../shared/contacts/discovered';
+import { formatHops, formatLastHeard, formatObservedHops } from '../../../../shared/contacts/discovered';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import { copyToClipboard } from '../../../components/ContextMenu';
 import { PathHashBadge } from '../../../components/PathHashBadge';
@@ -14,6 +26,7 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 import { KeyValueRow } from '../../../components/ui/KeyValueRow';
+import { useAdvertPath } from '../../../hooks/useAdvertPath';
 import { type ApiClient, api } from '../../../lib/api';
 import { distanceKm, fmtDistance, type ResolvedContact, resolveContact } from '../../../lib/contactDetail';
 import { publish as publishMapBus } from '../../../lib/map/bus';
@@ -68,6 +81,10 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
   const setRepeaterAdminTab = useStore((s) => s.setRepeaterAdminTab);
   const [blockOpen, setBlockOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
+  // Lazily measures the inbound hop count once the rail settles on this contact,
+  // and gives the row's button its handler. Called before the early returns
+  // below because hook order can't be conditional; it no-ops on a null key.
+  const { measuring, measure } = useAdvertPath(client, publicKeyHex, { auto: true });
 
   if (!publicKeyHex) return <Placeholder label="no contact focused" />;
   const rc = resolveContact(publicKeyHex, discovered, contacts);
@@ -101,6 +118,19 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
     hasFix && selfHasFix
       ? distanceKm(identity.lat as number, identity.lon as number, rc.gpsLat as number, rc.gpsLon as number)
       : null;
+
+  // Three states, and the difference matters: never measured, measured but the
+  // radio gave no usable reception time (its RTC can be unset), and measured.
+  const observedWhen =
+    rc.observedHops == null
+      ? 'Inbound: hops the radio counted on the last advert it heard from this node. The radio caches only its 16 most recently heard, so this is often unavailable.'
+      : rc.observedAtMs == null
+        ? 'Inbound: measured from a cached advert the radio timestamped with an unset clock.'
+        : `Inbound: measured from the advert the radio received ${fmtRelative(rc.observedAtMs)} — the radio's own clock, not ours.`;
+  // The measured path bytes, which are otherwise stored, projected and
+  // broadcast with nothing reading them. Empty for a direct reception, and the
+  // outbound Path section below is a different direction entirely.
+  const observedTitle = rc.observedPathHex ? `${observedWhen} Inbound path: ${rc.observedPathHex}.` : observedWhen;
 
   return (
     <div className="space-y-3 text-cs-text-muted">
@@ -246,7 +276,37 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
           value={rc.firstHeardMs == null ? '—' : fmtRelative(rc.firstHeardMs)}
           title={rc.firstHeardMs == null ? undefined : fmtDateTime(rc.firstHeardMs, timeFormat)}
         />
-        <KeyValueRow label="Hops away" value={formatHops(rc.hops)} mono />
+        {/* Two hop counts, two directions, never merged (#45 item 7). `hops` is
+            derived from out_path_len — the route the radio would SEND over —
+            while the row below is what the radio COUNTED on the last advert it
+            heard. In an asymmetric mesh they legitimately differ, so the labels
+            have to say which is which. */}
+        <KeyValueRow
+          label="Path hops (out)"
+          value={formatHops(rc.hops)}
+          mono
+          title="Outbound: the route the radio has learned for sending to this node. 'Flood' means no route is stored, so a send is flooded across the mesh."
+        />
+        <KeyValueRow
+          label="Heard hops (in)"
+          value={
+            <span className="inline-flex items-center gap-1">
+              {formatObservedHops(rc.observedHops)}
+              <button
+                type="button"
+                onClick={() => void measure()}
+                disabled={measuring || !client}
+                aria-label="Measure heard hops"
+                title="Ask the radio for its cached advert path for this node"
+                className="text-cs-text-dim hover:text-cs-text disabled:opacity-40"
+              >
+                <RefreshCw className={`size-3 ${measuring ? 'animate-spin' : ''}`} aria-hidden />
+              </button>
+            </span>
+          }
+          mono
+          title={observedTitle}
+        />
         {rc.outPathHashSize != null && (
           <KeyValueRow label="Path hash size" value={<PathHashBadge bytes={rc.outPathHashSize} />} />
         )}

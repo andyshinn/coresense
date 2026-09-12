@@ -8,13 +8,14 @@ import type { DiscoveredContact } from '../../src/shared/contacts/discovered';
 vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() } }));
 vi.mock('@/lib/api', () => ({ api: { addToRadio: vi.fn(), removeFromRadio: vi.fn() } }));
 
-function contact(hops: number | undefined, lastHeardMs?: number): DiscoveredContact {
+function contact(hops: number | undefined, lastHeardMs?: number, observedHops?: number): DiscoveredContact {
   return {
     key: `c:${'ab'.repeat(32)}`,
     publicKeyHex: 'ab'.repeat(32),
     name: 'Node A',
     kind: 'chat',
     hops,
+    observedHops,
     lastHeardMs,
     firstHeardMs: 1_750_000_000_000,
     onRadio: true,
@@ -30,14 +31,14 @@ beforeEach(() => {
 });
 
 /** The hop cell in the table layout (column 5, after checkbox/glyph/name/type). */
-function tableHopText(hops: number | undefined): string {
-  const { container } = render(<TableView rows={[contact(hops)]} client={null} />);
+function tableHopText(hops: number | undefined, observedHops?: number): string {
+  const { container } = render(<TableView rows={[contact(hops, undefined, observedHops)]} client={null} />);
   return (container.querySelectorAll('tbody td')[4]?.textContent ?? '').trim();
 }
 
 /** The hop segment of the list layout's meta line. */
-function listHopText(hops: number | undefined): string {
-  const { container } = render(<ListRow c={contact(hops)} client={null} />);
+function listHopText(hops: number | undefined, observedHops?: number): string {
+  const { container } = render(<ListRow c={contact(hops, undefined, observedHops)} client={null} />);
   // querySelectorAll is document order, so ancestors come first; the meta line
   // is the deepest element carrying the separator.
   const meta = Array.from(container.querySelectorAll('div'))
@@ -119,5 +120,36 @@ describe('table and list layouts agree on last-heard wording', () => {
     const heard = Date.now() - 3 * 60 * 60_000;
     expect(tableLastHeardText(heard)).toBe(listLastHeardText(heard));
     expect(tableLastHeardText(heard).length).toBeGreaterThan(0);
+  });
+});
+
+// #45 item 7. out_path_len is 0xFF for the overwhelming majority of a real
+// pool, so a column that only ever rendered it read "Flood" for a node we had
+// just measured a real inbound hop count for. The measurement wins the cell,
+// marked "in" so the column can never swap direction silently.
+describe('the hop cell prefers the measured inbound count', () => {
+  it('renders the measurement instead of "Flood" when there is no learned route', () => {
+    expect(tableHopText(undefined, 2)).toBe('2 hops in');
+    expect(listHopText(undefined, 2)).toBe('2 hops in');
+  });
+
+  it('renders it in preference to an outbound route too, since they differ', () => {
+    expect(tableHopText(5, 2)).toBe('2 hops in');
+    expect(listHopText(5, 2)).toBe('2 hops in');
+  });
+
+  it('keeps a 0-hop measurement as a value rather than falling back', () => {
+    expect(tableHopText(4, 0)).toBe('0 hops in');
+    expect(listHopText(4, 0)).toBe('0 hops in');
+  });
+
+  it('still shows the outbound state when nothing has been measured', () => {
+    expect(tableHopText(undefined)).toBe('Flood');
+    expect(tableHopText(1)).toBe('1 hop');
+  });
+
+  it('names both directions on hover, so the marker is never the only clue', () => {
+    const { container } = render(<HopChip hops={5} observedHops={2} />);
+    expect(container.querySelector('span')?.getAttribute('title')).toBe('Heard (inbound): 2 hops · Path (outbound): 5 hops');
   });
 });
