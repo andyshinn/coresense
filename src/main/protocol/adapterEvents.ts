@@ -14,7 +14,28 @@ export function wireSessionEvents(session: MeshCoreSession): void {
   const ev = session.events;
   const holder = stateHolder();
 
-  ev.on('transportState', (s) => emit.transportState(s));
+  // Deliberately NOT subscribed: `transportState`.
+  //
+  // coresense's own transports own that bus event, and they emit it themselves
+  // alongside every push into the library transport (transport/ble.ts:195-196,
+  // 235-236, 395-396; transport/replay.ts:63, 82) — plus the states the library
+  // has no concept of at all ('scanning', 'connecting'). Crucially they emit it
+  // WITH the device id, which the library's event cannot carry: the port's
+  // signature is `(s: TransportState) => void`.
+  //
+  // Re-emitting the library's copy therefore announced every transition twice,
+  // the second time with `deviceId` undefined — and the last writer wins.
+  // server.ts's subscriber feeds `transportManager.setState(state, deviceId)`,
+  // which /api/snapshot serves as `transport.deviceId` and the renderer stores
+  // as `connectedDeviceId`: the id the BLE panel's "Live link" card prints, and
+  // the value its remember-this-radio effect refuses to save without. So the
+  // duplicate silently blanked the connected radio's identity on every connect.
+  //
+  // This was dormant until meshcore-ts 0.8.1. Through v0.8.0 the library
+  // declared `transportState` in its events port and emitted it from nowhere
+  // (`git grep transportState v0.8.0 -- src` finds only ports/events.ts); 0.8.1
+  // added the emit at the tail of the session's own onTransportState, which
+  // made this line live for the first time since it was written.
   ev.on('owner', (o) => {
     holder.setOwner(o);
     emit.owner(o);

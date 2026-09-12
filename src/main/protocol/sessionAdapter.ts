@@ -12,6 +12,20 @@ const APP_VERSION = 1;
 export class SessionAdapter {
   readonly session: MeshCoreSession;
   private started = false;
+  /** Separate from `started` because it is not undone by stop().
+   *
+   *  `MeshCoreSession.stop()` leaves `session.events` listeners attached — it
+   *  tears the connection down and clears its own started/connected flags, and
+   *  nothing more. So a second `wireSessionEvents` on the same session does not
+   *  replace the first, it ADDS to it, and every frame after that is written
+   *  through twice: two `owner` broadcasts, two message persists, two contact
+   *  write-throughs.
+   *
+   *  Not reachable while nothing in src/ calls stop(), but restart became a
+   *  working flow in meshcore-ts 0.8.1 — before it, stop() left `connected`
+   *  latched and the next start() was a silent no-op, so nothing came back to
+   *  re-drive. It works now, which makes this the wrong thing to leave armed. */
+  private wired = false;
 
   constructor(transport: Ports.Transport) {
     // Without a logger the library falls back to its noopLogger and every
@@ -30,7 +44,10 @@ export class SessionAdapter {
     if (this.started) return;
     this.started = true;
     this.seedAutoAddConfig();
-    wireSessionEvents(this.session);
+    if (!this.wired) {
+      this.wired = true;
+      wireSessionEvents(this.session);
+    }
     this.session.start();
   }
 
