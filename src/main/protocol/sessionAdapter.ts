@@ -97,10 +97,16 @@ export class SessionAdapter {
    *  key to a full pubkey through the radio's contact map and raises when it
    *  misses. Call hasRadioContact() first rather than catching that (#45 item 7).
    *
-   *  Since meshcore-ts 0.8.1 that null means one thing only — RESP_ERR
-   *  NOT_FOUND, the ring has no entry. The other empty answer, a reply whose
-   *  path_len is the 0xFF flood / no-path sentinel, now decodes successfully
-   *  and is flagged: `{ hops: 0, pathHex: '', flood: true }`. (Through 0.7.2 it
+   *  Since meshcore-ts 0.8.1 that null means one of two things: RESP_ERR
+   *  NOT_FOUND (the ring has no entry), or a link that dropped mid-round-trip.
+   *  The library's teardown resolves the shared ack FIFO as `{ ok: false }`
+   *  BEFORE it rejects the typed queue, and requestOrNull's ack entry resolves
+   *  null without inspecting `ok`, so an abandoned request is indistinguishable
+   *  from a miss here. (A request TIMEOUT does reject, as ProtocolTimeoutError,
+   *  so that one is distinguishable.) What 0.8.1 removed from the null is a
+   *  THIRD meaning: a reply whose path_len is the 0xFF flood / no-path sentinel
+   *  now decodes successfully and is flagged
+   *  `{ hops: 0, pathHex: '', flood: true }`. (Through 0.7.2 it
    *  arrived as null instead, because unpacking 0xFF claimed 252 path bytes and
    *  failed decodeAdvertPath's own length guard; 0.8.0 special-cased the length
    *  but not the meaning, so it came back as a bare `hops: 0` indistinguishable

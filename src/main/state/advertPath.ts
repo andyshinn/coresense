@@ -143,11 +143,18 @@ async function ask(pubkey: string, key: string): Promise<AdvertPathResult> {
   lastAsked.set(pubkey, Date.now());
   try {
     const p = await protocolSession().getAdvertPath(key);
-    // null is RESP_ERR NOT_FOUND — the ring doesn't hold this node — and since
-    // meshcore-ts 0.8.1 that is ALL it is: a flood-sentinel reply now decodes
-    // successfully and arrives flagged (below) instead of failing a length
-    // guard and returning null like a miss. Nothing is written: a miss must not
-    // overwrite an older real measurement.
+    // null is RESP_ERR NOT_FOUND — the ring doesn't hold this node — OR a link
+    // that dropped mid-round-trip. meshcore-ts 0.8.1 removed the third meaning
+    // it used to have: a flood-sentinel reply now decodes successfully and
+    // arrives flagged (below) instead of failing a length guard and returning
+    // null like a miss. It does NOT separate a miss from an abandoned request:
+    // the library's teardown resolves the shared ack FIFO before it rejects the
+    // typed queue, and requestOrNull's ack entry resolves null without looking
+    // at `ok` (pinned in tests/integration/adapter/session-lifecycle.test.ts).
+    // So 'notCached' is not radio-authoritative — never persist or cache it as
+    // "the ring has no entry". Nothing is written here either way: a miss must
+    // not overwrite an older real measurement. The cost of the conflation is
+    // the 60s lastAsked cooldown stamped above, which delays the user's retry.
     if (!p) return { status: 'notCached' };
     // path_len 0xFF: the entry exists, but the path it cached is the flood /
     // no-path sentinel. The library reports that as `hops: 0` with an empty
