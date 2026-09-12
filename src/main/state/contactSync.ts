@@ -107,6 +107,32 @@ export function ingestObservedContact(record: Models.ContactRecord, source: Mode
   }
 }
 
+/** A full 32-byte pubkey in hex. Anything shorter or differently shaped is not
+ *  an identity we can attribute a reception to: channel posts name their sender
+ *  as `name:<n>` (or `unknown`), a DM from a contact the radio doesn't store
+ *  resolves only to a 6-byte prefix, and our own outbound messages carry no
+ *  sender at all. */
+const FULL_PUBKEY_HEX = /^[0-9a-f]{64}$/i;
+
+/** Bump a contact's last-heard from any genuine reception that carries an
+ *  identity: an inbound DM, an ack for a DM we sent, a learned path, a repeater
+ *  status/telemetry push, a CLI reply, a trace that came back.
+ *
+ *  Accepts either a bare pubkey or a `c:<pubkey>` contact key, and silently
+ *  ignores anything that isn't a full pubkey (see FULL_PUBKEY_HEX) — that check
+ *  is what keeps channel traffic and our own sends out of a column labelled
+ *  "Last heard". The store is UPDATE-only, so an unknown pubkey is a no-op
+ *  rather than a synthesised row.
+ *
+ *  Broadcasts only when a row actually moved, through the same 1s coalescer the
+ *  advert path uses, so a burst of inbound traffic collapses to one push. */
+export function noteHeard(keyOrPubkey: string | undefined): void {
+  if (!keyOrPubkey) return;
+  const pubkey = keyOrPubkey.startsWith('c:') ? keyOrPubkey.slice(2) : keyOrPubkey;
+  if (!FULL_PUBKEY_HEX.test(pubkey)) return;
+  if (discoveredStore.markHeard(pubkey, Date.now())) scheduleDiscoveredEmit();
+}
+
 /** Merge coresense-only fields (pinned/muted) from current holder contacts into
  *  the lib's authoritative contact list, persist, and emit. The lib owns
  *  favourite/outPath/preferDirect/pathManual/pathLearnedAt. */

@@ -248,7 +248,12 @@ export function SetPathEditor({ contact, client }: Props) {
 
         {hops.length === 0 ? (
           <div className="rounded border border-dashed border-cs-border bg-cs-bg-2 p-3 text-[12px] text-cs-text-dim">
-            No hops — messages will flood to discover a path.
+            {/* Saving an empty list is not the same command as clearing the
+                path: ADD_UPDATE_CONTACT with no hops stores out_path_len = 0,
+                a known DIRECT route. Only RESET_PATH restores OUT_PATH_UNKNOWN
+                (flood) — which is what the hop cell will read back either way,
+                so the copy has to tell them apart. */}
+            No hops — saving stores a direct, zero-hop route. Use “Reset to flood” to clear the path instead.
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>

@@ -290,6 +290,16 @@ export const settingsStore = {
       migrated = true;
       log.info('migrated retired field out of auto-add-config.json: maxHops');
     }
+    // Retired field. `pullToRefresh` was a toggle nothing ever read, persisted
+    // as `true` for everyone. Its replacement (`autoRefreshContacts`) drives a
+    // real periodic GET_CONTACTS walk, so the old value is deliberately NOT
+    // carried over — nobody gets opted into radio traffic by a setting that
+    // never did anything. Deleted actively for the same reason as `maxHops`.
+    if ('pullToRefresh' in bag) {
+      delete bag.pullToRefresh;
+      migrated = true;
+      log.info('migrated retired field out of auto-add-config.json: pullToRefresh');
+    }
     if (migrated) writeJson(FILES.autoAdd, merged);
     return merged;
   },

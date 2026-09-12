@@ -1,9 +1,11 @@
 import type { MeshCoreSession } from '@andyshinn/meshcore-ts';
 import { emit, summarizeContactSync } from '../events/bus';
 import { child } from '../log';
-import { applyLibContacts, ingestObservedContact, scheduleDiscoveredEmit } from '../state/contactSync';
+import { applyLibContacts, ingestObservedContact, noteHeard, scheduleDiscoveredEmit } from '../state/contactSync';
+import { endContactWalk, noteContactWalkStreaming } from '../state/contactWalk';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
+import { messagesStore } from '../storage/messages';
 import { mergeSyncedChannels } from './mergeChannels';
 
 const log = child('contacts');
@@ -66,8 +68,8 @@ export function wireSessionEvents(session: MeshCoreSession): void {
   });
   ev.on('autoAddConfig', (a) => {
     // The lib owns the radio-driven fields; coresense keeps two app-only UI
-    // fields (pullToRefresh/showPublicKeys) the lib's type doesn't carry, so
-    // preserve them from the current holder value rather than dropping them.
+    // fields (autoRefreshContacts/showPublicKeys) the lib's type doesn't carry,
+    // so preserve them from the current holder value rather than dropping them.
     //
     // The payload is the library's WHOLE mirror, not a delta — one emit per
     // change, carrying every other field as it stood. SessionAdapter.start()
@@ -87,7 +89,7 @@ export function wireSessionEvents(session: MeshCoreSession): void {
       overwriteOldest: a.overwriteOldest,
       radioMaxHops: a.radioMaxHops,
       manualAddContacts: a.manualAddContacts,
-      pullToRefresh: prev.pullToRefresh,
+      autoRefreshContacts: prev.autoRefreshContacts,
       showPublicKeys: prev.showPublicKeys,
     };
     holder.setAutoAddConfig(next);
@@ -109,6 +111,14 @@ export function wireSessionEvents(session: MeshCoreSession): void {
   // completed", once per connect.
   let syncPhase: 'idle' | 'syncing' | 'done' = 'idle';
   ev.on('syncProgress', (p) => {
+    // `contacts.done < total` means RESP_CONTACT frames are still arriving, i.e.
+    // the radio is mid-walk RIGHT NOW. That is the only reliable signal we get:
+    // `phase` is set by the handshake and nothing else, and the lib's
+    // END_OF_CONTACTS waiter resolves on a 10s timeout, so both the handshake's
+    // walk and a getContacts() walk can still be streaming long after `phase`
+    // says 'done'. Starting a second walk on top of one of those makes the lib
+    // delete contacts (see state/contactWalk.ts).
+    if (p.contacts.total > 0 && p.contacts.done < p.contacts.total) noteContactWalkStreaming();
     emit.syncProgress(p);
     const finished = p.phase === 'done' && syncPhase !== 'done';
     syncPhase = p.phase;
@@ -122,9 +132,21 @@ export function wireSessionEvents(session: MeshCoreSession): void {
     // to have a session before it will answer anything else.
     if (finished) void session.requestAutoAddConfig();
   });
-  ev.on('pathLearned', (e) => emit.pathLearned(e));
-  ev.on('repeaterStatus', (s) => emit.repeaterStatus(s));
-  ev.on('repeaterTelemetry', (s) => emit.repeaterTelemetry(s));
+  // The three identity-bearing pushes below are all receptions FROM the named
+  // contact, so each one is a last-heard signal (#45 item 9). A path learn in
+  // particular means a send to that node completed a round trip.
+  ev.on('pathLearned', (e) => {
+    noteHeard(e.contactKey);
+    emit.pathLearned(e);
+  });
+  ev.on('repeaterStatus', (s) => {
+    noteHeard(s.contactKey);
+    emit.repeaterStatus(s);
+  });
+  ev.on('repeaterTelemetry', (s) => {
+    noteHeard(s.contactKey);
+    emit.repeaterTelemetry(s);
+  });
   ev.on('contactsFull', () => emit.error('radio contact store is full — remove or favourite contacts to make room'));
 
   wireContacts(session); // Task C2
@@ -165,6 +187,9 @@ function wireContacts(session: MeshCoreSession): void {
   // reaches the renderer any more — this summary is what makes a sync
   // verifiable, and the log line is the answer to "did it load them all?".
   ev.on('contactsSynced', ({ count }) => {
+    // RESP_END_OF_CONTACTS — the one honest "the walk is over" signal, and so
+    // the one place the refresh guard may be released.
+    endContactWalk();
     const holder = stateHolder();
     // Reconcile the mirror's on_radio flags against the radio's contents (#30).
     // The per-row write-through above only ever SETS on_radio; nothing clears it
@@ -205,14 +230,28 @@ function wireMessages(session: MeshCoreSession): void {
   const holder = stateHolder();
   ev.on('messageUpserted', (m) => {
     holder.recordLibMessage(m);
+    // An inbound DM is a reception from its sender. `noteHeard` filters the
+    // cases that aren't: a channel post carries `name:<n>` rather than a pubkey,
+    // and coresense's own outbound messages never come through here at all (the
+    // sender writes them straight to the holder) — but an unresolved DM sender
+    // arrives as a 6-byte prefix, which must not be treated as a pubkey.
+    noteHeard(m.fromPublicKeyHex);
     emit.messages(m.key, holder.getMessagesForKey(m.key));
   });
   ev.on('messageState', (id, state) => {
     holder.setMessageState(id, state);
+    // An ack is the one send-side transition that is a genuine RECEPTION: the
+    // peer's ACK packet reached our radio. The holder's setter returns void, so
+    // read the message back for its conversation key (`c:<pubkey>` for a DM;
+    // a channel key can't pass noteHeard's pubkey check, and never acks anyway).
+    if (state === 'ack') noteHeard(messagesStore.findById(id)?.key);
     emit.messageState(id, state);
   });
   // The lib emits only { id, path } (it doesn't track this message's state —
   // we do); coresense owns the 'sent' → 'heard' transition.
+  //
+  // Deliberately NOT a last-heard signal: MessagePath.hops are per-hop path
+  // HASHES, not identities, so there is no pubkey to attribute the reception to.
   ev.on('messagePathHeard', ({ id, path }) => {
     const state = holder.appendMessagePath(id, path);
     if (state) emit.messagePathHeard({ id, path, state });

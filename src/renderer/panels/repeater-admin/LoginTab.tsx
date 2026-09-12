@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatHops } from '../../../shared/contacts/discovered';
 import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { RelativeTime } from '../../components/RelativeTime';
 import { type ApiClient, api } from '../../lib/api';
@@ -15,12 +16,14 @@ interface Props {
 /** The reach suffix from the contact's path state — matches meshcore_py's
  *  effective ("Direct / Flood / N hops"). Keyed off `contact.hops` (the value
  *  meshcore-ts derives from out_path): undefined = out_path unknown (0xFF) →
- *  Flood, 0 = a known direct route → Direct, N ≥ 1 → N hops. */
+ *  Flood, 0 = a known direct route → Direct, N ≥ 1 → N hops.
+ *
+ *  Shares the app-wide formatter so the wording can't drift from the Contact
+ *  Manager's; `direct` is overridden because this label follows meshcore_py's
+ *  vocabulary, where a known 0-hop route reads "Direct" rather than "0 hops". */
 function deriveReach(contact: Contact): string {
   if (contact.preferDirect) return 'Direct';
-  if (contact.hops === undefined) return 'Flood';
-  if (contact.hops === 0) return 'Direct';
-  return `${contact.hops} hop${contact.hops === 1 ? '' : 's'}`;
+  return formatHops(contact.hops, { direct: 'Direct' });
 }
 
 /** Live login-button label. A blank password is a guest login — on a

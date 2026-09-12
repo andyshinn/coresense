@@ -1,6 +1,6 @@
 import { Ban, ChevronDown, DoorOpen, Minus, Plus, RadioTower, Star, Thermometer, User } from 'lucide-react';
 import { useState } from 'react';
-import type { DiscoveredContact } from '../../../shared/contacts/discovered';
+import { type DiscoveredContact, formatHops, formatLastHeard } from '../../../shared/contacts/discovered';
 import type { ContactKind } from '../../../shared/types';
 import { BlockSenderDialog } from '../../components/BlockSenderDialog';
 import { copyToClipboard } from '../../components/ContextMenu';
@@ -53,12 +53,12 @@ export function StatusPill({ c }: { c: DiscoveredContact }) {
   );
 }
 
+/** The Contact Manager's hop cell, in both layouts. Deliberately NOT HopBadge:
+ *  that one renders nothing for a null hop count, which here would blank the
+ *  cell for every contact without a learned route — the majority of a real
+ *  pool. `formatHops` keeps "Flood" visible instead. */
 export function HopChip({ hops }: { hops?: number }) {
-  return (
-    <span className="font-mono text-[10.5px] text-cs-text-muted">
-      {hops == null ? '—' : `${hops} hop${hops === 1 ? '' : 's'}`}
-    </span>
-  );
+  return <span className="font-mono text-[10.5px] text-cs-text-muted">{formatHops(hops)}</span>;
 }
 
 export function RowActions({ c, client }: { c: DiscoveredContact; client: ApiClient | null }) {
@@ -254,7 +254,7 @@ export function TableView({ rows, client }: { rows: DiscoveredContact[]; client:
                 )}
               </td>
               <td className={cn('whitespace-nowrap px-2 text-[11.5px] text-cs-text-muted', pad)}>{KIND_LABEL[c.kind]}</td>
-              <td className={cn('px-2', pad)}>
+              <td className={cn('whitespace-nowrap px-2', pad)}>
                 <HopChip hops={c.hops} />
               </td>
               <td
@@ -267,7 +267,7 @@ export function TableView({ rows, client }: { rows: DiscoveredContact[]; client:
                 className={cn('whitespace-nowrap px-2 font-mono text-[11px] text-cs-text-dim', pad)}
                 title={c.lastHeardMs == null ? undefined : fmtDateTime(c.lastHeardMs, timeFormat)}
               >
-                {c.lastHeardMs == null ? '—' : fmtRelative(c.lastHeardMs)}
+                {formatLastHeard(c.lastHeardMs, fmtRelative)}
               </td>
               <td className={cn('px-2', pad)}>
                 <StatusPill c={c} />
@@ -293,8 +293,13 @@ export function ListRow({ c, client }: { c: DiscoveredContact; client: ApiClient
   const pk = c.publicKeyHex;
   const isSelected = selected.includes(pk);
   const isFocused = focusKey === pk;
-  const lastLabel = c.lastHeardMs == null ? 'never' : fmtRelative(c.lastHeardMs);
-  const hopsLabel = c.hops == null ? '—' : `${c.hops} hop${c.hops === 1 ? '' : 's'}`;
+  // Both of these share the table layout's formatters — this row and the table
+  // are the same data behind a layout toggle, so a word that differs between
+  // them changes under the user for no reason. HopChip itself isn't reused
+  // because it carries its own colour token and would sit brighter than the
+  // rest of this meta line; the wording is what must not diverge.
+  const lastLabel = formatLastHeard(c.lastHeardMs, fmtRelative);
+  const hopsLabel = formatHops(c.hops);
 
   return (
     // biome-ignore lint/a11y/useSemanticElements: cannot be a <button> because RowActions renders nested buttons

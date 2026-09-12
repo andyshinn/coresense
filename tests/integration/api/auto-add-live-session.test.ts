@@ -129,18 +129,18 @@ describe('PUT /api/device/auto-add against a live MeshCoreSession', () => {
   });
 
   it('keeps the app-only fields across the library re-emit', async () => {
-    stateHolder().setAutoAddConfig({ ...DEFAULT_AUTO_ADD_CONFIG, pullToRefresh: false, showPublicKeys: false });
+    stateHolder().setAutoAddConfig({ ...DEFAULT_AUTO_ADD_CONFIG, autoRefreshContacts: true, showPublicKeys: false });
     connectedSession();
 
     await putAutoAdd({
       ...DEFAULT_AUTO_ADD_CONFIG,
       mode: 'selected',
-      pullToRefresh: false,
+      autoRefreshContacts: true,
       showPublicKeys: false,
     });
 
     const cfg = stateHolder().getAutoAddConfig();
-    expect(cfg.pullToRefresh).toBe(false);
+    expect(cfg.autoRefreshContacts).toBe(true);
     expect(cfg.showPublicKeys).toBe(false);
   });
 });

@@ -755,8 +755,17 @@ export interface AutoAddConfig {
    *  share-position save that omits it silently rewrites the pref. Bits 1-7 are
    *  unused by the firmware; we preserve them rather than assume. */
   manualAddContacts: number;
-  /** App-side: pull-to-refresh in the contact list. */
-  pullToRefresh: boolean;
+  /** App-side: re-read the radio's contact store on a timer while connected
+   *  (see main/state/contactRefresh.ts).
+   *
+   *  Defaults OFF and deliberately does NOT inherit the old `pullToRefresh`
+   *  key. That key shipped as an unimplemented mobile "pull to refresh" idiom
+   *  defaulting to true, so every existing user has it persisted as true
+   *  without ever having asked for anything; reusing it would have opted the
+   *  entire installed base into a ~15-25s companion-link contact walk every 15
+   *  minutes. A background radio operation has to be something the user turned
+   *  on (#45 item 6). */
+  autoRefreshContacts: boolean;
   /** App-side: show pubkey prefix next to names in lists. */
   showPublicKeys: boolean;
 }
@@ -769,7 +778,7 @@ export const DEFAULT_AUTO_ADD_CONFIG: AutoAddConfig = {
   overwriteOldest: true,
   radioMaxHops: 0,
   manualAddContacts: 0,
-  pullToRefresh: true,
+  autoRefreshContacts: false,
   showPublicKeys: true,
 };
 

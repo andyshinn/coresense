@@ -26,6 +26,9 @@ function seedUserSelection(): void {
     sensor: false,
     radioMaxHops: 7,
     manualAddContacts: 0,
+    // Non-default on purpose: the app-only field the library's payload never
+    // carries has to come back from the holder, not from a default.
+    autoRefreshContacts: true,
   });
 }
 
@@ -104,7 +107,7 @@ describe('RESP_SELF_INFO manual_add_contacts (byte 47)', () => {
     expect(cfg.sensor).toBe(false);
     expect(cfg.chat).toBe(true);
     expect(cfg.radioMaxHops).toBe(7);
-    expect(cfg.pullToRefresh).toBe(DEFAULT_AUTO_ADD_CONFIG.pullToRefresh);
+    expect(cfg.autoRefreshContacts).toBe(true);
   });
 
   it('derives mode back to "all" when the radio reports bit 0 clear', () => {
