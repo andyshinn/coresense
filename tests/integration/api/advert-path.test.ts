@@ -128,7 +128,32 @@ describe('POST /api/contacts/:key/advert-path', () => {
     const res = await post();
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ cached: false });
+    expect(await res.json()).toEqual({ cached: false, fromCache: false });
+    expect(row()?.observed_hops).toBe(4);
+  });
+
+  // meshcore-ts resolves a round trip the link abandoned as null too — the
+  // teardown resolves the ack FIFO before it rejects the typed queue — so a bare
+  // null is not the radio's "nothing cached". Every coresense transport
+  // announces 'idle' on the bus (which is what moves transportManager) BEFORE it
+  // tells the library, so by the time that null is read the link is visibly
+  // gone. Reporting it as a miss toasted "Radio has no recent advert path" for a
+  // press the radio never heard, and spent the rail's automatic attempt.
+  it('reports a link that dropped mid-request as a failure, not a miss', async () => {
+    transportManager.setState('connected');
+    seed();
+    discoveredStore.setObservedPath(PK, { hops: 4, pathHex: 'ccdd', recvUnix: 1_759_000_000 });
+    spySession({
+      path: () => {
+        transportManager.setState('idle');
+        return Promise.resolve(null);
+      },
+    });
+
+    const res = await post('?force=1');
+
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { error: string }).error).toMatch(/link dropped/);
     expect(row()?.observed_hops).toBe(4);
   });
 
@@ -255,7 +280,25 @@ describe('POST /api/contacts/:key/advert-path', () => {
     await post();
     const res = await post();
 
-    expect(await res.json()).toEqual({ cached: false });
+    // Tagged `fromCache`: this 200 is the mirror's, not the radio's.
+    expect(await res.json()).toEqual({ cached: false, fromCache: true });
+    expect(getAdvertPath).toHaveBeenCalledTimes(1);
+  });
+
+  // The cooldown is stamped BEFORE the round trip, so a command that timed out
+  // arms it too, and a miss writes no row. The repeat inside the window is
+  // therefore a "nothing cached" the radio never said — which is why it has to
+  // be distinguishable from one it did.
+  it('does not pass a cooldown miss after a failed attempt off as the radio’s answer', async () => {
+    transportManager.setState('connected');
+    seed();
+    const { getAdvertPath } = spySession({ path: () => Promise.reject(new Error('request timed out after 5000ms')) });
+
+    expect((await post()).status).toBe(503);
+    const res = await post();
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ cached: false, fromCache: true });
     expect(getAdvertPath).toHaveBeenCalledTimes(1);
   });
 

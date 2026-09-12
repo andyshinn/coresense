@@ -42,8 +42,15 @@ export type AdvertPathResult =
    *  cooldown above rather than from a fresh radio round trip. */
   | { status: 'measured'; hops: number; pathHex: string; recvUnix: number; fromCache: boolean }
   /** The radio's advert-path ring holds no entry for this node — the normal
-   *  answer for 15 of every 16 contacts, and not an error. */
-  | { status: 'notCached' }
+   *  answer for 15 of every 16 contacts, and not an error.
+   *
+   *  `fromCache` means the radio was NOT asked: the request landed inside the
+   *  cooldown and the mirror holds no measurement. That is weaker than a miss —
+   *  the cooldown is stamped before the round trip, so the attempt that armed
+   *  it may have timed out rather than been answered — and callers that spend
+   *  something on "the radio said no" (the rail's once-per-contact automatic
+   *  measurement) must not spend it on this. */
+  | { status: 'notCached'; fromCache: boolean }
   /** The ring DOES hold this node, but what it cached is the flood / no-path
    *  sentinel (path_len 0xFF): a reception we can date but cannot count hops
    *  for.
@@ -91,11 +98,12 @@ const toPubkey = (keyOrPubkey: string) => (keyOrPubkey.startsWith('c:') ? keyOrP
  *  Only `measured` and `notCached` can come out of it: neither a miss nor the
  *  no-path sentinel writes a row (deliberately — neither is a measurement), so
  *  a repeat asked inside the cooldown reports what the mirror HOLDS rather than
- *  what the radio last said. */
+ *  what the radio last said — and the miss is flagged `fromCache` so nobody
+ *  mistakes it for the radio's answer. */
 function stored(pubkey: string): AdvertPathResult {
   const row = discoveredStore.get(pubkey);
   // >= 0, not truthiness: 0 hops is a measurement, not a miss.
-  if (!row || row.observed_hops < 0) return { status: 'notCached' };
+  if (!row || row.observed_hops < 0) return { status: 'notCached', fromCache: true };
   return {
     status: 'measured',
     hops: row.observed_hops,
@@ -151,11 +159,27 @@ async function ask(pubkey: string, key: string): Promise<AdvertPathResult> {
     // the library's teardown resolves the shared ack FIFO before it rejects the
     // typed queue, and requestOrNull's ack entry resolves null without looking
     // at `ok` (pinned in tests/integration/adapter/session-lifecycle.test.ts).
-    // So 'notCached' is not radio-authoritative — never persist or cache it as
-    // "the ring has no entry". Nothing is written here either way: a miss must
-    // not overwrite an older real measurement. The cost of the conflation is
-    // the 60s lastAsked cooldown stamped above, which delays the user's retry.
-    if (!p) return { status: 'notCached' };
+    //
+    // So separate them here, by the link. Every coresense transport announces
+    // 'idle' on the bus — which is what moves transportManager — BEFORE it
+    // tells the library transport, and it is the library hearing that which
+    // runs the teardown; the null is read a microtask later still. A null with
+    // the link gone is therefore the abandoned request, and a failure: calling
+    // it a miss toasts "no recent advert path" at a button press the radio
+    // never heard, and spends the rail's one automatic attempt on it. (A
+    // SessionAdapter stopped under a still-connected transport would still read
+    // as a miss; nothing does that mid-request.)
+    //
+    // Nothing is written for either: a miss must not overwrite an older real
+    // measurement. The lastAsked stamp above stays, so automatic re-asks (the
+    // advert sampler, the rail) wait out the cooldown; the button forces past
+    // it.
+    if (!p) {
+      if (transportManager.getState().state !== 'connected') {
+        return { status: 'failed', message: 'radio link dropped before it answered' };
+      }
+      return { status: 'notCached', fromCache: false };
+    }
     // path_len 0xFF: the entry exists, but the path it cached is the flood /
     // no-path sentinel. The library reports that as `hops: 0` with an empty
     // path — there are no path bytes on the wire to report — plus `flood`, so

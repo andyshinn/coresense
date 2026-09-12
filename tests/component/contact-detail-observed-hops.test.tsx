@@ -242,7 +242,9 @@ describe('ContactDetail automatic measurement', () => {
 
   it('does not re-measure the same contact on a later visit', async () => {
     seed();
-    getAdvertPath.mockResolvedValue({ cached: false });
+    // A miss the radio itself reported: that is an answer, and it spends the
+    // attempt.
+    getAdvertPath.mockResolvedValue({ cached: false, fromCache: false });
     const first = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
     vi.advanceTimersByTime(600);
     await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));
@@ -277,6 +279,26 @@ describe('ContactDetail automatic measurement — a spent attempt must have happ
 
     // The radio is up now. The contact has not used its attempt.
     getAdvertPath.mockResolvedValue({ cached: true, hops: 2, pathHex: 'aabb' });
+    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    vi.advanceTimersByTime(600);
+
+    await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(2));
+  });
+
+  // The server answers a non-forced request inside its per-contact cooldown from
+  // the sqlite mirror, without a radio command, and a miss writes no row — so a
+  // cooldown armed by a request that timed out (or by the advert sampler's)
+  // comes back as a 200 miss the radio never said. Counting that as the
+  // contact's one automatic attempt left it "not measured" for the session.
+  it('re-measures after a miss the server answered from its cooldown, not the radio', async () => {
+    seed();
+    getAdvertPath.mockResolvedValueOnce({ cached: false, fromCache: true });
+    const first = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    vi.advanceTimersByTime(600);
+    await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));
+    first.unmount();
+
+    getAdvertPath.mockResolvedValue({ cached: true, hops: 2, pathHex: 'aabb', fromCache: false });
     render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
     vi.advanceTimersByTime(600);
 

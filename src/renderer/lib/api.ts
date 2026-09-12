@@ -277,7 +277,13 @@ export const api = {
    *  `reason: 'noPath'` narrows that `cached: false`: the radio DOES hold an
    *  entry for this node, it just cached the flood / no-path sentinel instead
    *  of a path, so there is a reception time (which may have advanced the row's
-   *  Last heard) but no hop count. Absent on a plain miss. */
+   *  Last heard) but no hop count. Absent on a plain miss.
+   *
+   *  `fromCache` is on every answer except `noPath`. With `cached: false` and
+   *  `fromCache: true` the radio was NOT asked — the request fell inside the
+   *  server's cooldown and the mirror has no measurement — so it is not the
+   *  radio's "nothing cached", only the absence of anything better. A forced
+   *  request never gets one. */
   getAdvertPath: (c: ApiClient, key: string, opts: { force?: boolean } = {}) =>
     request<{
       cached: boolean;

@@ -201,8 +201,10 @@ export class SessionAdapter {
    *  The library's teardown resolves the shared ack FIFO as `{ ok: false }`
    *  BEFORE it rejects the typed queue, and requestOrNull's ack entry resolves
    *  null without inspecting `ok`, so an abandoned request is indistinguishable
-   *  from a miss here. (A request TIMEOUT does reject, as ProtocolTimeoutError,
-   *  so that one is distinguishable.) What 0.8.1 removed from the null is a
+   *  from a miss in the value itself — state/advertPath.ts separates them by
+   *  whether the link is still up when it reads the null. (A request TIMEOUT
+   *  does reject, as ProtocolTimeoutError, so that one is distinguishable.)
+   *  What 0.8.1 removed from the null is a
    *  THIRD meaning: a reply whose path_len is the 0xFF flood / no-path sentinel
    *  now decodes successfully and is flagged
    *  `{ hops: 0, pathHex: '', flood: true }`. (Through 0.7.2 it

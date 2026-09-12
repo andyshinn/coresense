@@ -120,9 +120,16 @@ describe('a reconnect on the same session object', () => {
   });
 
   // The post-handshake CMD_GET_AUTO_ADD_CONFIG fires on a rising edge of
-  // syncProgress.phase that adapterEvents tracks itself. The edge is re-armable
-  // only because the library's disconnect teardown resets syncProgress to its
-  // default ('idle'), so the second handshake's 'done' is a rising edge again.
+  // syncProgress.phase that adapterEvents tracks itself. What re-arms that edge
+  // is the library's handshake, not its teardown: every handshake opens by
+  // emitting phase 'syncing', so the next 'done' is a rising edge again. (The
+  // teardown's reset to 'idle' would do the same, but it is redundant here —
+  // this test stays green with it deleted, so it does NOT guard that reset.)
+  //
+  // What it does guard: that the library runs a second handshake on the same
+  // session object after an idle → connected edge (the `connected` latch
+  // clears), and that adapterEvents does not latch the query to once per
+  // wiring.
   it('re-issues the post-handshake auto-add query', async () => {
     vi.useFakeTimers();
     const s = session();
@@ -163,18 +170,22 @@ describe('a reconnect on the same session object', () => {
     // It settles promptly rather than riding out the 5s request timeout — the
     // library's disconnect teardown clears both awaiter queues.
     //
-    // `notCached`, not `failed`, and that is the library's answer rather than
-    // coresense's choice: `requestOrNull` arms an entry on the ack FIFO as well
-    // as the typed queue, and the teardown resolves the ack FIFO (as
-    // `{ ok: false }`) BEFORE it rejects the typed queue — and the ack path
-    // resolves null without looking at `ok` (meshcore-ts session.ts:638 vs
-    // :650, requestOrNull's ackEntry). So a dropped link is indistinguishable
-    // here from RESP_ERR NOT_FOUND. Pinned because it is exactly what a caller
-    // must not assume away: nothing is written for a `notCached`, so the only
-    // cost is a 60s cooldown before the user's retry reaches the radio.
-    s.transport.setState('idle');
+    // The library hands it back as a null, exactly like RESP_ERR NOT_FOUND:
+    // `requestOrNull` arms an entry on the ack FIFO as well as the typed queue,
+    // and the teardown resolves the ack FIFO (as `{ ok: false }`) BEFORE it
+    // rejects the typed queue — and the ack path resolves null without looking
+    // at `ok` (meshcore-ts session.ts:638 vs :650, requestOrNull's ackEntry).
+    // advertPath.ts tells the two apart by the link: coresense's transports
+    // announce 'idle' on the bus (moving transportManager) before the library
+    // hears it, so a null read with the link gone is `failed`, not a miss.
+    // Reported as `notCached`, a pressed button toasted "no recent advert path"
+    // for a request the radio never heard, and the rail's automatic measurement
+    // spent its one attempt per contact on it.
+    //
+    // Order as BleTransport has it: the bus is told first, then the library.
     transportManager.setState('idle');
-    expect(await abandoned).toEqual({ status: 'notCached' });
+    s.transport.setState('idle');
+    expect(await abandoned).toMatchObject({ status: 'failed' });
 
     // The in-flight slot was released, so the same pubkey is askable again on
     // the next connect. A slot left behind would make every later caller await

@@ -805,8 +805,10 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       case 'notCached':
         // 200, not 404: "the radio has not heard this node lately" is the
         // expected answer for most contacts, and 404 would read as "no such
-        // contact". The row is left exactly as it was.
-        return c.json({ cached: false });
+        // contact". The row is left exactly as it was. `fromCache: true` is a
+        // miss served from the cooldown without asking the radio, which the
+        // rail's automatic measurement must not count as the radio's answer.
+        return c.json({ cached: false, fromCache: res.fromCache });
       case 'noPath':
         // Also 200 and also `cached: false` — `cached` answers "is there a hop
         // count", and there is not — but tagged, because this is not the miss

@@ -34,9 +34,13 @@ export function resetAdvertPathMemo(): void {
 /** What one attempt did, for the memo above.
  *
  *  `answered` — the radio was asked and said something about this node (a hop
- *    count, or "nothing cached"); that is the attempt the memo spends.
- *  `retryable` — no radio attached yet, a dropped link, or a contact that is
- *    not on the radio YET; a later visit can legitimately do better.
+ *    count, or "nothing cached"), or the server holds a real measurement for
+ *    it; that is the attempt the memo spends.
+ *  `retryable` — no radio attached yet, a dropped link, a contact that is not
+ *    on the radio YET, or a miss the server served from its re-ask cooldown
+ *    without asking the radio (`fromCache` on a `cached: false` — the attempt
+ *    that armed that cooldown may have timed out); a later visit can
+ *    legitimately do better.
  *  `skipped` — nothing was issued at all (no client/key, or this same contact
  *    is already in flight). */
 type Outcome = 'answered' | 'retryable' | 'skipped';
@@ -107,7 +111,9 @@ export function useAdvertPath(
           if (!res.cached) notify.info(describeMiss(res.reason));
           else notify.success(describe(res.hops));
         }
-        return 'answered';
+        // Only reachable unforced, i.e. from the automatic path: the button's
+        // `force` skips the cooldown that produces it.
+        return !res.cached && res.fromCache ? 'retryable' : 'answered';
       } catch (err) {
         // The radio not storing this contact is a state, not a fault — the app
         // knows plenty of nodes the radio doesn't — and it is a state one click
