@@ -43,8 +43,39 @@ export const MACRO_VARIABLES: MacroVariable[] = [
     example: '1700000000000',
     available: 'always',
   },
-  { name: 'peer_rssi', description: "The peer's last-heard RSSI", type: 'number', example: '-80', available: 'always' },
-  { name: 'peer_snr', description: "The peer's last-heard SNR", type: 'number', example: '7', available: 'always' },
+  {
+    name: 'peer_rssi',
+    // Dead, and not fixable here. The contact record the radio sends carries no
+    // link metrics at all: writeContactRespFrame emits pubkey, type, flags,
+    // out_path, name, last_advert, gps and lastmod, then stops
+    // (docs/firmware/MyMesh.cpp:165-186). PUSH_NEW_ADVERT (0x8A) reuses that
+    // exact frame; PUSH_ADVERT (0x80) carries strictly less — a bare
+    // [code][pubkey 32B] 33-byte frame (MyMesh.cpp:349-357). So nothing ever
+    // assigns Contact.rssi or Contact.snr: not meshcore-ts's contact builder,
+    // not applyLibContacts, which only merges pinned/muted over the lib's list.
+    // Both fields have sat unwritten on the type since before the lib swap.
+    // The fix is NOT to keep the sample context looking plausible — it is to
+    // attach last-heard metrics to a Contact upstream. RSSI reaches the app
+    // only on the 0x84/0x88/0x8e pushes; 0x88 is the one worth correlating,
+    // because it carries the whole received mesh packet and so identifies which
+    // contact the metrics belong to. Same correlation `rssi` needs; issue #33.
+    description: "The peer's last-heard RSSI. Not currently reported per contact — no substitute.",
+    type: 'number',
+    example: '-80',
+    available: 'always',
+    populated: false,
+  },
+  {
+    name: 'peer_snr',
+    // Same dead field as peer_rssi above, from the same frame that never carried
+    // it. On a reply the message-level `snr` IS populated and is the SNR of that
+    // peer's transmission, which is the closest working thing.
+    description: "The peer's last-heard SNR. Not currently reported per contact — on a reply, prefer snr.",
+    type: 'number',
+    example: '7',
+    available: 'always',
+    populated: false,
+  },
   { name: 'peer_hops', description: "The peer's last-heard hop count", type: 'number', example: '1', available: 'always' },
   { name: 'message_body', description: 'The replied-to message text', type: 'string', example: 'hello', available: 'reply' },
   {
@@ -75,16 +106,19 @@ export const MACRO_VARIABLES: MacroVariable[] = [
     // The radio reports RSSI per received frame, but only on the 0x84/0x88/0x8e
     // push frames — the V3 message frames carry SNR and two reserved bytes, so
     // nothing attaches RSSI to a Message and this resolves to the `?`
-    // placeholder on every real message even though the preview above shows a
-    // number. Say so rather than let someone build a macro around it and
-    // transmit "?dBm" — the same trap `hops` used to be. Use `snr`, which IS
-    // populated. (meshcore-ts 0.7.1 "fixed" this by reading a reserved byte and
+    // placeholder on every real message. Say so rather than let someone build a
+    // macro around it and transmit "?dBm" — the same trap `hops` used to be.
+    // Use `snr`, which IS populated. The Studio preview used to show -95 here
+    // regardless of that; `populated: false` below is what stops it — see
+    // blankNeverPopulated in the renderer's macros/lib/sampleContext.ts.
+    // (meshcore-ts 0.7.1 "fixed" this by reading a reserved byte and
     // reported 0 dBm on everything; 0.7.2 reverted it. Populating this for real
     // means correlating the 0x88 RX-log push — coresense issue #33.)
     description: "This message's RSSI. Not currently reported per message — prefer snr.",
     type: 'number',
     example: '-95',
     available: 'reply',
+    populated: false,
   },
   { name: 'snr', description: "This message's SNR", type: 'number', example: '5.5', available: 'reply' },
   {
@@ -135,6 +169,17 @@ export function getManifest(): MacroManifest {
   return { variables: MACRO_VARIABLES, filters: MACRO_FILTERS };
 }
 
+/**
+ * A fully-populated context, used as the fixture every engine-level consumer
+ * needs a complete shape from: the lint structure root, validateTemplate's
+ * trial render, and the render tests.
+ *
+ * Every key is deliberately non-null — including the `populated: false` ones,
+ * whose values here are fiction. Blanking them at this layer would weaken the
+ * lint root and turn validateTemplate's trial render into a different one from
+ * the template it is checking. The Studio preview is where the truth matters,
+ * and it blanks them itself: see the renderer's sampleContext.ts.
+ */
 export function buildSampleContext(): MacroContext {
   return {
     my_name: 'N0CALL',

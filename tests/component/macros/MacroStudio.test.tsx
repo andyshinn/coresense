@@ -158,6 +158,10 @@ describe('MacroStudio', () => {
     const caption = screen.getByTestId('preview-caption').textContent ?? '';
     expect(caption).toContain('Alice');
     expect(caption).toContain('2 hops'); // the sample path has 2 relay hops
+    expect(caption).toContain('5.5 snr'); // snr IS populated on a reply
+    // ...and rssi never is, so the preview blanks it. A caption slot for it
+    // could only render a dangling "—dBm"; it must stay out of the string.
+    expect(caption).not.toContain('dBm');
   });
 
   it('wraps the quick-var chips in a hover-card trigger', () => {

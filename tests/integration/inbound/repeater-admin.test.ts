@@ -5,7 +5,7 @@ import { adminSessions } from '../../../src/main/bridge/adminSession';
 import { bus } from '../../../src/main/events/bus';
 import { setProtocolSession } from '../../../src/main/protocol';
 import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
-import type { Contact } from '../../../src/shared/types';
+import type { Contact, RepeaterStatusSnapshot } from '../../../src/shared/types';
 import { makeTestSession } from '../../support/session-harness';
 
 const PK = 'aa'.repeat(32);
@@ -48,6 +48,18 @@ function loginSuccess(prefixHex: string, perms = 1): Buffer {
   Buffer.from(prefixHex, 'hex').copy(f, 2);
   return f;
 }
+// PUSH_LOGIN_SUCCESS v6+ form: [0x85][is_admin][6B prefix][tag u32][acl_perms][fw_ver].
+// Byte 1 is a plain boolean; byte 12 is the ACL byte whose low 2 bits are a role.
+function loginSuccessV6(prefixHex: string, aclPerms: number, isAdmin = 0): Buffer {
+  const f = Buffer.alloc(14);
+  f[0] = 0x85;
+  f[1] = isAdmin;
+  Buffer.from(prefixHex, 'hex').copy(f, 2);
+  Buffer.from('0badcafe', 'hex').copy(f, 8);
+  f[12] = aclPerms;
+  f[13] = 2; // firmware ver level
+  return f;
+}
 // RESP_SENT: [0x06][flood][expected_ack u32 LE][est u32 LE].
 function respSent(tagHex: string): Buffer {
   const f = Buffer.alloc(10);
@@ -70,12 +82,47 @@ function ownerAnonBody(now: number, name: string, owner: string): Buffer {
   text.copy(body, 4);
   return body;
 }
-// PUSH_STATUS_RESPONSE: [0x87][0][6B prefix][stats…].
-function statusResponse(prefixHex: string): Buffer {
-  const stats = Buffer.alloc(8);
-  stats.writeUInt32LE(4020, 0); // battery 4.02 V
-  stats.writeUInt32LE(2, 4); // tx queue 2
+// PUSH_STATUS_RESPONSE: [0x87][0][6B prefix][stats…], where "stats" is the
+// firmware's `struct RepeaterStats` memcpy'd onto the wire — 56 bytes on
+// v1.12.0+, 52 on older builds (no n_recv_errors). Built member-by-member to
+// match docs/firmware/MyMeshRepeater.cpp, so a future layout drift fails the
+// decoded-value assertions below instead of passing silently.
+function repeaterStats(): Buffer {
+  const s = Buffer.alloc(56);
+  s.writeUInt16LE(4020, 0); // batt_milli_volts → 4.02 V
+  s.writeUInt16LE(3, 2); // curr_tx_queue_len
+  s.writeInt16LE(-108, 4); // noise_floor
+  s.writeInt16LE(-92, 6); // last_rssi
+  s.writeUInt32LE(18432, 8); // n_packets_recv
+  s.writeUInt32LE(9211, 12); // n_packets_sent
+  s.writeUInt32LE(4321, 16); // total_air_time_secs
+  s.writeUInt32LE(432_000, 20); // total_up_time_secs → 5d 0h 0m
+  s.writeUInt32LE(120, 24); // n_sent_flood
+  s.writeUInt32LE(45, 28); // n_sent_direct
+  s.writeUInt32LE(900, 32); // n_recv_flood
+  s.writeUInt32LE(310, 36); // n_recv_direct
+  s.writeUInt16LE(2, 40); // err_events
+  s.writeInt16LE(28, 42); // last_snr ×4 → 7 dB
+  s.writeUInt16LE(310, 44); // n_direct_dups
+  s.writeUInt16LE(1400, 46); // n_flood_dups
+  s.writeUInt32LE(88_000, 48); // total_rx_air_time_secs
+  s.writeUInt32LE(17, 52); // n_recv_errors
+  return s;
+}
+function statusResponse(prefixHex: string, stats = repeaterStats()): Buffer {
   return Buffer.concat([Buffer.from([0x87, 0x00]), Buffer.from(prefixHex, 'hex'), stats]);
+}
+// ACL list body (inside PUSH_BINARY_RESPONSE, after the 4B tag): repeating
+// 7-byte [6B pubkey prefix][1B permissions] entries, one per companion. A
+// distinct prefix per entry keeps the all-zero-prefix padding filter from
+// dropping them.
+function aclPayload(perms: number[]): Buffer {
+  const body = Buffer.alloc(perms.length * 7);
+  perms.forEach((p, i) => {
+    body.fill(i + 1, i * 7, i * 7 + 6);
+    body[i * 7 + 6] = p;
+  });
+  return body;
 }
 // PUSH_TELEMETRY_RESPONSE: [0x8b][0][6B prefix][CayenneLPP].
 function telemetryResponse(prefixHex: string): Buffer {
@@ -136,6 +183,24 @@ describe('repeater administration', () => {
     expect(result.mode).toBe('remote');
     expect(result.effective).toBe('flood');
     expect(adminSessions.getSession(`c:${PK}`)?.role).toBe('admin');
+    // No ACL byte on the short form, so there is no role to decode.
+    expect(adminSessions.getSession(`c:${PK}`)?.aclRole).toBeNull();
+  });
+
+  it('decodes the login ACL byte into a role on the admin session', async () => {
+    const { adapter, receive } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
+
+    const p = adapter.repeaterLogin(`c:${PK}`, 'pw');
+    receive(loginSuccessV6(PREFIX, 0x02)); // PERM_ACL_READ_WRITE
+    await p;
+
+    const session = adminSessions.getSession(`c:${PK}`);
+    expect(session?.aclPermissionsBits).toBe(0x02);
+    // The renderer can't import meshcore-ts, so if main doesn't decode this
+    // nobody can: read-write is a role neither isAdmin nor isGuest expresses.
+    expect(session?.aclRole).toBe('readWrite');
+    expect(session?.role).toBe('guest'); // byte 1 is the plain isAdmin boolean
   });
 
   it('round-trips owner-info via the public anon OWNER request (RESP_SENT → BINARY_RESPONSE)', async () => {
@@ -168,16 +233,87 @@ describe('repeater administration', () => {
     const { adapter, receive } = makeTestSession();
     adapter.session.state.upsertContact(repeater());
 
-    const events: Array<{ contactKey: string }> = [];
-    const on = (s: { contactKey: string }) => events.push(s);
+    const events: RepeaterStatusSnapshot[] = [];
+    const on = (s: RepeaterStatusSnapshot) => events.push(s);
     bus.on('repeaterStatus', on);
     try {
       await adapter.sendStatusReq(`c:${PK}`);
       receive(statusResponse(PREFIX));
       expect(events.at(-1)?.contactKey).toBe(`c:${PK}`);
+
+      // coresense declares no field schema — StatusTab renders whatever the
+      // library decodes — so this is the only place the wire layout is pinned.
+      const fields = new Map(events.at(-1)?.fields.map((f) => [f.name, f.value]));
+      expect(fields.get('Battery')).toBe(4.02);
+      expect(fields.get('TX queue')).toBe(3);
+      expect(fields.get('Noise floor')).toBe(-108);
+      expect(fields.get('Last RSSI')).toBe(-92);
+      expect(fields.get('RX packets')).toBe(18432);
+      expect(fields.get('TX packets')).toBe(9211);
+      expect(fields.get('TX airtime')).toBe(4321);
+      expect(fields.get('Uptime')).toBe('5d 0h 0m');
+      expect(fields.get('Error events')).toBe(2);
+      expect(fields.get('Last SNR')).toBe(7);
+      expect(fields.get('Direct dups')).toBe(310);
+      expect(fields.get('Flood dups')).toBe(1400);
+      expect(fields.get('RX airtime')).toBe(88_000);
+      expect(fields.get('RX errors')).toBe(17);
+      // There is no such member in `struct RepeaterStats`; the row that used to
+      // carry this label was printing n_packets_recv.
+      expect(fields.has('Free queue')).toBe(false);
     } finally {
       bus.off('repeaterStatus', on);
     }
+  });
+
+  it('degrades a legacy (pre-v1.12.0) 52-byte status blob instead of dropping it', async () => {
+    const { adapter, receive } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
+
+    const events: RepeaterStatusSnapshot[] = [];
+    const on = (s: RepeaterStatusSnapshot) => events.push(s);
+    bus.on('repeaterStatus', on);
+    try {
+      await adapter.sendStatusReq(`c:${PK}`);
+      receive(statusResponse(PREFIX, repeaterStats().subarray(0, 52)));
+
+      const names = events.at(-1)?.fields.map((f) => f.name) ?? [];
+      expect(names).toContain('RX airtime');
+      expect(names).not.toContain('RX errors'); // the member that firmware lacks
+      // The raw payload is always carried, so the UI can fall back to hex.
+      expect(events.at(-1)?.payloadHex).toHaveLength(104);
+    } finally {
+      bus.off('repeaterStatus', on);
+    }
+  });
+
+  it('surfaces the decoded ACL role for every entry, not just admin/guest', async () => {
+    const { adapter, transport, receive } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
+    adminSessions.setSession({
+      contactKey: `c:${PK}`,
+      publicKeyHex: PK,
+      mode: 'remote',
+      role: 'admin',
+      permissionsBits: 1,
+      aclPermissionsBits: 3,
+      aclRole: 'admin',
+      firmwareVerLevel: 1,
+      loggedInAt: Date.now(),
+    });
+
+    const p = adapter.repeaterRequestAcl(`c:${PK}`);
+    await tick();
+    expect(transport.sent.some((f) => f[0] === 0x32)).toBe(true); // CMD_SEND_BINARY_REQ
+    receive(respSent('feedface'));
+    await tick();
+    receive(binaryResponse('feedface', aclPayload([1, 2, 3, 0x80])));
+    const entries = await p;
+
+    // The low 2 bits are a role VALUE, so read-only(1) and read-write(2) are
+    // roles in their own right — isAdmin/isGuest cannot express them.
+    expect(entries.map((e) => e.role)).toEqual(['readOnly', 'readWrite', 'admin', 'guest']);
+    expect(entries.map((e) => e.permissions)).toEqual([1, 2, 3, 0x80]);
   });
 
   it('emits repeaterTelemetry on PUSH_TELEMETRY_RESPONSE for a known sender', async () => {

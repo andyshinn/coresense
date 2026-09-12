@@ -15,7 +15,7 @@ const eqAutoAdd = (a: AutoAddConfig, b: AutoAddConfig) =>
   a.room === b.room &&
   a.sensor === b.sensor &&
   a.overwriteOldest === b.overwriteOldest &&
-  a.maxHops === b.maxHops &&
+  a.radioMaxHops === b.radioMaxHops &&
   a.autoRefreshContacts === b.autoRefreshContacts &&
   a.showPublicKeys === b.showPublicKeys;
 
@@ -45,7 +45,7 @@ export function ContactSettingsSection({ client }: SectionProps) {
     >
       <Row
         label="Mode"
-        description="All adds every received advert; Selected only adds the kinds you tick below."
+        description="All adds every received advert; Selected only adds the kinds you tick below. To add nothing automatically, choose Selected and untick all four."
         changed={draft.mode !== saved.mode}
         control={
           <Select<'all' | 'selected'>
@@ -115,14 +115,14 @@ export function ContactSettingsSection({ client }: SectionProps) {
       />
       <Row
         label="Auto-add max hops (0-63)"
-        description="Adverts with more hops than this are ignored. Leave 0 for no limit."
-        changed={(draft.maxHops ?? 0) !== (saved.maxHops ?? 0)}
+        description="The radio ignores adverts heard over more hops than this. Leave 0 for no limit."
+        changed={draft.radioMaxHops !== saved.radioMaxHops}
         control={
           <NumberInput
-            value={draft.maxHops ?? 0}
+            value={draft.radioMaxHops}
             min={0}
             max={63}
-            onChange={(v) => setDraft((s) => ({ ...s, maxHops: v === 0 ? null : v }))}
+            onChange={(radioMaxHops) => setDraft((s) => ({ ...s, radioMaxHops }))}
           />
         }
       />

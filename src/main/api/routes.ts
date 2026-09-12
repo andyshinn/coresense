@@ -366,7 +366,11 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       }
       if (typeof body.sharePositionInAdvert === 'boolean' && body.sharePositionInAdvert !== current.sharePositionInAdvert) {
         // sharePositionInAdvert lives in SET_OTHER_PARAMS along with telemetry
-        // policy — re-emit the full frame with current telemetry values.
+        // policy — re-emit the full frame with current telemetry values. The
+        // manual-add byte is deliberately omitted so the library resends the
+        // value it mirrored from RESP_SELF_INFO: byte 1 of this command is the
+        // radio's auto-add master switch, and passing anything else here would
+        // reconfigure auto-add as a side effect of saving an advert setting.
         const policy = holder.getTelemetryPolicy();
         const ok = await session.setOtherParams(policy, body.sharePositionInAdvert);
         if (!ok) return c.json({ error: 'SET_OTHER_PARAMS rejected by radio' }, 503);
@@ -381,21 +385,70 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const body = (await c.req.json().catch(() => null)) as AutoAddConfig | null;
     if (!body) return c.json({ error: 'invalid body' }, 400);
     const holder = stateHolder();
-    // App-side fields (mode, maxHops, pull-to-refresh, show-pubkeys) are
-    // persisted regardless of connection state. Wire flags only push when
-    // connected.
-    holder.setAutoAddConfig(body);
-    emit.autoAddConfig(body);
-    if (transportManager.getState().state === 'connected') {
+    const current = holder.getAutoAddConfig();
+    const connected = transportManager.getState().state === 'connected';
+    // Everything that decides what goes ON THE WIRE is compared against the
+    // library's mirror, never against the holder. The holder is written
+    // optimistically below — while disconnected, and even when the radio
+    // rejects the frame — so a "did this change?" test against it answers "no"
+    // for edits the radio never received, and no later save ever retries them.
+    // The mirror only moves when the radio reports a value or a command
+    // actually reached the wire. See SessionAdapter.getLibAutoAddConfig.
+    const session = connected ? protocolSession() : null;
+    const onRadio = session?.getLibAutoAddConfig() ?? null;
+    // `mode` is the user's edit of manual_add_contacts bit 0. Rewrite only that
+    // bit: the rest of the byte is unused by the firmware today, and clobbering
+    // bits we don't understand is exactly the class of bug this whole change is
+    // undoing. The inbound body's own manualAddContacts is ignored — the panel
+    // edits `mode`, not the raw byte.
+    const baseManualAdd = onRadio?.manualAddContacts ?? current.manualAddContacts;
+    const nextManualAdd = body.mode === 'selected' ? baseManualAdd | 1 : baseManualAdd & ~1;
+    const next: AutoAddConfig = { ...body, manualAddContacts: nextManualAdd };
+    // App-side fields (pull-to-refresh, show-pubkeys) are persisted regardless
+    // of connection state. Wire flags only push when connected.
+    holder.setAutoAddConfig(next);
+    emit.autoAddConfig(next);
+    if (session && onRadio) {
       const flags = {
         chat: body.mode === 'all' ? true : body.chat,
         repeater: body.mode === 'all' ? true : body.repeater,
         room: body.mode === 'all' ? true : body.room,
         sensor: body.mode === 'all' ? true : body.sensor,
         overwriteOldest: body.overwriteOldest,
+        // Omitting this emits the 2-byte SET, which the firmware's `len >= 3`
+        // guard leaves autoadd_max_hops untouched. Send the 3-byte form only
+        // when the value differs from the one the radio is holding, so a save
+        // can't reset a limit set on the radio itself — and so an edit made
+        // while disconnected still goes out on the next connected save.
+        radioMaxHops: body.radioMaxHops !== onRadio.radioMaxHops ? body.radioMaxHops : undefined,
       };
-      const ok = await protocolSession().setAutoAddConfig(flags);
+      const ok = await session.setAutoAddConfig(flags);
       if (!ok) return c.json({ error: 'SET_AUTO_ADD_CONFIG rejected by radio' }, 503);
+      // The library's setAutoAddConfig() only encodes the frame — it leaves its
+      // own mirror untouched. Write through, or the setOtherParams below re-emits
+      // `autoAddConfig` built from a mirror that still holds the PREVIOUS kind
+      // flags, and wireSessionEvents persists those right back over the selection
+      // this request just saved.
+      session.mirrorAutoAddConfig({
+        mode: next.mode,
+        chat: flags.chat,
+        repeater: flags.repeater,
+        room: flags.room,
+        sensor: flags.sensor,
+        overwriteOldest: flags.overwriteOldest,
+        radioMaxHops: next.radioMaxHops,
+      });
+      // Then the master switch, and only when it actually changes. Order
+      // matters: turning bit 0 on before the kind flags land would leave a
+      // window where the radio honours the PREVIOUS selection. It also has to
+      // be a separate command — the bit lives in CMD_SET_OTHER_PARAMS, which
+      // carries the telemetry policy and advert-location policy along with it,
+      // so sending it on every save would push those unrelated prefs too.
+      if (nextManualAdd !== onRadio.manualAddContacts) {
+        const share = holder.getDeviceIdentity().sharePositionInAdvert;
+        const otherOk = await session.setOtherParams(holder.getTelemetryPolicy(), share, nextManualAdd);
+        if (!otherOk) return c.json({ error: 'SET_OTHER_PARAMS (auto-add mode) rejected by radio' }, 503);
+      }
     }
     return c.json({ ok: true });
   });
@@ -410,6 +463,9 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     emit.telemetryPolicy(body);
     if (transportManager.getState().state === 'connected') {
       const share = holder.getDeviceIdentity().sharePositionInAdvert;
+      // Third argument omitted on purpose — see the identity route above: the
+      // library round-trips the radio's own manual-add byte so a telemetry save
+      // can't reconfigure auto-add.
       const ok = await protocolSession().setOtherParams(body, share);
       if (!ok) return c.json({ error: 'SET_OTHER_PARAMS rejected by radio' }, 503);
     }

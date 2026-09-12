@@ -166,23 +166,31 @@ export function buildActionItems({
     });
   }
 
-  list.push({
-    id: 'action:scanRadios',
-    label: 'Scan for radios',
-    hint: 'BLE',
-    group: 'action',
-    groupLabel: 'Actions',
-    icon: Radio,
-    keywords: 'scan ble discover',
-    run: () => {
-      if (!client) return;
-      void api.scan(client).catch((err) => {
-        notify.error(`Scan failed: ${(err as Error).message}`, err);
-      });
-      setActiveKey('tool:bleconnect');
-      close();
-    },
-  });
+  // Not offered while a radio is attached. Only one BLE link exists at a time,
+  // so switching radios means disconnecting first — and the transport refuses a
+  // scan with a peripheral held rather than clobber the live link's transport
+  // state. The BLE panel's own ScanButton is already gated this way (it renders
+  // only when the state isn't 'connected'); this item was the one ungated path
+  // to it.
+  if (transportState !== 'connected') {
+    list.push({
+      id: 'action:scanRadios',
+      label: 'Scan for radios',
+      hint: 'BLE',
+      group: 'action',
+      groupLabel: 'Actions',
+      icon: Radio,
+      keywords: 'scan ble discover',
+      run: () => {
+        if (!client) return;
+        void api.scan(client).catch((err) => {
+          notify.error(`Scan failed: ${(err as Error).message}`, err);
+        });
+        setActiveKey('tool:bleconnect');
+        close();
+      },
+    });
+  }
 
   if (owner) {
     list.push({

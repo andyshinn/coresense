@@ -57,14 +57,40 @@ export async function flushContactSyncEmits(): Promise<void> {
 
 /** Feed a raw observed contact record into the sqlite discovered pool and emit
  *  the refreshed discovered list. Mirrors the old features/contacts ingestContact
- *  discovery path. `source` is 'sync' (on-radio handshake) or 'advert' (heard live). */
+ *  discovery path.
+ *
+ *  `source` says how we came by the record, NOT whether the radio holds it —
+ *  the two are independent facts and neither implies the other. 'sync' is a
+ *  GET_CONTACTS enumeration or a PUSH_PATH_UPDATED re-fetch; 'advert' is either
+ *  a PUSH_ADVERT (0x80) re-fetch, where the radio DOES hold the contact and may
+ *  have auto-added it microseconds ago, or a PUSH_NEW_ADVERT (0x8a), which
+ *  since meshcore-ts 0.8.0 is understood to mean the radio REFUSED to store the
+ *  node. So on-radio membership has to be established separately, below. */
 export function ingestObservedContact(record: Models.ContactRecord, source: Models.ContactSource): void {
-  // A brand-new advert (no existing row) is heard-live but NOT on the radio yet,
-  // so default to false when get() is null — only an existing row with on_radio=1
-  // counts as on-radio. (`?.on_radio !== 0` would wrongly treat null as on-radio.)
-  const onRadio = source === 'sync' ? true : discoveredStore.get(record.publicKeyHex)?.on_radio === 1;
-  const isNewDiscovery = source === 'advert' && discoveredStore.get(record.publicKeyHex) === null;
+  const existingRow = discoveredStore.get(record.publicKeyHex);
+  // Membership, cheapest reliable answer first:
+  //   - a bulk sync is the radio listing its own store, so 'sync' is on-radio;
+  //   - otherwise ask the contact list, which the library has ALREADY updated:
+  //     for an auto-added contact it emits `contacts` (→ applyLibContacts →
+  //     holder) before this `contactObserved`, so the answer is knowable here
+  //     even though the row below doesn't exist yet. Deriving it from the row
+  //     alone left the newest auto-added contact stuck in the Contact Manager's
+  //     Discovered tab while the same contact sat in the main contact list;
+  //   - failing both, fall back to the row's stored flag. A refused (0x8a)
+  //     node is in neither, so it correctly stays off-radio.
+  const onRadio =
+    source === 'sync' ||
+    stateHolder()
+      .getContacts()
+      .some((c) => c.publicKeyHex === record.publicKeyHex) ||
+    existingRow?.on_radio === 1;
+  const isNewDiscovery = source === 'advert' && existingRow === null;
 
+  // `heardLive` is our-clock reception, not membership: a 0x8a advert is a
+  // fully demodulated frame, so we demonstrably heard the node transmit even
+  // though the radio won't store it. The Discovered tab's "heard within" filter
+  // and default sort are built on last_heard_ms, and those refused nodes are
+  // exactly what that tab is for — not advancing it would bury them forever.
   discoveredStore.upsert(record, { onRadio, nowMs: Date.now(), heardLive: source === 'advert' });
   // One line per ingested contact. Below the default level (debug) on purpose:
   // a 300-contact sync would otherwise bury everything else. Turn it on with
