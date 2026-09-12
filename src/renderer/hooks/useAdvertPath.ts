@@ -46,6 +46,21 @@ function describe(hops: number | undefined): string {
   return `Heard ${hops} hop${hops === 1 ? '' : 's'} away`;
 }
 
+/** The two ways the radio can answer without a hop count.
+ *
+ *  Both are informational, but they are different facts and only one of them is
+ *  about us not having asked recently enough. `noPath` means the radio's ring
+ *  holds this node and cached the flood / no-path sentinel for it — the same
+ *  reply that, before meshcore-ts 0.8.1 made the sentinel visible, was toasted
+ *  as "Heard direct — 0 hops" for a node no path is known to. Saying "no recent
+ *  advert path" for it would be wrong twice over: the radio heard it, and the
+ *  same reply can move the row's Last heard a moment later. */
+function describeMiss(reason: 'noPath' | undefined): string {
+  return reason === 'noPath'
+    ? 'Radio heard this node but cached no path for it — hop count unknown'
+    : 'Radio has no recent advert path for this node';
+}
+
 /** Measure a contact's INBOUND hop count by asking the radio for its cached
  *  advert path (#45 item 7).
  *
@@ -89,7 +104,7 @@ export function useAdvertPath(
       try {
         const res = await api.getAdvertPath(client, `c:${pubkey}`, { force: !silent });
         if (!silent) {
-          if (!res.cached) notify.info('Radio has no recent advert path for this node');
+          if (!res.cached) notify.info(describeMiss(res.reason));
           else notify.success(describe(res.hops));
         }
         return 'answered';

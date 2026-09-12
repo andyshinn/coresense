@@ -132,6 +132,45 @@ describe('POST /api/contacts/:key/advert-path', () => {
     expect(row()?.observed_hops).toBe(4);
   });
 
+  // path_len 0xFF is the radio's OTHER empty answer: the ring holds this node,
+  // but what it cached is the flood / no-path sentinel. meshcore-ts reports it
+  // as `hops: 0` with an empty path — indistinguishable from a direct reception
+  // except for the flag — so the whole chain has to branch on `flood` before it
+  // reads `hops`, or a node no path is known to is filed, sorted and toasted as
+  // "heard direct".
+  it('answers 200 { cached: false, reason: noPath } for the no-path sentinel', async () => {
+    transportManager.setState('connected');
+    seed();
+    spySession({
+      path: () => Promise.resolve({ recvTimestampUnix: 1_760_000_000, hops: 0, pathHex: '', flood: true }),
+    });
+
+    const res = await post();
+
+    expect(res.status).toBe(200);
+    // Tagged rather than folded into the miss above: the radio DID hear this
+    // node, and the reply's reception time can move the row's Last heard, so
+    // "no recent advert path" would be contradicted on screen.
+    expect(await res.json()).toEqual({ cached: false, reason: 'noPath', recvTimestampUnix: 1_760_000_000 });
+    expect(row()?.observed_hops).toBe(-1);
+    expect(row()?.observed_path_hex).toBe('');
+    expect(row()?.observed_at_unix).toBe(0);
+  });
+
+  it('leaves an older real measurement alone when the radio answers with no path', async () => {
+    transportManager.setState('connected');
+    seed();
+    discoveredStore.setObservedPath(PK, { hops: 4, pathHex: 'ccdd', recvUnix: 1_759_000_000 });
+    spySession({
+      path: () => Promise.resolve({ recvTimestampUnix: 1_760_000_000, hops: 0, pathHex: '', flood: true }),
+    });
+
+    await post();
+
+    expect(row()?.observed_hops).toBe(4);
+    expect(row()?.observed_path_hex).toBe('ccdd');
+  });
+
   it('refuses without a radio instead of hanging on a dead link', async () => {
     transportManager.setState('idle');
     seed();
@@ -284,6 +323,23 @@ describe('POST /api/contacts/:key/advert-path — the reception time is a last-h
     await post();
 
     expect(row()?.last_heard_ms).toBe(ourReception);
+  });
+
+  // The sentinel says nothing about the RECEPTION — only that no path was
+  // recorded for it — so the timestamp is still firmware-authoritative proof
+  // that the radio heard this node, and is the only thing worth keeping from a
+  // reply that carries no hop count.
+  it('adopts the reception time even when the cached path is the no-path sentinel', async () => {
+    transportManager.setState('connected');
+    seed();
+    const recv = minutesAgoUnix(10);
+    spySession({ path: () => Promise.resolve({ recvTimestampUnix: recv, hops: 0, pathHex: '', flood: true }) });
+
+    await post();
+
+    expect(row()?.last_heard_ms).toBe(recv * 1000);
+    // …and only that: the hop columns stay unmeasured.
+    expect(row()?.observed_hops).toBe(-1);
   });
 
   // A radio whose RTC was never set reports something near the epoch, and one

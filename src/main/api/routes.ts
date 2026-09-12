@@ -751,6 +751,14 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
         // expected answer for most contacts, and 404 would read as "no such
         // contact". The row is left exactly as it was.
         return c.json({ cached: false });
+      case 'noPath':
+        // Also 200 and also `cached: false` — `cached` answers "is there a hop
+        // count", and there is not — but tagged, because this is not the miss
+        // above: the radio DOES hold an entry for this node, with a reception
+        // time real enough to have advanced its last-heard, and only the path
+        // is the 0xFF flood sentinel. Telling the user "no recent advert path"
+        // while the rail's Last heard moves under them would contradict itself.
+        return c.json({ cached: false, reason: 'noPath', recvTimestampUnix: res.recvUnix });
       default:
         return c.json({
           cached: true,

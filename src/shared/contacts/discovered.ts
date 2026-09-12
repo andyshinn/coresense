@@ -51,7 +51,12 @@ export interface DiscoveredContact {
    *  full-key fidelity. */
   observedHops?: number;
   /** The path bytes that advert arrived over, hex. Empty for a 0-hop (direct)
-   *  reception, which is why `observedHops` — never this — is the presence test. */
+   *  reception, which is why `observedHops` — never this — is the presence test.
+   *
+   *  The firmware's other empty path, the 0xFF flood / no-path sentinel, is
+   *  never written here at all: the radio reports it as zero hops with an empty
+   *  path, and state/advertPath.ts drops it on the `flood` flag rather than
+   *  filing it as a direct reception. */
   observedPathHex?: string;
   /** When the RADIO received that advert, ms. Its RTC, not our clock and not the
    *  advertising node's clock (see lastHeardMs / lastAdvertMs respectively). A
@@ -126,9 +131,11 @@ export function formatHops(hops: number | undefined, opts?: { direct?: string })
  *                                                   a send is flooded. A fact
  *                                                   about routing.
  *    formatObservedHops(undefined) → "not measured" nobody has asked the radio,
- *                                                   or its 16-slot advert-path
+ *                                                   its 16-slot advert-path
  *                                                   ring no longer holds this
- *                                                   node. A fact about us.
+ *                                                   node, or it holds it with
+ *                                                   no path cached (path_len
+ *                                                   0xFF). A fact about us.
  *
  *  Printing "Flood" here would claim we know something about the inbound path
  *  that we do not, and blanking it would re-open the missing-vs-zero confusion

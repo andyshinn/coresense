@@ -41,9 +41,21 @@ export type AdvertPathResult =
   /** A real answer. `fromCache` means it came from the sqlite mirror under the
    *  cooldown above rather than from a fresh radio round trip. */
   | { status: 'measured'; hops: number; pathHex: string; recvUnix: number; fromCache: boolean }
-  /** The radio has no advert path for this node — the normal answer for 15 of
-   *  every 16 contacts, and not an error. */
+  /** The radio's advert-path ring holds no entry for this node — the normal
+   *  answer for 15 of every 16 contacts, and not an error. */
   | { status: 'notCached' }
+  /** The ring DOES hold this node, but what it cached is the flood / no-path
+   *  sentinel (path_len 0xFF): a reception we can date but cannot count hops
+   *  for.
+   *
+   *  Its own status rather than a second way to say `notCached`, for two
+   *  reasons. It is a different fact — "the radio heard this node and recorded
+   *  no path" versus "the radio has nothing about this node at all" — and,
+   *  since meshcore-ts 0.8.1, a distinguishable one. And it behaves
+   *  differently here: the reception time is real and still advances
+   *  last_heard_ms, so answering "nothing cached" while the rail's Last heard
+   *  visibly moves would contradict itself on screen. */
+  | { status: 'noPath'; recvUnix: number }
   /** The radio doesn't store this contact, so there is nothing to ask about. */
   | { status: 'notOnRadio' }
   | { status: 'offline' }
@@ -74,7 +86,12 @@ export function resetAdvertPathState(): void {
 
 const toPubkey = (keyOrPubkey: string) => (keyOrPubkey.startsWith('c:') ? keyOrPubkey.slice(2) : keyOrPubkey);
 
-/** Answer from the sqlite mirror, without touching the radio. */
+/** Answer from the sqlite mirror, without touching the radio.
+ *
+ *  Only `measured` and `notCached` can come out of it: neither a miss nor the
+ *  no-path sentinel writes a row (deliberately — neither is a measurement), so
+ *  a repeat asked inside the cooldown reports what the mirror HOLDS rather than
+ *  what the radio last said. */
 function stored(pubkey: string): AdvertPathResult {
   const row = discoveredStore.get(pubkey);
   // >= 0, not truthiness: 0 hops is a measurement, not a miss.
@@ -99,6 +116,26 @@ export function adoptableHeardMs(recvUnix: number, nowMs: number = Date.now()): 
   return ms;
 }
 
+/** Fold a radio-reported reception time into `last_heard_ms`, reporting whether
+ *  the column actually moved.
+ *
+ *  The reply's reception time is a real last-heard, and often the only one we
+ *  will ever get for this node: the radio hears adverts while we are detached
+ *  and a GET_CONTACTS walk (heardLive: false) deliberately never advances the
+ *  column, so without this a node the radio heard minutes ago reads "never" and
+ *  is dropped from every Last-heard window.
+ *
+ *  Shared by BOTH answers that carry a timestamp. The flood sentinel says
+ *  nothing about the reception — only that no path was recorded for it — so
+ *  refusing its timestamp would throw away firmware-authoritative proof of a
+ *  reception for a reason that has nothing to do with reception. Range-checked
+ *  because the value is the radio's RTC, and markHeard is monotonic, so an
+ *  unbelievable one is a no-op rather than a step backwards. */
+function adoptHeard(pubkey: string, recvUnix: number): boolean {
+  const heard = adoptableHeardMs(recvUnix);
+  return heard !== null && discoveredStore.markHeard(pubkey, heard);
+}
+
 async function ask(pubkey: string, key: string): Promise<AdvertPathResult> {
   // Stamp before the round trip, not after. A command that times out is exactly
   // the one we must not re-issue in a tight loop, and the lib's own request
@@ -106,24 +143,33 @@ async function ask(pubkey: string, key: string): Promise<AdvertPathResult> {
   lastAsked.set(pubkey, Date.now());
   try {
     const p = await protocolSession().getAdvertPath(key);
-    // null is "the ring doesn't hold this node" (and, indistinguishably, "the
-    // cached path was OUT_PATH_UNKNOWN" — see SessionAdapter.getAdvertPath).
-    // Nothing is written: a miss must not overwrite an older real measurement.
+    // null is RESP_ERR NOT_FOUND — the ring doesn't hold this node — and since
+    // meshcore-ts 0.8.1 that is ALL it is: a flood-sentinel reply now decodes
+    // successfully and arrives flagged (below) instead of failing a length
+    // guard and returning null like a miss. Nothing is written: a miss must not
+    // overwrite an older real measurement.
     if (!p) return { status: 'notCached' };
+    // path_len 0xFF: the entry exists, but the path it cached is the flood /
+    // no-path sentinel. The library reports that as `hops: 0` with an empty
+    // path — there are no path bytes on the wire to report — plus `flood`, so
+    // this branch MUST come before `hops` is read. Skipping it files a node we
+    // know no path to as "heard direct, 0 hops", which then wins the Hops
+    // column (cellHops prefers the inbound number), outlives the query in
+    // sqlite, and toasts a measurement that never happened. The flag is only
+    // ever present-and-true, so test truthiness, never `=== false`.
+    if (p.flood) {
+      // The reception is real even though the path is unknown, so the timestamp
+      // is still worth having; the hop columns are left exactly as they were.
+      if (adoptHeard(pubkey, p.recvTimestampUnix)) scheduleDiscoveredEmit();
+      log.debug(`advert path ${pubkey.slice(0, 12)}: entry cached with no path`);
+      return { status: 'noPath', recvUnix: p.recvTimestampUnix };
+    }
     const rowChanged = discoveredStore.setObservedPath(pubkey, {
       hops: p.hops,
       pathHex: p.pathHex,
       recvUnix: p.recvTimestampUnix,
     });
-    // The reply's reception time is a real last-heard, and often the only one we
-    // will ever get for this node: the radio hears adverts while we are detached
-    // and a GET_CONTACTS walk (heardLive: false) deliberately never advances the
-    // column, so without this a node the radio heard minutes ago reads "never"
-    // and is dropped from every Last-heard window. Range-checked because the
-    // value is the radio's RTC; markHeard is monotonic, so a stale one is a
-    // no-op rather than a step backwards.
-    const heard = adoptableHeardMs(p.recvTimestampUnix);
-    const bumped = heard !== null && discoveredStore.markHeard(pubkey, heard);
+    const bumped = adoptHeard(pubkey, p.recvTimestampUnix);
     if (rowChanged || bumped) scheduleDiscoveredEmit();
     log.debug(`advert path ${pubkey.slice(0, 12)}: ${p.hops} hops`);
     return { status: 'measured', hops: p.hops, pathHex: p.pathHex, recvUnix: p.recvTimestampUnix, fromCache: false };
@@ -190,7 +236,16 @@ export async function fetchAdvertPath(keyOrPubkey: string, opts: { force?: boole
  *  and fetchAdvertPath already refuses when disconnected, throttles per pubkey
  *  and de-duplicates in flight. A node that is not on the radio (the common case
  *  for a brand-new advert we did not auto-add) costs nothing — the on-radio
- *  pre-check answers without a command. */
+ *  pre-check answers without a command.
+ *
+ *  Those guards carry more weight than they look like they do. Since meshcore-ts
+ *  0.8.x `contactObserved(record, 'advert')` fires for every bare PUSH_ADVERT
+ *  (0x80) re-advert, not only for a PUSH_NEW_ADVERT, so on a busy mesh this is
+ *  called continuously — which is what the column wants, but it means the
+ *  per-pubkey cooldown (one command per node per minute, stamped BEFORE the
+ *  round trip) and the in-flight map are the only things standing between a
+ *  re-advert storm and a companion link full of CMD_GET_ADVERT_PATH. Keep this
+ *  function free of per-call work of its own. */
 export function sampleAdvertPathAfterAdvert(pubkey: string): void {
   // fetchAdvertPath resolves a status for everything it can foresee; the catch
   // is for what it can't, because an unhandled rejection here would be raised

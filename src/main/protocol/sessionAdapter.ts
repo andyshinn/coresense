@@ -97,11 +97,19 @@ export class SessionAdapter {
    *  key to a full pubkey through the radio's contact map and raises when it
    *  misses. Call hasRadioContact() first rather than catching that (#45 item 7).
    *
-   *  Note the library cannot distinguish "cached as flood/unknown" from "not
-   *  cached": decodeAdvertPath has no 0xFF branch, so an OUT_PATH_UNKNOWN reply
-   *  computes a 252-byte path, fails its own length guard and returns null like
-   *  a miss. Both surface here as null, which is why the UI says "no recent
-   *  advert path" rather than "flood". */
+   *  Since meshcore-ts 0.8.1 that null means one thing only — RESP_ERR
+   *  NOT_FOUND, the ring has no entry. The other empty answer, a reply whose
+   *  path_len is the 0xFF flood / no-path sentinel, now decodes successfully
+   *  and is flagged: `{ hops: 0, pathHex: '', flood: true }`. (Through 0.7.2 it
+   *  arrived as null instead, because unpacking 0xFF claimed 252 path bytes and
+   *  failed decodeAdvertPath's own length guard; 0.8.0 special-cased the length
+   *  but not the meaning, so it came back as a bare `hops: 0` indistinguishable
+   *  from a genuine direct reception.)
+   *
+   *  So a caller must branch on `flood` BEFORE reading `hops` — those zero hops
+   *  mean "no path known", not "heard direct". The flag is only ever
+   *  present-and-true, so test truthiness. state/advertPath.ts is where that
+   *  branch lives, and it is the only caller. */
   getAdvertPath(key: string) {
     return this.session.getAdvertPath(key);
   }

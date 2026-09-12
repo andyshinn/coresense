@@ -153,6 +153,23 @@ describe('ContactDetail measure button', () => {
     expect(notify.error).not.toHaveBeenCalled();
   });
 
+  // The radio's other empty answer: it holds an entry for this node and cached
+  // no path for it. Before meshcore-ts 0.8.1 made the sentinel visible this
+  // toasted "Heard direct — 0 hops"; calling it a miss would be only slightly
+  // less wrong, because the same reply can move the row's Last heard.
+  it('separates "no path cached" from "nothing cached"', async () => {
+    seed();
+    getAdvertPath.mockResolvedValue({ cached: false, reason: 'noPath', recvTimestampUnix: 1_760_000_000 });
+    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+
+    fireEvent.click(button());
+
+    await waitFor(() =>
+      expect(notify.info).toHaveBeenCalledWith('Radio heard this node but cached no path for it — hop count unknown'),
+    );
+    expect(notify.error).not.toHaveBeenCalled();
+  });
+
   it('tells the user to add a discovered-only contact to the radio first', async () => {
     seed({ onRadio: false });
     getAdvertPath.mockRejectedValue(new ApiError('contact is not on the radio', 422, 'NOT_ON_RADIO'));

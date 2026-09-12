@@ -37,16 +37,22 @@ function newAdvertFrame(pubkeyHex: string, name: string): Buffer {
 }
 
 // RESP_ADVERT_PATH (0x16): [0x16][recv_timestamp u32 LE][path_len u8][path].
-// path_len is the packed byte: bits 5-0 hop count, bits 7-6 hashSize-1.
-function advertPathReply(recvUnix: number, hops: number, pathHex = ''): Buffer {
+// path_len is the packed byte: bits 5-0 hop count, bits 7-6 hashSize-1 — except
+// for the one value below, which is not a length at all. Written raw so a test
+// can put the sentinel on the wire.
+function advertPathReply(recvUnix: number, pathLenByte: number, pathHex = ''): Buffer {
   const path = Buffer.from(pathHex, 'hex');
   const frame = Buffer.alloc(6 + path.length);
   frame[0] = 0x16;
   frame.writeUInt32LE(recvUnix, 1);
-  frame[5] = hops;
+  frame[5] = pathLenByte;
   path.copy(frame, 6);
   return frame;
 }
+
+// OUT_PATH_UNKNOWN: "this entry has no path", not a hop count. No path bytes
+// follow it, so the frame is a valid six-byte reply.
+const PATH_LEN_FLOOD = 0xff;
 
 const advertPathCommands = (s: TestSession) => s.transport.sent.filter((f) => f[0] === 0x2a);
 
@@ -84,7 +90,7 @@ describe('advert-triggered advert-path sampling', () => {
     s.receive(newAdvertFrame(PK, 'Erin'));
     await vi.waitFor(() => expect(advertPathCommands(s)).toHaveLength(1));
 
-    s.receive(advertPathReply(1_760_000_000, 2, 'aabb'));
+    s.receive(advertPathReply(1_760_000_000, 0x02, 'aabb'));
 
     await vi.waitFor(() => expect(discoveredStore.get(PK)?.observed_hops).toBe(2));
     expect(discoveredStore.get(PK)?.observed_path_hex).toBe('aabb');
@@ -93,15 +99,47 @@ describe('advert-triggered advert-path sampling', () => {
     expect(discoveredStore.get(PK)?.out_path_len).toBe(0xff);
   });
 
+  // The two frames below are the pair this whole branch turns on. path_len 0x00
+  // and path_len 0xFF both carry zero path bytes and both reach us as hops 0
+  // with an empty path; only meshcore-ts 0.8.1's `flood` flag separates them.
+  // One is the best answer the radio can give and the other is no answer at all,
+  // so they are pinned side by side — a fix that keys on the empty path instead
+  // of the flag passes one and fails the other.
+
   it('records a direct reception as 0 hops rather than as unmeasured', async () => {
     const s = connected();
     s.receive(contactSyncFrame(PK, 'Erin'));
     s.receive(newAdvertFrame(PK, 'Erin'));
     await vi.waitFor(() => expect(advertPathCommands(s)).toHaveLength(1));
 
-    s.receive(advertPathReply(1_760_000_000, 0));
+    s.receive(advertPathReply(1_760_000_000, 0x00));
 
     await vi.waitFor(() => expect(discoveredStore.get(PK)?.observed_hops).toBe(0));
+    // A real measurement, so the reception time lands with it. An empty path
+    // here means "arrived with no relays", which is exactly why the sentinel
+    // below must never be allowed to write one.
+    expect(discoveredStore.get(PK)?.observed_path_hex).toBe('');
+    expect(discoveredStore.get(PK)?.observed_at_unix).toBe(1_760_000_000);
+  });
+
+  // The sentinel means the ring HOLDS this node but cached no path for it.
+  // Through 0.7.2 it failed the decoder's length guard and arrived as null, like
+  // a miss; 0.8.0 decoded it as a bare `hops: 0`, and this module dutifully filed
+  // "heard direct, 0 hops" against nodes it knows no path to — a lie that then
+  // won the Hops column and outlived the query in sqlite.
+  it('does not record the no-path sentinel as a measurement', async () => {
+    const s = connected();
+    s.receive(contactSyncFrame(PK, 'Erin'));
+    s.receive(newAdvertFrame(PK, 'Erin'));
+    await vi.waitFor(() => expect(advertPathCommands(s)).toHaveLength(1));
+
+    s.receive(advertPathReply(1_760_000_000, PATH_LEN_FLOOD));
+    await new Promise((r) => setTimeout(r, 10));
+
+    const row = discoveredStore.get(PK);
+    expect(row?.observed_hops).toBe(-1); // the unmeasured default, untouched
+    expect(row?.observed_path_hex).toBe('');
+    expect(row?.observed_at_unix).toBe(0);
   });
 
   // A GET_CONTACTS walk is the radio listing what it stores, not a reception.
@@ -148,7 +186,7 @@ describe('advert-triggered advert-path sampling', () => {
     s.receive(contactSyncFrame(PK, 'Erin'));
     s.receive(newAdvertFrame(PK, 'Erin'));
     await vi.waitFor(() => expect(advertPathCommands(s)).toHaveLength(1));
-    s.receive(advertPathReply(1_760_000_000, 1, 'aa'));
+    s.receive(advertPathReply(1_760_000_000, 0x01, 'aa'));
     await vi.waitFor(() => expect(discoveredStore.get(PK)?.observed_hops).toBe(1));
 
     s.receive(newAdvertFrame(PK, 'Erin'));
