@@ -47,15 +47,25 @@ export function wireSessionEvents(session: MeshCoreSession): void {
     // The lib owns the radio-driven fields; coresense keeps two app-only UI
     // fields (pullToRefresh/showPublicKeys) the lib's type doesn't carry, so
     // preserve them from the current holder value rather than dropping them.
+    //
+    // The payload is the library's WHOLE mirror, not a delta — one emit per
+    // change, carrying every other field as it stood. SessionAdapter.start()
+    // seeds that mirror from this holder precisely so the untouched fields
+    // round-trip our own values back to us instead of library defaults.
     const prev = holder.getAutoAddConfig();
     const next = {
-      mode: a.mode,
+      // Derived, never copied: the library's own `mode` is app-side state it
+      // never writes, so reading it back pins us to its default ('all') and
+      // silently discards the user's choice. Bit 0 of manual_add_contacts is
+      // the radio's actual answer to the same question.
+      mode: (a.manualAddContacts & 1) !== 0 ? ('selected' as const) : ('all' as const),
       chat: a.chat,
       repeater: a.repeater,
       room: a.room,
       sensor: a.sensor,
       overwriteOldest: a.overwriteOldest,
-      maxHops: a.maxHops,
+      radioMaxHops: a.radioMaxHops,
+      manualAddContacts: a.manualAddContacts,
       pullToRefresh: prev.pullToRefresh,
       showPublicKeys: prev.showPublicKeys,
     };
@@ -72,7 +82,25 @@ export function wireSessionEvents(session: MeshCoreSession): void {
     emit.channels(merged);
   });
   ev.on('channelPresence', (keys) => emit.channelPresence(keys));
-  ev.on('syncProgress', (p) => emit.syncProgress(p));
+  // `phase` is 'idle' until a connect starts the handshake, 'syncing' while it
+  // runs, 'done' when it finishes, and back to 'idle' on disconnect — nothing
+  // else moves it, so an idle/syncing → done edge is exactly "one handshake
+  // completed", once per connect.
+  let syncPhase: 'idle' | 'syncing' | 'done' = 'idle';
+  ev.on('syncProgress', (p) => {
+    emit.syncProgress(p);
+    const finished = p.phase === 'done' && syncPhase !== 'done';
+    syncPhase = p.phase;
+    // The library's handshake asks for device info, contacts, channels and
+    // battery — never CMD_GET_AUTO_ADD_CONFIG. Without this the per-kind flags
+    // and `autoadd_max_hops` the Contacts panel presents as the RADIO's prefs
+    // are only ever whatever coresense last wrote locally, and a limit set from
+    // the repeater CLI or another client is reported as "no limit" until the
+    // user happens to press Refresh in Device Info. Issued after the handshake
+    // rather than on 'connected' so it can't race CMD_APP_START — the radio has
+    // to have a session before it will answer anything else.
+    if (finished) void session.requestAutoAddConfig();
+  });
   ev.on('pathLearned', (e) => emit.pathLearned(e));
   ev.on('repeaterStatus', (s) => emit.repeaterStatus(s));
   ev.on('repeaterTelemetry', (s) => emit.repeaterTelemetry(s));

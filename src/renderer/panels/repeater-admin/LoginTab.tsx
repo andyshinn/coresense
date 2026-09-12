@@ -3,6 +3,7 @@ import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { RelativeTime } from '../../components/RelativeTime';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
+import { ACL_ROLE_LABEL } from './aclRole';
 
 interface Props {
   contact: Contact;
@@ -71,8 +72,16 @@ export function LoginTab({ contact, client, session, onSession }: Props) {
             <dd className="font-mono text-cs-text">0x{session.permissionsBits.toString(16).padStart(2, '0')}</dd>
             {session.aclPermissionsBits !== null && (
               <>
+                {/* The raw byte stays visible because it is the only place
+                    reserved bits above the 2-bit role mask show up; the decoded
+                    role is what the repeater actually enforces. */}
                 <dt className="text-cs-text-muted">ACL perms</dt>
-                <dd className="font-mono text-cs-text">0x{session.aclPermissionsBits.toString(16).padStart(2, '0')}</dd>
+                <dd className="font-mono text-cs-text">
+                  0x{session.aclPermissionsBits.toString(16).padStart(2, '0')}
+                  {session.aclRole !== null && (
+                    <span className="ml-2 font-sans text-cs-text-muted">{ACL_ROLE_LABEL[session.aclRole]}</span>
+                  )}
+                </dd>
               </>
             )}
             {session.firmwareVerLevel !== null && (

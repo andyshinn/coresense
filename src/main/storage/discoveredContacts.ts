@@ -88,11 +88,17 @@ export const discoveredStore = {
          SET on_radio = ?, favourite = ?, flags = (flags & ~1) | ?
        WHERE pubkey = ?`,
     );
+    const written: typeof changed = [];
     db.exec('BEGIN');
     try {
       for (const r of changed) {
         const fav = r.favourite ? 1 : 0;
-        stmt.run(r.onRadio ? 1 : 0, fav, fav, r.publicKeyHex);
+        // UPDATE-only: the lib can report a contact before we've inserted its
+        // row (its `discovered` snapshot lands one emit ahead of the
+        // `contactObserved` that creates the row), and that statement matches
+        // nothing. Caching such a write would suppress the next attempt and
+        // leave the row permanently stale, so only remember what actually hit.
+        if (stmt.run(r.onRadio ? 1 : 0, fav, fav, r.publicKeyHex).changes > 0) written.push(r);
       }
       db.exec('COMMIT');
     } catch (err) {
@@ -100,17 +106,21 @@ export const discoveredStore = {
       throw err;
     }
     // Only record after a successful commit, so a rolled-back batch re-writes.
-    for (const r of changed) lastWrittenFlags.set(r.publicKeyHex, packFlags(r.onRadio, r.favourite));
+    for (const r of written) lastWrittenFlags.set(r.publicKeyHex, packFlags(r.onRadio, r.favourite));
   },
 
   /** Upsert from a decoded advert/contact frame. Stamps first_heard_ms on the
    *  first sighting of a pubkey; preserves it (and the existing favourite flag)
    *  on later adverts. `onRadio` is set by the caller per context.
    *
-   *  `heardLive` distinguishes a real PUSH_NEW_ADVERT (we actually heard the
-   *  node) from a GET_CONTACTS resync (the device just listing what it stores).
-   *  last_heard_ms is our-clock and only advances on a live advert, so it never
-   *  moves on a resync — committing a contact to the radio can't bump it. */
+   *  `heardLive` distinguishes an advert we actually heard from a GET_CONTACTS
+   *  resync (the device just listing what it stores). It says nothing about
+   *  membership: it is true for a PUSH_ADVERT (0x80) refresh, where the radio
+   *  DOES hold the contact, and equally for a PUSH_NEW_ADVERT (0x8a), which
+   *  means the radio refused to store the node — in both cases we demodulated a
+   *  real advert. last_heard_ms is our-clock and only advances on a live
+   *  advert, so it never moves on a resync — committing a contact to the radio
+   *  can't bump it. */
   upsert(record: Models.ContactRecord, opts: { onRadio: boolean; nowMs: number; heardLive: boolean }): void {
     const db = openDb();
     const heardMs = opts.heardLive ? opts.nowMs : 0;

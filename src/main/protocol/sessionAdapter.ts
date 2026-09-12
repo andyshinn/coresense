@@ -1,6 +1,7 @@
-import { MeshCoreSession, type Ports } from '@andyshinn/meshcore-ts';
+import { MeshCoreSession, Models, type Ports, Protocol } from '@andyshinn/meshcore-ts';
 import { adminSessions } from '../bridge/adminSession';
 import { child } from '../log';
+import { stateHolder } from '../state/holder';
 import { wireSessionEvents } from './adapterEvents';
 
 const APP_NAME = 'coresense';
@@ -28,8 +29,82 @@ export class SessionAdapter {
   start(): void {
     if (this.started) return;
     this.started = true;
+    this.seedAutoAddConfig();
     wireSessionEvents(this.session);
     this.session.start();
+  }
+
+  /** Prime the library's AutoAddConfig mirror from our persisted copy.
+   *
+   *  The library's mirror is the value it feeds back onto the wire: an omitted
+   *  `manualAddContacts` on `setOtherParams` resends it, and its RESP_SELF_INFO
+   *  and RESP_AUTOADD_CONFIG handlers emit `autoAddConfig` as "the whole mirror
+   *  with the one field the radio just told me about replaced". Left at the
+   *  library's own defaults, that emit carries library defaults for every field
+   *  the radio has NOT reported yet — so the first RESP_SELF_INFO of a session
+   *  (the reply to APP_START, i.e. every connect) would hand us `chat/repeater/
+   *  room/sensor/overwriteOldest` = all-true and wipe the user's saved
+   *  selection, which holder.setAutoAddConfig then persists to disk.
+   *
+   *  Seeding makes "the field the radio hasn't mentioned" equal what we already
+   *  had, so the emit is a no-op for those fields and a genuine correction for
+   *  the ones the radio did report. It also gives the library's `shouldAutoAdd`
+   *  (which gates its post-advert GET_CONTACTS re-sync on `mode`) the real
+   *  mode instead of a permanent 'all'. */
+  private seedAutoAddConfig(): void {
+    const cfg = stateHolder().getAutoAddConfig();
+    this.session.state.setAutoAddConfig({
+      ...Models.DEFAULT_AUTO_ADD_CONFIG,
+      mode: cfg.mode,
+      chat: cfg.chat,
+      repeater: cfg.repeater,
+      room: cfg.room,
+      sensor: cfg.sensor,
+      overwriteOldest: cfg.overwriteOldest,
+      radioMaxHops: cfg.radioMaxHops,
+      manualAddContacts: cfg.manualAddContacts,
+    });
+  }
+
+  /** The library's AutoAddConfig mirror, verbatim.
+   *
+   *  This is NOT the same thing as coresense's holder copy, and callers that
+   *  need to know what the RADIO holds must ask here. The holder is written
+   *  optimistically the moment the user hits Save — while disconnected, and
+   *  even when the frame is rejected — whereas the mirror only ever moves when
+   *  the radio reports a value (RESP_SELF_INFO byte 47, RESP_AUTOADD_CONFIG) or
+   *  when a command actually reached the wire. Comparing a pending change
+   *  against the holder therefore reports "no change" for edits the radio never
+   *  received, and nothing ever retries them. */
+  getLibAutoAddConfig(): Models.AutoAddConfig {
+    return this.session.state.getAutoAddConfig();
+  }
+
+  /** Write flags we have just pushed with CMD_SET_AUTO_ADD_CONFIG into the
+   *  library's mirror.
+   *
+   *  `MeshCoreSession.setAutoAddConfig()` only encodes and writes the frame; it
+   *  never touches `state`. The mirror is also what the library re-emits as the
+   *  WHOLE `autoAddConfig` payload whenever a later frame moves one field of it
+   *  (`setOtherParams` doing the manual-add byte, RESP_SELF_INFO doing the
+   *  same), and wireSessionEvents writes that payload straight into the holder.
+   *  Leaving the mirror stale therefore doesn't just misinform the library's own
+   *  `shouldAutoAdd` gate — it hands the user's just-saved kind flags back to
+   *  them as whatever they were at process start.
+   *
+   *  `manualAddContacts` is deliberately NOT settable here: the library owns
+   *  that byte (it is the one field it does maintain), and it is our only
+   *  radio-confirmed reference for whether the mode bit still needs sending. */
+  mirrorAutoAddConfig(flags: {
+    mode: Models.AutoAddConfig['mode'];
+    chat: boolean;
+    repeater: boolean;
+    room: boolean;
+    sensor: boolean;
+    overwriteOldest: boolean;
+    radioMaxHops: number;
+  }): void {
+    this.session.state.setAutoAddConfig({ ...this.session.state.getAutoAddConfig(), ...flags });
   }
 
   stop(): void {
@@ -94,8 +169,14 @@ export class SessionAdapter {
   setAdvertLatLon(lat: number, lon: number, alt?: number) {
     return this.session.setAdvertLatLon(lat, lon, alt);
   }
-  setOtherParams(policy: Parameters<MeshCoreSession['setOtherParams']>[0], sharePos: boolean) {
-    return this.session.setOtherParams(policy, sharePos);
+  /** `manualAddContacts` is byte 1 of CMD_SET_OTHER_PARAMS, which the firmware
+   *  assigns before any length guard — so every telemetry / share-position save
+   *  rewrites the radio's auto-add master switch. Omit it and the library
+   *  substitutes the value it mirrored from RESP_SELF_INFO byte 47, which is
+   *  what a caller changing something else wants; pass it only to deliberately
+   *  change auto-add behaviour (the /api/device/auto-add route). */
+  setOtherParams(policy: Parameters<MeshCoreSession['setOtherParams']>[0], sharePos: boolean, manualAddContacts?: number) {
+    return this.session.setOtherParams(policy, sharePos, manualAddContacts);
   }
   setAutoAddConfig(flags: Parameters<MeshCoreSession['setAutoAddConfig']>[0]) {
     return this.session.setAutoAddConfig(flags);
@@ -158,6 +239,11 @@ export class SessionAdapter {
       role: result.isAdmin ? 'admin' : 'guest',
       permissionsBits: result.permissions,
       aclPermissionsBits: result.aclPermissions,
+      // The renderer can't import meshcore-ts (Node-only), so the role decode
+      // has to happen here. `aclPermissions` is the firmware's
+      // `client->permissions` byte, whose low 2 bits are a role VALUE — unlike
+      // `permissions` above, which is a plain isAdmin boolean.
+      aclRole: result.aclPermissions === null ? null : Protocol.decodeAclRole(result.aclPermissions),
       firmwareVerLevel: result.firmwareVerLevel,
       loggedInAt: Date.now(),
     });

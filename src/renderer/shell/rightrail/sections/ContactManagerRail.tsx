@@ -372,7 +372,7 @@ export function DiscoverySettings() {
       <div className="space-y-1.5">
         <KeyValueRow label="Auto-add" value={autoAddLabel} />
         <KeyValueRow label="Overwrite oldest" value={cfg.overwriteOldest ? 'On' : 'Off'} />
-        <KeyValueRow label="Max hops" value={cfg.maxHops == null ? 'No limit' : String(cfg.maxHops)} mono />
+        <KeyValueRow label="Max hops" value={cfg.radioMaxHops === 0 ? 'No limit' : String(cfg.radioMaxHops)} mono />
       </div>
       <RailActionButton
         icon={Settings}

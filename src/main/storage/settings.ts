@@ -260,8 +260,39 @@ export const settingsStore = {
     mergeDefaults(readJson(FILES.deviceIdentity, DEFAULT_DEVICE_IDENTITY), DEFAULT_DEVICE_IDENTITY),
   saveDeviceIdentity: (v: DeviceIdentity): void => writeJson(FILES.deviceIdentity, v),
 
-  loadAutoAddConfig: (): AutoAddConfig =>
-    mergeDefaults(readJson(FILES.autoAdd, DEFAULT_AUTO_ADD_CONFIG), DEFAULT_AUTO_ADD_CONFIG),
+  loadAutoAddConfig: (): AutoAddConfig => {
+    const stored = readJson<Record<string, unknown>>(FILES.autoAdd, {});
+    const merged = mergeDefaults(stored as unknown as AutoAddConfig, DEFAULT_AUTO_ADD_CONFIG);
+    const bag = merged as unknown as Record<string, unknown>;
+    let migrated = false;
+    // `mode` used to be independent app-side state; it is now a VIEW of
+    // manual_add_contacts bit 0. A file written before that byte existed can
+    // hold mode:'selected' with no byte at all, and mergeDefaults would supply
+    // 0 — an internally inconsistent config that reads as "Selected" in the
+    // panel while the radio auto-adds everything. Nothing would ever reconcile
+    // it: the panel isn't dirty so Save is disabled, and RESP_SELF_INFO agrees
+    // with the 0 so the library never emits a correction. Seed the bit from the
+    // stored mode once, so the next save has a real change to push.
+    if (!('manualAddContacts' in stored) && merged.mode === 'selected') {
+      merged.manualAddContacts = 1;
+      migrated = true;
+      log.info('migrated auto-add-config.json: derived manual_add_contacts bit 0 from the stored mode');
+    }
+    // Retired field. `maxHops` was an app-side advert filter that nothing on
+    // either side ever applied; the radio's own `autoadd_max_hops`
+    // (`radioMaxHops`) replaced it. It is NOT adopted as the new value — that
+    // would push a hop limit to the radio the user never actually got — and
+    // mergeDefaults copies unknown stored keys straight through, so it has to
+    // be deleted actively or it is reloaded and rewritten forever (same trap as
+    // AppSettings.theme).
+    if ('maxHops' in bag) {
+      delete bag.maxHops;
+      migrated = true;
+      log.info('migrated retired field out of auto-add-config.json: maxHops');
+    }
+    if (migrated) writeJson(FILES.autoAdd, merged);
+    return merged;
+  },
   saveAutoAddConfig: (v: AutoAddConfig): void => writeJson(FILES.autoAdd, v),
 
   loadTelemetryPolicy: (): TelemetryPolicy =>

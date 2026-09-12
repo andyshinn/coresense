@@ -712,10 +712,18 @@ export const DEFAULT_DEVICE_IDENTITY: DeviceIdentity = {
   sharePositionInAdvert: true,
 };
 
-/** Auto-add behaviour (CMD_SET_AUTO_ADD_CONFIG / GET_AUTO_ADD_CONFIG). `mode`
- *  is an app-side convenience: "all" forces all four kind flags true on save;
- *  "selected" respects the per-kind booleans. The radio flag byte only carries
- *  the kinds + overwrite_oldest. */
+/** Auto-add behaviour, spread across TWO firmware prefs and therefore two
+ *  commands: the per-kind flags + overwrite_oldest + autoadd_max_hops live in
+ *  `_prefs.autoadd_config`/`autoadd_max_hops` (CMD_SET_AUTO_ADD_CONFIG), and
+ *  the master switch lives in `_prefs.manual_add_contacts` (byte 1 of
+ *  CMD_SET_OTHER_PARAMS, reported in RESP_SELF_INFO byte 47).
+ *
+ *  `mode` is a derived VIEW of `manualAddContacts` bit 0, not independent app
+ *  state: `MyMesh::shouldAutoAddContactType` returns true before it ever looks
+ *  at `autoadd_config` while the bit is clear, so "all" (bit 0 clear) makes the
+ *  four kind flags inert on the radio and "selected" (bit 0 set) makes the
+ *  radio honour them. Writing `mode` without writing the bit is what made those
+ *  four toggles decorative. */
 export type AutoAddMode = 'all' | 'selected';
 export interface AutoAddConfig {
   mode: AutoAddMode;
@@ -724,9 +732,19 @@ export interface AutoAddConfig {
   room: boolean;
   sensor: boolean;
   overwriteOldest: boolean;
-  /** App-side filter: drop adverts whose path has more hops than this. `null`
-   *  = no limit. The radio doesn't apply this; the companion does pre-upsert. */
-  maxHops: number | null;
+  /** Firmware `_prefs.autoadd_max_hops` — the radio drops adverts heard over
+   *  more hops than this before auto-adding. 0 = no limit. Byte 2 of
+   *  CMD_SET_AUTO_ADD_CONFIG, which the firmware reads only when the frame is
+   *  ≥ 3 bytes, so the 2-byte form preserves whatever the radio has stored. */
+  radioMaxHops: number;
+  /** Firmware `_prefs.manual_add_contacts`. Bit 0 CLEAR = auto-add every
+   *  advert and ignore the per-kind flags; bit 0 SET = honour them. Mirrored
+   *  from RESP_SELF_INFO byte 47 and round-tripped on every write, because the
+   *  firmware assigns this byte as the FIRST statement of its
+   *  CMD_SET_OTHER_PARAMS handler — before any length guard — so a telemetry or
+   *  share-position save that omits it silently rewrites the pref. Bits 1-7 are
+   *  unused by the firmware; we preserve them rather than assume. */
+  manualAddContacts: number;
   /** App-side: pull-to-refresh in the contact list. */
   pullToRefresh: boolean;
   /** App-side: show pubkey prefix next to names in lists. */
@@ -739,7 +757,8 @@ export const DEFAULT_AUTO_ADD_CONFIG: AutoAddConfig = {
   room: true,
   sensor: true,
   overwriteOldest: true,
-  maxHops: null,
+  radioMaxHops: 0,
+  manualAddContacts: 0,
   pullToRefresh: true,
   showPublicKeys: true,
 };
@@ -1029,6 +1048,13 @@ export interface RepeaterStatusSnapshot {
 export type RepeaterAdminMode = 'local' | 'remote';
 export type RepeaterAdminRole = 'admin' | 'guest';
 
+/** ACL role, decoded from the low 2 bits of a repeater permissions byte
+ *  (helpers/ClientACL.h PERM_ACL_GUEST=0/READ_ONLY=1/READ_WRITE=2/ADMIN=3).
+ *  The two bits are a role VALUE, not independent flags. Declared locally
+ *  rather than re-exported from meshcore-ts because this module is
+ *  renderer-reachable and the library is main-process only. */
+export type RepeaterAclRole = 'guest' | 'readOnly' | 'readWrite' | 'admin';
+
 export interface RepeaterAdminSession {
   contactKey: string;
   publicKeyHex: string;
@@ -1036,6 +1062,9 @@ export interface RepeaterAdminSession {
   role: RepeaterAdminRole;
   permissionsBits: number;
   aclPermissionsBits: number | null;
+  /** `aclPermissionsBits` decoded. Null when the repeater's login reply carried
+   *  no ACL byte (short-form PUSH_LOGIN_SUCCESS). */
+  aclRole: RepeaterAclRole | null;
   firmwareVerLevel: number | null;
   loggedInAt: number;
 }
@@ -1051,7 +1080,12 @@ export interface RepeaterLoginResult {
 
 export interface RepeaterAclEntry {
   pubKeyPrefixHex: string;
+  /** Raw permissions byte as sent by the repeater (role bits + reserved bits). */
   permissions: number;
+  /** Decoded role — the authoritative reading of the low 2 bits. `isAdmin` and
+   *  `isGuest` cover only two of the four roles, so read-only and read-write
+   *  entries are indistinguishable through them. */
+  role: RepeaterAclRole;
   isAdmin: boolean;
   isGuest: boolean;
 }
