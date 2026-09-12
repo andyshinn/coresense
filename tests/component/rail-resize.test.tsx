@@ -238,11 +238,20 @@ describe('ChannelPeopleBody caps the painted roster', () => {
     expect(screen.getByRole('button', { name: new RegExp(`Show all ${ROSTER_SIZE}`) })).toBeTruthy();
   });
 
+  // Text queries, not `*ByRole({ name })`, on purpose. A role query with a
+  // `name` computes the accessible name of EVERY button in the document, and
+  // each computation goes through jsdom's getComputedStyle — so once the full
+  // roster is painted, one such query cost more than the render it was checking
+  // (measured under coverage: ~540ms, against ~12ms for the text query). That
+  // is what pushed this test past the 5s timeout on CI's slower, contended
+  // runners while it passed locally. It loses nothing: that the reveal is a
+  // genuine accessible button is pinned by the test above, which runs its role
+  // query against the capped roster, where it is cheap.
   it('reveals the full roster on demand', async () => {
     await mountSection();
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(`Show all ${ROSTER_SIZE}`) }));
+    fireEvent.click(screen.getByText(new RegExp(`Show all ${ROSTER_SIZE}`)));
     await waitFor(() => expect(screen.getAllByText(/^person-\d+$/).length).toBe(ROSTER_SIZE));
-    expect(screen.queryByRole('button', { name: /Show all/ })).toBeNull();
+    expect(screen.queryByText(/Show all/)).toBeNull();
   });
 
   // The cap is a paint-time slice, applied after search. Capping the data
