@@ -10,9 +10,9 @@ export default defineConfig({
     Info({}),
   ],
   build: {
-    // Electron 42 bundles Node.js 22 — match the target so we don't down-level
+    // Electron 44 bundles Node.js 24 — match the target so we don't down-level
     // syntax the runtime supports natively.
-    target: 'node22',
+    target: 'node24',
     rollupOptions: {
       external: [
         'electron',

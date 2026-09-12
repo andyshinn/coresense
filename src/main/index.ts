@@ -300,7 +300,10 @@ app.on('web-contents-created', (_event, contents) => {
         },
         {
           label: 'Copy Link',
-          click: () => clipboard.writeText(params.linkURL),
+          click: () => {
+            // Electron 44 made clipboard.writeText async; don't leave a rejection unhandled.
+            clipboard.writeText(params.linkURL).catch((err) => log.warn(`copy link failed: ${(err as Error).message}`));
+          },
         },
         { type: 'separator' },
       );
