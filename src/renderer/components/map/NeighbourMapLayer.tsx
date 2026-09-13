@@ -41,10 +41,12 @@ function markerContact(n: ResolvedNeighbour): Contact {
 // styles keep it self-contained (no extra CSS file). The container is exactly
 // the 50×50 glyph so `anchor: 'center'` lands the glyph centre on the
 // coordinate (where the SNR links terminate); the label is positioned
-// absolutely below so it doesn't shift the anchored centre.
+// absolutely below so it doesn't shift the anchored centre. No `position` on
+// the container: maplibre's .maplibregl-marker makes it absolute (so it is
+// already the label's containing block), and an inline `relative` would put
+// the marker back in flow.
 function buildFocalElement(name: string): HTMLDivElement {
   const el = document.createElement('div');
-  el.style.position = 'relative';
   el.style.width = '50px';
   el.style.height = '50px';
   el.style.pointerEvents = 'none';
