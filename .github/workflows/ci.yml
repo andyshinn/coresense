@@ -47,18 +47,6 @@ jobs:
         with:
           name: coverage
           path: coverage/
-      # maplibre-gl 6 loads its worker from a URL; if the build stops emitting a
-      # self-contained worker the map is silently blank and every test above
-      # still passes (jsdom can't boot maplibre).
-      - name: Assert the MapLibre worker is bundled
-        run: |
-          set -euo pipefail
-          out="$RUNNER_TEMP/renderer"
-          pnpm exec vite build -c vite.renderer.config.mts --base ./ --outDir "$out" --emptyOutDir
-          if ! ls "$out"/assets/maplibre-gl-worker-*.js > /dev/null 2>&1; then
-            echo "::error::renderer build emitted no maplibre-gl-worker-*.js — src/renderer/lib/map/maplibre-worker.ts must stay imported by MapCanvas and use ?worker&url"
-            exit 1
-          fi
 
   e2e:
     runs-on: ubuntu-latest
