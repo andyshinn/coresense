@@ -1,3 +1,4 @@
+import { createCipheriv, createHash, createHmac } from 'node:crypto';
 import { MeshCoreDecoder } from '@michaelhart/meshcore-decoder';
 import { describe, expect, it } from 'vitest';
 import { buildPlaintextFields, inspectPacket, sectionColor } from '../../../../src/renderer/lib/packetInspect';
@@ -84,12 +85,14 @@ describe('inspectPacket secondary sections', () => {
     expect(note).toContain('channel');
   });
 
-  it('marks a DM (TextMessage) as undecryptable for lack of a private key, not as "not addressed to us"', () => {
+  it('marks a DM (TextMessage) as end-to-end encrypted, not "not addressed to us"', () => {
     const r = inspectPacket(TEXT_MESSAGE_HEX);
     expect(r.payload?.secondary?.kind).toBe('encrypted');
     const note = r.payload?.secondary && 'note' in r.payload.secondary ? r.payload.secondary.note : '';
-    expect(note).toContain('private key');
+    // Accurate whether this radio is the recipient or just overheard two other nodes.
+    expect(note).toContain('between sender and recipient');
     expect(note).not.toContain('addressed to us');
+    expect(note).not.toContain("this radio's private key");
   });
 
   it("doesn't tell the user to add a channel they already hold for a GroupData packet", () => {
@@ -99,6 +102,29 @@ describe('inspectPacket secondary sections', () => {
     const r = inspectPacket(groupDataHex, { keyStore });
     const note = r.payload?.secondary && 'note' in r.payload.secondary ? r.payload.secondary.note : '';
     expect(note).not.toContain('Add the channel');
+  });
+
+  it('flags re-encoded plaintext as approximate when firmware truncation split a UTF-8 character', () => {
+    // Firmware cuts channel text by byte count, so a post can end mid-emoji. Encrypt
+    // exactly that under the Public secret: "bob: hi" + the first 2 bytes of 😀 (f0 9f 98 80).
+    const key = Buffer.from(GROUP_TEXT_SECRET_HEX, 'hex');
+    const text = Buffer.concat([Buffer.from('bob: hi', 'utf8'), Buffer.from([0xf0, 0x9f])]);
+    let plain = Buffer.concat([Buffer.from([0, 0, 0, 0, 0]), text]);
+    plain = Buffer.concat([plain, Buffer.alloc((16 - (plain.length % 16)) % 16)]);
+    const cipher = createCipheriv('aes-128-ecb', key, null).setAutoPadding(false);
+    const ct = Buffer.concat([cipher.update(plain), cipher.final()]);
+    const mac = createHmac('sha256', Buffer.concat([key, Buffer.alloc(16)]))
+      .update(ct)
+      .digest()
+      .subarray(0, 2);
+    const hash = createHash('sha256').update(key).digest()[0];
+    const hex = Buffer.concat([Buffer.from([0x15, 0x00, hash]), mac, ct]).toString('hex');
+
+    const keyStore = MeshCoreDecoder.createKeyStore({ channelSecrets: [GROUP_TEXT_SECRET_HEX] });
+    const secondary = inspectPacket(hex, { keyStore }).payload?.secondary;
+    expect(secondary?.kind).toBe('decrypted');
+    const msg = secondary && 'fields' in secondary ? secondary.fields.find((f) => f.name === 'Message') : undefined;
+    expect(msg?.desc).toMatch(/approximate/);
   });
 
   it('decrypts a channel message into the real plaintext bytes, sender prefix included', () => {

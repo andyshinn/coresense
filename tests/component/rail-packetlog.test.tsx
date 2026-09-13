@@ -64,7 +64,7 @@ describe('PacketDetailsRail', () => {
     const dm: LivePacket = { ...gt, id: 'pkt-dm', payloadHex: TEXT_MESSAGE_HEX };
     useStore.setState({ packets: [dm], selectedPacketId: 'pkt-dm', channels: [] });
     render(<PacketDetailsRail client={null} />);
-    expect(screen.getByText(/private key, which the app doesn't hold/i)).toBeTruthy();
+    expect(screen.getByText(/End-to-end encrypted between sender and recipient/i)).toBeTruthy();
   });
 
   it('decrypts a channel packet with a held secret and shows the full "sender: message" plaintext', () => {

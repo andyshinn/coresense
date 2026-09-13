@@ -280,9 +280,12 @@ const CHANNEL_LOCK = "No key for this channel — can't decrypt. Add the channel
 // meshcore-decoder only decrypts GroupText. A GroupData packet on a channel we DO
 // hold would otherwise get CHANNEL_LOCK, telling the user to add a channel they have.
 const CHANNEL_DATA_LOCK = "Channel data packets aren't decoded yet — only channel text messages can be decrypted.";
-// Not "isn't addressed to us": this applies just as much to DMs this radio received.
-// The app never holds the node's private key, so no DM is decryptable here.
-const DM_LOCK = "Direct messages can't be decrypted here — that needs this radio's private key, which the app doesn't hold.";
+// Shown for TextMessage/Request/Response/AnonRequest, whether the radio is the
+// recipient or just overheard two other nodes (the raw log carries both). These are
+// sealed with the sender↔recipient ECDH secret, so neither "not addressed to us"
+// nor "needs this radio's key" is right in general.
+const DM_LOCK =
+  "End-to-end encrypted between sender and recipient — decrypting it needs one of their private keys, which the app doesn't hold.";
 
 function secondaryFor(decoded: ReturnType<typeof MeshCoreDecoder.decode>, payloadBytes: number[]): Secondary | null {
   const d = decoded.payload.decoded;
@@ -297,6 +300,15 @@ function secondaryFor(decoded: ReturnType<typeof MeshCoreDecoder.decode>, payloa
         const { sender, message } = g.decrypted;
         const text = sender != null ? `${sender}: ${message}` : message;
         const { bytes, fields } = buildPlaintextFields(g.decrypted.timestamp, g.decrypted.flags, text);
+        // The decoder hands back only the decoded string, so these bytes are a
+        // re-encoding. That is exact for valid UTF-8, but firmware truncates long
+        // posts by byte count and can split a character, which decodes to U+FFFD
+        // and re-encodes to different bytes. Say so rather than show fake offsets.
+        if (text.includes('\uFFFD')) {
+          const msg = fields.find((f) => f.key === 'ptx');
+          if (msg)
+            msg.desc = 'Contains invalid or truncated UTF-8 — bytes shown are re-encoded, so offsets are approximate.';
+        }
         return { kind: 'decrypted', available: true, bytes, fields };
       }
       return { kind: 'encrypted', available: false, note: CHANNEL_LOCK };
