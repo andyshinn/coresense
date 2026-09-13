@@ -1,4 +1,4 @@
-import { Map as MapLibreMap, NavigationControl } from 'maplibre-gl';
+import { type AJAXError, Map as MapLibreMap, NavigationControl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '../../lib/map/maplibre-worker';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
@@ -105,19 +105,20 @@ export function MapCanvas({
     // errors, source errors) into tslog. MapLibre only logs to console.error
     // when no `error` handler is attached, so without this they never reach
     // our log pipeline. The ErrorEvent type only exposes `.error`, but the
-    // runtime event carries extra context (sourceId, tile, status) attached
-    // via the second arg to its constructor — read those off loosely.
+    // runtime event carries extra context — read it off loosely: `tile` is
+    // passed to the event's constructor, and `sourceId` is merged in as the
+    // event bubbles up from the source (absent for style/sprite errors). HTTP
+    // failures are an AJAXError, which carries its own status/url on `.error`.
     map.on('error', (e) => {
       const extra = e as unknown as {
         sourceId?: string;
         tile?: { tileID?: { canonical?: { z: number; x: number; y: number } } };
-        status?: number;
-        url?: string;
       };
+      const http = e.error as Partial<Pick<AJAXError, 'status' | 'url'>> | undefined;
       const ctx: Record<string, unknown> = {};
       if (extra.sourceId) ctx.sourceId = extra.sourceId;
-      if (extra.status != null) ctx.status = extra.status;
-      if (extra.url) ctx.url = extra.url;
+      if (http?.status != null) ctx.status = http.status;
+      if (http?.url) ctx.url = http.url;
       const c = extra.tile?.tileID?.canonical;
       if (c) ctx.tile = { z: c.z, x: c.x, y: c.y };
       mapLog.error(e.error?.message ?? 'map error', ctx, e.error);

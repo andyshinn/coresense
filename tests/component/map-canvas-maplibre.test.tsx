@@ -3,9 +3,9 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // jsdom has no WebGL, so the real maplibre Map can't boot here. Swap in a fake
-// that records listeners and style calls, but keep the real
-// GPUInitializationError so the fallback is tested against maplibre's actual
-// error contract.
+// that records listeners and style calls, but keep maplibre's real error
+// classes so the fallback and log context are tested against its actual
+// contracts.
 type Listener = (e?: unknown) => void;
 const { setWorkerUrl, fake } = vi.hoisted(() => ({
   setWorkerUrl: vi.fn(),
@@ -90,6 +90,7 @@ vi.mock('maplibre-gl', async (importOriginal) => {
     setMaxZoom() {}
   }
   return {
+    AJAXError: actual.AJAXError,
     GPUInitializationError: actual.GPUInitializationError,
     setWorkerUrl,
     Map: FakeMap,
@@ -100,12 +101,13 @@ vi.mock('maplibre-gl', async (importOriginal) => {
   };
 });
 
-import { GPUInitializationError, type StyleSpecification } from 'maplibre-gl';
+import { AJAXError, GPUInitializationError, type StyleSpecification } from 'maplibre-gl';
 import { MapErrorFallback } from '../../src/renderer/components/errors/ErrorFallback';
 import { MapCanvas } from '../../src/renderer/components/map/MapCanvas';
+import { setRendererLogSink } from '../../src/renderer/lib/logger';
 import { buildStyle, SOURCE_ONLINE } from '../../src/renderer/lib/map/style-builder';
 import { useStore } from '../../src/renderer/lib/store';
-import { DEFAULT_MAP_SETTINGS, type MapSettings, type TileManifest } from '../../src/shared/types';
+import { DEFAULT_MAP_SETTINGS, type LogEntry, type MapSettings, type TileManifest } from '../../src/shared/types';
 
 const manifest: TileManifest = {
   missing: false,
@@ -255,5 +257,34 @@ describe('MapCanvas restyle (API key / theme flips)', () => {
     fire('style.load');
     expect(fake.setStyle).toHaveBeenCalledTimes(1);
     expect(appliedStyle(0).sources[SOURCE_ONLINE]).toBeUndefined();
+  });
+});
+
+describe('MapCanvas error forwarding', () => {
+  afterEach(() => setRendererLogSink(null));
+
+  it("logs an AJAXError's status and url alongside the source and tile", () => {
+    const entries: LogEntry[] = [];
+    setRendererLogSink((entry) => entries.push(entry));
+    render(mapCanvas());
+    // A rejected key (401). maplibre swallows tile 404s — including the proxy's
+    // no-key 404 — so those never reach this handler.
+    const url = 'http://x/api/map/online-tile-proxy/basemap/3/1/2';
+    fire('error', {
+      error: new AJAXError(401, 'Unauthorized', url, new Blob()),
+      sourceId: 'protomaps-online',
+      tile: { tileID: { canonical: { z: 3, x: 1, y: 2 } } },
+    });
+    const entry = entries.find((e) => e.logger.endsWith('map') && e.level === 'error');
+    expect(entry?.args?.[1]).toEqual({ sourceId: 'protomaps-online', status: 401, url, tile: { z: 3, x: 1, y: 2 } });
+  });
+
+  it('omits status and url for errors that are not HTTP failures', () => {
+    const entries: LogEntry[] = [];
+    setRendererLogSink((entry) => entries.push(entry));
+    render(mapCanvas());
+    fire('error', { error: new Error('Invalid PMTiles header'), sourceId: 'basemap' });
+    const entry = entries.find((e) => e.logger.endsWith('map') && e.level === 'error');
+    expect(entry?.args?.[1]).toEqual({ sourceId: 'basemap' });
   });
 });
