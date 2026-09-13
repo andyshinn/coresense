@@ -79,7 +79,7 @@ const LAYOUTS: Record<string, Seg[]> = {
   ],
   // [err_code 1]
   RESP_ERR: [{ key: 'err', name: 'Error Code', len: 1, desc: 'See companion protocol error table.' }],
-  // [pubkey 32] — a known contact re-advertised.
+  // [pubkey 32] — a node in the radio's contact store advertised (incl. one it just auto-added).
   PUSH_ADVERT: [{ key: 'pk', name: 'Public Key', len: 32, desc: 'Advertising node public key (32 B).' }],
   // [pubkey 32]
   PUSH_PATH_UPDATED: [{ key: 'pk', name: 'Public Key', len: 32, desc: 'Contact whose route was updated.' }],
@@ -115,8 +115,10 @@ const FRAME_PURPOSE: Record<string, string> = {
   RESP_BATT_AND_STORAGE: 'Battery voltage and flash-storage usage.',
   RESP_DEVICE_INFO: 'Firmware version, model, and capabilities.',
   RESP_CHANNEL_INFO: 'A configured group channel (name + secret).',
-  PUSH_ADVERT: 'A known contact re-advertised itself.',
-  PUSH_NEW_ADVERT: 'A new node advertised itself on the mesh.',
+  // Firmware's is_new flag is inverted from its name: 0x80 also announces a
+  // contact the radio just auto-added, and 0x8A is an advert it did NOT store.
+  PUSH_ADVERT: 'A node in the radio’s contact store advertised (including one it just auto-added).',
+  PUSH_NEW_ADVERT: 'An advert from a node the radio didn’t store (manual-add, hop limit, or store full).',
   PUSH_PATH_UPDATED: 'The radio updated its route to a contact.',
   PUSH_SEND_CONFIRMED: 'A sent message was acknowledged by the recipient.',
   PUSH_MSG_WAITING: 'Messages are waiting — poll with Get Message.',

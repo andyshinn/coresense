@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { PacketDetailsRail } from '@/components/packet/PacketDetailsRail';
 import type { LivePacket } from '@/lib/store';
 import { useStore } from '@/lib/store';
-import { ADVERT_HEX, TEXT_MESSAGE_HEX } from '../support/packetFixtures';
+import { ADVERT_HEX, GROUP_TEXT_ENCRYPTED_HEX, GROUP_TEXT_SECRET_HEX, TEXT_MESSAGE_HEX } from '../support/packetFixtures';
 
 const gt: LivePacket = {
   id: 'pkt-0',
@@ -64,11 +64,19 @@ describe('PacketDetailsRail', () => {
     const dm: LivePacket = { ...gt, id: 'pkt-dm', payloadHex: TEXT_MESSAGE_HEX };
     useStore.setState({ packets: [dm], selectedPacketId: 'pkt-dm', channels: [] });
     render(<PacketDetailsRail client={null} />);
-    expect(screen.getByText(/no shared secret to decrypt/i)).toBeTruthy();
+    expect(screen.getByText(/private key, which the app doesn't hold/i)).toBeTruthy();
   });
 
-  // The successful channel-DECRYPT secondary path ("Decrypted Plaintext") needs a
-  // real GroupText ciphertext + matching channel secret fixture to exercise
-  // MeshCoreDecoder's decryption — skipped here; would need a crypto fixture beyond
-  // this suite's scope.
+  it('decrypts a channel packet with a held secret and shows the full "sender: message" plaintext', () => {
+    const enc: LivePacket = { ...gt, id: 'pkt-enc', payloadHex: GROUP_TEXT_ENCRYPTED_HEX };
+    useStore.setState({
+      packets: [enc],
+      selectedPacketId: 'pkt-enc',
+      channels: [{ key: 'ch:Public', name: 'Public', kind: 'public', secretHex: GROUP_TEXT_SECRET_HEX }],
+    });
+    render(<PacketDetailsRail client={null} />);
+    expect(screen.getByText('Decrypted Plaintext')).toBeTruthy();
+    // The decoder splits off the sender; the Message field must show the real plaintext.
+    expect(screen.getByText('bob: hello')).toBeTruthy();
+  });
 });

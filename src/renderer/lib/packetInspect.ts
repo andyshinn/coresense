@@ -277,20 +277,32 @@ export function inspectPacket(hex: string, opts?: { keyStore?: CryptoKeyStore })
 }
 
 const CHANNEL_LOCK = "No key for this channel — can't decrypt. Add the channel (with its secret) to decode the message.";
-const DM_LOCK = "This message isn't addressed to us — no shared secret to decrypt.";
+// meshcore-decoder only decrypts GroupText. A GroupData packet on a channel we DO
+// hold would otherwise get CHANNEL_LOCK, telling the user to add a channel they have.
+const CHANNEL_DATA_LOCK = "Channel data packets aren't decoded yet — only channel text messages can be decrypted.";
+// Not "isn't addressed to us": this applies just as much to DMs this radio received.
+// The app never holds the node's private key, so no DM is decryptable here.
+const DM_LOCK = "Direct messages can't be decrypted here — that needs this radio's private key, which the app doesn't hold.";
 
 function secondaryFor(decoded: ReturnType<typeof MeshCoreDecoder.decode>, payloadBytes: number[]): Secondary | null {
   const d = decoded.payload.decoded;
   switch (decoded.payloadType as PayloadType) {
-    case PayloadType.GroupText:
-    case PayloadType.GroupData: {
+    case PayloadType.GroupText: {
       const g = d as GroupTextPayload | null;
       if (g?.decrypted) {
-        const { bytes, fields } = buildPlaintextFields(g.decrypted.timestamp, g.decrypted.flags, g.decrypted.message);
+        // The decoder splits the plaintext "sender: message" into two fields.
+        // Rejoin them exactly as it split them (first ": ") so the strip shows
+        // the real plaintext bytes — the sender prefix IS part of the payload,
+        // and dropping it shifted every message byte offset.
+        const { sender, message } = g.decrypted;
+        const text = sender != null ? `${sender}: ${message}` : message;
+        const { bytes, fields } = buildPlaintextFields(g.decrypted.timestamp, g.decrypted.flags, text);
         return { kind: 'decrypted', available: true, bytes, fields };
       }
       return { kind: 'encrypted', available: false, note: CHANNEL_LOCK };
     }
+    case PayloadType.GroupData:
+      return { kind: 'encrypted', available: false, note: CHANNEL_DATA_LOCK };
     case PayloadType.TextMessage:
     case PayloadType.Request:
     case PayloadType.Response:

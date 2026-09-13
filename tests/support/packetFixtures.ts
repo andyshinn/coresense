@@ -5,6 +5,14 @@
 // · payload: channelHash 2a · mac bbcc · ciphertext 00112233
 export const GROUP_TEXT_HEX = '1501782abbcc00112233';
 
+// Flood GroupText, 0 hops, REALLY encrypted under GROUP_TEXT_SECRET_HEX (MeshCore's
+// public "Public" channel secret). header 0x15 · pathlen 0x00 · channelHash a1 (sha256(key)[0])
+// · mac d98d (HMAC-SHA256 over the ciphertext, 32-byte zero-extended key) · 16-byte AES-128-ECB
+// ciphertext of: timestamp 1757000000 LE · flags 0x00 · "bob: hello" · NUL.
+// Confirmed via @michaelhart/meshcore-decoder: decrypted = {sender:"bob", message:"hello"}.
+export const GROUP_TEXT_SECRET_HEX = '8b3387e9c5cdea6ac9e5edbaa115cd72';
+export const GROUP_TEXT_ENCRYPTED_HEX = '150011a1d98d77d733ddb47b4c6df3747f925a5107';
+
 // Direct TextMessage, 0 hops. header 0x0a (v0,ptype2,route2) · pathlen 0x00
 // · payload: destHash cb · srcHash e3 · mac 1122 · ciphertext aabbccdd
 export const TEXT_MESSAGE_HEX = '0a00cbe31122aabbccdd';
