@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { getManifest, validateTemplate } from '../../shared/macros';
 import type { MacroContext } from '../../shared/macros/types';
+import { clampRetention } from '../../shared/packetLog';
 import { checkProxyPort } from '../../shared/ports';
 import type {
   AppSettings,
@@ -39,6 +40,7 @@ import { noteHeard, scheduleDiscoveredEmit } from '../state/contactSync';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { messagesStore } from '../storage/messages';
+import { packetStore } from '../storage/packets';
 import { searchMessages } from '../storage/search';
 import { transportManager } from '../transport/manager';
 import { updatesController } from '../updates/controller';
@@ -133,6 +135,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   api.get('/api/state/snapshot', async (c) => {
     const t = transportManager.getState();
     const holder = stateHolder();
+    const retention = clampRetention(holder.getUiState().packetLog);
     const payload: StateSnapshot = {
       capabilities: buildCapabilities(),
       bridge: bridgeStatus(),
@@ -159,6 +162,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       deviceCapabilities: holder.getDeviceCapabilities(),
       blockRules: holder.getBlockRules(),
       macros: macrosStore.list(),
+      packets: packetStore.recent(Math.min(retention.liveBufferSize, retention.storedHistorySize)),
     };
     return c.json(payload);
   });
@@ -166,8 +170,11 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   api.put('/api/ui-state', async (c) => {
     const body = (await c.req.json().catch(() => null)) as UiState | null;
     if (!body) return c.json({ error: 'invalid body' }, 400);
-    stateHolder().setUiState(body);
-    emit.uiState(body);
+    // Retention sizes main's packets-table prune and is synced to every client,
+    // so never store or fan out a missing/garbage value a client sent.
+    const next: UiState = { ...body, packetLog: clampRetention(body.packetLog) };
+    stateHolder().setUiState(next);
+    emit.uiState(next);
     return c.json({ ok: true });
   });
 
@@ -938,6 +945,11 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     } catch (err) {
       return c.json({ error: (err as Error).message }, 503);
     }
+  });
+
+  api.post('/api/packets/clear', (c) => {
+    packetStore.clear();
+    return c.json({ ok: true } as const);
   });
 
   api.get('/api/transport/state', (c) => c.json(transportManager.getState()));

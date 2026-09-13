@@ -5,6 +5,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { type WebSocket, WebSocketServer } from 'ws';
 import type { DiscoveredContact } from '../shared/contacts/discovered';
+import { clampRetention } from '../shared/packetLog';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -45,11 +46,12 @@ import type { BridgeHandle } from './bridge';
 import { bus } from './events/bus';
 import { listenOnPort } from './http-listen';
 import { resolveHttpPort } from './http-port';
-import { getLogBuffer } from './log';
+import { child, getLogBuffer } from './log';
 import { startContactAutoRefresh, stopContactAutoRefresh } from './state/contactRefresh';
 import { endContactWalk } from './state/contactWalk';
 import { stateHolder } from './state/holder';
 import { discoveredStore } from './storage/discoveredContacts';
+import { packetStore } from './storage/packets';
 import { transportManager } from './transport/manager';
 import { currentUpdateState } from './updates/controller';
 import { isMainWindowFocused } from './window/registry';
@@ -84,6 +86,7 @@ export async function startServer(
   const bindAddress = opts.bindAddress ?? '127.0.0.1';
   const app = new Hono();
   const clients = new Set<WebSocket>();
+  const log = child('server');
 
   // The renderer is served from Vite's dev server (a different origin) during
   // development, and any external browser client lives on a different origin too.
@@ -202,7 +205,15 @@ export async function startServer(
     ws.on('error', drop);
   });
 
-  const onPacket = (p: RawPacket) => broadcast({ type: 'packet', payload: p });
+  const onPacket = (p: RawPacket) => {
+    try {
+      packetStore.record(p, clampRetention(stateHolder().getUiState().packetLog).storedHistorySize);
+    } catch (err) {
+      // Persistence is best-effort: a bad DB write must not crash main or drop the live broadcast.
+      log.warn(`packet persist failed: ${(err as Error).message}`);
+    }
+    broadcast({ type: 'packet', payload: p });
+  };
   const onTransportState = (state: TransportState, deviceId?: string) => {
     transportManager.setState(state, deviceId);
     // The periodic contact re-read only makes sense against a live radio, and

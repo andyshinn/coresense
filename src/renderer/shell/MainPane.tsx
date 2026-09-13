@@ -68,7 +68,7 @@ function MainPaneInner({ client, onScan, onConnect, onDisconnect, renderPacketLo
   }
 
   if (activeKey === 'tool:packetlog') {
-    return <div className="flex h-full w-full flex-col overflow-hidden p-4">{renderPacketLog()}</div>;
+    return <div className="flex h-full w-full flex-col overflow-hidden">{renderPacketLog()}</div>;
   }
 
   if (activeKey === 'tool:settings' || activeKey.startsWith('tool:settings:')) {

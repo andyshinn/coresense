@@ -899,8 +899,11 @@ export interface UiState {
   // LeftNav Collapsible open/closed flags (Channels parent, Contacts wrapper,
   // and the four ContactKind groups).
   leftNavOpen: Record<LeftNavGroupId, boolean>;
-  // Packet log view options.
-  packetLogFilter: { showCompanion: boolean };
+  // Packet log source filter: RF (mesh) packets, BLE/companion frames, or both.
+  packetLogFilter: { source: 'both' | 'rf' | 'ble' };
+  // Packet log retention. liveBufferSize = packets kept in memory / shown.
+  // storedHistorySize = packets persisted on disk (0 = off).
+  packetLog: { liveBufferSize: number; storedHistorySize: number };
   /** Selected window in the channel rail's Activity section. Global rather than
    *  per-channel: it is a reading habit, and a per-channel map would grow one
    *  entry per channel ever opened. */
@@ -945,6 +948,13 @@ export interface UiState {
   peopleRail: Record<string, PeopleRailPrefs>;
 }
 
+export const PACKET_LOG_BOUNDS = {
+  liveBufferSize: { min: 200, max: 20_000 },
+  storedHistorySize: { min: 0, max: 200_000 },
+} as const;
+
+export const DEFAULT_PACKET_LOG_SETTINGS = { liveBufferSize: 2_000, storedHistorySize: 20_000 };
+
 export const DEFAULT_UI_STATE: UiState = {
   activeKey: 'tool:packetlog',
   pinned: [],
@@ -960,7 +970,8 @@ export const DEFAULT_UI_STATE: UiState = {
     room: true,
     sensor: true,
   },
-  packetLogFilter: { showCompanion: false },
+  packetLogFilter: { source: 'both' },
+  packetLog: { ...DEFAULT_PACKET_LOG_SETTINGS },
   channelActivityWindow: '24h',
   logsFilter: {
     minLevel: 'silly',
@@ -1014,6 +1025,8 @@ export interface StateSnapshot {
   deviceCapabilities: DeviceCapabilities;
   blockRules: BlockRule[];
   macros: MacroTemplate[];
+  /** Newest persisted packets (min(liveBufferSize, storedHistorySize)), oldest→newest. */
+  packets: RawPacket[];
 }
 
 export type MenuAction =

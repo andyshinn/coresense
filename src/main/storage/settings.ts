@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { MacroTemplate } from '../../shared/macros/types';
+import { clampRetention } from '../../shared/packetLog';
 import {
   type AppSettings,
   type AutoAddConfig,
@@ -199,6 +200,9 @@ export const settingsStore = {
   loadUiState: (liveKeys?: ReadonlySet<string>): UiState => {
     const raw = readJson<Record<string, unknown>>(FILES.ui, {});
     const merged = mergeDefaults(raw as unknown as UiState, DEFAULT_UI_STATE);
+    // mergeDefaults passes a stored `"packetLog": null` (or out-of-range numbers
+    // from a hand edit) straight through, and the renderer reads it unguarded.
+    merged.packetLog = clampRetention(merged.packetLog);
     const bag = merged as unknown as Record<string, unknown>;
     // mergeDefaults copies every stored key through, defaults or not. A field
     // that has LEFT UiState therefore has to be deleted actively, or it is
@@ -210,6 +214,13 @@ export const settingsStore = {
       // constructs in that order.
       delete bag.drafts;
       retired.push('drafts');
+    }
+    if ('decoderOpen' in raw) {
+      // The packet decoder dialog's open flag was briefly persisted by
+      // pre-release Packet Log builds, which reopened the dialog on launch. It
+      // is session-only store state now.
+      delete bag.decoderOpen;
+      retired.push('decoderOpen');
     }
     const logsFilter = bag.logsFilter as Record<string, unknown> | undefined;
     if (logsFilter && ('loggerSubstring' in logsFilter || 'textSubstring' in logsFilter)) {
