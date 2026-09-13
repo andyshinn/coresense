@@ -1,6 +1,14 @@
+import { MeshCoreDecoder } from '@michaelhart/meshcore-decoder';
 import { describe, expect, it } from 'vitest';
 import { buildPlaintextFields, inspectPacket, sectionColor } from '../../../../src/renderer/lib/packetInspect';
-import { ACK_HEX, ADVERT_HEX, GROUP_TEXT_HEX, TEXT_MESSAGE_HEX } from '../../../support/packetFixtures';
+import {
+  ACK_HEX,
+  ADVERT_HEX,
+  GROUP_TEXT_ENCRYPTED_HEX,
+  GROUP_TEXT_HEX,
+  GROUP_TEXT_SECRET_HEX,
+  TEXT_MESSAGE_HEX,
+} from '../../../support/packetFixtures';
 
 // Same Flood GroupText as GROUP_TEXT_HEX but with pathlen 0x00 (no Path Data segment).
 const GROUP_TEXT_NO_PATH_HEX = '15002abbcc00112233';
@@ -76,11 +84,32 @@ describe('inspectPacket secondary sections', () => {
     expect(note).toContain('channel');
   });
 
-  it('marks a DM (TextMessage) as an unavailable "not addressed to us" note', () => {
+  it('marks a DM (TextMessage) as undecryptable for lack of a private key, not as "not addressed to us"', () => {
     const r = inspectPacket(TEXT_MESSAGE_HEX);
     expect(r.payload?.secondary?.kind).toBe('encrypted');
     const note = r.payload?.secondary && 'note' in r.payload.secondary ? r.payload.secondary.note : '';
-    expect(note).toContain('addressed to us');
+    expect(note).toContain('private key');
+    expect(note).not.toContain('addressed to us');
+  });
+
+  it("doesn't tell the user to add a channel they already hold for a GroupData packet", () => {
+    // Same channel hash/MAC/ciphertext as the decryptable GroupText, retyped as GroupData (ptype 6 → header 0x19).
+    const groupDataHex = `19${GROUP_TEXT_ENCRYPTED_HEX.slice(2)}`;
+    const keyStore = MeshCoreDecoder.createKeyStore({ channelSecrets: [GROUP_TEXT_SECRET_HEX] });
+    const r = inspectPacket(groupDataHex, { keyStore });
+    const note = r.payload?.secondary && 'note' in r.payload.secondary ? r.payload.secondary.note : '';
+    expect(note).not.toContain('Add the channel');
+  });
+
+  it('decrypts a channel message into the real plaintext bytes, sender prefix included', () => {
+    const keyStore = MeshCoreDecoder.createKeyStore({ channelSecrets: [GROUP_TEXT_SECRET_HEX] });
+    const r = inspectPacket(GROUP_TEXT_ENCRYPTED_HEX, { keyStore });
+    const secondary = r.payload?.secondary;
+    expect(secondary?.kind).toBe('decrypted');
+    const bytes = secondary && 'bytes' in secondary ? secondary.bytes : [];
+    // timestamp(4) · flags(1) · text — the decoder splits "bob: hello" into sender/message.
+    expect(new TextDecoder().decode(new Uint8Array(bytes.slice(5)))).toBe('bob: hello');
+    expect(bytes.slice(0, 4)).toEqual([0x40, 0xb1, 0xb9, 0x68]); // 1757000000 little-endian
   });
 
   it('builds a plaintext strip: timestamp(4) · flags(1) · message', () => {
