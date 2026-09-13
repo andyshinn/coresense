@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { migratePacketLogFilter, useStore } from '../../../../src/renderer/lib/store';
+import { type LivePacket, migratePacketLogFilter, useStore } from '../../../../src/renderer/lib/store';
 import {
   DEFAULT_APP_SETTINGS,
   DEFAULT_AUTO_ADD_CONFIG,
@@ -158,5 +158,52 @@ describe('hydrate()', () => {
     expect(state.packets).toHaveLength(1);
     expect(state.packets[0].id).toMatch(/^pkt-/);
     expect(state.ui.packetLogFilter.source).toBe('rf');
+  });
+});
+
+describe('applyUiState syncs packetLog retention', () => {
+  const live = (i: number): LivePacket => ({
+    id: `pkt-x${i}`,
+    timestamp: i,
+    transportType: 'ble',
+    kind: 'mesh',
+    hex: '00',
+    bytes: [0],
+    payloadHex: '00',
+    payloadBytes: [0],
+  });
+
+  beforeEach(() => {
+    useStore.setState({ ui: structuredClone(DEFAULT_UI_STATE), packets: [] });
+  });
+
+  // Main sizes the packets-table prune from the last UiState it received, so a
+  // client that ignored another client's retention change would revert it — and
+  // prune stored history — on its next unrelated PUT.
+  it("adopts another client's retention and trims the live buffer to it", () => {
+    useStore.setState({ packets: Array.from({ length: 800 }, (_, i) => live(i)) });
+    useStore.getState().applyUiState({
+      ...DEFAULT_UI_STATE,
+      packetLog: { liveBufferSize: 300, storedHistorySize: 90_000 },
+    });
+
+    const s = useStore.getState();
+    expect(s.ui.packetLog).toEqual({ liveBufferSize: 300, storedHistorySize: 90_000 });
+    expect(s.packets).toHaveLength(300);
+    expect(s.packets[0].id).toBe('pkt-x500');
+  });
+
+  it('keeps ui identity on an equal-value echo so it cannot start a PUT loop', () => {
+    const before = useStore.getState().ui;
+    useStore.getState().applyUiState({ ...DEFAULT_UI_STATE, packetLog: { ...DEFAULT_UI_STATE.packetLog } });
+    expect(useStore.getState().ui).toBe(before);
+  });
+
+  it('keeps its own retention when a legacy producer omits packetLog', () => {
+    useStore.setState({ ui: { ...structuredClone(DEFAULT_UI_STATE), pinned: ['ch:a'] } });
+    const legacy: UiState = { ...DEFAULT_UI_STATE };
+    delete (legacy as { packetLog?: unknown }).packetLog;
+    expect(() => useStore.getState().applyUiState(legacy)).not.toThrow();
+    expect(useStore.getState().ui.packetLog).toEqual(DEFAULT_UI_STATE.packetLog);
   });
 });

@@ -12,7 +12,7 @@ import { PacketSecondary } from './PacketSecondary';
 type DecodeResult = { kind: 'rf'; d: PacketInspection } | { kind: 'ble'; b: ReturnType<typeof inspectBleFrame> };
 
 export function PacketDecoderDialog() {
-  const open = useStore((s) => s.ui.decoderOpen);
+  const open = useStore((s) => s.decoderOpen);
   const setDecoderOpen = useStore((s) => s.setDecoderOpen);
   const keyStore = useChannelKeyStore();
   const [raw, setRaw] = useState('');
