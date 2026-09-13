@@ -2,6 +2,7 @@ import { MapIcon, RotateCcw, TriangleAlert } from 'lucide-react';
 import type { ErrorInfo } from 'react';
 import type { FallbackProps } from 'react-error-boundary';
 import { log } from '../../lib/logger';
+import { isGpuInitializationError } from '../../lib/map/gpu-error';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
 
@@ -104,13 +105,20 @@ export function PanelErrorFallback({ error, resetErrorBoundary }: FallbackProps)
 
 /** Map-specific fallback — remounts just MapCanvas on retry. */
 export function MapErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
+  // No WebGL2 is a machine/GPU state, not a transient glitch — "reloading
+  // usually recovers it" would be wrong copy for it.
+  const noWebGL2 = isGpuInitializationError(error);
   return (
     <ErrorFallbackBase
       icon={MapIcon}
       title="The map failed to render"
-      description="The map view ran into an error (WebGL, tiles, or markers). Reloading the map usually recovers it."
+      description={
+        noWebGL2
+          ? "WebGL2 isn't available (hardware acceleration disabled, GPU blocklisted, or the GPU process crashed). Restart CoreSense; if it persists, update your graphics drivers."
+          : 'The map view ran into an error (WebGL, tiles, or markers). Reloading the map usually recovers it.'
+      }
       error={error}
-      actionLabel="Reload map"
+      actionLabel={noWebGL2 ? 'Try again' : 'Reload map'}
       onAction={resetErrorBoundary}
     />
   );

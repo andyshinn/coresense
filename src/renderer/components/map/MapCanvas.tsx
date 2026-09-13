@@ -1,5 +1,6 @@
-import maplibregl, { type Map as MapLibreMap } from 'maplibre-gl';
+import { Map as MapLibreMap, NavigationControl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import '../../lib/map/maplibre-worker';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { hasValidFix, type MapSettings, type TileManifest } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
@@ -77,7 +78,9 @@ export function MapCanvas({
     ensurePmtilesProtocol(client);
 
     const initial = initialView ?? pickInitialView(manifest, settings);
-    const map = new maplibregl.Map({
+    // Throws GPUInitializationError when WebGL2 is unavailable; the ErrorBoundary
+    // around every MapCanvas mount renders MapErrorFallback for it.
+    const map = new MapLibreMap({
       container,
       style: buildStyle({ baseUrl: client.baseUrl, manifest, settings, theme }),
       center: initial.center,
@@ -122,7 +125,7 @@ export function MapCanvas({
 
     // MapLibre's built-in pan/zoom/pitch/compass cluster. `visualizePitch`
     // rotates the compass to show the current pitch — useful once 3D is on.
-    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
+    map.addControl(new NavigationControl({ visualizePitch: true }), 'top-left');
 
     return () => {
       map.remove();

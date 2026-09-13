@@ -1,3 +1,7 @@
+import { validateStyleMin } from '@maplibre/maplibre-gl-style-spec';
+import styleSpecPkg from '@maplibre/maplibre-gl-style-spec/package.json';
+import maplibrePkg from 'maplibre-gl/package.json';
+import semver from 'semver';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../../../src/renderer/lib/map/pmtiles-protocol', () => ({
@@ -49,6 +53,26 @@ describe('buildStyle', () => {
       theme: 'light',
     });
     expect(withKey.sources[SOURCE_ONLINE]).toBeDefined();
+  });
+
+  it('validates against the style-spec version maplibre-gl itself uses', () => {
+    // maplibre-gl bundles its own style-spec, so a maplibre bump that moves to a
+    // new style-spec major would leave our devDependency validating against the
+    // old rules without any install-time complaint.
+    const range = maplibrePkg.dependencies['@maplibre/maplibre-gl-style-spec'];
+    expect(semver.satisfies(styleSpecPkg.version, range)).toBe(true);
+  });
+
+  it.each([
+    ['light', false],
+    ['light', true],
+    ['dark', false],
+    ['dark', true],
+  ] as const)('builds a spec-valid style (theme=%s, key=%s)', (theme, hasProtomapsApiKey) => {
+    const style = buildStyle({ baseUrl: 'http://x', manifest, settings: settings({ hasProtomapsApiKey }), theme });
+    // Since style-spec 25, legacy-filter problems come back as warning-severity
+    // entries that maplibre only console.warns at runtime — fail on any entry.
+    expect(validateStyleMin(style)).toEqual([]);
   });
 
   it('caps the camera near the bundled maxzoom without a key and at 18 with one', () => {

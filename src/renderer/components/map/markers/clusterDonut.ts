@@ -55,7 +55,7 @@ export function donutMarkup({ breakdown, total, size = 44 }: DonutArgs): string 
 }
 
 // Build the imperative DOM element for a cluster donut marker. The map's
-// MapClusters layer mounts this via `maplibregl.Marker`.
+// MapClusters layer mounts this as a custom-element `Marker`.
 export function buildClusterMarker(clusterId: number, breakdown: TypeBreakdown, total: number): HTMLButtonElement {
   const btn = document.createElement('button');
   btn.type = 'button';
