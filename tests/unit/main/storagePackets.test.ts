@@ -67,6 +67,19 @@ describe('packetStore', () => {
     expect(packetStore.recent(-1)).toEqual([]);
   });
 
+  it("never persists the radio's private key (RESP_PRIVATE_KEY)", () => {
+    packetStore.record({ ...mkCompanion(6000), code: 14, codeName: 'RESP_PRIVATE_KEY' }, 100);
+    expect(packetStore.recent(10)).toEqual([]);
+  });
+
+  it('prunes to a smaller keep on demand, and to nothing at 0', () => {
+    for (let i = 0; i < 5; i++) packetStore.record(mk(i + 1), 100);
+    packetStore.prune(2);
+    expect(packetStore.recent(100).map((r) => r.timestamp)).toEqual([4, 5]);
+    packetStore.prune(0);
+    expect(packetStore.recent(100)).toEqual([]);
+  });
+
   it('clear empties the table', () => {
     packetStore.record(mk(1), 100);
     packetStore.clear();

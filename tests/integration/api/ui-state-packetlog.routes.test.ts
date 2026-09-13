@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createRoutes } from '../../../src/main/api/routes';
 import { bus } from '../../../src/main/events/bus';
 import { stateHolder } from '../../../src/main/state/holder';
+import { packetStore } from '../../../src/main/storage/packets';
 import { DEFAULT_PACKET_LOG_SETTINGS, DEFAULT_UI_STATE, PACKET_LOG_BOUNDS, type UiState } from '../../../src/shared/types';
 
 function app() {
@@ -47,5 +48,21 @@ describe('PUT /api/ui-state normalises packetLog', () => {
       liveBufferSize: PACKET_LOG_BOUNDS.liveBufferSize.min,
       storedHistorySize: PACKET_LOG_BOUNDS.storedHistorySize.max,
     });
+  });
+
+  it("keeps the current retention when a client's ui-state omits packetLog", async () => {
+    await put({ ...DEFAULT_UI_STATE, packetLog: { liveBufferSize: 5000, storedHistorySize: 90000 } });
+    const { packetLog: _omitted, ...legacy } = DEFAULT_UI_STATE;
+    await put(legacy);
+    expect(stateHolder().getUiState().packetLog).toEqual({ liveBufferSize: 5000, storedHistorySize: 90000 });
+  });
+
+  it('prunes stored packets as soon as stored history is lowered, including to 0', async () => {
+    await put({ ...DEFAULT_UI_STATE, packetLog: { liveBufferSize: 2000, storedHistorySize: 1000 } });
+    const pkt = { transportType: 'ble', kind: 'mesh', hex: '88', bytes: [], payloadHex: '15', payloadBytes: [] } as const;
+    for (let i = 0; i < 3; i++) packetStore.record({ ...pkt, timestamp: i, bytes: [], payloadBytes: [] }, 1000);
+
+    await put({ ...DEFAULT_UI_STATE, packetLog: { liveBufferSize: 2000, storedHistorySize: 0 } });
+    expect(packetStore.recent(10)).toEqual([]);
   });
 });

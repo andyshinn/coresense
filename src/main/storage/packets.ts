@@ -1,3 +1,4 @@
+import { RESP_PRIVATE_KEY } from '../../shared/companionFrames';
 import type { RawPacket } from '../../shared/types';
 import { openDb } from './db';
 
@@ -10,13 +11,15 @@ function hexToBytes(hex: string): number[] {
 
 // Prune eagerly after each insert. Until the table exceeds keep, the SELECT MAX(id) + DELETE is a cheap no-op on the id primary key.
 function prune(keep: number): void {
-  openDb().prepare(`DELETE FROM packets WHERE id <= (SELECT MAX(id) FROM packets) - ?`).run(keep);
+  openDb().prepare(`DELETE FROM packets WHERE id <= (SELECT MAX(id) FROM packets) - ?`).run(Math.max(0, keep));
 }
 
 export const packetStore = {
-  /** Persist a packet, then prune to the newest `keep`. `keep <= 0` disables persistence. */
+  /** Persist a packet, then prune to the newest `keep`. `keep <= 0` disables persistence.
+   *  A private-key response is never written to disk; it only exists in the live log. */
   record(p: RawPacket, keep: number): void {
     if (keep <= 0) return;
+    if (p.kind === 'companion' && p.code === RESP_PRIVATE_KEY) return;
     const db = openDb();
     db.prepare(
       `INSERT INTO packets (ts, transport, kind, hex, payload_hex, snr, rssi, code, code_name)
@@ -67,6 +70,13 @@ export const packetStore = {
       ...(r.code != null ? { code: r.code } : {}),
       ...(r.code_name != null ? { codeName: r.code_name } : {}),
     }));
+  },
+
+  /** Drop all but the newest `keep` rows (all of them for `keep <= 0`). Called when the
+   *  stored-history setting shrinks, so it takes effect without waiting for a packet.
+   *  At 0, `record` never inserts, so nothing else would ever prune. */
+  prune(keep: number): void {
+    prune(keep);
   },
 
   clear(): void {

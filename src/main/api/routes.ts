@@ -152,7 +152,8 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       mapSettings: holder.getMapSettings(),
       mapManifest: await buildTileManifest(),
       mapTileStatus: holder.getMapTileStatus(),
-      uiState: holder.getUiState(),
+      // Serve the same clamped retention the history query just used.
+      uiState: { ...holder.getUiState(), packetLog: retention },
       drafts: holder.getDrafts(),
       deviceIdentity: holder.getDeviceIdentity(),
       autoAddConfig: holder.getAutoAddConfig(),
@@ -171,10 +172,18 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const body = (await c.req.json().catch(() => null)) as UiState | null;
     if (!body) return c.json({ error: 'invalid body' }, 400);
     // Retention sizes main's packets-table prune and is synced to every client,
-    // so never store or fan out a missing/garbage value a client sent.
-    const next: UiState = { ...body, packetLog: clampRetention(body.packetLog) };
-    stateHolder().setUiState(next);
+    // so never store or fan out a missing/garbage value a client sent. A client
+    // that predates packetLog omits it entirely; keep the current retention rather
+    // than resetting it to defaults (an explicit null still normalises to defaults).
+    const holder = stateHolder();
+    const current = holder.getUiState().packetLog;
+    const packetLog = body.packetLog === undefined ? current : clampRetention(body.packetLog);
+    const next: UiState = { ...body, packetLog };
+    holder.setUiState(next);
     emit.uiState(next);
+    // A smaller stored history takes effect now. At 0 nothing is inserted, so
+    // without this the old rows would linger and come back if it's raised again.
+    if (packetLog.storedHistorySize < current.storedHistorySize) packetStore.prune(packetLog.storedHistorySize);
     return c.json({ ok: true });
   });
 
