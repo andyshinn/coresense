@@ -112,7 +112,8 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
           value={packet.rssi == null || packet.snr == null ? '—' : `${packet.rssi} dBm · ${packet.snr} dB`}
           mono
         />
-        <KeyValueRow label="Hops" value={d.hops === 0 ? '0 · direct' : String(d.hops)} mono />
+        {/* Just the count: 0 hops isn't a direct route (a flood heard straight from its sender is 0 too). Route says which. */}
+        <KeyValueRow label="Hops" value={String(d.hops)} mono />
         {d.pathArrows && <KeyValueRow label="Path" value={d.pathArrows} mono />}
         <KeyValueRow label="Size" value={`${d.size} bytes`} mono />
         <KeyValueRow label="Received" value={fmtDateTime(packet.timestamp, timeFormat)} mono />

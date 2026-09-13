@@ -104,6 +104,24 @@ const nextPacketId = () => `pkt-${packetSeq++}`;
 // Keep only the newest n items. n<=0 → [] (guards against slice(-0) returning the whole array).
 const keepLast = <T>(arr: T[], n: number): T[] => (n <= 0 ? [] : arr.length > n ? arr.slice(-n) : arr);
 
+/**
+ * Packets for hydrate(): the snapshot's history plus any packets that arrived over
+ * the WebSocket while the snapshot request was in flight (App starts both at once).
+ * Replacing the array dropped those, and with stored history off they were lost.
+ * A packet can be in both, since main persists before it broadcasts; the copy
+ * already in the store keeps its id so a selection or scroll anchor on it survives.
+ */
+export function mergeHydratedPackets(snapshot: RawPacket[], live: LivePacket[], cap: number): LivePacket[] {
+  const key = (p: RawPacket) => `${p.timestamp}:${p.hex}`;
+  const liveByKey = new Map(live.map((p) => [key(p), p]));
+  const merged = snapshot.map((p) => {
+    const existing = liveByKey.get(key(p));
+    if (existing) liveByKey.delete(key(p));
+    return existing ?? { ...p, id: nextPacketId() };
+  });
+  return keepLast([...merged, ...liveByKey.values()], cap);
+}
+
 const packetLogEqual = (a: UiState['packetLog'], b: UiState['packetLog']) =>
   a.liveBufferSize === b.liveBufferSize && a.storedHistorySize === b.storedHistorySize;
 
@@ -690,7 +708,7 @@ export const useStore = create<CoreState>((set) => ({
 
   hydrate: (snapshot) => {
     setRendererLogLevel(snapshot.appSettings.logging.level);
-    set(() => ({
+    set((s) => ({
       transportState: snapshot.transport.state,
       connectedDeviceId: snapshot.transport.deviceId,
       syncProgress: snapshot.syncProgress ?? DEFAULT_SYNC_PROGRESS,
@@ -721,7 +739,7 @@ export const useStore = create<CoreState>((set) => ({
       // `??` for the same reason the fields above use it: an older main
       // serving a newer renderer during dev has no drafts in its snapshot.
       drafts: snapshot.drafts ?? {},
-      packets: (snapshot.packets ?? []).map((p) => ({ ...p, id: nextPacketId() })),
+      packets: mergeHydratedPackets(snapshot.packets ?? [], s.packets, snapshot.uiState.packetLog.liveBufferSize),
       // Seed in-session sort from the persisted default so an existing user
       // preference takes effect immediately on launch.
       searchSort: snapshot.appSettings.search?.defaultSort ?? 'recency',

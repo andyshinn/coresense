@@ -5,7 +5,8 @@ const isHexBody = (s: string) => s.length >= 2 && s.length % 2 === 0 && /^[0-9a-
 // Sane upper bound on decoded packet size — nothing on the wire is remotely
 // this large, and it protects the dialog (and the decoder libs it feeds) from
 // pathological pastes. Checked on the input string length (cheap, no
-// allocation) rather than after atob/hex expansion.
+// allocation) before decoding, and again on base64's decoded length, which the
+// character count only bounds to within a couple of bytes.
 const MAX_PACKET_BYTES = 64 * 1024;
 const MAX_HEX_CHARS = MAX_PACKET_BYTES * 2; // 2 hex chars per byte
 const MAX_BASE64_CHARS = Math.ceil(MAX_PACKET_BYTES / 3) * 4; // base64 expands 3 bytes -> 4 chars
@@ -35,7 +36,7 @@ export function normalizeToHex(raw: string): { hex: string; kind: PacketInputKin
   if (b64.length > MAX_BASE64_CHARS) return null;
   try {
     const bin = atob(b64);
-    if (bin.length < 1) return null;
+    if (bin.length < 1 || bin.length > MAX_PACKET_BYTES) return null;
     let hex = '';
     for (let i = 0; i < bin.length; i++) hex += bin.charCodeAt(i).toString(16).padStart(2, '0');
     return { hex, kind: 'base64' };

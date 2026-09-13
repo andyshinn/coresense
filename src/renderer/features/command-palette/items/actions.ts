@@ -289,9 +289,17 @@ export function buildActionItems({
     keywords: 'clear packet log',
     run: () => {
       clearPackets();
-      if (client) void api.clearPackets(client).catch(() => {});
-      notify.success('Packet log cleared');
       close();
+      if (!client) {
+        notify.success('Packet log cleared');
+        return;
+      }
+      // Only report success once the stored history is gone too; otherwise it
+      // comes back on the next launch.
+      api.clearPackets(client).then(
+        () => notify.success('Packet log cleared'),
+        (err) => notify.error("Cleared the live log, but couldn't clear stored packets", err),
+      );
     },
   });
   list.push({

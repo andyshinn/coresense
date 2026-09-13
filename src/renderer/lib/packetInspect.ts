@@ -136,6 +136,13 @@ const bin = (v: number, w: number) => (v >>> 0).toString(2).padStart(w, '0');
 // the right-rail detail (which uses this module) in agreement.
 export const spaceWords = (s: string) => s.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
 
+/** A mesh packet's payload type as the list shows it ("Group Text"), read straight from
+ *  the header byte. Cheap enough to run over the whole buffer, unlike a full decode. */
+export function meshTypeName(payloadHex: string): string {
+  const header = Number.parseInt(payloadHex.slice(0, 2), 16);
+  return Number.isNaN(header) ? '' : spaceWords(Utils.getPayloadTypeName(((header >> 2) & 0x0f) as PayloadType));
+}
+
 // path_len byte → hop-count + hash-size bit rows (fallback for decoder versions that
 // don't already bit-break the path-length byte themselves).
 function pathLenBits(byte: number): BitRow[] {

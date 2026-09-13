@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { type LivePacket, migratePacketLogFilter, useStore } from '../../../../src/renderer/lib/store';
+import { type LivePacket, mergeHydratedPackets, migratePacketLogFilter, useStore } from '../../../../src/renderer/lib/store';
 import {
   DEFAULT_APP_SETTINGS,
   DEFAULT_AUTO_ADD_CONFIG,
@@ -83,6 +83,36 @@ describe('packet log store', () => {
     // persisted on disk. The user's real "hide BLE" preference must win.
     expect(migratePacketLogFilter({ source: 'both', showCompanion: false }).source).toBe('rf');
     expect(migratePacketLogFilter({ source: 'both', showCompanion: true }).source).toBe('both');
+  });
+});
+
+describe('mergeHydratedPackets()', () => {
+  const raw = (timestamp: number): RawPacket => ({
+    timestamp,
+    transportType: 'ble',
+    kind: 'mesh',
+    hex: `88${timestamp}`,
+    bytes: [],
+    payloadHex: '15',
+    payloadBytes: [],
+  });
+
+  it('keeps packets that arrived over the WebSocket while the snapshot was loading', () => {
+    const arrivedEarly = { ...raw(3), id: 'pkt-live-3' };
+    const merged = mergeHydratedPackets([raw(1), raw(2)], [arrivedEarly], 100);
+    expect(merged.map((p) => p.timestamp)).toEqual([1, 2, 3]);
+    expect(merged[2].id).toBe('pkt-live-3');
+  });
+
+  it('does not duplicate a packet in both, and keeps its existing id', () => {
+    const live = { ...raw(2), id: 'pkt-selected' };
+    const merged = mergeHydratedPackets([raw(1), raw(2)], [live], 100);
+    expect(merged.map((p) => p.id)).toEqual([expect.stringMatching(/^pkt-/), 'pkt-selected']);
+  });
+
+  it('applies the live buffer cap to the merged result', () => {
+    const merged = mergeHydratedPackets([raw(1), raw(2)], [{ ...raw(3), id: 'x' }], 2);
+    expect(merged.map((p) => p.timestamp)).toEqual([2, 3]);
   });
 });
 

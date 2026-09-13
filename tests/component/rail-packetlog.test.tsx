@@ -58,6 +58,8 @@ describe('PacketDetailsRail', () => {
     useStore.setState({ packets: [advert], selectedPacketId: 'pkt-advert', channels: [] });
     render(<PacketDetailsRail client={null} />);
     expect(screen.getByText('Advert App-Data')).toBeTruthy();
+    // A 0-hop flood: the hop count doesn't claim a direct route beside "Route: Flood".
+    expect(screen.queryByText(/0 · direct/)).toBeNull();
   });
 
   it('renders the DM lock note for a TextMessage packet with no shared key', () => {

@@ -157,6 +157,14 @@ describe('PacketLog selection across view switches', () => {
     expect(useStore.getState().selectedPacketId).toBe('pkt-3');
   });
 
+  it('drops the selection when its packet is evicted from the head while the log is open', () => {
+    useStore.setState({ selectedPacketId: 'pkt-0' });
+    const { rerender } = render(<PacketLog packets={range(0, 10)} />);
+    expect(useStore.getState().selectedPacketId).toBe('pkt-0');
+    rerender(<PacketLog packets={range(1, 11)} />);
+    expect(useStore.getState().selectedPacketId).toBeNull();
+  });
+
   it('drops a remembered selection that has rolled out of the log', () => {
     useStore.setState({ selectedPacketId: 'pkt-3' });
     render(<PacketLog packets={range(5, 10)} />);

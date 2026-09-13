@@ -59,6 +59,33 @@ describe('PacketLog list', () => {
     expect(screen.getByText('Group Text')).toBeTruthy();
   });
 
+  it('searches the displayed type, the kind and the raw frame hex', () => {
+    const groupText = pkt('pkt-0', { payloadHex: '1501782abbcc00112233', hex: '8814b61501782abbcc00112233' });
+    const advert = pkt('pkt-1', { kind: 'companion', codeName: 'PUSH_ADVERT', hex: '80deadbeef', payloadHex: 'deadbeef' });
+    render(<PacketLog packets={[groupText, advert]} />);
+    const search = screen.getByPlaceholderText(/filter by/i);
+    for (const [query, id] of [
+      ['group text', 'pkt-0'],
+      ['push advert', 'pkt-1'],
+      ['companion', 'pkt-1'],
+      ['8814b6', 'pkt-0'],
+    ] as const) {
+      fireEvent.change(search, { target: { value: query } });
+      const rows = screen.getAllByTestId('packet-row');
+      expect(rows, query).toHaveLength(1);
+      fireEvent.click(rows[0]);
+      expect(useStore.getState().selectedPacketId, query).toBe(id);
+      useStore.setState({ selectedPacketId: null });
+    }
+  });
+
+  it('exposes the selected source filter to assistive tech', () => {
+    useStore.getState().setPacketLogFilter({ source: 'rf' });
+    render(<PacketLog packets={[pkt('pkt-0')]} />);
+    expect(screen.getByRole('button', { name: 'RF' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Both' }).getAttribute('aria-pressed')).toBe('false');
+  });
+
   it('does not show a mesh-decode error in DETAILS for a companion row', () => {
     render(<PacketLog packets={[pkt('pkt-1', { kind: 'companion', codeName: 'PUSH_ADVERT', payloadHex: 'deadbeef' })]} />);
     expect(screen.queryByText(/too short|invalid|error/i)).toBeNull();

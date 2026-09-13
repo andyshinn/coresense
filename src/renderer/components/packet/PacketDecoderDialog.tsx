@@ -1,5 +1,6 @@
 import { Binary } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { companionFrameName } from '../../../shared/companionFrames';
 import { inspectBleFrame } from '../../lib/bleFrameLayouts';
 import { normalizeToHex } from '../../lib/packetInput';
 import { inspectPacket, type PacketInspection } from '../../lib/packetInspect';
@@ -38,7 +39,10 @@ export function PacketDecoderDialog() {
       return;
     }
     if (kind === 'ble') {
-      setResult({ kind: 'ble', b: inspectBleFrame(norm.hex) });
+      // A pasted frame starts with its 1-byte type code. The companion layouts describe
+      // the body after it, the same split main makes, so name the frame and strip it.
+      const code = Number.parseInt(norm.hex.slice(0, 2), 16);
+      setResult({ kind: 'ble', b: inspectBleFrame(norm.hex.slice(2), companionFrameName(code)) });
       return;
     }
     const d = inspectPacket(norm.hex, keyStore ? { keyStore } : undefined);

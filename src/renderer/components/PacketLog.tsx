@@ -13,7 +13,7 @@ import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, u
 import type { TimeFormatPref } from '../../shared/types';
 import { summarizeBleFrame } from '../lib/bleFrameLayouts';
 import { type PacketSummary, summarizePacket } from '../lib/decodePacket';
-import { spaceWords } from '../lib/packetInspect';
+import { meshTypeName, spaceWords } from '../lib/packetInspect';
 import { columnTemplate, columnWidth, type PacketLogColumn } from '../lib/packetLogColumns';
 import { type LivePacket, type PacketLogView, useStore } from '../lib/store';
 import { fmtTimePrecise } from '../lib/time';
@@ -64,6 +64,21 @@ function useFittedTimeWidth(pref: TimeFormatPref) {
     return () => observer.disconnect();
   }, [sample]);
   return { ref, sample, width };
+}
+
+/** What the search box matches against: the kind, the displayed type, both hex forms
+ *  and RSSI. Cached per packet object (packets are never mutated), so a new arrival or
+ *  a keystroke doesn't rebuild the string for all 20,000 packets. */
+const searchText = new WeakMap<LivePacket, string>();
+function searchTextOf(p: LivePacket): string {
+  let text = searchText.get(p);
+  if (text === undefined) {
+    const type =
+      p.kind === 'companion' ? `${p.codeName ?? ''} ${(p.codeName ?? '').replace(/_/g, ' ')}` : meshTypeName(p.payloadHex);
+    text = `${p.kind} ${type} ${p.hex} ${p.payloadHex} ${p.rssi ?? ''}`.toLowerCase();
+    searchText.set(p, text);
+  }
+  return text;
 }
 
 const COLUMN_LABELS: { column: PacketLogColumn | null; label: string; edge?: 'left' | 'right' }[] = [
@@ -176,7 +191,7 @@ export function PacketLog({ packets }: Props) {
       if (source === 'rf' && p.kind !== 'mesh') return false;
       if (source === 'ble' && p.kind !== 'companion') return false;
       if (!s) return true;
-      return `${p.codeName ?? ''} ${p.payloadHex} ${p.rssi ?? ''}`.toLowerCase().includes(s);
+      return searchTextOf(p).includes(s);
     });
   }, [packets, source, q]);
 
@@ -220,13 +235,16 @@ export function PacketLog({ packets }: Props) {
     const anchor = loc.isAtBottom ? undefined : visibleRef.current[loc.lastVisibleItemIndex];
     viewRef.current = anchor ? { anchorId: anchor.id, anchorBottomOffset: loc.lastItemBottomOffset } : null;
   }, []);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount only — checks the selection the panel came back to, and saves the position on the way out.
+  // A selection that has rolled out of the log (while away, or evicted from the head
+  // while watching) has nothing left to show. Newest packets are the likeliest pick,
+  // so search from the end.
   useEffect(() => {
-    const { selectedPacketId, setSelectedPacket: select, setPacketLogView } = useStore.getState();
-    // A remembered selection that has rolled out of the log has nothing left to show.
-    if (selectedPacketId && !packets.some((p) => p.id === selectedPacketId)) select(null);
-    return () => setPacketLogView(viewRef.current);
-  }, []);
+    const { selectedPacketId, setSelectedPacket: select } = useStore.getState();
+    if (!selectedPacketId) return;
+    for (let i = packets.length - 1; i >= 0; i--) if (packets[i].id === selectedPacketId) return;
+    select(null);
+  }, [packets]);
+  useEffect(() => () => useStore.getState().setPacketLogView(viewRef.current), []);
 
   // While restoring, don't chase packets that arrive mid-landing: that would drag the
   // list off the restored position and down to the bottom.
@@ -266,6 +284,7 @@ export function PacketLog({ packets }: Props) {
             <button
               key={k}
               type="button"
+              aria-pressed={source === k}
               onClick={() => setPacketLogFilter({ source: k })}
               className={`inline-flex h-6 items-center gap-1.5 rounded px-2.5 text-[11.5px] ${source === k ? 'bg-cs-bg text-cs-text shadow-[inset_0_0_0_1px_rgb(var(--cs-border))]' : 'text-cs-text-muted'}`}
             >

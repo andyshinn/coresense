@@ -28,4 +28,8 @@ describe('normalizeToHex', () => {
     // Not hex (contains '/'), long enough to exceed the base64 char cap.
     expect(normalizeToHex('A/'.repeat(45000))).toBeNull();
   });
+  it('returns null for base64 within the character cap that still decodes past 64 KiB', () => {
+    // 87,384 chars (the char cap) of "QUFB" decode to 65,538 bytes.
+    expect(normalizeToHex('QUFB'.repeat(21846))).toBeNull();
+  });
 });

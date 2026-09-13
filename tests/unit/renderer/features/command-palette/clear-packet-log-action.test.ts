@@ -39,7 +39,7 @@ function clearPacketLogAction(clearPackets: () => void) {
 describe('command palette: clear packet log', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('clears the live buffer and calls api.clearPackets to clear the DB', () => {
+  it('clears the live buffer and calls api.clearPackets to clear the DB', async () => {
     const clearPackets = vi.fn();
     const action = clearPacketLogAction(clearPackets);
     expect(action).toBeTruthy();
@@ -47,6 +47,13 @@ describe('command palette: clear packet log', () => {
     expect(clearPackets).toHaveBeenCalledTimes(1);
     expect(api.clearPackets).toHaveBeenCalledTimes(1);
     expect(api.clearPackets).toHaveBeenCalledWith(client);
-    expect(notify.success).toHaveBeenCalledWith('Packet log cleared');
+    await vi.waitFor(() => expect(notify.success).toHaveBeenCalledWith('Packet log cleared'));
+  });
+
+  it('reports a failure instead of success when the stored packets could not be cleared', async () => {
+    vi.mocked(api.clearPackets).mockRejectedValueOnce(new Error('503'));
+    clearPacketLogAction(vi.fn())?.run();
+    await vi.waitFor(() => expect(notify.error).toHaveBeenCalled());
+    expect(notify.success).not.toHaveBeenCalled();
   });
 });
