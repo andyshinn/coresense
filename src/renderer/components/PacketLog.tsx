@@ -106,15 +106,24 @@ export function PacketLog({ packets }: Props) {
     if (!rightOpen) toggleRightRail();
   };
 
-  // Land on the newest packet when the panel first opens (imperative, rather than
+  // Land on the newest packet whenever the list (re)mounts (imperative, rather than
   // `initialTopMostItemIndex`, so the initial paint still comes from
   // `initialItemCount` below — combining that prop with an end-anchored
   // `initialTopMostItemIndex` collapses Virtuoso's estimated-height render to a
   // single item in layout-less environments, e.g. jsdom under test).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only — land on the newest packet once; `followOutput` handles subsequent arrivals.
+  //
+  // Keyed on the empty → non-empty transition, not on PacketLog's own mount:
+  // Virtuoso is swapped out for the empty state whenever `visible` is empty, and
+  // this panel is the default view, so it routinely mounts BEFORE the snapshot
+  // hydrates. A mount-only effect then saw zero rows, Virtuoso mounted at index 0
+  // once packets arrived, and `followOutput="auto"` (which only follows from the
+  // bottom) never tracked live traffic. The same happens after a clear or when a
+  // filter change empties and refills the list.
+  const hasRows = visible.length > 0;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fire on each Virtuoso mount (empty → non-empty) only; `followOutput` handles appends after that.
   useEffect(() => {
-    if (visible.length > 0) virtuosoRef.current?.scrollToIndex({ index: visible.length - 1, align: 'end' });
-  }, []);
+    if (hasRows) virtuosoRef.current?.scrollToIndex({ index: visible.length - 1, align: 'end' });
+  }, [hasRows]);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">
