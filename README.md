@@ -12,6 +12,8 @@ This app is mostly written with help from Claude. While I make efforts to ensure
 
 ### macOS (Homebrew)
 
+Requires macOS 13 (Ventura) or later.
+
 CoreSense ships two Homebrew casks — a **stable** channel and a **development**
 (prerelease) channel:
 

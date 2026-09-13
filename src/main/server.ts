@@ -57,6 +57,8 @@ import { isMainWindowFocused } from './window/registry';
 interface StartServerResult {
   port: number;
   close: () => Promise<void>;
+  /** Whether any WS client is open, i.e. someone would receive a broadcast. */
+  hasOpenClients: () => boolean;
 }
 
 interface StartServerOptions {
@@ -159,6 +161,10 @@ export async function startServer(
     }
   };
   const broadcastClientCount = () => broadcast({ type: 'wsClients', payload: { count: clients.size } });
+  const hasOpenClients = () => {
+    for (const c of clients) if (c.readyState === c.OPEN) return true;
+    return false;
+  };
 
   wss.on('connection', (ws: WebSocket, _req: IncomingMessage) => {
     clients.add(ws);
@@ -341,7 +347,7 @@ export async function startServer(
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
   };
 
-  return { port: boundPort, close };
+  return { port: boundPort, close, hasOpenClients };
 }
 
 function mimeFor(ext: string): string {
