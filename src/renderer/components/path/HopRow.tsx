@@ -14,6 +14,7 @@ export function HopRow({
   onToggleConflict,
   onHopClick,
   onSelectCandidate,
+  subject = 'message',
 }: {
   hop: MessageHop;
   hopIndex: number | null;
@@ -23,6 +24,7 @@ export function HopRow({
   onToggleConflict: () => void;
   onHopClick?: (hop: MessageHop) => void;
   onSelectCandidate?: (hop: MessageHop, contact: Contact) => void;
+  subject?: 'message' | 'packet';
 }) {
   const AVATAR = 28;
   const ROW_PAD = 10;
@@ -32,6 +34,7 @@ export function HopRow({
   const displayName = resolved ? resolved.name : hop.unnamed ? null : (hop.name ?? null);
   const displayPk = resolved ? resolved.publicKeyHex : (hop.pk ?? null);
   const showAsUnnamed = !resolved && hop.unnamed;
+  const unknownLabel = hop.kind === 'origin' ? 'Unknown sender' : 'Unknown repeater';
 
   const rowProps = onHopClick
     ? {
@@ -75,11 +78,11 @@ export function HopRow({
           <div
             className={cn('truncate text-[12.5px]', showAsUnnamed ? 'italic text-cs-text-dim' : 'font-medium text-cs-text')}
           >
-            {showAsUnnamed ? 'Unknown repeater' : (displayName ?? 'Unknown repeater')}
+            {showAsUnnamed ? unknownLabel : (displayName ?? unknownLabel)}
           </div>
           <div className="mt-0.5 truncate font-mono text-[10.5px] text-cs-text-dim">
-            {hop.kind === 'origin' && 'Sent the message'}
-            {hop.kind === 'sink' && 'You received the message'}
+            {hop.kind === 'origin' && `Sent the ${subject}`}
+            {hop.kind === 'sink' && `You received the ${subject}`}
             {hop.kind === 'hop' &&
               (showAsUnnamed
                 ? `Hop ${hopIndex} · prefix ${hop.shortId} · no advert seen`

@@ -4,7 +4,7 @@ import { useStore } from '../lib/store';
 import { PathLearnedDialog } from './path/PathLearnedDialog';
 import { StatusBar } from './StatusBar';
 
-// Lazy: PacketLog pulls in react-virtual + the protocol decoder; we only need
+// Lazy: PacketLog pulls in the virtualized list + the protocol decoder; we only need
 // it when the user opens the packet log panel.
 const PacketLog = lazy(() => import('./PacketLog').then((m) => ({ default: m.PacketLog })));
 

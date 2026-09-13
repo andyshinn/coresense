@@ -17,6 +17,7 @@ export function PathItem({
   onToggle,
   onHopClick,
   onSelectCandidate,
+  subject = 'message',
 }: {
   path: MessagePath;
   knownRepeaters: Contact[];
@@ -24,6 +25,7 @@ export function PathItem({
   onToggle: () => void;
   onHopClick?: (hop: MessageHop) => void;
   onSelectCandidate?: (hop: MessageHop, contact: Contact) => void;
+  subject?: 'message' | 'packet';
 }) {
   const lastRepeater = path.hops[path.hops.length - 2] ?? path.hops[path.hops.length - 1];
   const lastRepeaterMatch = lastRepeater.kind === 'hop' ? candidatesFor(lastRepeater, knownRepeaters)[0] : null;
@@ -53,7 +55,9 @@ export function PathItem({
         </span>
         <HopAvatar hop={lastRepeater} size={24} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[12.5px] font-medium text-cs-text">{lastRepeaterLabel ?? 'Unknown repeater'}</div>
+          <div className="truncate text-[12.5px] font-medium text-cs-text">
+            {lastRepeaterLabel ?? (lastRepeater.kind === 'origin' ? 'Unknown sender' : 'Unknown repeater')}
+          </div>
           <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-cs-text-dim">
             <HopBadge hops={hopCount} hashMode={path.hashMode} />
             {isKnownHashMode(path.hashMode) && (
@@ -87,6 +91,7 @@ export function PathItem({
           knownRepeaters={knownRepeaters}
           onHopClick={onHopClick}
           onSelectCandidate={onSelectCandidate}
+          subject={subject}
         />
       )}
     </div>

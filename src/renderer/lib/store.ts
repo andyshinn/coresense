@@ -62,6 +62,7 @@ import type { MacroStudioBridge } from '../panels/macros/studio/bridge';
 import { setRendererLogLevel, setRendererLogSink } from './logger';
 import { mergeMessages } from './mergeMessages';
 import type { NeighbourSortKey } from './neighbours';
+import type { PacketLogColumn, PacketLogColumnWidths } from './packetLogColumns';
 
 /** Rows main returns per history window (`byKey`'s default limit). The renderer
  *  holds more than this by design; a few places need to know the server's unit. */
@@ -82,8 +83,64 @@ const HISTORY_KEEP = 4000;
 
 const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null };
 
-const MAX_PACKETS = 500;
 const MAX_LOGS = 5000;
+
+export type LivePacket = RawPacket & { id: string };
+
+/** Where the Packet Log was scrolled when it last unmounted: the bottom-most visible
+ *  packet and how far its bottom edge sat from the viewport's. Null when it was at the
+ *  bottom. Session memory only, never persisted. Packet ids are renumbered on reload anyway. */
+export interface PacketLogView {
+  anchorId: string;
+  anchorBottomOffset: number;
+}
+
+// Monotonic id for live + hydrated packets so list keys and selection never
+// collide regardless of source. Not persisted; a reload restarts the counter
+// and re-ids the hydrated set.
+let packetSeq = 0;
+const nextPacketId = () => `pkt-${packetSeq++}`;
+
+// Keep only the newest n items. n<=0 → [] (guards against slice(-0) returning the whole array).
+const keepLast = <T>(arr: T[], n: number): T[] => (n <= 0 ? [] : arr.length > n ? arr.slice(-n) : arr);
+
+/**
+ * Packets for hydrate(): the snapshot's history plus any packets that arrived over
+ * the WebSocket while the snapshot request was in flight (App starts both at once).
+ * Replacing the array dropped those, and with stored history off they were lost.
+ * A packet can be in both, since main persists before it broadcasts; the copy
+ * already in the store keeps its id so a selection or scroll anchor on it survives.
+ */
+export function mergeHydratedPackets(snapshot: RawPacket[], live: LivePacket[], cap: number): LivePacket[] {
+  const key = (p: RawPacket) => `${p.timestamp}:${p.hex}`;
+  const liveByKey = new Map(live.map((p) => [key(p), p]));
+  const merged = snapshot.map((p) => {
+    const existing = liveByKey.get(key(p));
+    if (existing) liveByKey.delete(key(p));
+    return existing ?? { ...p, id: nextPacketId() };
+  });
+  return keepLast([...merged, ...liveByKey.values()], cap);
+}
+
+const packetLogEqual = (a: UiState['packetLog'], b: UiState['packetLog']) =>
+  a.liveBufferSize === b.liveBufferSize && a.storedHistorySize === b.storedHistorySize;
+
+/**
+ * Back-compat: older ui-state.json stored { showCompanion }. By the time this
+ * runs at hydrate, `f` has already been through main's deep mergeDefaults,
+ * which injects a fresh `source: 'both'` alongside any legacy
+ * `showCompanion` that was actually on disk — so a plain `'source' in f`
+ * check would win over the legacy key and silently discard the user's real
+ * preference (e.g. an old "hide BLE" of showCompanion:false would come back
+ * as 'both' instead of 'rf'). Check `showCompanion` FIRST so a legacy value,
+ * when present, always takes precedence over an injected default `source`.
+ */
+export function migratePacketLogFilter(f: unknown): { source: 'both' | 'rf' | 'ble' } {
+  if (f && typeof f === 'object' && 'showCompanion' in f)
+    return { source: (f as { showCompanion: boolean }).showCompanion ? 'both' : 'rf' };
+  if (f && typeof f === 'object' && 'source' in f) return { source: (f as { source: 'both' | 'rf' | 'ble' }).source };
+  return { source: 'both' };
+}
 
 export interface SearchFilters {
   categories: SearchCategory[];
@@ -240,7 +297,7 @@ interface CoreState {
   wsClients: number;
 
   // Live packet log (capped ring buffer)
-  packets: RawPacket[];
+  packets: LivePacket[];
 
   // Live log entries from main, mirrored over WS (capped ring buffer).
   logs: LogEntry[];
@@ -361,10 +418,21 @@ interface CoreState {
    *  confirm popover anchored to itself, so only an id is needed. */
   pendingDeleteMessageId: string | null;
   setPendingDeleteMessageId: (id: string | null) => void;
+  // ID of the packet currently inspected in the right rail. Kept across navigation
+  // (unlike selectedMessageId) so returning to the Packet Log shows it again.
+  selectedPacketId: string | null;
+  packetLogView: PacketLogView | null;
+  setPacketLogView: (view: PacketLogView | null) => void;
+  /** Packet Log column widths the user dragged. Session memory only. */
+  packetLogColumns: PacketLogColumnWidths;
+  /** Null resets the column to its default (for Time, the width that fits the time format). */
+  setPacketLogColumnWidth: (column: PacketLogColumn, width: number | null) => void;
   // Cmd+K palette open state. Not persisted across reloads.
   paletteOpen: boolean;
   // Keyboard-shortcuts help overlay open state. Not persisted across reloads.
   helpOpen: boolean;
+  // Packet decoder dialog open state. Not persisted across reloads.
+  decoderOpen: boolean;
   // Add Channel popover open state. Not persisted across reloads.
   addChannelOpen: boolean;
 
@@ -386,6 +454,9 @@ interface CoreState {
   // Hydration helpers
   hydrate: (snapshot: StateSnapshot) => void;
   applyPacket: (p: RawPacket) => void;
+  setSelectedPacket: (id: string | null) => void;
+  setPacketLogSettings: (patch: Partial<UiState['packetLog']>) => void;
+  setDecoderOpen: (open: boolean) => void;
   applyTransportState: (state: TransportState, deviceId?: string) => void;
   applySyncProgress: (progress: SyncProgress) => void;
   applyDevices: (devices: BleDevice[]) => void;
@@ -621,8 +692,12 @@ export const useStore = create<CoreState>((set) => ({
 
   busy: false,
   selectedMessageId: null,
+  selectedPacketId: null,
+  packetLogView: null,
+  packetLogColumns: {},
   paletteOpen: false,
   helpOpen: false,
+  decoderOpen: false,
   addChannelOpen: false,
 
   searchQuery: '',
@@ -633,7 +708,7 @@ export const useStore = create<CoreState>((set) => ({
 
   hydrate: (snapshot) => {
     setRendererLogLevel(snapshot.appSettings.logging.level);
-    set(() => ({
+    set((s) => ({
       transportState: snapshot.transport.state,
       connectedDeviceId: snapshot.transport.deviceId,
       syncProgress: snapshot.syncProgress ?? DEFAULT_SYNC_PROGRESS,
@@ -660,10 +735,11 @@ export const useStore = create<CoreState>((set) => ({
       mapSettings: { ...DEFAULT_MAP_SETTINGS, ...snapshot.mapSettings },
       mapManifest: snapshot.mapManifest,
       mapTileStatus: snapshot.mapTileStatus ?? DEFAULT_MAP_TILE_STATUS,
-      ui: snapshot.uiState,
+      ui: { ...snapshot.uiState, packetLogFilter: migratePacketLogFilter(snapshot.uiState.packetLogFilter) },
       // `??` for the same reason the fields above use it: an older main
       // serving a newer renderer during dev has no drafts in its snapshot.
       drafts: snapshot.drafts ?? {},
+      packets: mergeHydratedPackets(snapshot.packets ?? [], s.packets, snapshot.uiState.packetLog.liveBufferSize),
       // Seed in-session sort from the persisted default so an existing user
       // preference takes effect immediately on launch.
       searchSort: snapshot.appSettings.search?.defaultSort ?? 'recency',
@@ -672,8 +748,8 @@ export const useStore = create<CoreState>((set) => ({
 
   applyPacket: (p) =>
     set((s) => {
-      const next = s.packets.length >= MAX_PACKETS ? s.packets.slice(-(MAX_PACKETS - 1)) : s.packets;
-      return { packets: [...next, p] };
+      const withId: LivePacket = { ...p, id: nextPacketId() };
+      return { packets: keepLast([...s.packets, withId], s.ui.packetLog.liveBufferSize) };
     }),
 
   applyTransportState: (state, deviceId) => set(() => ({ transportState: state, connectedDeviceId: deviceId })),
@@ -853,6 +929,12 @@ export const useStore = create<CoreState>((set) => ({
       // every connected client.
       const incomingEmojiUsage = incoming.emojiUsage ?? {};
       const incomingMacroUsage = incoming.macroUsage ?? {};
+      // Retention is synced too, and not just for looks: main sizes the packets
+      // table's prune from whatever UiState it last received, so a client
+      // still holding an old packetLog would revert another client's change —
+      // and delete stored history — on its next unrelated PUT. A legacy
+      // producer may omit it; keep ours rather than adopting undefined.
+      const incomingPacketLog = incoming.packetLog ?? s.ui.packetLog;
       // Read markers merge per key by max rather than being adopted wholesale.
       // Two markRead advances can land inside one loopback round trip, so a
       // stale echo would otherwise drag the cursor backwards, allocate a fresh
@@ -868,7 +950,8 @@ export const useStore = create<CoreState>((set) => ({
         arraysEqual(s.ui.recentKeys, incoming.recentKeys) &&
         usageMapEqual(s.ui.emojiUsage, incomingEmojiUsage) &&
         usageMapEqual(s.ui.macroUsage, incomingMacroUsage) &&
-        s.ui.themePref === incoming.themePref;
+        s.ui.themePref === incoming.themePref &&
+        packetLogEqual(s.ui.packetLog, incomingPacketLog);
       if (same) return {};
       return {
         ui: {
@@ -879,7 +962,9 @@ export const useStore = create<CoreState>((set) => ({
           emojiUsage: incomingEmojiUsage,
           macroUsage: incomingMacroUsage,
           themePref: incoming.themePref,
+          packetLog: incomingPacketLog,
         },
+        packets: keepLast(s.packets, incomingPacketLog.liveBufferSize),
       };
     }),
   applyRepeaterStatus: (snap) =>
@@ -983,6 +1068,21 @@ export const useStore = create<CoreState>((set) => ({
     })),
   setSelectedMessage: (id) => set(() => ({ selectedMessageId: id })),
   setPendingDeleteMessageId: (id) => set(() => ({ pendingDeleteMessageId: id })),
+  setSelectedPacket: (id) => set(() => ({ selectedPacketId: id })),
+  setPacketLogView: (view) => set(() => ({ packetLogView: view })),
+  setPacketLogColumnWidth: (column, width) =>
+    set((s) => {
+      const next = { ...s.packetLogColumns };
+      if (width == null) delete next[column];
+      else next[column] = width;
+      return { packetLogColumns: next };
+    }),
+  setPacketLogSettings: (patch) =>
+    set((s) => {
+      const packetLog = { ...s.ui.packetLog, ...patch };
+      return { ui: { ...s.ui, packetLog }, packets: keepLast(s.packets, packetLog.liveBufferSize) };
+    }),
+  setDecoderOpen: (open) => set(() => ({ decoderOpen: open })),
   toggleLeftNav: () => set((s) => ({ ui: { ...s.ui, leftOpen: !s.ui.leftOpen } })),
   toggleRightRail: () => set((s) => ({ ui: { ...s.ui, rightOpen: !s.ui.rightOpen } })),
   setRightWidth: (w) => set((s) => ({ ui: { ...s.ui, rightWidth: w } })),

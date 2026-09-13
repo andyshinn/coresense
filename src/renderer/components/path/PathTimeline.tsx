@@ -7,11 +7,13 @@ export function PathTimeline({
   knownRepeaters,
   onHopClick,
   onSelectCandidate,
+  subject = 'message',
 }: {
   hops: MessageHop[];
   knownRepeaters: Contact[];
   onHopClick?: (hop: MessageHop) => void;
   onSelectCandidate?: (hop: MessageHop, contact: Contact) => void;
+  subject?: 'message' | 'packet';
 }) {
   const [openConflict, setOpenConflict] = useState<number | null>(null);
   return (
@@ -30,6 +32,7 @@ export function PathTimeline({
             onToggleConflict={() => setOpenConflict(openConflict === i ? null : i)}
             onHopClick={onHopClick}
             onSelectCandidate={onSelectCandidate}
+            subject={subject}
           />
         );
       })}

@@ -1,5 +1,6 @@
 import {
   ArrowUpCircle,
+  Binary,
   CheckCheck,
   Clipboard,
   Eraser,
@@ -17,6 +18,7 @@ import type { Contact, Owner, RawPacket, TransportState } from '../../../../shar
 import { type ApiClient, api } from '../../../lib/api';
 import type { LastDevice } from '../../../lib/lastDevice';
 import { notify } from '../../../lib/notify';
+import { useStore } from '../../../lib/store';
 import type { PaletteItem } from '../types';
 
 export interface BuildActionsArgs {
@@ -287,7 +289,29 @@ export function buildActionItems({
     keywords: 'clear packet log',
     run: () => {
       clearPackets();
-      notify.success('Packet log cleared');
+      close();
+      if (!client) {
+        notify.success('Packet log cleared');
+        return;
+      }
+      // Only report success once the stored history is gone too; otherwise it
+      // comes back on the next launch.
+      api.clearPackets(client).then(
+        () => notify.success('Packet log cleared'),
+        (err) => notify.error("Cleared the live log, but couldn't clear stored packets", err),
+      );
+    },
+  });
+  list.push({
+    id: 'action:decodePacket',
+    label: 'Decode packet…',
+    hint: 'hex / base64 / meshcore://',
+    group: 'action',
+    groupLabel: 'Actions',
+    icon: Binary,
+    keywords: 'decode packet hex base64 byon inspector',
+    run: () => {
+      useStore.getState().setDecoderOpen(true);
       close();
     },
   });
