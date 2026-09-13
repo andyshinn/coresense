@@ -1,25 +1,52 @@
+import {
+  type ItemContent,
+  type ItemLocation,
+  type ItemLocationCallback,
+  type ListScrollLocation,
+  scrollToBottomIfAtBottom,
+  VirtuosoMessageList,
+  VirtuosoMessageListLicense,
+  type VirtuosoMessageListProps,
+} from '@virtuoso.dev/message-list';
 import { Layers, Radio, Search, Waypoints } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { summarizeBleFrame } from '../lib/bleFrameLayouts';
 import { type PacketSummary, summarizePacket } from '../lib/decodePacket';
 import { spaceWords } from '../lib/packetInspect';
-import { type LivePacket, useStore } from '../lib/store';
+import { type LivePacket, type PacketLogView, useStore } from '../lib/store';
 import { fmtTimePrecise } from '../lib/time';
+import { VIRTUOSO_LICENSE_KEY } from '../lib/virtuosoLicense';
 
 interface Props {
   packets: LivePacket[];
 }
 
+interface RowContext {
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}
+
 const GRID = 'grid-cols-[70px_112px_minmax(0,1fr)_92px_30px]';
 
-// Virtuoso can't measure a real container until its ResizeObserver fires (first
-// paint in the browser, or never in a layout-less test DOM). `initialItemCount`
-// forces it to render this many rows up front regardless of measured size — enough
-// to fill one screen so there's no blank flash, but capped well below the packet
-// buffer's max (`liveBufferSize` can reach 20,000 — see shared/types.ts) so a big
-// buffer never blocks the initial paint on thousands of synchronous DOM nodes.
-const INITIAL_RENDER_COUNT = 40;
+const NEWEST: ItemLocation = { index: 'LAST', align: 'end' };
+
+/**
+ * Follow new packets only while the viewport is at the bottom, so a user scrolled
+ * up to inspect an older packet keeps their place.
+ *
+ * Also follow while the list hasn't reported a scroll location yet
+ * (`scrollHeight` 0). That's the first few frames after a mount, while it's still
+ * landing on NEWEST. `scrollToBottomIfAtBottom` alone reads "not at bottom" there,
+ * so a packet arriving mid-landing would be skipped. The list would then settle a
+ * row short, outside the at-bottom threshold, and never follow again. Measured in
+ * Chromium: about one frame after a remount, several at low CPU.
+ *
+ * That catch-up must be instant. The list publishes its first data while it's still
+ * landing too, so a 'smooth' here animated the whole log from the top down to the
+ * newest packet on every mount.
+ */
+const followNewPackets: ItemLocationCallback = (params) =>
+  scrollToBottomIfAtBottom(params) || (params.scrollLocation.scrollHeight === 0 ? 'auto' : false);
 
 function badge(packet: LivePacket, summary: PacketSummary | null): { letter: string; varName: string } {
   if (packet.kind === 'companion') return { letter: 'B', varName: '--cs-ble' };
@@ -75,6 +102,10 @@ function Row({ packet, selected, onSelect }: { packet: LivePacket; selected: boo
   );
 }
 
+const PacketItem: ItemContent<LivePacket, RowContext> = ({ data, context }) => (
+  <Row packet={data} selected={context.selectedId === data.id} onSelect={() => context.onSelect(data.id)} />
+);
+
 const SOURCES = [
   { k: 'both', label: 'Both', Icon: Layers },
   { k: 'rf', label: 'RF', Icon: Radio },
@@ -89,7 +120,6 @@ export function PacketLog({ packets }: Props) {
   const rightOpen = useStore((s) => s.ui.rightOpen);
   const toggleRightRail = useStore((s) => s.toggleRightRail);
   const [q, setQ] = useState('');
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
 
   const visible = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -101,29 +131,66 @@ export function PacketLog({ packets }: Props) {
     });
   }, [packets, source, q]);
 
-  const onSelect = (id: string) => {
-    setSelectedPacket(selectedId === id ? null : id);
-    if (!rightOpen) toggleRightRail();
-  };
+  const onSelect = useCallback(
+    (id: string) => {
+      setSelectedPacket(selectedId === id ? null : id);
+      if (!rightOpen) toggleRightRail();
+    },
+    [selectedId, setSelectedPacket, rightOpen, toggleRightRail],
+  );
+  // Stable between packet arrivals. That spares the visible rows a re-render while the
+  // buffer is below its cap; once it's full, trimming the head shifts every row's
+  // index and they all re-render regardless.
+  const context = useMemo<RowContext>(() => ({ selectedId, onSelect }), [selectedId, onSelect]);
 
-  // Land on the newest packet whenever the list (re)mounts (imperative, rather than
-  // `initialTopMostItemIndex`, so the initial paint still comes from
-  // `initialItemCount` below — combining that prop with an end-anchored
-  // `initialTopMostItemIndex` collapses Virtuoso's estimated-height render to a
-  // single item in layout-less environments, e.g. jsdom under test).
-  //
-  // Keyed on the empty → non-empty transition, not on PacketLog's own mount:
-  // Virtuoso is swapped out for the empty state whenever `visible` is empty, and
-  // this panel is the default view, so it routinely mounts BEFORE the snapshot
-  // hydrates. A mount-only effect then saw zero rows, Virtuoso mounted at index 0
-  // once packets arrived, and `followOutput="auto"` (which only follows from the
-  // bottom) never tracked live traffic. The same happens after a clear or when a
-  // filter change empties and refills the list.
+  // Return to where the list was when the user switched views and came back. The panel
+  // unmounts on every view switch, so the position is kept in session memory. It's
+  // recorded as the bottom-most visible packet rather than a pixel offset, so rows added
+  // or trimmed while away don't shift it. If that packet has since rolled out of the
+  // log (or was at the bottom), land on the newest packet instead. The restore applies
+  // only to the list that mounts with the panel; once the list empties (a clear, or a
+  // filter with no matches), the refill lands on NEWEST.
+  const [restoreTo] = useState((): ItemLocation | null => {
+    const view = useStore.getState().packetLogView;
+    const index = view ? visible.findIndex((p) => p.id === view.anchorId) : -1;
+    return view && index >= 0 ? { index, align: 'end', offset: view.anchorBottomOffset } : null;
+  });
+  const restoreDone = useRef(false);
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
+  const viewRef = useRef<PacketLogView | null>(useStore.getState().packetLogView);
   const hasRows = visible.length > 0;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: fire on each Virtuoso mount (empty → non-empty) only; `followOutput` handles appends after that.
   useEffect(() => {
-    if (hasRows) virtuosoRef.current?.scrollToIndex({ index: visible.length - 1, align: 'end' });
+    if (hasRows) return;
+    // The list unmounted with the empty state, so the refill lands on the newest packet.
+    restoreDone.current = true;
+    viewRef.current = null;
   }, [hasRows]);
+  const landing = restoreTo && !restoreDone.current ? restoreTo : NEWEST;
+  const onScroll = useCallback((loc: ListScrollLocation) => {
+    const anchor = loc.isAtBottom ? undefined : visibleRef.current[loc.lastVisibleItemIndex];
+    viewRef.current = anchor ? { anchorId: anchor.id, anchorBottomOffset: loc.lastItemBottomOffset } : null;
+  }, []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount only — checks the selection the panel came back to, and saves the position on the way out.
+  useEffect(() => {
+    const { selectedPacketId, setSelectedPacket: select, setPacketLogView } = useStore.getState();
+    // A remembered selection that has rolled out of the log has nothing left to show.
+    if (selectedPacketId && !packets.some((p) => p.id === selectedPacketId)) select(null);
+    return () => setPacketLogView(viewRef.current);
+  }, []);
+
+  // While restoring, don't chase packets that arrive mid-landing: that would drag the
+  // list off the restored position and down to the bottom.
+  const listData = useMemo<VirtuosoMessageListProps<LivePacket, RowContext>['data']>(
+    () => ({
+      data: visible,
+      scrollModifier: {
+        type: 'auto-scroll-to-bottom',
+        autoScroll: landing === NEWEST ? followNewPackets : scrollToBottomIfAtBottom,
+      },
+    }),
+    [visible, landing],
+  );
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">
@@ -172,18 +239,33 @@ export function PacketLog({ packets }: Props) {
         <span className="text-right">HOP</span>
       </div>
 
+      {/* The list lands on the newest packet (or the restored position above) through
+          `initialLocation`, the way channel views do, and that only happens when the
+          list mounts. Switching views remounts the whole panel. The empty state swaps the list out, so
+          hydrate, a clear, or a filter that empties and refills the list each
+          mount a fresh one and land again. Keeping the list mounted through an
+          empty state (its EmptyPlaceholder) would refill at the top instead:
+          `scrollToBottomIfAtBottom` won't scroll an empty list that isn't "at
+          the bottom".
+
+          Don't replace this with an imperative scroll on mount. That scroll runs
+          before the rows are measured, gets clamped to the unmeasured height, and
+          leaves the list stuck near the top. */}
       <div className="min-h-0 flex-1">
         {visible.length === 0 ? (
           <div className="py-12 text-center text-[12.5px] text-cs-text-dim">No packets match this filter.</div>
         ) : (
-          <Virtuoso
-            ref={virtuosoRef}
-            data={visible}
-            followOutput="auto"
-            initialItemCount={Math.min(visible.length, INITIAL_RENDER_COUNT)}
-            style={{ height: '100%' }}
-            itemContent={(_, p) => <Row packet={p} selected={selectedId === p.id} onSelect={() => onSelect(p.id)} />}
-          />
+          <VirtuosoMessageListLicense licenseKey={VIRTUOSO_LICENSE_KEY}>
+            <VirtuosoMessageList<LivePacket, RowContext>
+              data={listData}
+              initialLocation={landing}
+              onScroll={onScroll}
+              computeItemKey={({ data }) => data.id}
+              context={context}
+              ItemContent={PacketItem}
+              style={{ height: '100%' }}
+            />
+          </VirtuosoMessageListLicense>
         )}
       </div>
     </section>

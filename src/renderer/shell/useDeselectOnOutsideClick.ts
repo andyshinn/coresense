@@ -22,8 +22,21 @@ const KEEP_SELECTION_SELECTORS = ['[data-testid="message-row"]', '[data-testid="
 // deselect. composedPath() is frozen at dispatch time, so it still holds the
 // clicked node's original ancestor chain (including the [aria-label="Detail
 // rail"] aside) even after the node detaches.
+//
+// A packet selection is remembered across views, so only a click that starts AND
+// ends on the Packet Log clears it. By the time this bubble listener runs, a nav
+// click has already switched views, so the view at the start of the click is
+// captured separately. Otherwise the click that returns to the Packet Log would
+// wipe the selection it just brought back.
+const PACKET_LOG_KEY = 'tool:packetlog';
+
 export function useDeselectOnOutsideClick() {
   useEffect(() => {
+    let keyAtClickStart: string | null = null;
+    // Capture phase on document runs before React's root listener handles the click.
+    const onClickStart = () => {
+      keyAtClickStart = useStore.getState().ui.activeKey;
+    };
     const onDocClick = (e: MouseEvent) => {
       const st = useStore.getState();
       if (st.selectedMessageId == null && st.selectedPacketId == null) return;
@@ -36,9 +49,13 @@ export function useDeselectOnOutsideClick() {
       }
       const st2 = useStore.getState();
       st2.setSelectedMessage(null);
-      st2.setSelectedPacket(null);
+      if (keyAtClickStart === PACKET_LOG_KEY && st2.ui.activeKey === PACKET_LOG_KEY) st2.setSelectedPacket(null);
     };
+    document.addEventListener('click', onClickStart, true);
     document.addEventListener('click', onDocClick);
-    return () => document.removeEventListener('click', onDocClick);
+    return () => {
+      document.removeEventListener('click', onClickStart, true);
+      document.removeEventListener('click', onDocClick);
+    };
   }, []);
 }

@@ -1,9 +1,16 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { flushSync } from 'react-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PacketLog } from '@/components/PacketLog';
 import type { LivePacket } from '@/lib/store';
 import { useStore } from '@/lib/store';
 import { useDeselectOnOutsideClick } from '@/shell/useDeselectOnOutsideClick';
+
+// Without layout the real list renders at most one row under jsdom; the recorder renders them all.
+vi.mock('@virtuoso.dev/message-list', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@virtuoso.dev/message-list')>()),
+  ...(await import('../support/messageListRecorder')),
+}));
 
 const pkt = (id: string, over: Partial<LivePacket> = {}): LivePacket => ({
   id,
@@ -68,16 +75,42 @@ function Harness() {
       <button type="button" data-testid="outside">
         outside
       </button>
+      {/* flushSync: a real browser commits a discrete click before it bubbles to document. */}
+      <button type="button" data-testid="nav-away" onClick={() => flushSync(() => useStore.getState().setActiveKey('ch:x'))}>
+        nav away
+      </button>
+      <button
+        type="button"
+        data-testid="nav-packetlog"
+        onClick={() => flushSync(() => useStore.getState().setActiveKey('tool:packetlog'))}
+      >
+        nav to packet log
+      </button>
     </div>
   );
 }
 
 describe('packet deselect-on-outside-click', () => {
+  beforeEach(() => {
+    useStore.getState().setActiveKey('tool:packetlog');
+  });
+
   it('clears selectedPacketId when clicking outside', () => {
     useStore.getState().setSelectedPacket('pkt-1');
     render(<Harness />);
     fireEvent.click(screen.getByTestId('outside'));
     expect(useStore.getState().selectedPacketId).toBeNull();
+  });
+
+  it('keeps the selection through the nav click that leaves the Packet Log and the one that returns', () => {
+    useStore.getState().setSelectedPacket('pkt-1');
+    render(<Harness />);
+    fireEvent.click(screen.getByTestId('nav-away'));
+    expect(useStore.getState().selectedPacketId).toBe('pkt-1');
+    fireEvent.click(screen.getByTestId('outside'));
+    expect(useStore.getState().selectedPacketId).toBe('pkt-1');
+    fireEvent.click(screen.getByTestId('nav-packetlog'));
+    expect(useStore.getState().selectedPacketId).toBe('pkt-1');
   });
 
   it('keeps the selection when clicking a packet row', () => {

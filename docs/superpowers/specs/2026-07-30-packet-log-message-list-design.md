@@ -138,3 +138,51 @@ plumbing (`src/renderer/lib/virtuosoLicense.ts`, read from
 Beyond unit/component/e2e tests: build and drive the real app, scroll up in a
 populated Packet Log, and confirm arriving packets do not yank the viewport,
 then scroll to the bottom and confirm following resumes.
+
+## Implementation notes (2026-09-12)
+
+This design shipped as the fix for "the Packet Log doesn't return to the bottom
+after switching views". Where the implementation differs from the spec above:
+
+- **Before the fix, the list never reached the bottom.** In headless Chromium,
+  the old `Virtuoso` list failed every mount with more than about 40 rows:
+  first open, a view switch, a late snapshot hydrate, and a clear that refilled
+  the list. Its `scrollToIndex` ran in the same commit that mounted the list.
+  At that point only the `initialItemCount` rows were in the DOM, so the scroll
+  was clamped near the top, and `followOutput` never took over. The
+  mocked-`scrollToIndex` component test still passed.
+- **No `EmptyPlaceholder`.** `PacketLog` still swaps the list for its own empty
+  state. `initialLocation` is read only when the list mounts, so a list kept
+  mounted through an empty state refills at the top: `scrollToBottomIfAtBottom`
+  won't scroll an empty list, because it isn't "at the bottom". That happened
+  in 10 of 10 Chromium runs. Remounting on empty → non-empty lands every time.
+- **No `PacketRow` / `filterPackets` extraction.** Component tests mock the
+  list with `tests/support/messageListRecorder.tsx`. It renders every row and
+  records each mount's `initialLocation` and the `data` prop, so the existing
+  row, filter and selection tests stayed as they were.
+- **Following during the landing.** `autoScroll` is `scrollToBottomIfAtBottom`,
+  but it also follows while the list hasn't reported a scroll location yet
+  (`scrollHeight` 0). Until the initial location lands, the library passes that
+  policy "not at bottom". A packet arriving in that window, about one frame
+  after a remount, was skipped. The list then settled a row short of the
+  bottom and never followed again. That catch-up returns `'auto'`, not
+  `'smooth'`. The list's first data publish lands in the same window, so
+  `'smooth'` animated the whole log from top to bottom on every mount. Check
+  painted frames, not just the final position.
+- **Known limits.**
+  - At 10–25 packets/s, one large mouse-wheel scroll up can get pulled back to
+    the bottom. The library's smooth follow animation overwrites the scroll.
+    Trackpad scrolling gets away every time. Channel views use the same policy.
+  - During bursts the smooth follow trails the newest packet by a few rows,
+    then catches up.
+- **License key.** The Packet Log now needs `VITE_VIRTUOSO_LICENSE_KEY`, like
+  channels and Logs. In Electron a keyless build shows the library's watermark
+  where the rows should be.
+- **Position and selection across view switches.** The panel still remounts, but
+  it saves the bottom-most visible packet (id + edge offset) to session memory
+  (`packetLogView`) on unmount and lands back on it. It lands on the newest
+  packet when it was left at the bottom or that packet rolled out of the log.
+  While restoring, the list doesn't follow packets that arrive mid-landing,
+  otherwise it would drag down to the bottom. `selectedPacketId` is no longer
+  cleared on navigation. The outside-click deselect only clears it for a click
+  that starts and ends on the Packet Log.

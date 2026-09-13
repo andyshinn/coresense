@@ -86,6 +86,14 @@ const MAX_LOGS = 5000;
 
 export type LivePacket = RawPacket & { id: string };
 
+/** Where the Packet Log was scrolled when it last unmounted: the bottom-most visible
+ *  packet and how far its bottom edge sat from the viewport's. Null when it was at the
+ *  bottom. Session memory only, never persisted. Packet ids are renumbered on reload anyway. */
+export interface PacketLogView {
+  anchorId: string;
+  anchorBottomOffset: number;
+}
+
 // Monotonic id for live + hydrated packets so list keys and selection never
 // collide regardless of source. Not persisted; a reload restarts the counter
 // and re-ids the hydrated set.
@@ -391,8 +399,11 @@ interface CoreState {
    *  confirm popover anchored to itself, so only an id is needed. */
   pendingDeleteMessageId: string | null;
   setPendingDeleteMessageId: (id: string | null) => void;
-  // ID of the packet currently inspected in the right rail. Cleared on nav.
+  // ID of the packet currently inspected in the right rail. Kept across navigation
+  // (unlike selectedMessageId) so returning to the Packet Log shows it again.
   selectedPacketId: string | null;
+  packetLogView: PacketLogView | null;
+  setPacketLogView: (view: PacketLogView | null) => void;
   // Cmd+K palette open state. Not persisted across reloads.
   paletteOpen: boolean;
   // Keyboard-shortcuts help overlay open state. Not persisted across reloads.
@@ -575,7 +586,6 @@ function navStateUpdate(
       recentKeys,
     },
     selectedMessageId: null,
-    selectedPacketId: null,
   };
   if (historyDelta?.navPast !== undefined) out.navPast = historyDelta.navPast;
   if (historyDelta?.navFuture !== undefined) out.navFuture = historyDelta.navFuture;
@@ -660,6 +670,7 @@ export const useStore = create<CoreState>((set) => ({
   busy: false,
   selectedMessageId: null,
   selectedPacketId: null,
+  packetLogView: null,
   paletteOpen: false,
   helpOpen: false,
   decoderOpen: false,
@@ -1034,6 +1045,7 @@ export const useStore = create<CoreState>((set) => ({
   setSelectedMessage: (id) => set(() => ({ selectedMessageId: id })),
   setPendingDeleteMessageId: (id) => set(() => ({ pendingDeleteMessageId: id })),
   setSelectedPacket: (id) => set(() => ({ selectedPacketId: id })),
+  setPacketLogView: (view) => set(() => ({ packetLogView: view })),
   setPacketLogSettings: (patch) =>
     set((s) => {
       const packetLog = { ...s.ui.packetLog, ...patch };

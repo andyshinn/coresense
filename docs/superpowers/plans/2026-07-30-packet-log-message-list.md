@@ -1,5 +1,7 @@
 # Packet Log → VirtuosoMessageList Implementation Plan
 
+> **Superseded (2026-09-12):** the swap shipped without the `filterPackets` / `PacketRow` extraction or `EmptyPlaceholder`. See "Implementation notes" in the spec for what was done instead and why.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Render the Packet Log with `@virtuoso.dev/message-list`'s `VirtuosoMessageList` using the built-in `scrollToBottomIfAtBottom` scroll policy, and remove `react-virtuoso` from the project.
