@@ -117,8 +117,8 @@ export function PacketLog({ packets }: Props) {
   }, []);
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col rounded border border-cs-border bg-cs-bg">
-      <header className="flex flex-wrap items-center gap-3 border-b border-cs-border px-4 py-2.5">
+    <section className="flex min-h-0 flex-1 flex-col">
+      <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-cs-border bg-cs-bg-2 px-4 py-3">
         <span className="flex items-center gap-2">
           <span className="size-1.5 rounded-full bg-cs-online shadow-[0_0_6px_rgb(var(--cs-online))]" />
           <span className="font-mono text-[11.5px] tracking-wide text-cs-text-muted">RAW PACKETS</span>
@@ -151,8 +151,10 @@ export function PacketLog({ packets }: Props) {
         </span>
       </header>
 
+      {/* The transparent left border mirrors the row's selection stripe so the column
+          labels line up with the row text instead of sitting 2px left of it. */}
       <div
-        className={`grid ${GRID} gap-2 border-b border-cs-border px-3.5 py-1.5 font-mono text-[9.5px] tracking-wide text-cs-text-dim`}
+        className={`grid ${GRID} shrink-0 gap-2 border-b border-l-2 border-cs-border border-l-transparent px-3.5 py-1.5 font-mono text-[9.5px] tracking-wide text-cs-text-dim`}
       >
         <span>TIME</span>
         <span>TYPE</span>
