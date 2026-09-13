@@ -50,6 +50,7 @@ function makeSnapshot(macros: MacroTemplate[]): StateSnapshot {
     deviceCapabilities: DEFAULT_DEVICE_CAPABILITIES,
     blockRules: [],
     macros,
+    packets: [],
   };
 }
 

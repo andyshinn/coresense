@@ -20,7 +20,7 @@ export interface InspectField {
   name: string;
   start: number; // byte index within this strip (0-based, inclusive)
   end: number;
-  colorIdx: number; // 0..6 → --cs-field0..6
+  colorIdx: number; // 0..6 → --cs-field-0..6
   value: string;
   desc?: string;
   bits?: BitRow[];
@@ -52,7 +52,7 @@ export const fieldColorIdx = (i: number) => ((i % NUM_FIELD_COLORS) + NUM_FIELD_
 // Shared by ByteStrip and FieldCard so the byte-strip highlight and the field
 // card's accent always resolve to the same CSS custom property for a given
 // `colorIdx` (0..NUM_FIELD_COLORS-1, from `fieldColorIdx` / `sectionColor`).
-export const fieldColorVar = (idx: number) => `rgb(var(--cs-field${idx}))`;
+export const fieldColorVar = (idx: number) => `rgb(var(--cs-field-${idx}))`;
 
 // A section's color is a function of *what it is* (its name), not of its position
 // in the strip. Positional coloring made the Payload section change color whenever
