@@ -904,8 +904,6 @@ export interface UiState {
   // Packet log retention. liveBufferSize = packets kept in memory / shown.
   // storedHistorySize = packets persisted on disk (0 = off).
   packetLog: { liveBufferSize: number; storedHistorySize: number };
-  // Whether the standalone packet-decoder dialog is open.
-  decoderOpen: boolean;
   /** Selected window in the channel rail's Activity section. Global rather than
    *  per-channel: it is a reading habit, and a per-channel map would grow one
    *  entry per channel ever opened. */
@@ -974,7 +972,6 @@ export const DEFAULT_UI_STATE: UiState = {
   },
   packetLogFilter: { source: 'both' },
   packetLog: { ...DEFAULT_PACKET_LOG_SETTINGS },
-  decoderOpen: false,
   channelActivityWindow: '24h',
   logsFilter: {
     minLevel: 'silly',

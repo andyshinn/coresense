@@ -95,6 +95,9 @@ const nextPacketId = () => `pkt-${packetSeq++}`;
 // Keep only the newest n items. n<=0 → [] (guards against slice(-0) returning the whole array).
 const keepLast = <T>(arr: T[], n: number): T[] => (n <= 0 ? [] : arr.length > n ? arr.slice(-n) : arr);
 
+const packetLogEqual = (a: UiState['packetLog'], b: UiState['packetLog']) =>
+  a.liveBufferSize === b.liveBufferSize && a.storedHistorySize === b.storedHistorySize;
+
 /**
  * Back-compat: older ui-state.json stored { showCompanion }. By the time this
  * runs at hydrate, `f` has already been through main's deep mergeDefaults,
@@ -394,6 +397,8 @@ interface CoreState {
   paletteOpen: boolean;
   // Keyboard-shortcuts help overlay open state. Not persisted across reloads.
   helpOpen: boolean;
+  // Packet decoder dialog open state. Not persisted across reloads.
+  decoderOpen: boolean;
   // Add Channel popover open state. Not persisted across reloads.
   addChannelOpen: boolean;
 
@@ -657,6 +662,7 @@ export const useStore = create<CoreState>((set) => ({
   selectedPacketId: null,
   paletteOpen: false,
   helpOpen: false,
+  decoderOpen: false,
   addChannelOpen: false,
 
   searchQuery: '',
@@ -888,6 +894,12 @@ export const useStore = create<CoreState>((set) => ({
       // every connected client.
       const incomingEmojiUsage = incoming.emojiUsage ?? {};
       const incomingMacroUsage = incoming.macroUsage ?? {};
+      // Retention is synced too, and not just for looks: main sizes the packets
+      // table's prune from whatever UiState it last received, so a client
+      // still holding an old packetLog would revert another client's change —
+      // and delete stored history — on its next unrelated PUT. A legacy
+      // producer may omit it; keep ours rather than adopting undefined.
+      const incomingPacketLog = incoming.packetLog ?? s.ui.packetLog;
       // Read markers merge per key by max rather than being adopted wholesale.
       // Two markRead advances can land inside one loopback round trip, so a
       // stale echo would otherwise drag the cursor backwards, allocate a fresh
@@ -903,7 +915,8 @@ export const useStore = create<CoreState>((set) => ({
         arraysEqual(s.ui.recentKeys, incoming.recentKeys) &&
         usageMapEqual(s.ui.emojiUsage, incomingEmojiUsage) &&
         usageMapEqual(s.ui.macroUsage, incomingMacroUsage) &&
-        s.ui.themePref === incoming.themePref;
+        s.ui.themePref === incoming.themePref &&
+        packetLogEqual(s.ui.packetLog, incomingPacketLog);
       if (same) return {};
       return {
         ui: {
@@ -914,7 +927,9 @@ export const useStore = create<CoreState>((set) => ({
           emojiUsage: incomingEmojiUsage,
           macroUsage: incomingMacroUsage,
           themePref: incoming.themePref,
+          packetLog: incomingPacketLog,
         },
+        packets: keepLast(s.packets, incomingPacketLog.liveBufferSize),
       };
     }),
   applyRepeaterStatus: (snap) =>
@@ -1024,7 +1039,7 @@ export const useStore = create<CoreState>((set) => ({
       const packetLog = { ...s.ui.packetLog, ...patch };
       return { ui: { ...s.ui, packetLog }, packets: keepLast(s.packets, packetLog.liveBufferSize) };
     }),
-  setDecoderOpen: (open) => set((s) => ({ ui: { ...s.ui, decoderOpen: open } })),
+  setDecoderOpen: (open) => set(() => ({ decoderOpen: open })),
   toggleLeftNav: () => set((s) => ({ ui: { ...s.ui, leftOpen: !s.ui.leftOpen } })),
   toggleRightRail: () => set((s) => ({ ui: { ...s.ui, rightOpen: !s.ui.rightOpen } })),
   setRightWidth: (w) => set((s) => ({ ui: { ...s.ui, rightWidth: w } })),

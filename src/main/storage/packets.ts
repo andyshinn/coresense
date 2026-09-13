@@ -22,16 +22,19 @@ function clampBound(value: unknown, lo: number, hi: number, fallback: number): n
  * memory. Non-numeric/garbage values fall back to the shipped defaults rather
  * than clamping garbage into a bound.
  */
-export function clampRetention(packetLog: UiState['packetLog']): UiState['packetLog'] {
+export function clampRetention(packetLog: Partial<UiState['packetLog']> | null | undefined): UiState['packetLog'] {
+  // mergeDefaults keeps a stored `"packetLog": null` as null, and the snapshot
+  // route calls this on every launch — a throw there would 500 the snapshot and
+  // leave the renderer never hydrating.
   return {
     liveBufferSize: clampBound(
-      packetLog.liveBufferSize,
+      packetLog?.liveBufferSize,
       PACKET_LOG_BOUNDS.liveBufferSize.min,
       PACKET_LOG_BOUNDS.liveBufferSize.max,
       DEFAULT_PACKET_LOG_SETTINGS.liveBufferSize,
     ),
     storedHistorySize: clampBound(
-      packetLog.storedHistorySize,
+      packetLog?.storedHistorySize,
       PACKET_LOG_BOUNDS.storedHistorySize.min,
       PACKET_LOG_BOUNDS.storedHistorySize.max,
       DEFAULT_PACKET_LOG_SETTINGS.storedHistorySize,

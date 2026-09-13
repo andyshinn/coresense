@@ -85,6 +85,11 @@ describe('packetStore', () => {
 });
 
 describe('clampRetention', () => {
+  it('falls back to defaults for a null or missing packetLog instead of throwing', () => {
+    expect(clampRetention(null)).toEqual(DEFAULT_PACKET_LOG_SETTINGS);
+    expect(clampRetention(undefined)).toEqual(DEFAULT_PACKET_LOG_SETTINGS);
+  });
+
   it('passes through in-bounds values unchanged', () => {
     expect(clampRetention({ liveBufferSize: 500, storedHistorySize: 1000 })).toEqual({
       liveBufferSize: 500,

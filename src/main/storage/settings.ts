@@ -211,6 +211,13 @@ export const settingsStore = {
       delete bag.drafts;
       retired.push('drafts');
     }
+    if ('decoderOpen' in raw) {
+      // The packet decoder dialog's open flag was briefly persisted by
+      // pre-release Packet Log builds, which reopened the dialog on launch. It
+      // is session-only store state now.
+      delete bag.decoderOpen;
+      retired.push('decoderOpen');
+    }
     const logsFilter = bag.logsFilter as Record<string, unknown> | undefined;
     if (logsFilter && ('loggerSubstring' in logsFilter || 'textSubstring' in logsFilter)) {
       // The Logs substring boxes are session-only now. Nothing is migrated:
