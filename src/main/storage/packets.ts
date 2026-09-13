@@ -1,4 +1,4 @@
-import { DEFAULT_PACKET_LOG_SETTINGS, PACKET_LOG_BOUNDS, type RawPacket, type UiState } from '../../shared/types';
+import type { RawPacket } from '../../shared/types';
 import { openDb } from './db';
 
 // Re-derive byte arrays from hex on read so we don't store them twice.
@@ -6,40 +6,6 @@ function hexToBytes(hex: string): number[] {
   const out: number[] = [];
   for (let i = 0; i + 1 < hex.length; i += 2) out.push(parseInt(hex.slice(i, i + 2), 16));
   return out;
-}
-
-function clampBound(value: unknown, lo: number, hi: number, fallback: number): number {
-  const n = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-  return Math.min(hi, Math.max(lo, Math.floor(n)));
-}
-
-/**
- * Clamp a persisted packetLog retention config into PACKET_LOG_BOUNDS before
- * it's used to size a disk write or a `recent()` read. Settings persist to a
- * hand-editable ui-state.json — the renderer's slider clamps on the way in,
- * but a corrupted or manually-edited file (e.g. a huge storedHistorySize)
- * would otherwise drive unbounded disk growth or a full-table read into main
- * memory. Non-numeric/garbage values fall back to the shipped defaults rather
- * than clamping garbage into a bound.
- */
-export function clampRetention(packetLog: Partial<UiState['packetLog']> | null | undefined): UiState['packetLog'] {
-  // mergeDefaults keeps a stored `"packetLog": null` as null, and the snapshot
-  // route calls this on every launch — a throw there would 500 the snapshot and
-  // leave the renderer never hydrating.
-  return {
-    liveBufferSize: clampBound(
-      packetLog?.liveBufferSize,
-      PACKET_LOG_BOUNDS.liveBufferSize.min,
-      PACKET_LOG_BOUNDS.liveBufferSize.max,
-      DEFAULT_PACKET_LOG_SETTINGS.liveBufferSize,
-    ),
-    storedHistorySize: clampBound(
-      packetLog?.storedHistorySize,
-      PACKET_LOG_BOUNDS.storedHistorySize.min,
-      PACKET_LOG_BOUNDS.storedHistorySize.max,
-      DEFAULT_PACKET_LOG_SETTINGS.storedHistorySize,
-    ),
-  };
 }
 
 // Prune eagerly after each insert. Until the table exceeds keep, the SELECT MAX(id) + DELETE is a cheap no-op on the id primary key.

@@ -9,7 +9,8 @@ const dir = mkdtempSync(join(tmpdir(), 'cs-packets-'));
 vi.mock('../../../src/main/runtime/userData', () => ({ userDataDir: () => dir }));
 
 import { closeDb } from '../../../src/main/storage/db';
-import { clampRetention, packetStore } from '../../../src/main/storage/packets';
+import { packetStore } from '../../../src/main/storage/packets';
+import { clampRetention } from '../../../src/shared/packetLog';
 import { DEFAULT_PACKET_LOG_SETTINGS, PACKET_LOG_BOUNDS, type RawPacket } from '../../../src/shared/types';
 
 const mk = (ts: number): RawPacket => ({

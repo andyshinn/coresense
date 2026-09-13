@@ -52,7 +52,7 @@ describe('PacketLogSection', () => {
     expect(useStore.getState().ui.packetLog).toEqual({ liveBufferSize: 500, storedHistorySize: 5000 });
   });
 
-  it('clamps out-of-bounds values on Save', () => {
+  it('clamps out-of-bounds values on Save', async () => {
     render(<PacketLogSection />);
     fireEvent.change(liveInput(), { target: { value: '5' } });
     fireEvent.change(storedInput(), { target: { value: String(PACKET_LOG_BOUNDS.storedHistorySize.max + 1_000_000) } });
@@ -62,5 +62,12 @@ describe('PacketLogSection', () => {
       liveBufferSize: PACKET_LOG_BOUNDS.liveBufferSize.min,
       storedHistorySize: PACKET_LOG_BOUNDS.storedHistorySize.max,
     });
+    // The inputs show what was applied, and the section is clean — not stuck
+    // "Unsaved" against a clamped value the draft never held.
+    expect((liveInput() as HTMLInputElement).value).toBe(String(PACKET_LOG_BOUNDS.liveBufferSize.min));
+    expect((storedInput() as HTMLInputElement).value).toBe(String(PACKET_LOG_BOUNDS.storedHistorySize.max));
+    expect(screen.queryByText('Unsaved')).toBeNull();
+    // save() clears its `saving` flag a microtask after onSave resolves.
+    expect(((await screen.findByText('Save')) as HTMLButtonElement).disabled).toBe(true);
   });
 });

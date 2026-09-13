@@ -26,14 +26,20 @@ export function PacketLogSection() {
     saved,
     eq: eqPacketLog,
     onSave: async (d) => {
-      setPacketLogSettings({
+      const next = {
         liveBufferSize: clamp(d.liveBufferSize, PACKET_LOG_BOUNDS.liveBufferSize.min, PACKET_LOG_BOUNDS.liveBufferSize.max),
         storedHistorySize: clamp(
           d.storedHistorySize,
           PACKET_LOG_BOUNDS.storedHistorySize.min,
           PACKET_LOG_BOUNDS.storedHistorySize.max,
         ),
-      });
+      };
+      setPacketLogSettings(next);
+      // Show what was actually applied. useSectionDraft only adopts a new saved
+      // value while the draft is clean, and a clamped save leaves the draft
+      // holding the out-of-range number — stuck "Unsaved" against a value it
+      // never had. Runs on click, long after setDraft is initialised.
+      setDraft(next);
     },
   });
 
