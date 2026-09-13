@@ -62,6 +62,7 @@ import type { MacroStudioBridge } from '../panels/macros/studio/bridge';
 import { setRendererLogLevel, setRendererLogSink } from './logger';
 import { mergeMessages } from './mergeMessages';
 import type { NeighbourSortKey } from './neighbours';
+import type { PacketLogColumn, PacketLogColumnWidths } from './packetLogColumns';
 
 /** Rows main returns per history window (`byKey`'s default limit). The renderer
  *  holds more than this by design; a few places need to know the server's unit. */
@@ -404,6 +405,10 @@ interface CoreState {
   selectedPacketId: string | null;
   packetLogView: PacketLogView | null;
   setPacketLogView: (view: PacketLogView | null) => void;
+  /** Packet Log column widths the user dragged. Session memory only. */
+  packetLogColumns: PacketLogColumnWidths;
+  /** Null resets the column to its default (for Time, the width that fits the time format). */
+  setPacketLogColumnWidth: (column: PacketLogColumn, width: number | null) => void;
   // Cmd+K palette open state. Not persisted across reloads.
   paletteOpen: boolean;
   // Keyboard-shortcuts help overlay open state. Not persisted across reloads.
@@ -671,6 +676,7 @@ export const useStore = create<CoreState>((set) => ({
   selectedMessageId: null,
   selectedPacketId: null,
   packetLogView: null,
+  packetLogColumns: {},
   paletteOpen: false,
   helpOpen: false,
   decoderOpen: false,
@@ -1046,6 +1052,13 @@ export const useStore = create<CoreState>((set) => ({
   setPendingDeleteMessageId: (id) => set(() => ({ pendingDeleteMessageId: id })),
   setSelectedPacket: (id) => set(() => ({ selectedPacketId: id })),
   setPacketLogView: (view) => set(() => ({ packetLogView: view })),
+  setPacketLogColumnWidth: (column, width) =>
+    set((s) => {
+      const next = { ...s.packetLogColumns };
+      if (width == null) delete next[column];
+      else next[column] = width;
+      return { packetLogColumns: next };
+    }),
   setPacketLogSettings: (patch) =>
     set((s) => {
       const packetLog = { ...s.ui.packetLog, ...patch };

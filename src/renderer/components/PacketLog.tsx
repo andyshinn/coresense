@@ -9,13 +9,16 @@ import {
   type VirtuosoMessageListProps,
 } from '@virtuoso.dev/message-list';
 import { Layers, Radio, Search, Waypoints } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { TimeFormatPref } from '../../shared/types';
 import { summarizeBleFrame } from '../lib/bleFrameLayouts';
 import { type PacketSummary, summarizePacket } from '../lib/decodePacket';
 import { spaceWords } from '../lib/packetInspect';
+import { columnTemplate, columnWidth, type PacketLogColumn } from '../lib/packetLogColumns';
 import { type LivePacket, type PacketLogView, useStore } from '../lib/store';
 import { fmtTimePrecise } from '../lib/time';
 import { VIRTUOSO_LICENSE_KEY } from '../lib/virtuosoLicense';
+import { ColumnResizeHandle } from './packet/ColumnResizeHandle';
 
 interface Props {
   packets: LivePacket[];
@@ -26,7 +29,51 @@ interface RowContext {
   onSelect: (id: string) => void;
 }
 
-const GRID = 'grid-cols-[70px_112px_minmax(0,1fr)_92px_30px]';
+// The header and every row read one template from a CSS variable set on the section
+// (see columnTemplate), so resizing a column restyles the rows without re-rendering them.
+const GRID = 'grid-cols-(--packet-log-cols)';
+
+const fmtPacketTime = (ts: number, pref: TimeFormatPref) => fmtTimePrecise(ts, pref).replace(/\.\d+/, '');
+
+/**
+ * The width the time column needs to show a whole time in the current format, measured
+ * in the row's own font: "22:58:58" in 24-hour, "10:58:58 PM" in 12-hour, or whatever
+ * the locale produces for 'auto'. Null until measured (and under jsdom, which has no
+ * layout), which falls back to the default width. Re-measures when the font finishes
+ * loading and the sample resizes.
+ */
+function useFittedTimeWidth(pref: TimeFormatPref) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [width, setWidth] = useState<number | null>(null);
+  const sample = useMemo(() => {
+    const day = new Date(2000, 0, 1);
+    const [am, pm] = [10, 22].map((h) => fmtPacketTime(day.setHours(h, 58, 58), pref));
+    return am.length >= pm.length ? am : pm;
+  }, [pref]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sample is the re-measure trigger; the span renders it.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.getBoundingClientRect().width;
+      setWidth(w > 0 ? Math.ceil(w) + 2 : null);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [sample]);
+  return { ref, sample, width };
+}
+
+const COLUMN_LABELS: { column: PacketLogColumn | null; label: string; edge?: 'left' | 'right' }[] = [
+  { column: 'time', label: 'TIME', edge: 'right' },
+  { column: 'type', label: 'TYPE', edge: 'right' },
+  // Details takes whatever the fixed columns leave, so it has no handle of its own.
+  { column: null, label: 'DETAILS' },
+  { column: 'rssi', label: 'RSSI/SNR', edge: 'left' },
+  { column: 'hop', label: 'HOP', edge: 'left' },
+];
 
 const NEWEST: ItemLocation = { index: 'LAST', align: 'end' };
 
@@ -81,9 +128,7 @@ function Row({ packet, selected, onSelect }: { packet: LivePacket; selected: boo
       onClick={onSelect}
       className={`grid ${GRID} w-full items-center gap-2 border-l-2 px-3.5 py-1.5 text-left ${selected ? 'border-cs-accent bg-cs-bg-3' : 'border-transparent hover:bg-cs-bg-2'} cursor-pointer`}
     >
-      <span className="truncate font-mono text-[11px] text-cs-text-dim">
-        {fmtTimePrecise(packet.timestamp, timeFormat).replace(/\.\d+/, '')}
-      </span>
+      <span className="truncate font-mono text-[11px] text-cs-text-dim">{fmtPacketTime(packet.timestamp, timeFormat)}</span>
       <span className="flex min-w-0 items-center gap-2">
         <span
           className="flex size-[18px] shrink-0 items-center justify-center rounded font-mono text-[11px] font-bold"
@@ -119,6 +164,10 @@ export function PacketLog({ packets }: Props) {
   const setSelectedPacket = useStore((s) => s.setSelectedPacket);
   const rightOpen = useStore((s) => s.ui.rightOpen);
   const toggleRightRail = useStore((s) => s.toggleRightRail);
+  const timeFormat = useStore((s) => s.appSettings.timeFormat);
+  const columns = useStore((s) => s.packetLogColumns);
+  const setColumnWidth = useStore((s) => s.setPacketLogColumnWidth);
+  const fittedTime = useFittedTimeWidth(timeFormat);
   const [q, setQ] = useState('');
 
   const visible = useMemo(() => {
@@ -193,7 +242,10 @@ export function PacketLog({ packets }: Props) {
   );
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col">
+    <section
+      className="flex min-h-0 flex-1 flex-col"
+      style={{ '--packet-log-cols': columnTemplate(columns, fittedTime.width) } as CSSProperties}
+    >
       <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-cs-border bg-cs-bg-2 px-4 py-3">
         <span className="flex items-center gap-2">
           <span className="size-1.5 rounded-full bg-cs-online shadow-[0_0_6px_rgb(var(--cs-online))]" />
@@ -230,13 +282,31 @@ export function PacketLog({ packets }: Props) {
       {/* The transparent left border mirrors the row's selection stripe so the column
           labels line up with the row text instead of sitting 2px left of it. */}
       <div
-        className={`grid ${GRID} shrink-0 gap-2 border-b border-l-2 border-cs-border border-l-transparent px-3.5 py-1.5 font-mono text-[9.5px] tracking-wide text-cs-text-dim`}
+        className={`relative grid ${GRID} shrink-0 gap-2 border-b border-l-2 border-cs-border border-l-transparent px-3.5 py-1.5 font-mono text-[9.5px] tracking-wide text-cs-text-dim`}
       >
-        <span>TIME</span>
-        <span>TYPE</span>
-        <span>DETAILS</span>
-        <span>RSSI/SNR</span>
-        <span className="text-right">HOP</span>
+        {COLUMN_LABELS.map(({ column, label, edge }) => (
+          <span key={label} className="relative min-w-0">
+            <span className={`block truncate ${column === 'hop' ? 'text-right' : ''}`}>{label}</span>
+            {column && edge && (
+              <ColumnResizeHandle
+                edge={edge}
+                label={label.toLowerCase()}
+                width={columnWidth(column, columns, fittedTime.width)}
+                resized={columns[column] != null}
+                onChange={(w) => setColumnWidth(column, w)}
+                onReset={() => setColumnWidth(column, null)}
+              />
+            )}
+          </span>
+        ))}
+        {/* Measures a whole time in the rows' font; see useFittedTimeWidth. */}
+        <span
+          ref={fittedTime.ref}
+          aria-hidden
+          className="pointer-events-none invisible absolute font-mono text-[11px] whitespace-pre"
+        >
+          {fittedTime.sample}
+        </span>
       </div>
 
       {/* The list lands on the newest packet (or the restored position above) through
