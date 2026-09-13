@@ -124,6 +124,7 @@ describe('hydrate()', () => {
         tcpClients: 0,
         mdnsServiceName: null,
         radioConnected: false,
+        portConflict: null,
       },
       transport: { state: 'idle' },
       owner: null,
@@ -139,6 +140,7 @@ describe('hydrate()', () => {
       mapManifest: { missing: true, basemap: null },
       mapTileStatus: DEFAULT_MAP_TILE_STATUS,
       uiState,
+      drafts: {},
       deviceIdentity: DEFAULT_DEVICE_IDENTITY,
       autoAddConfig: DEFAULT_AUTO_ADD_CONFIG,
       telemetryPolicy: DEFAULT_TELEMETRY_POLICY,
@@ -146,6 +148,7 @@ describe('hydrate()', () => {
       deviceInfo: DEFAULT_DEVICE_INFO,
       deviceCapabilities: DEFAULT_DEVICE_CAPABILITIES,
       blockRules: [],
+      macros: [],
       packets: [packet],
     };
 
