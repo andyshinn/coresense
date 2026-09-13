@@ -94,14 +94,22 @@ const LIGHT: Palette = {
   online: '101 163 13',
   warn: '217 119 6',
   danger: '185 28 28',
-  field0: '176 110 20',
-  field1: '43 96 179',
-  field2: '90 130 40',
-  field3: '190 90 60',
-  field4: '25 120 112',
-  field5: '120 78 160',
-  field6: '150 120 30',
-  routeDirect: '78 130 40',
+  // Byte-field tints. Each is painted as text on its OWN 16% fill (byte strip,
+  // over bg-3/40 on the rail's bg-2), as text on solid bg-3 (field-card title),
+  // and as a solid fill under bg-coloured text (hovered byte). Contrast is
+  // measured against those real substrates, not the page — the previous values
+  // (2.62-3.76:1 on their fill) passed an eyeball check and failed AA. Dark
+  // mode's tints already clear 5.1:1 everywhere.
+  // Ratios: on own fill / on bg-3 / bg text on solid.
+  field0: '116 73 13', // 5.03 / 5.79 / 7.38
+  field1: '36 81 150', // 5.02 / 5.81 / 7.41
+  field2: '62 90 28', // 5.07 / 5.83 / 7.43
+  field3: '131 62 41', // 5.03 / 5.83 / 7.43
+  field4: '19 92 86', // 5.02 / 5.81 / 7.41
+  field5: '102 66 136', // 5.03 / 5.80 / 7.39
+  field6: '100 80 20', // 5.04 / 5.80 / 7.39
+  // Route/BLE badges are only ever a solid fill under bg-coloured text.
+  routeDirect: '55 92 28', // bg text on solid 7.36 (was 4.39)
   routeFlood: '43 96 179',
   ble: '120 78 160',
 };
