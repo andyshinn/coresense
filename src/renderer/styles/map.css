@@ -1,20 +1,28 @@
 /* Map markers, clusters, spiderfy, local-you. Imported from index.css. */
 
+/* Every root class below is the element handed to a maplibre `Marker`, which
+ * owns `position` (absolute, from .maplibregl-marker), `transform` (written
+ * inline on every move) and `opacity` (written inline). Rules here must never
+ * set those three on a marker root, or animate them: inline styles beat them,
+ * and a `transition: transform` makes the marker trail the map while panning.
+ * Scale or fade a child, or use `filter`, instead. `.maplibregl-marker` also
+ * sets `transition`, and maplibre-gl.css loads after this file (lazy MapCanvas
+ * chunk), so a root `transition` needs the extra class to win. */
+
 /* Map contact markers — Direction A "tactical chip". Built imperatively in
  * markerHtml.ts; styled here so the visual rules live in one place. Each
  * type renders as its own SVG shape (circle / rounded square / diamond /
  * triangle) so the encoding still reads when colors compress at zoom-out. */
 .cs-map-marker {
-  position: relative;
   padding: 0;
   background: transparent;
   border: 0;
   cursor: pointer;
   display: block;
   filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.5));
-  transition:
-    transform 120ms ease-out,
-    filter 120ms ease-out;
+}
+.maplibregl-marker.cs-map-marker {
+  transition: filter 120ms ease-out;
 }
 .cs-map-marker .cs-map-marker__shape {
   display: block;
@@ -68,7 +76,8 @@
   z-index: 20;
 }
 .cs-map-marker.is-faded {
-  opacity: 0.45;
+  /* Via filter, not `opacity` — maplibre pins inline opacity on the root. */
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.5)) opacity(0.45);
 }
 /* Stale state: faded above + dashed border drawn directly on the SVG shape
  * via the `dashed` arg in shapeMarkup. No extra CSS needed for the dashes. */
@@ -81,9 +90,12 @@
   border: 0;
   cursor: pointer;
   filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.6));
+}
+/* Scale the donut, not the root — the root's transform is maplibre's. */
+.cs-map-cluster > svg {
   transition: transform 120ms ease-out;
 }
-.cs-map-cluster:hover {
+.cs-map-cluster:hover > svg {
   transform: scale(1.05);
 }
 
@@ -153,8 +165,8 @@
 }
 
 /* Spider-member markers — must paint above the disc so they stay visible.
- * Selected-state styles still apply (transform + outline) but z-index is
- * locked higher than the disc. */
+ * Selected-state styles still apply but z-index is locked higher than the
+ * disc. */
 .cs-map-marker.cs-map-marker--spider {
   z-index: 22;
 }
@@ -167,17 +179,16 @@
 .cs-map-spider-center {
   display: block;
   pointer-events: none;
-  transform: translate(-50%, -50%);
   z-index: 23;
   filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.55));
 }
 
 /* Local "YOU" marker — double pulse ring around an amber dot. The SVG already
- * carries the rings/text; this wrapper just centers and sets z-index. */
+ * carries the rings/text; this wrapper just sets z-index (the marker's
+ * `anchor: 'center'` does the centering). */
 .cs-map-local {
   display: block;
   pointer-events: none;
-  transform: translate(-50%, -50%);
   z-index: 25;
   filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.55));
 }

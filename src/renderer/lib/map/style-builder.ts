@@ -61,7 +61,10 @@ const ONLINE_MAX_ZOOM = 15;
 // Camera ceiling we expose when online tiles are available. Past
 // ONLINE_MAX_ZOOM, MapLibre overzooms the z=15 vector tiles — geometry stays
 // crisp because vectors scale, but text/symbols get pixelated past ~17. 18 is
-// a comfortable detail bump without the labels turning to mush.
+// a comfortable detail bump without the labels turning to mush. Keep it
+// ≤ ONLINE_MAX_ZOOM + 4 to keep plain overscaling: past that, MapLibre 6's
+// default `zoomLevelsToOverscale: 4` requests deeper tile IDs than the source
+// maxzoom and has the worker slice them out of the z=15 tiles.
 const ONLINE_CAMERA_MAX_ZOOM = 18;
 
 export interface BuildStyleOptions {

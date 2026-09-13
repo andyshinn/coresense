@@ -1,4 +1,4 @@
-import maplibregl, { type Map as MapLibreMap } from 'maplibre-gl';
+import { type Map as MapLibreMap, Marker } from 'maplibre-gl';
 import { useEffect, useRef } from 'react';
 import { useStore } from '../../lib/store';
 
@@ -15,7 +15,7 @@ export function MapLocalNode({ map }: Props) {
   const lat = useStore((s) => s.deviceIdentity.lat);
   const lon = useStore((s) => s.deviceIdentity.lon);
 
-  const markerRef = useRef<maplibregl.Marker | null>(null);
+  const markerRef = useRef<Marker | null>(null);
 
   useEffect(() => {
     if (!map) return;
@@ -31,6 +31,10 @@ export function MapLocalNode({ map }: Props) {
     if (!markerRef.current) {
       const el = document.createElement('div');
       el.className = 'cs-map-local';
+      // maplibre-gl 6 leaves custom marker elements' semantics to us (v5 stamped
+      // role="button" on every marker). A named generic div is invisible to
+      // screen readers, so give it a role.
+      el.setAttribute('role', 'img');
       el.setAttribute('aria-label', 'You are here');
       el.innerHTML = `
         <svg width="${SIZE + 16}" height="${SIZE + 16}" viewBox="0 0 ${SIZE + 16} ${SIZE + 16}" aria-hidden="true">
@@ -40,7 +44,7 @@ export function MapLocalNode({ map }: Props) {
           <text x="${(SIZE + 16) / 2}" y="${(SIZE + 16) / 2 + 3}" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="8" font-weight="700" fill="#0c0a06">YOU</text>
         </svg>
       `;
-      markerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lon, lat]).addTo(map);
+      markerRef.current = new Marker({ element: el, anchor: 'center' }).setLngLat([lon, lat]).addTo(map);
     } else {
       markerRef.current.setLngLat([lon, lat]);
     }

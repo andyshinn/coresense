@@ -1,4 +1,4 @@
-import maplibregl, { type Map as MapLibreMap } from 'maplibre-gl';
+import { type Map as MapLibreMap, Marker } from 'maplibre-gl';
 import type { CachedMarker } from './markerCache';
 
 export interface UpsertDomMarkerOpts {
@@ -26,6 +26,6 @@ export function upsertDomMarker(opts: UpsertDomMarkerOpts): void {
     return;
   }
   const el = build();
-  const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(position).addTo(map);
+  const marker = new Marker({ element: el, anchor: 'center' }).setLngLat(position).addTo(map);
   cache.set(cacheKey, { marker, signature, kind: null });
 }

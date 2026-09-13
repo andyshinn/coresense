@@ -1,5 +1,6 @@
-import maplibregl, { type Map as MapLibreMap } from 'maplibre-gl';
+import { type AJAXError, Map as MapLibreMap, NavigationControl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import '../../lib/map/maplibre-worker';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { hasValidFix, type MapSettings, type TileManifest } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
@@ -77,7 +78,9 @@ export function MapCanvas({
     ensurePmtilesProtocol(client);
 
     const initial = initialView ?? pickInitialView(manifest, settings);
-    const map = new maplibregl.Map({
+    // Throws GPUInitializationError when WebGL2 is unavailable; the ErrorBoundary
+    // around every MapCanvas mount renders MapErrorFallback for it.
+    const map = new MapLibreMap({
       container,
       style: buildStyle({ baseUrl: client.baseUrl, manifest, settings, theme }),
       center: initial.center,
@@ -102,19 +105,20 @@ export function MapCanvas({
     // errors, source errors) into tslog. MapLibre only logs to console.error
     // when no `error` handler is attached, so without this they never reach
     // our log pipeline. The ErrorEvent type only exposes `.error`, but the
-    // runtime event carries extra context (sourceId, tile, status) attached
-    // via the second arg to its constructor — read those off loosely.
+    // runtime event carries extra context — read it off loosely: `tile` is
+    // passed to the event's constructor, and `sourceId` is merged in as the
+    // event bubbles up from the source (absent for style/sprite errors). HTTP
+    // failures are an AJAXError, which carries its own status/url on `.error`.
     map.on('error', (e) => {
       const extra = e as unknown as {
         sourceId?: string;
         tile?: { tileID?: { canonical?: { z: number; x: number; y: number } } };
-        status?: number;
-        url?: string;
       };
+      const http = e.error as Partial<Pick<AJAXError, 'status' | 'url'>> | undefined;
       const ctx: Record<string, unknown> = {};
       if (extra.sourceId) ctx.sourceId = extra.sourceId;
-      if (extra.status != null) ctx.status = extra.status;
-      if (extra.url) ctx.url = extra.url;
+      if (http?.status != null) ctx.status = http.status;
+      if (http?.url) ctx.url = http.url;
       const c = extra.tile?.tileID?.canonical;
       if (c) ctx.tile = { z: c.z, x: c.x, y: c.y };
       mapLog.error(e.error?.message ?? 'map error', ctx, e.error);
@@ -122,7 +126,7 @@ export function MapCanvas({
 
     // MapLibre's built-in pan/zoom/pitch/compass cluster. `visualizePitch`
     // rotates the compass to show the current pitch — useful once 3D is on.
-    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
+    map.addControl(new NavigationControl({ visualizePitch: true }), 'top-left');
 
     return () => {
       map.remove();
@@ -134,6 +138,11 @@ export function MapCanvas({
   // Online fallback adds a second source + duplicated layers; can't be done
   // surgically, so we rebuild the style. setStyle preserves the viewport.
   const firstStyleRef = useRef(true);
+  // The sprite download started by the last restyle. MapLibre (through 6.9)
+  // never aborts a superseded sprite download and whichever finishes last wins,
+  // so on quick back-to-back theme flips an uncached dark sprite could land
+  // after the cached light one: dark icons on a light map, until the next flip.
+  const spriteRequestRef = useRef<AbortController | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: rebuild only on fallback/theme flips, not on every settings tick
   useEffect(() => {
     const map = mapRef.current;
@@ -143,13 +152,42 @@ export function MapCanvas({
       return;
     }
     const apply = () => {
-      map.setStyle(buildStyle({ baseUrl: client.baseUrl, manifest, settings, theme }));
+      const next = buildStyle({ baseUrl: client.baseUrl, manifest, settings, theme });
+      // `_spriteRequest` is private; if it disappears this degrades to the
+      // upstream race rather than breaking the restyle.
+      const liveSpriteRequest = () =>
+        (map as unknown as { style?: { _spriteRequest?: AbortController | null } }).style?._spriteRequest ?? null;
+      // Leave downloads alone when the sprite doesn't change (an API-key flip):
+      // nothing new would replace them, and the handle we saved may be the only
+      // one left — an aborted download nulls `_spriteRequest` behind a newer one.
+      if (map.getStyle()?.sprite === next.sprite) {
+        map.setStyle(next);
+        return;
+      }
+      // The live handle also covers the initial style's download, which no
+      // restyle ever saved.
+      spriteRequestRef.current?.abort();
+      liveSpriteRequest()?.abort();
+      map.setStyle(next);
+      // A sprite-changing diff starts its download synchronously inside setStyle.
+      spriteRequestRef.current = liveSpriteRequest();
     };
-    // Wait for the previous style to finish loading; calling setStyle mid-load
-    // forces MapLibre to discard its diff path and rebuild from scratch (the
-    // "Style is not done loading" warning).
-    if (map.isStyleLoaded()) apply();
-    else map.once('style.load', apply);
+    // setStyle can diff as soon as the current style's JSON is parsed, and
+    // getStyle() is undefined until then; calling it earlier makes MapLibre
+    // rebuild from scratch ("Style is not done loading"). Don't gate on
+    // isStyleLoaded(): it also waits for every tile and sprite, and a
+    // once('style.load') registered then only fires on the next successful
+    // diff — so a mid-load flip was dropped, then re-applied stale over the
+    // following flip.
+    if (map.getStyle()) {
+      apply();
+      return;
+    }
+    map.once('style.load', apply);
+    // A newer flip supersedes this one — don't let a stale apply land after it.
+    return () => {
+      map.off('style.load', apply);
+    };
   }, [settings.hasProtomapsApiKey, theme, manifest, client.baseUrl]);
 
   // Keep the map's max-zoom in sync with whether the online fallback can

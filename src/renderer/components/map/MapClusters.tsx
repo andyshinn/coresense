@@ -1,4 +1,4 @@
-import maplibregl, { type Map as MapLibreMap } from 'maplibre-gl';
+import { type Map as MapLibreMap, Marker } from 'maplibre-gl';
 import { useEffect, useMemo, useRef } from 'react';
 import { type Contact, hasValidFix } from '../../../shared/types';
 import { useStore } from '../../lib/store';
@@ -143,7 +143,7 @@ export function MapClusters({ map }: Props) {
         e.stopPropagation();
         setSelectedSite(site.site.key);
       });
-      const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+      const marker = new Marker({ element: el, anchor: 'bottom' })
         .setLngLat([site.site.centroid.lng, site.site.centroid.lat])
         .addTo(map);
       cache.set(site.site.key, { marker, signature, kind: null });
@@ -261,7 +261,7 @@ export function MapClusters({ map }: Props) {
               duration: 350,
             });
           });
-          const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).addTo(map);
+          const marker = new Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).addTo(map);
           cache.set(key, { marker, signature, kind: null });
         } else {
           const item = props.item;

@@ -1,5 +1,4 @@
-import type maplibregl from 'maplibre-gl';
-import type { Map as MapLibreMap } from 'maplibre-gl';
+import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 
 /** Layout used when a co-located site has exactly 2 members. */
 export const SPIDERFY_PAIR_LAYOUT: 'horizontal' | 'vertical' = 'vertical';
@@ -73,7 +72,7 @@ export function buildSpiderCenterElement(): HTMLDivElement {
 
 /** Updates the leader-line GeoJSON source with the given line features (no-op if source missing). */
 export function setLeaderLines(map: MapLibreMap, features: GeoJSON.Feature<GeoJSON.LineString>[]): void {
-  const src = map.getSource(SPIDERFY_LEADER_SOURCE) as maplibregl.GeoJSONSource | undefined;
+  const src = map.getSource(SPIDERFY_LEADER_SOURCE) as GeoJSONSource | undefined;
   if (!src) return;
   src.setData({ type: 'FeatureCollection', features });
 }

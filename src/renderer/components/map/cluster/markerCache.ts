@@ -1,9 +1,9 @@
-import type maplibregl from 'maplibre-gl';
+import type { Marker } from 'maplibre-gl';
 import type { Contact } from '../../../../shared/types';
 
 /** Cached marker entry tracking the live MapLibre marker, its render signature, and contact kind. */
 export interface CachedMarker {
-  marker: maplibregl.Marker;
+  marker: Marker;
   signature: string;
   kind: Contact['kind'] | null;
 }
