@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { PacketDetailsRail } from '@/components/packet/PacketDetailsRail';
 import type { LivePacket } from '@/lib/store';
@@ -80,7 +80,7 @@ describe('PacketDetailsRail', () => {
     expect(screen.getByText('bob: hello')).toBeTruthy();
   });
 
-  it('shows every route a flood packet was heard by, with the selected route open', () => {
+  it('shows every route a flood packet was heard by, collapsed until one is opened', () => {
     // The same GroupText heard again over a second, 2-hop route.
     const twoHop: LivePacket = { ...gt, id: 'pkt-1', payloadHex: '15027811' + '2abbcc00112233', snr: -2 };
     useStore.setState({
@@ -92,7 +92,12 @@ describe('PacketDetailsRail', () => {
     expect(screen.getByText('HEARD VIA')).toBeTruthy();
     expect(screen.getByText('2 paths')).toBeTruthy();
     expect(screen.getByText(/Heard 2/)).toBeTruthy();
-    // The selected reception's route is expanded, with its hop resolved to the known repeater.
+    const routes = screen.getAllByRole('button', { expanded: false });
+    expect(routes).toHaveLength(2);
+    expect(screen.queryByText('Hop 1 · 78aa')).toBeNull();
+
+    // Opening the 1-hop route shows its hop resolved to the known repeater.
+    fireEvent.click(routes[0]);
     expect(screen.getByText('Hop 1 · 78aa')).toBeTruthy();
     expect(screen.getByText('Unknown sender')).toBeTruthy();
     expect(screen.getByText('You received the packet')).toBeTruthy();

@@ -27,7 +27,8 @@ export function PacketHeardVia({ packet, sender }: { packet: LivePacket; sender:
         paths={heard.paths}
         timesHeard={heard.timesHeard}
         knownRepeaters={repeaters}
-        defaultOpenPathId={heard.selectedPathId}
+        // Collapsed by default: the rail is long, and the byte breakdowns sit below.
+        defaultOpenPathId={null}
         subject="packet"
       />
     </div>

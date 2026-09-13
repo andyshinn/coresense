@@ -21,7 +21,8 @@ interface PathViewerProps {
   knownRepeaters: Contact[];
   onSelectCandidate?: (hop: MessageHop, contact: Contact) => void;
   onHopClick?: (hop: MessageHop) => void;
-  defaultOpenPathId?: string;
+  /** The path expanded on first render. Omit to open the first path; null starts every path collapsed. */
+  defaultOpenPathId?: string | null;
   /** What travelled the path, for the origin and sink captions. */
   subject?: 'message' | 'packet';
 }
@@ -35,7 +36,9 @@ export function PathViewer({
   defaultOpenPathId,
   subject = 'message',
 }: PathViewerProps) {
-  const [openId, setOpenId] = useState<string | null>(defaultOpenPathId ?? paths[0]?.id ?? null);
+  const [openId, setOpenId] = useState<string | null>(
+    defaultOpenPathId === undefined ? (paths[0]?.id ?? null) : defaultOpenPathId,
+  );
 
   if (paths.length === 0) {
     return <p className="italic text-cs-text-dim">no path data</p>;

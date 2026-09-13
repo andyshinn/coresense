@@ -81,7 +81,6 @@ describe('packetHeardVia', () => {
       ['hop', '78'],
       ['sink', 'ba'],
     ]);
-    expect(heard?.selectedPathId).toBe('1:78');
   });
 
   it('gathers every reception of the same packet, one path per distinct route', () => {
@@ -94,7 +93,6 @@ describe('packetHeardVia', () => {
     expect(heard?.paths.map((p) => p.id)).toEqual(['1:78', '1:7811']);
     // The route heard twice shows the selected reception's SNR, not the first one's.
     expect(heard?.paths.map((p) => p.finalSnr)).toEqual([9, -3]);
-    expect(heard?.selectedPathId).toBe('1:78');
   });
 
   it('ignores a different packet whose bytes happen to end the same way', () => {

@@ -84,8 +84,6 @@ export interface PacketHeardVia {
   paths: MessagePath[];
   /** Receptions of this packet in the log, across every route. */
   timesHeard: number;
-  /** The route the selected reception took. */
-  selectedPathId: string;
 }
 
 /**
@@ -140,5 +138,5 @@ export function packetHeardVia(
     });
   }
 
-  return { paths: [...byId.values()], timesHeard, selectedPathId: pathId(route) };
+  return { paths: [...byId.values()], timesHeard };
 }
