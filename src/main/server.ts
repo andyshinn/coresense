@@ -5,6 +5,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { type WebSocket, WebSocketServer } from 'ws';
 import type { DiscoveredContact } from '../shared/contacts/discovered';
+import { clampRetention } from '../shared/packetLog';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -50,7 +51,7 @@ import { startContactAutoRefresh, stopContactAutoRefresh } from './state/contact
 import { endContactWalk } from './state/contactWalk';
 import { stateHolder } from './state/holder';
 import { discoveredStore } from './storage/discoveredContacts';
-import { clampRetention, packetStore } from './storage/packets';
+import { packetStore } from './storage/packets';
 import { transportManager } from './transport/manager';
 import { currentUpdateState } from './updates/controller';
 import { isMainWindowFocused } from './window/registry';

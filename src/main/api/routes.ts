@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { getManifest, validateTemplate } from '../../shared/macros';
 import type { MacroContext } from '../../shared/macros/types';
+import { clampRetention } from '../../shared/packetLog';
 import { checkProxyPort } from '../../shared/ports';
 import type {
   AppSettings,
@@ -39,7 +40,7 @@ import { noteHeard, scheduleDiscoveredEmit } from '../state/contactSync';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { messagesStore } from '../storage/messages';
-import { clampRetention, packetStore } from '../storage/packets';
+import { packetStore } from '../storage/packets';
 import { searchMessages } from '../storage/search';
 import { transportManager } from '../transport/manager';
 import { updatesController } from '../updates/controller';
@@ -169,8 +170,11 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   api.put('/api/ui-state', async (c) => {
     const body = (await c.req.json().catch(() => null)) as UiState | null;
     if (!body) return c.json({ error: 'invalid body' }, 400);
-    stateHolder().setUiState(body);
-    emit.uiState(body);
+    // Retention sizes main's packets-table prune and is synced to every client,
+    // so never store or fan out a missing/garbage value a client sent.
+    const next: UiState = { ...body, packetLog: clampRetention(body.packetLog) };
+    stateHolder().setUiState(next);
+    emit.uiState(next);
     return c.json({ ok: true });
   });
 
