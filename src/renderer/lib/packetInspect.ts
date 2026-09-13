@@ -1,4 +1,11 @@
-import type { AdvertPayload, GroupTextPayload } from '@michaelhart/meshcore-decoder';
+import type {
+  AdvertPayload,
+  AnonRequestPayload,
+  GroupTextPayload,
+  RequestPayload,
+  ResponsePayload,
+  TextMessagePayload,
+} from '@michaelhart/meshcore-decoder';
 import {
   type CryptoKeyStore,
   MeshCoreDecoder,
@@ -42,8 +49,20 @@ export interface PacketInspection {
   pathArrows: string | null;
   fields: InspectField[];
   payload: { typeName: string; bytes: number[]; fields: InspectField[]; secondary: Secondary | null } | null;
+  /** Who sent the packet, as far as its payload says. Null when it names no sender. */
+  sender: PacketSender | null;
   lowConfidence?: string;
   error?: string;
+}
+
+/** Whatever a payload reveals about its sender. At most one of these is usually set:
+ *  an advert or anonymous request carries the full public key (adverts add a name), a
+ *  decrypted channel post carries a name, and DMs, requests and responses carry
+ *  only a source-hash prefix. */
+export interface PacketSender {
+  name: string | null;
+  publicKeyHex: string | null;
+  hashHex: string | null;
 }
 
 const NUM_FIELD_COLORS = 7;
@@ -248,6 +267,7 @@ export function inspectPacket(hex: string, opts?: { keyStore?: CryptoKeyStore })
       hashFull: struct.messageHash,
       hops: decoded.pathLength,
       pathArrows: decoded.path?.length ? decoded.path.join(' → ') : null,
+      sender: senderFor(decoded),
       fields,
       payload: payloadBytes.length
         ? {
@@ -269,6 +289,7 @@ export function inspectPacket(hex: string, opts?: { keyStore?: CryptoKeyStore })
       hashFull: '',
       hops: 0,
       pathArrows: null,
+      sender: null,
       fields: [],
       payload: null,
       error: (err as Error).message,
@@ -286,6 +307,32 @@ const CHANNEL_DATA_LOCK = "Channel data packets aren't decoded yet — only chan
 // nor "needs this radio's key" is right in general.
 const DM_LOCK =
   "End-to-end encrypted between sender and recipient — decrypting it needs one of their private keys, which the app doesn't hold.";
+
+// The decoder hands back uppercase hex; contact keys and path prefixes are lowercase.
+function senderFor(decoded: ReturnType<typeof MeshCoreDecoder.decode>): PacketSender | null {
+  const d = decoded.payload.decoded;
+  if (!d) return null;
+  switch (decoded.payloadType as PayloadType) {
+    case PayloadType.Advert: {
+      const a = d as AdvertPayload;
+      return { name: a.appData.name || null, publicKeyHex: a.publicKey?.toLowerCase() || null, hashHex: null };
+    }
+    case PayloadType.AnonRequest:
+      return { name: null, publicKeyHex: (d as AnonRequestPayload).senderPublicKey?.toLowerCase() || null, hashHex: null };
+    case PayloadType.GroupText: {
+      const sender = (d as GroupTextPayload).decrypted?.sender;
+      return sender ? { name: sender, publicKeyHex: null, hashHex: null } : null;
+    }
+    case PayloadType.TextMessage:
+    case PayloadType.Request:
+    case PayloadType.Response: {
+      const hash = (d as TextMessagePayload | RequestPayload | ResponsePayload).sourceHash;
+      return hash ? { name: null, publicKeyHex: null, hashHex: hash.toLowerCase() } : null;
+    }
+    default:
+      return null;
+  }
+}
 
 function secondaryFor(decoded: ReturnType<typeof MeshCoreDecoder.decode>, payloadBytes: number[]): Secondary | null {
   const d = decoded.payload.decoded;

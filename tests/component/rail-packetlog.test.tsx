@@ -19,7 +19,7 @@ const gt: LivePacket = {
 };
 
 beforeEach(() => {
-  useStore.setState({ packets: [gt], selectedPacketId: null, channels: [] });
+  useStore.setState({ packets: [gt], selectedPacketId: null, channels: [], contacts: [], owner: null });
 });
 
 describe('PacketDetailsRail', () => {
@@ -78,5 +78,30 @@ describe('PacketDetailsRail', () => {
     expect(screen.getByText('Decrypted Plaintext')).toBeTruthy();
     // The decoder splits off the sender; the Message field must show the real plaintext.
     expect(screen.getByText('bob: hello')).toBeTruthy();
+  });
+
+  it('shows every route a flood packet was heard by, with the selected route open', () => {
+    // The same GroupText heard again over a second, 2-hop route.
+    const twoHop: LivePacket = { ...gt, id: 'pkt-1', payloadHex: '15027811' + '2abbcc00112233', snr: -2 };
+    useStore.setState({
+      packets: [gt, twoHop],
+      selectedPacketId: 'pkt-0',
+      contacts: [{ key: 'c:78aa', publicKeyHex: '78aa', name: 'Hilltop', kind: 'repeater' }],
+    });
+    render(<PacketDetailsRail client={null} />);
+    expect(screen.getByText('HEARD VIA')).toBeTruthy();
+    expect(screen.getByText('2 paths')).toBeTruthy();
+    expect(screen.getByText(/Heard 2/)).toBeTruthy();
+    // The selected reception's route is expanded, with its hop resolved to the known repeater.
+    expect(screen.getByText('Hop 1 · 78aa')).toBeTruthy();
+    expect(screen.getByText('Unknown sender')).toBeTruthy();
+    expect(screen.getByText('You received the packet')).toBeTruthy();
+  });
+
+  it('has no heard-via block for a direct packet, whose path is the route still ahead', () => {
+    const dm: LivePacket = { ...gt, id: 'pkt-dm', payloadHex: TEXT_MESSAGE_HEX };
+    useStore.setState({ packets: [dm], selectedPacketId: 'pkt-dm' });
+    render(<PacketDetailsRail client={null} />);
+    expect(screen.queryByText('HEARD VIA')).toBeNull();
   });
 });

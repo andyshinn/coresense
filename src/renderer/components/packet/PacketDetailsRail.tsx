@@ -9,6 +9,7 @@ import { useChannelKeyStore } from '../../lib/useChannelKeyStore';
 import { CopyButton } from '../CopyButton';
 import { KeyValueRow } from '../ui/KeyValueRow';
 import { PacketBreakdown } from './PacketBreakdown';
+import { PacketHeardVia } from './PacketHeardVia';
 import { PacketSecondary } from './PacketSecondary';
 
 export function PacketDetailsRail({ client: _client }: { client: ApiClient | null }) {
@@ -60,7 +61,7 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
     return (
       <div className="px-3.5 py-3.5" key={selectedId}>
         <div className="mb-1 font-mono text-[10px] tracking-wide text-cs-text-dim">DETAILS</div>
-        <div className="rounded-lg border border-cs-border bg-cs-bg-2 px-3 py-2">
+        <div className="space-y-1.5">
           <KeyValueRow label="Frame" value={ble.codeName.replace(/_/g, ' ')} mono />
           {summary && <KeyValueRow label="Summary" value={summary} />}
           <KeyValueRow label="Transport" value="BLE / serial companion link" mono />
@@ -103,7 +104,7 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
   return (
     <div className="px-3.5 py-3.5" key={selectedId}>
       <div className="mb-1 font-mono text-[10px] tracking-wide text-cs-text-dim">DETAILS</div>
-      <div className="rounded-lg border border-cs-border bg-cs-bg-2 px-3 py-2">
+      <div className="space-y-1.5">
         <KeyValueRow label="Type" value={d.payloadTypeName} />
         <KeyValueRow label="Route" value={d.routeName} mono />
         <KeyValueRow
@@ -121,6 +122,8 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
           mono
         />
       </div>
+
+      <PacketHeardVia packet={packet} sender={d.sender} />
 
       <div className="mt-3 flex flex-wrap items-center gap-2.5">
         <span className="font-mono text-[10px] tracking-wide text-cs-text-dim">PACKET HASH</span>

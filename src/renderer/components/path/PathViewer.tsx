@@ -22,6 +22,8 @@ interface PathViewerProps {
   onSelectCandidate?: (hop: MessageHop, contact: Contact) => void;
   onHopClick?: (hop: MessageHop) => void;
   defaultOpenPathId?: string;
+  /** What travelled the path, for the origin and sink captions. */
+  subject?: 'message' | 'packet';
 }
 
 export function PathViewer({
@@ -31,6 +33,7 @@ export function PathViewer({
   onSelectCandidate,
   onHopClick,
   defaultOpenPathId,
+  subject = 'message',
 }: PathViewerProps) {
   const [openId, setOpenId] = useState<string | null>(defaultOpenPathId ?? paths[0]?.id ?? null);
 
@@ -57,6 +60,7 @@ export function PathViewer({
             onToggle={() => setOpenId(openId === p.id ? null : p.id)}
             onHopClick={onHopClick}
             onSelectCandidate={onSelectCandidate}
+            subject={subject}
           />
         ))}
       </div>
