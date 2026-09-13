@@ -39,9 +39,15 @@ test('Packet Log view mounts and the standalone decoder decodes + spotlights byt
     // updates live). Every field card starts fully opaque; hovering a byte
     // should dim every field but the one it maps to.
     const fieldCards = dialog.locator('[aria-label*=" field, "]');
-    const opacitiesBefore = await fieldCards.evaluateAll((els) => els.map((el) => getComputedStyle(el).opacity));
-    expect(opacitiesBefore.length).toBeGreaterThan(1);
-    expect(opacitiesBefore.every((o) => o === '1')).toBe(true);
+    const opacities = () => fieldCards.evaluateAll((els) => els.map((el) => getComputedStyle(el).opacity));
+    // The dialog is vertically centred, so decoding grows it upward and slides the
+    // breakdown under the pointer Playwright left on the Decode button. Chromium
+    // re-evaluates hover after layout, so a field card becomes hovered and the rest
+    // start fading. Move the pointer off the dialog, then wait out the opacity
+    // transition.
+    await page.mouse.move(0, 0);
+    expect((await opacities()).length).toBeGreaterThan(1);
+    await expect.poll(async () => (await opacities()).every((o) => o === '1')).toBe(true);
 
     // Byte 0x15 (header) — all ten decoded byte values are distinct, so its
     // rendered hex text "15" is unique within the dialog.
@@ -50,15 +56,9 @@ test('Packet Log view mounts and the standalone decoder decodes + spotlights byt
 
     // React needs a tick to flush the hover-driven re-render; poll rather
     // than reading getComputedStyle once immediately after .hover().
-    await expect
-      .poll(async () => {
-        const opacities = await fieldCards.evaluateAll((els) => els.map((el) => getComputedStyle(el).opacity));
-        return opacities.filter((o) => o === '0.55').length;
-      })
-      .toBeGreaterThan(0);
+    await expect.poll(async () => (await opacities()).filter((o) => o === '0.55').length).toBeGreaterThan(0);
 
-    const opacitiesAfter = await fieldCards.evaluateAll((els) => els.map((el) => getComputedStyle(el).opacity));
-    expect(opacitiesAfter.filter((o) => o === '1').length).toBeGreaterThan(0);
+    expect((await opacities()).filter((o) => o === '1').length).toBeGreaterThan(0);
 
     // The breakdown stays rendered — hovering didn't throw or unmount anything.
     await expect(dialog.getByText('Packet Byte Breakdown')).toBeVisible();
