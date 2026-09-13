@@ -225,13 +225,14 @@ function hardenSession() {
 
   // Strict-ish CSP. The renderer is served by our own Hono server in prod (so
   // it shares an origin with the API and the /ws endpoint), and by Vite in dev.
-  // Allow ws: for WebSocket connections and the dev server's HMR, plus blob:
-  // for source maps and worker shims.
+  // Allow ws: for WebSocket connections and the dev server's HMR. worker-src is
+  // 'self' only: MapLibre 6 loads its worker as a same-origin module URL and
+  // only launders it through a blob: when it's cross-origin.
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    // Protomaps glyph PBFs and sprite assets live on protomaps.github.io.
-    // MapLibre fetches glyphs as ArrayBuffers (connect-src) and the sprite
-    // PNG as an Image (img-src). TODO: bundle these into resources/ for a
-    // fully offline build.
+    // Protomaps glyph PBFs and sprite JSON/PNG live on protomaps.github.io.
+    // MapLibre fetch()es all of them (connect-src) and decodes the sprite with
+    // createImageBitmap. TODO: bundle these into resources/ for a fully
+    // offline build.
     const MAP_ASSETS = 'https://protomaps.github.io';
     const csp = viteDevServerUrl
       ? "default-src 'self'; " +
@@ -240,14 +241,14 @@ function hardenSession() {
         'connect-src * ws: wss: http: https: data: blob:; ' +
         `img-src 'self' data: blob: ${MAP_ASSETS}; ` +
         "font-src 'self' data:; " +
-        "worker-src 'self' blob:;"
+        "worker-src 'self';"
       : "default-src 'self'; " +
         "script-src 'self'; " +
         "style-src 'self' 'unsafe-inline'; " +
         `connect-src 'self' ws: wss: ${MAP_ASSETS}; ` +
         `img-src 'self' data: blob: ${MAP_ASSETS}; ` +
         "font-src 'self' data:; " +
-        "worker-src 'self' blob:; " +
+        "worker-src 'self'; " +
         "object-src 'none'; " +
         "base-uri 'none'; " +
         "frame-ancestors 'none';";

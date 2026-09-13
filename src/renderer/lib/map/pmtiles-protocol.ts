@@ -1,4 +1,4 @@
-import maplibregl from 'maplibre-gl';
+import { addProtocol, removeProtocol } from 'maplibre-gl';
 import { FetchSource, PMTiles, Protocol } from 'pmtiles';
 import type { ApiClient } from '../api';
 
@@ -23,7 +23,7 @@ export function ensurePmtilesProtocol(client: ApiClient): void {
     // Drop the old protocol so the GC can release the cached PMTiles instances
     // (each holds an in-memory directory tree from the header). MapLibre's
     // removeProtocol is a no-op if nothing is registered, so this is safe.
-    maplibregl.removeProtocol('pmtiles');
+    removeProtocol('pmtiles');
   }
 
   const protocol = new Protocol();
@@ -33,7 +33,7 @@ export function ensurePmtilesProtocol(client: ApiClient): void {
     const fetchSource = new FetchSource(url, headers);
     protocol.add(new PMTiles(fetchSource));
   }
-  maplibregl.addProtocol('pmtiles', protocol.tile);
+  addProtocol('pmtiles', protocol.tile);
 
   installed = true;
   activeProtocol = protocol;

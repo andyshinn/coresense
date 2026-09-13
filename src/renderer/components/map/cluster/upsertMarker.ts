@@ -1,4 +1,4 @@
-import maplibregl, { type Map as MapLibreMap } from 'maplibre-gl';
+import { type Map as MapLibreMap, Marker } from 'maplibre-gl';
 import type { Contact } from '../../../../shared/types';
 import { buildContactMarker, type MarkerState, syncMarkerVisual } from '../markers/markerHtml';
 import { type CachedMarker, markerSignature } from './markerCache';
@@ -35,6 +35,6 @@ export function upsertContactLikeMarker(opts: UpsertContactMarkerOpts): void {
   const el = buildContactMarker(contact, state);
   if (elementClass) el.classList.add(elementClass);
   el.addEventListener('click', onClick);
-  const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(position).addTo(map);
+  const marker = new Marker({ element: el, anchor: 'center' }).setLngLat(position).addTo(map);
   cache.set(cacheKey, { marker, signature, kind: contact.kind });
 }
