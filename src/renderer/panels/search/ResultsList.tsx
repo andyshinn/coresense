@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react';
+import { parseSender } from '../../../shared/sender';
 import type { ConversationHit, MessageHit } from '../../../shared/types';
 import type { ApiClient } from '../../lib/api';
 import { EmptyState, Section } from './atoms';
@@ -6,6 +7,15 @@ import { ConversationRow } from './ConversationRow';
 import { shortPk } from './format';
 import { SearchMessageRow } from './MessageRow';
 import { partitionConversations } from './partition';
+
+/** Fallback label for a sender with no saved contact: the bare name for a
+ *  channel poster, 'unknown' for the sentinel, else a short pubkey. */
+function senderLabel(raw: string): string {
+  const sender = parseSender(raw);
+  if (sender.kind === 'name') return sender.name;
+  if (sender.kind === 'unknown') return 'unknown';
+  return shortPk(raw);
+}
 
 interface Props {
   hasQuery: boolean;
@@ -94,12 +104,7 @@ export function ResultsList({
                     channelName={channelByKey.get(hit.key)}
                     senderName={
                       hit.fromPublicKeyHex
-                        ? (contactByPk.get(hit.fromPublicKeyHex) ??
-                          (hit.fromPublicKeyHex.startsWith('name:')
-                            ? hit.fromPublicKeyHex.slice(5)
-                            : hit.fromPublicKeyHex === 'unknown'
-                              ? 'unknown'
-                              : shortPk(hit.fromPublicKeyHex)))
+                        ? (contactByPk.get(hit.fromPublicKeyHex) ?? senderLabel(hit.fromPublicKeyHex))
                         : ownerName
                     }
                     onClick={() => onMessageClick(hit)}

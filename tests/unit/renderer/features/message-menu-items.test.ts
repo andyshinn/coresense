@@ -63,6 +63,18 @@ describe('buildMessageMenuItems', () => {
     );
     expect(named).not.toContain('View contact');
     expect(named).not.toContain('Copy public key');
+    // An empty sender is unidentified, not a pubkey: no `c:` contact route.
+    const empty = labels(buildMessageMenuItems({ ...opts, message: received({ fromPublicKeyHex: '' }), isSelf: false }));
+    expect(empty).not.toContain('View contact');
+  });
+
+  it("routes View contact to the sender's contact key", () => {
+    const onViewContact = vi.fn();
+    const entries = buildMessageMenuItems({ ...opts, onViewContact, message: received(), isSelf: false });
+    const item = entries.find((e) => e.kind !== 'separator' && e.label === 'View contact');
+    if (item?.kind === 'separator' || !item) throw new Error('no view-contact item');
+    item.onClick();
+    expect(onViewContact).toHaveBeenCalledWith('c:a3f9c1d8');
   });
 
   it('offers both path items when a path was heard', () => {

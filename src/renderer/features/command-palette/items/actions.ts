@@ -14,6 +14,7 @@ import {
   Signal,
   Sun,
 } from 'lucide-react';
+import { conversationKind } from '../../../../shared/conversationKey';
 import type { Contact, Owner, TransportState } from '../../../../shared/types';
 import { type ApiClient, api } from '../../../lib/api';
 import type { LastDevice } from '../../../lib/lastDevice';
@@ -222,7 +223,7 @@ export function buildActionItems({
     });
   }
 
-  if (activeKey.startsWith('ch:') || activeKey.startsWith('c:')) {
+  if (conversationKind(activeKey) !== null) {
     list.push({
       id: 'action:markAllReadCurrent',
       label: 'Mark all read (current)',
@@ -349,7 +350,7 @@ export function buildActionItems({
       close();
     },
   });
-  if (activeKey.startsWith('ch:') || activeKey.startsWith('c:')) {
+  if (conversationKind(activeKey) !== null) {
     list.push({
       id: 'action:pinToggle',
       label: 'Pin / unpin current',

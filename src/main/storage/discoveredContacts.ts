@@ -6,6 +6,7 @@ import {
   hashSizeFromOutPathLen,
   hopsFromOutPathLen,
 } from '../../shared/contacts/discovered';
+import { contactKey } from '../../shared/conversationKey';
 import type { BlockRule } from '../../shared/types';
 import { all, get, openDb, withTransaction } from './db';
 
@@ -39,7 +40,7 @@ function rowToDiscovered(row: Row, blockRules: BlockRule[]): DiscoveredContact {
   // out_path_len byte, never the radio's current path-hash mode.
   const hasPath = row.out_path_len !== 0xff && (row.out_path_len & 0x3f) > 0;
   return {
-    key: `c:${row.pubkey}`,
+    key: contactKey(row.pubkey),
     publicKeyHex: row.pubkey,
     name: row.name || row.pubkey.slice(0, 12),
     kind: advTypeToKind(row.type),

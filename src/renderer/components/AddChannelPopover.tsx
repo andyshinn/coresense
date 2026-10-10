@@ -1,6 +1,7 @@
 import { Hash, Key, Plus, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
+import { channelKey } from '../../shared/conversationKey';
 import type { Channel } from '../../shared/types';
 import { type ApiClient, api } from '../lib/api';
 import { notify } from '../lib/notify';
@@ -74,7 +75,7 @@ function validateName(name: string, channels: Channel[]): string | null {
   const trimmed = name.trim();
   if (trimmed.length === 0) return 'Name is required';
   if (trimmed.length > 32) return 'Name must be 32 characters or fewer';
-  const key = `ch:${trimmed}`;
+  const key = channelKey(trimmed);
   if (channels.some((c) => c.key === key)) {
     return `A channel named "${trimmed}" already exists`;
   }
@@ -208,7 +209,7 @@ export function AddChannelPopover({ client, onClose }: Props) {
     setView({ ...formView, submitting: true, error: null });
 
     const name = formView.name.trim();
-    const key = `ch:${name}`;
+    const key = channelKey(name);
     let channel: Channel;
     if (formView.type === 'create-private') {
       channel = { key, name, kind: 'private', secretHex: generate16ByteHex(), createdAt: Date.now() };

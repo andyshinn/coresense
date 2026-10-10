@@ -1,5 +1,6 @@
 import { Check, ChevronDown, ChevronUp, Inbox } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { senderDisplayName } from '../../shared/sender';
 import type { ChannelKind, ContactKind } from '../../shared/types';
 import { CountTab } from '../components/CountTab';
 import { MessageItem } from '../components/MessageItem';
@@ -8,7 +9,6 @@ import { type UnreadConversation, useUnreadConversations } from '../hooks/useUnr
 import type { ApiClient } from '../lib/api';
 import { CHANNEL_ICON, CONTACT_ICON } from '../lib/conversationIcons';
 import { useStore } from '../lib/store';
-import { deriveSenderName } from '../lib/utils';
 
 type Filter = 'all' | 'channels' | 'direct';
 
@@ -158,7 +158,7 @@ export function Unreads({ client: _client }: { client: ApiClient | null }) {
 // prefix); 1:1 conversations don't — every received message is from the peer.
 function previewSender(conversation: UnreadConversation, fromPublicKeyHex: string | undefined): string {
   if (conversation.kind === 'channel' || conversation.contactKind === 'room') {
-    return deriveSenderName(fromPublicKeyHex) || 'unknown';
+    return senderDisplayName(fromPublicKeyHex) || 'unknown';
   }
   return conversation.name;
 }

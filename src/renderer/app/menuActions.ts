@@ -1,3 +1,4 @@
+import { conversationKind } from '../../shared/conversationKey';
 import type { MenuAction } from '../../shared/types';
 import { api } from '../lib/api';
 import { loadLastDevice } from '../lib/lastDevice';
@@ -74,7 +75,7 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
       }
       case 'pinToggle': {
         const key = useStore.getState().ui.activeKey;
-        if (key.startsWith('ch:') || key.startsWith('c:')) togglePin(key);
+        if (conversationKind(key) !== null) togglePin(key);
         break;
       }
       case 'sendAdvert': {

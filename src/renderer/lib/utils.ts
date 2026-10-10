@@ -6,12 +6,6 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
-// Channel messages carry no public key; the protocol layer encodes the
-// originating node's display name as `fromPublicKeyHex = "name:<name>"`.
-// The shared decoder strips that prefix so callers can show the bare name, and
-// returns '' when there is no usable name (owner-sent, or an unidentified sender).
-export { senderDisplayName as deriveSenderName } from '../../shared/sender';
-
 // The earliest unread message worth jumping to: ts beyond the last-read marker
 // and sent by someone other than the owner (owner-sent rows have no
 // fromPublicKeyHex). Used by the notification "focusFirstUnread" action.

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { parseSender } from '../../../shared/sender';
 import type { ConversationHit, MessageHit, SearchResults as SearchResultsPayload, SearchSort } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { useStore } from '../../lib/store';
@@ -80,8 +81,9 @@ export function SearchResults({ client }: Props) {
         const pk = m.fromPublicKeyHex;
         if (!pk || known.has(pk)) continue;
         if (out.has(pk)) continue;
-        if (pk === 'unknown') out.set(pk, 'Unknown sender');
-        else if (pk.startsWith('name:')) out.set(pk, pk.slice(5));
+        const sender = parseSender(pk);
+        if (sender.kind === 'unknown') out.set(pk, 'Unknown sender');
+        else if (sender.kind === 'name') out.set(pk, sender.name);
         else out.set(pk, shortPk(pk));
       }
     }

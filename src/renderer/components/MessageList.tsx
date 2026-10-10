@@ -7,12 +7,12 @@ import {
   type VirtuosoMessageListMethods,
 } from '@virtuoso.dev/message-list';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { senderDisplayName } from '../../shared/sender';
 import type { Contact, Message, MessageStyle, TimeFormatPref } from '../../shared/types';
 import { buildMessageMenuItems } from '../features/message-actions/menuItems';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
 import { fmtDate } from '../lib/time';
-import { deriveSenderName } from '../lib/utils';
 import { VIRTUOSO_LICENSE_KEY } from '../lib/virtuosoLicense';
 import { BlockSenderDialog, type BlockSenderDialogPrefill } from './BlockSenderDialog';
 import { ContextMenu } from './ContextMenu';
@@ -106,7 +106,7 @@ const ItemRow: ItemContent<Item, RowContext> = ({ data, context }) => {
   // and pass it down — MessageItem is name-only, not Contact-aware.
   const senderName =
     (m.fromPublicKeyHex ? context.contactByPk.get(m.fromPublicKeyHex)?.name : undefined) ??
-    deriveSenderName(m.fromPublicKeyHex);
+    senderDisplayName(m.fromPublicKeyHex);
   return (
     <MessageItem
       message={m}
@@ -507,7 +507,7 @@ export function MessageList({
       {menu &&
         (() => {
           const sender = menu.message.fromPublicKeyHex ? contactByPk.get(menu.message.fromPublicKeyHex) : undefined;
-          const senderName = sender?.name ?? deriveSenderName(menu.message.fromPublicKeyHex);
+          const senderName = sender?.name ?? senderDisplayName(menu.message.fromPublicKeyHex);
           return (
             <ContextMenu
               x={menu.x}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { contactKey } from '../../shared/conversationKey';
 import { type ApiClient, ApiError, api } from '../lib/api';
 import { notify } from '../lib/notify';
 
@@ -106,7 +107,7 @@ export function useAdvertPath(
       busy.current.add(pubkey);
       setInFlight([...busy.current]);
       try {
-        const res = await api.getAdvertPath(client, `c:${pubkey}`, { force: !silent });
+        const res = await api.getAdvertPath(client, contactKey(pubkey), { force: !silent });
         if (!silent) {
           if (!res.cached) notify.info(describeMiss(res.reason));
           else notify.success(describe(res.hops));

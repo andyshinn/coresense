@@ -1,4 +1,5 @@
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
+import { contactKey } from '../../shared/conversationKey';
 import type { Contact } from '../../shared/types';
 
 /** A contact merged from both store slices for the detail panel. The discovered
@@ -66,7 +67,7 @@ export function resolveContact(
   const kind = d?.kind ?? c?.kind ?? 'chat';
   return {
     publicKeyHex: d?.publicKeyHex ?? c?.publicKeyHex ?? publicKeyHex,
-    key: `c:${d?.publicKeyHex ?? c?.publicKeyHex ?? publicKeyHex}`,
+    key: contactKey(d?.publicKeyHex ?? c?.publicKeyHex ?? publicKeyHex),
     name,
     kind,
     onRadio: d?.onRadio ?? c != null,

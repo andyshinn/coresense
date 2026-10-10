@@ -1,4 +1,5 @@
 import { Hash, Trash2, User } from 'lucide-react';
+import { isChannelKey } from '../../../shared/conversationKey';
 import type { MessageHit } from '../../../shared/types';
 import { RelativeTime } from '../../components/RelativeTime';
 import { DeleteConfirmPopover } from '../../features/message-actions/DeleteConfirmPopover';
@@ -21,7 +22,7 @@ export function SearchMessageRow({
   onDeleted: (id: string) => void;
 }) {
   const setPendingDeleteMessageId = useStore((s) => s.setPendingDeleteMessageId);
-  const isChannel = hit.key.startsWith('ch:');
+  const isChannel = isChannelKey(hit.key);
   return (
     <li className="group relative">
       <button

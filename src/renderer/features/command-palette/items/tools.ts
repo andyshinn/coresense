@@ -1,4 +1,5 @@
 import { Hash, MessageCircle, Radio } from 'lucide-react';
+import { isChannelKey, isContactKey } from '../../../../shared/conversationKey';
 import { TOOL_DEFS, TOOL_KEYS } from '../../../lib/tools';
 import type { PaletteItem } from '../types';
 
@@ -9,12 +10,12 @@ export function resolveKeyItem(
   channels: Array<{ key: string; name: string }>,
   contacts: Array<{ key: string; name: string; kind: string }>,
 ): Pick<PaletteItem, 'id' | 'label' | 'hint' | 'icon' | 'keywords'> | null {
-  if (key.startsWith('ch:')) {
+  if (isChannelKey(key)) {
     const ch = channels.find((c) => c.key === key);
     if (!ch) return null;
     return { id: `recent:${key}`, label: ch.name, hint: 'channel', icon: Hash, keywords: key };
   }
-  if (key.startsWith('c:')) {
+  if (isContactKey(key)) {
     const c = contacts.find((x) => x.key === key);
     if (!c) return null;
     return {

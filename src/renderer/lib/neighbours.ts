@@ -1,4 +1,5 @@
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
+import { pubkeyFromKey } from '../../shared/conversationKey';
 import { type Contact, hasValidFix, type RepeaterNeighbour } from '../../shared/types';
 
 // 'protocol' is reserved for a future firmware that returns the neighbour's name
@@ -125,7 +126,7 @@ export function resolveNeighbourPublicKey(
 ): string | null {
   const [resolved] = resolveNeighbours([{ pubKeyPrefixHex: prefix, heardSecsAgo: 0, snrDb: 0 }], contacts, discovered);
   // contactKey is `c:<publicKeyHex>`; strip the prefix for ContactDetail.
-  return resolved?.contactKey ? resolved.contactKey.slice(2) : null;
+  return resolved?.contactKey ? pubkeyFromKey(resolved.contactKey) : null;
 }
 
 // ── Client-side sorting ────────────────────────────────────────────────
