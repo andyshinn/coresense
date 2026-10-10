@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { readFileSync } from 'node:fs';
 import { type Ports, Protocol, Transports } from '@andyshinn/meshcore-ts';
+import { errorMessage } from '../../shared/errors';
 import { emit } from '../events/bus';
 import { child } from '../log';
 import { toRawPacket } from './rawPacket';
@@ -69,7 +70,7 @@ export class FileReplayTransport implements ITransport {
     try {
       frames = loadFrames(this.fixturePath);
     } catch (err) {
-      log.error(`failed to load replay fixture: ${(err as Error).message}`);
+      log.error(`failed to load replay fixture: ${errorMessage(err)}`);
       return;
     }
     for (const frame of frames) {

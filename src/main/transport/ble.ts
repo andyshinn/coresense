@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { type Models, type Ports, Protocol, Transports } from '@andyshinn/meshcore-ts';
 import noble, { type Characteristic, type Peripheral } from '@stoprocent/noble';
+import { errorMessage } from '../../shared/errors';
 import type { BleDevice } from '../../shared/types';
 import { emit } from '../events/bus';
 import { child } from '../log';
@@ -275,7 +276,7 @@ export class BleTransport implements ITransport {
     try {
       noble.stop();
     } catch (err) {
-      logger.warn(`noble.stop() threw: ${(err as Error).message}`);
+      logger.warn(`noble.stop() threw: ${errorMessage(err)}`);
     }
   }
 
@@ -436,8 +437,8 @@ export class BleTransport implements ITransport {
       this.reconnectTimer = null;
       if (this.userDisconnected) return;
       this.connect(deviceId).catch((err) => {
-        logger.warn(`reconnect to ${deviceId} failed: ${(err as Error).message}`);
-        emit.error(`Reconnect to ${deviceId} failed: ${(err as Error).message}`);
+        logger.warn(`reconnect to ${deviceId} failed: ${errorMessage(err)}`);
+        emit.error(`Reconnect to ${deviceId} failed: ${errorMessage(err)}`);
         // connect() may have left peripheral set if it failed mid-way; clean
         // up so the next attempt starts fresh.
         this.peripheral = null;
@@ -462,7 +463,7 @@ export class BleTransport implements ITransport {
     try {
       p.disconnect(noop);
     } catch (err) {
-      logger.warn(`forced disconnect threw: ${(err as Error).message}`);
+      logger.warn(`forced disconnect threw: ${errorMessage(err)}`);
     }
     // Drive the disconnect path synchronously in case noble's callback
     // doesn't fire either.

@@ -1,4 +1,5 @@
 import { MeshCoreSession, Models, type Ports, Protocol } from '@andyshinn/meshcore-ts';
+import { pubkeyFromKey } from '../../shared/conversationKey';
 import { adminSessions } from '../bridge/adminSession';
 import { child } from '../log';
 import { stateHolder } from '../state/holder';
@@ -306,7 +307,7 @@ export class SessionAdapter {
     // adminSessions.getSession) reflects the logged-in state.
     adminSessions.setSession({
       contactKey: key,
-      publicKeyHex: key.startsWith('c:') ? key.slice(2) : key,
+      publicKeyHex: pubkeyFromKey(key),
       mode: result.mode,
       role: result.isAdmin ? 'admin' : 'guest',
       permissionsBits: result.permissions,

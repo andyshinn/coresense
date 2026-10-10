@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { errorMessage } from '../../shared/errors';
 import type { BridgeStatus, RawPacket, TransportState } from '../../shared/types';
 import { bus, emit } from '../events/bus';
 import { child } from '../log';
@@ -154,8 +155,8 @@ export class BridgeHub extends EventEmitter {
       try {
         client.send(buf);
       } catch (err) {
-        logger.warn(`fanout to ${client.remoteAddr} failed: ${(err as Error).message}`);
-        emit.error(`Bridge: send to ${client.remoteAddr} failed: ${(err as Error).message}`);
+        logger.warn(`fanout to ${client.remoteAddr} failed: ${errorMessage(err)}`);
+        emit.error(`Bridge: send to ${client.remoteAddr} failed: ${errorMessage(err)}`);
       }
     }
   };
@@ -188,8 +189,8 @@ export class BridgeHub extends EventEmitter {
           );
           await withTimeout(transport.sendBytes(item.payload), SEND_ITEM_TIMEOUT_MS, 'hub send-worker');
         } catch (err) {
-          logger.warn(`radio send failed for ${item.client.remoteAddr}: ${(err as Error).message}`);
-          emit.error(`Bridge: send to radio failed for ${item.client.remoteAddr}: ${(err as Error).message}`);
+          logger.warn(`radio send failed for ${item.client.remoteAddr}: ${errorMessage(err)}`);
+          emit.error(`Bridge: send to radio failed for ${item.client.remoteAddr}: ${errorMessage(err)}`);
         }
       }
     } finally {

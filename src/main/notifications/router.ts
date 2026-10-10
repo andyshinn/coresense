@@ -1,3 +1,4 @@
+import { isChannelKey } from '../../shared/conversationKey';
 import { errorMessage } from '../../shared/errors';
 import type { AppSettings, Channel, Contact, ContactKind, MenuAction, Message, Owner, UiState } from '../../shared/types';
 import type { NotificationActions } from './actions';
@@ -70,7 +71,7 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
     return deps.getContacts().find((c) => c.key === key)?.kind;
   }
   function isMuted(key: string): boolean {
-    if (key.startsWith('ch:')) return deps.getChannels().some((c) => c.key === key && c.muted);
+    if (isChannelKey(key)) return deps.getChannels().some((c) => c.key === key && c.muted);
     return deps.getContacts().some((c) => c.key === key && c.muted);
   }
   // Silent when the user turned sound off, or when the app is already focused —
@@ -102,7 +103,7 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
   }
 
   function presentIndividual(m: Message): void {
-    const isChannel = m.key.startsWith('ch:');
+    const isChannel = isChannelKey(m.key);
     const ownerName = deps.getOwner()?.name;
     const kind = classify(m, ownerName, contactKindOf(m.key));
     const content = buildContent({
@@ -132,7 +133,7 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
     const silent = isSilent();
     for (const d of summaries) {
       summaryKeys.add(d.key);
-      const isChannel = d.key.startsWith('ch:');
+      const isChannel = isChannelKey(d.key);
       deps.presenter.show({
         id: `summary:${d.key}`,
         groupId: d.key,
@@ -196,7 +197,7 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
     if (!show) return;
     if (!deps.presenter.isSupported()) return;
     if (notifications.summarizeBacklog) {
-      aggregator.ingest(m, m.key.startsWith('ch:') ? channelSenderName(m.fromPublicKeyHex) : '');
+      aggregator.ingest(m, isChannelKey(m.key) ? channelSenderName(m.fromPublicKeyHex) : '');
     } else {
       presentIndividual(m);
     }
