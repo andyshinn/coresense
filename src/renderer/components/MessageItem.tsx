@@ -60,7 +60,7 @@ const STATE_LABEL: Record<Message['state'], string> = {
 
 /**
  * The single, density-driven message presentation shared by the channel/DM
- * conversation list (via MessageRow) and the Unreads triage previews. Rich
+ * conversation list (via MessageList's ItemRow) and the Unreads triage previews. Rich
  * shows avatar + sender header + bubble + meta; compact is one inline line with
  * the sender in front. Both densities show hop count + path-hash mode (from the
  * first path seen) next to the timestamp. Interactivity is opt-in: callers that
@@ -146,6 +146,7 @@ export function MessageItem({
             <span title={fmtDateTime(message.ts, timeFormat)}>{fmtMessageTime(message.ts, timeFormat)}</span>
             <StateChip message={message} />
             <PathStatsMeta stats={stats} />
+            {/* TODO: nothing writes meta.rssi yet; this lights up once the pending meshcore-ts RSSI work lands. */}
             {message.meta?.rssi != null && <RssiChip rssi={message.meta.rssi} showHops={false} />}
           </div>
         </div>

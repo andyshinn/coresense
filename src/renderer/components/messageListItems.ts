@@ -3,8 +3,8 @@ import { dayKey } from '../lib/time';
 
 export type DateItem = { kind: 'date'; id: string; ts: number };
 export type DividerItem = { kind: 'divider'; id: string };
-export type MessageItem = { kind: 'msg'; m: Message };
-export type Item = DateItem | DividerItem | MessageItem;
+export type MsgListItem = { kind: 'msg'; m: Message };
+export type Item = DateItem | DividerItem | MsgListItem;
 
 export const UNREAD_DIVIDER: DividerItem = { kind: 'divider', id: '__unread__' };
 
