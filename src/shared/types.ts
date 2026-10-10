@@ -139,7 +139,8 @@ export interface Contact {
   pinned?: boolean;
   /** Radio-level favourite — maps to the firmware contact flag bit 0, which
    *  protects the contact from overwrite-oldest eviction. Distinct from
-   *  `pinned` (app-only pin-to-top in the nav). */
+   *  `UiState.pinned` (app-only pin-to-top in the nav) and from the deprecated
+   *  `Contact.pinned`. */
   favourite?: boolean;
   muted?: boolean;
   /** Hex-encoded out-path bytes (no separators) mirroring the firmware's
@@ -650,7 +651,8 @@ export interface MapSettings {
   staleFadeEnabled: boolean;
   /** Per-kind filter — when `false`, that kind's markers are hidden from the map. */
   kindFilters: Record<ContactKind, boolean>;
-  /** Only show contacts with `pinned = true`. */
+  /** Only show contacts with `pinned = true`. Contact.pinned is never written,
+   *  so this currently hides every contact (#47). */
   favouritesOnly: boolean;
   /** Combine nearby markers into a type-breakdown donut when zoomed out. */
   clusteringEnabled: boolean;
