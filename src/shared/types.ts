@@ -132,6 +132,10 @@ export interface Contact {
   /** Relay count to this contact, derived by the library from the advert's
    *  out_path_len — unlike rssi/snr above, this one is real. */
   hops?: number;
+  /** @deprecated Nothing writes it — the radio sync only preserves an existing
+   *  value — so every read is undefined. The nav pin is `UiState.pinned`; the
+   *  radio flag is `favourite` below. Until #47 resolves which one the map
+   *  filter and NodeInfoCard star should read, don't add new reads. */
   pinned?: boolean;
   /** Radio-level favourite — maps to the firmware contact flag bit 0, which
    *  protects the contact from overwrite-oldest eviction. Distinct from
@@ -211,7 +215,13 @@ export interface MessagePath {
 }
 
 export interface MessageMeta {
+  /** @deprecated meshcore-ts never sets it; only older stored rows carry it.
+   *  Derive the hop count from `paths` (shared/messagePath.ts `relayHopCount` /
+   *  `firstPathStats`), which keeps this only as a legacy fallback. */
   hops?: number;
+  /** @deprecated Nothing writes it: the V3 message frames carry no RSSI (their
+   *  bytes 2-3 are firmware-reserved), so every read is undefined. Populating it
+   *  means correlating the 0x88 RX-log push (#33). Prefer `snr`. */
   rssi?: number;
   snr?: number;
   /** Decoded route(s) the message travelled, populated when a matching mesh
