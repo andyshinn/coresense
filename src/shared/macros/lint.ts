@@ -1,5 +1,5 @@
 import { type Liquid, type Token, TypeGuards } from 'liquidjs';
-import { createMacroEngine } from './engine';
+import { getMacroEngine } from './engine';
 import { buildSampleContext } from './manifest';
 import { fieldsAt, type PathSegment, resolvePath, type StructureNode, structureOf } from './structure';
 
@@ -11,14 +11,6 @@ export interface MacroWarning {
   suggestion?: string;
   line?: number;
   col?: number;
-}
-
-// Same lazy cached engine as validate.ts. It must be createMacroEngine, not a
-// bare Liquid: strictFilters makes `parse` throw on distance/bearing/unit.
-let cached: Liquid | null = null;
-function engine(): Liquid {
-  if (!cached) cached = createMacroEngine({ defaultDistanceUnit: 'metric' });
-  return cached;
 }
 
 /** Filters whose first quoted argument names a property of the piped-in array's
@@ -301,7 +293,9 @@ function checkFilterKeys(eng: Liquid, template: string, root: StructureNode): Ma
  * elements is accepted; an empty sample array disables checking below it.
  */
 export function lintTemplate(template: string): MacroWarning[] {
-  const eng = engine();
+  // The same shared engine validateTemplate uses. It must be a macro engine, not
+  // a bare Liquid: strictFilters makes `parse` throw on distance/bearing/unit.
+  const eng = getMacroEngine('metric');
   const root = structureOf(buildSampleContext());
   return [...checkVariablePaths(eng, template, root), ...checkFilterKeys(eng, template, root)];
 }

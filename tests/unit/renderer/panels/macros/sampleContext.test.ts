@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { previewEngine, renderPreview } from '@/panels/macros/lib/preview';
+import { renderPreview } from '@/panels/macros/lib/preview';
 import { replyContext, sendContext, worstCaseContext } from '@/panels/macros/lib/sampleContext';
-import { MACRO_VARIABLES } from '../../../../../src/shared/macros';
+import { getMacroEngine, MACRO_VARIABLES } from '../../../../../src/shared/macros';
 
 const NEVER_POPULATED = MACRO_VARIABLES.filter((v) => v.populated === false).map((v) => v.name);
 const REPLY_ONLY = MACRO_VARIABLES.filter((v) => v.available === 'reply').map((v) => v.name);
@@ -54,7 +54,7 @@ describe('sample contexts', () => {
     });
 
     it('renders them through the real preview path as the ? placeholder, in both modes', () => {
-      const engine = previewEngine('metric');
+      const engine = getMacroEngine('metric');
       for (const ctx of [replyContext(), sendContext()]) {
         expect(renderPreview(engine, 'Heard you at {{ peer_rssi }}dBm', ctx).text).toBe('Heard you at ?dBm');
         expect(renderPreview(engine, '{{ peer_snr }}dB', ctx).text).toBe('?dB');

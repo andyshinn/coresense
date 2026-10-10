@@ -1,9 +1,10 @@
 import { AlertTriangle, Check, Eye } from 'lucide-react';
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { getMacroEngine } from '../../../../shared/macros';
 import type { MacroWarning } from '../../../../shared/macros/lint';
 import type { DistanceUnit, ValidateResult } from '../../../../shared/macros/types';
-import { type BudgetStatus, budgetStatus, MSG_LIMIT, previewEngine, renderPreview } from '../lib/preview';
+import { type BudgetStatus, budgetStatus, MSG_LIMIT, renderPreview } from '../lib/preview';
 import { replyContext, sendContext, worstCaseContext } from '../lib/sampleContext';
 import type { PreviewMode } from './useStudio';
 
@@ -23,7 +24,7 @@ interface PreviewPaneProps {
 }
 
 export function PreviewPane({ value, mode, onModeChange, distanceUnit, validation, warnings }: PreviewPaneProps) {
-  const engine = useMemo(() => previewEngine(distanceUnit), [distanceUnit]);
+  const engine = getMacroEngine(distanceUnit);
   const ctx = useMemo(() => (mode === 'reply' ? replyContext() : sendContext()), [mode]);
   const result = useMemo(() => renderPreview(engine, value, ctx), [engine, value, ctx]);
   const worst = useMemo(() => renderPreview(engine, value, worstCaseContext()), [engine, value]);
