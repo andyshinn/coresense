@@ -21,7 +21,7 @@ import { PreviewPane } from './studio/PreviewPane';
 import { useStudio } from './studio/useStudio';
 import { VariableHoverCard } from './studio/VariableHoverCard';
 
-const QUICK_VARS = ['sender_name', 'rssi', 'snr', 'my_pos', 'peer_name'];
+export const QUICK_VARS = ['sender_name', 'snr', 'my_pos', 'peer_name'];
 const SCOPES: { value: MacroScope; label: string }[] = [
   { value: 'global', label: 'Global' },
   { value: 'channel', label: 'Channel' },
