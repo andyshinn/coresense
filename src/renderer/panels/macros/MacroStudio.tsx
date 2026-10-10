@@ -6,6 +6,7 @@ import { type ApiClient, api } from '@/lib/api';
 import { notify } from '@/lib/notify';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
+import { errorMessage } from '../../../shared/errors';
 import {
   buildSampleContext,
   lintTemplate,
@@ -80,7 +81,7 @@ export function MacroStudio({ client, macro, onClose }: MacroStudioProps) {
       notify.success(macro ? 'Macro saved' : 'Macro created');
       onClose();
     } catch (err) {
-      notify.error(`Couldn’t save macro: ${(err as Error).message}`, err);
+      notify.error(`Couldn’t save macro: ${errorMessage(err)}`, err);
     } finally {
       setSaving(false);
     }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { errorMessage } from '../../shared/errors';
 import type { ChannelActivity } from '../../shared/types';
 import { type ApiClient, api } from '../lib/api';
 import { useStore } from '../lib/store';
@@ -49,7 +50,7 @@ export function useChannelActivity(
           // API/radio hiccup should not blank a chart that was correct a minute ago.
           // `error` is only ever surfaced when there is nothing to show — see the
           // `!activity` branch in the Activity section.
-          setError((e as Error).message);
+          setError(errorMessage(e));
           setLoading(false);
         }
       },

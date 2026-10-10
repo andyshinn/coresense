@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { errorMessage } from '../shared/errors';
 import { createMenuActionHandler } from './app/menuActions';
 import { resolveBaseUrl } from './app/resolveBaseUrl';
 import { useDraftsPersistence } from './app/useDraftsPersistence';
@@ -124,25 +125,19 @@ export function App() {
     // this window to some *other* CoreSense instance (issue #21).
     const { candidate, fallback } = resolveBaseUrl(window.coresense?.httpPort, window.location);
     void (async () => {
-      try {
-        const caps = await fetchCapabilities(candidate);
-        setBaseUrl(candidate);
-        setPort(caps.httpPort);
-        setConfigPath(caps.configPath);
-      } catch (err) {
-        if (!fallback) {
-          notify.error(`Could not reach CoreSense server: ${(err as Error).message}`, err);
-          return;
-        }
+      let lastErr: unknown;
+      for (const url of fallback ? [candidate, fallback] : [candidate]) {
         try {
-          const caps = await fetchCapabilities(fallback);
-          setBaseUrl(fallback);
+          const caps = await fetchCapabilities(url);
+          setBaseUrl(url);
           setPort(caps.httpPort);
           setConfigPath(caps.configPath);
-        } catch (fallbackErr) {
-          notify.error(`Could not reach CoreSense server: ${(fallbackErr as Error).message}`, fallbackErr);
+          return;
+        } catch (err) {
+          lastErr = err;
         }
       }
+      notify.error(`Could not reach CoreSense server: ${errorMessage(lastErr)}`, lastErr);
     })();
   }, []);
 
@@ -159,7 +154,7 @@ export function App() {
           setHydrated(true);
         }
       } catch (err) {
-        if (!cancelled) notify.error(`Snapshot fetch failed: ${(err as Error).message}`, err);
+        if (!cancelled) notify.error(`Snapshot fetch failed: ${errorMessage(err)}`, err);
       }
     })();
     return () => {
@@ -203,44 +198,25 @@ export function App() {
 
   useWebSocket({ url: wsUrl, onMessage });
 
-  const handleScan = useCallback(async () => {
-    if (!client) return;
-    setBusy(true);
-    try {
-      await api.scan(client);
-    } catch (err) {
-      notify.error((err as Error).message, err);
-    } finally {
-      setBusy(false);
-    }
-  }, [client, setBusy]);
-
-  const handleConnect = useCallback(
-    async (deviceId: string) => {
+  // Scan, connect and disconnect share one shape: busy for the duration of the
+  // call, and a toast on failure.
+  const runBusy = useCallback(
+    async (op: (c: ApiClient) => Promise<unknown>) => {
       if (!client) return;
       setBusy(true);
       try {
-        await api.connect(client, deviceId);
+        await op(client);
       } catch (err) {
-        notify.error((err as Error).message, err);
+        notify.error(errorMessage(err), err);
       } finally {
         setBusy(false);
       }
     },
     [client, setBusy],
   );
-
-  const handleDisconnect = useCallback(async () => {
-    if (!client) return;
-    setBusy(true);
-    try {
-      await api.disconnect(client);
-    } catch (err) {
-      notify.error((err as Error).message, err);
-    } finally {
-      setBusy(false);
-    }
-  }, [client, setBusy]);
+  const handleScan = useCallback(() => runBusy((c) => api.scan(c)), [runBusy]);
+  const handleConnect = useCallback((deviceId: string) => runBusy((c) => api.connect(c, deviceId)), [runBusy]);
+  const handleDisconnect = useCallback(() => runBusy((c) => api.disconnect(c)), [runBusy]);
 
   if (!apiKey) {
     return (
