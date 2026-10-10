@@ -64,6 +64,13 @@ export function write(entry: LogEntry): void {
   maybePrune(folder);
 }
 
+/** Resolves once every line written so far has been appended. Await it last
+ *  before app.exit(): the final lines of a quit (e.g. a transport timeout) are
+ *  the ones a hung-quit report needs. Never rejects — writes catch their own errors. */
+export function flushLogFile(): Promise<void> {
+  return writeChain;
+}
+
 function maybePrune(folder: string): void {
   const now = Date.now();
   if (now - lastPruneTs < PRUNE_INTERVAL_MS) return;
