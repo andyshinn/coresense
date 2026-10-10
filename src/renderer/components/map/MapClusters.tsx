@@ -1,5 +1,6 @@
 import { type Map as MapLibreMap, Marker } from 'maplibre-gl';
 import { useEffect, useMemo, useRef } from 'react';
+import { HOUR_MS } from '../../../shared/time';
 import { type Contact, hasValidFix } from '../../../shared/types';
 import { useStore } from '../../lib/store';
 import type { CachedMarker } from './cluster/markerCache';
@@ -27,7 +28,6 @@ interface Props {
   map: MapLibreMap | null;
 }
 
-const HOUR_MS = 3_600_000;
 const RECOMPUTE_DEBOUNCE_MS = 80;
 
 // Replaces the old MapMarkers component. Responsible for:

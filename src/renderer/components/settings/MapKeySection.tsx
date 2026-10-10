@@ -1,5 +1,6 @@
 import { Map as MapIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { errorMessage } from '../../../shared/errors';
 import { type ApiClient, api } from '../../lib/api';
 import { updateMapSettings } from '../../lib/map/settings';
 import { notify } from '../../lib/notify';
@@ -57,7 +58,7 @@ export function MapKeySection({ client }: Props) {
       setCacheInfo(info);
       notify.success('Tile cache cleared');
     } catch (err) {
-      notify.error(`Failed to clear cache: ${(err as Error).message}`, err);
+      notify.error(`Failed to clear cache: ${errorMessage(err)}`, err);
     } finally {
       setBusy(false);
     }
@@ -65,9 +66,7 @@ export function MapKeySection({ client }: Props) {
 
   function openCacheFolder() {
     if (!client) return;
-    void api
-      .openTileCacheFolder(client)
-      .catch((err) => notify.error(`Failed to open folder: ${(err as Error).message}`, err));
+    void api.openTileCacheFolder(client).catch((err) => notify.error(`Failed to open folder: ${errorMessage(err)}`, err));
   }
 
   function setCacheCap(bytes: number) {
@@ -82,7 +81,7 @@ export function MapKeySection({ client }: Props) {
       setDraft('');
       notify.success('Protomaps API key saved');
     } catch (err) {
-      notify.error(`Failed to save key: ${(err as Error).message}`, err);
+      notify.error(`Failed to save key: ${errorMessage(err)}`, err);
     } finally {
       setBusy(false);
     }
@@ -95,7 +94,7 @@ export function MapKeySection({ client }: Props) {
       await api.clearProtomapsApiKey(client);
       notify.success('Protomaps API key removed');
     } catch (err) {
-      notify.error(`Failed to clear key: ${(err as Error).message}`, err);
+      notify.error(`Failed to clear key: ${errorMessage(err)}`, err);
     } finally {
       setBusy(false);
     }
