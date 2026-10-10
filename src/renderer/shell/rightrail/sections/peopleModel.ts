@@ -5,6 +5,7 @@
 // environment: 'node'.
 
 import type { DiscoveredContact } from '../../../../shared/contacts/discovered';
+import { DAY_MS, MINUTE_MS } from '../../../../shared/time';
 import type { ChannelSenderStat, Contact, PeopleFilter, PeopleRailPrefs, PeopleSort } from '../../../../shared/types';
 import { discoveredNameIndex, type IdentitySource, resolveIdentity } from '../../../lib/identity';
 
@@ -35,10 +36,6 @@ export interface Bucket {
   label: string;
   rows: RosterRow[];
 }
-
-const MIN = 60_000;
-const HOUR = 60 * MIN;
-const DAY = 24 * HOUR;
 
 const BUCKET_LABELS: Record<BucketId, string> = {
   today: 'Today',
@@ -115,14 +112,14 @@ export function fmtAge(ts: number, now: number): string {
   // Node RTCs are unreliable and can report the future; clamp rather than
   // rendering a negative age.
   const elapsed = Math.max(0, now - ts);
-  if (elapsed < MIN) return 'now';
-  const mins = Math.floor(elapsed / MIN);
+  if (elapsed < MINUTE_MS) return 'now';
+  const mins = Math.floor(elapsed / MINUTE_MS);
   if (mins < 60) return `${mins}m`;
-  if (elapsed < DAY) {
+  if (elapsed < DAY_MS) {
     // Math.round(1439/60) is 24, which belongs to the next rung — clamp.
     return `${Math.min(23, Math.round(mins / 60))}h`;
   }
-  const days = Math.floor(elapsed / DAY);
+  const days = Math.floor(elapsed / DAY_MS);
   if (days < 7) return `${days}d`;
   return `${Math.floor(days / 7)}w`;
 }
@@ -143,7 +140,7 @@ function localMidnight(ts: number): number {
 /** Calendar-relative, not rolling. Math.round (not floor) so 23- and 25-hour
  *  DST days still land on whole day counts. */
 export function bucketFor(ts: number, now: number): BucketId {
-  const days = Math.round((localMidnight(now) - localMidnight(ts)) / DAY);
+  const days = Math.round((localMidnight(now) - localMidnight(ts)) / DAY_MS);
   if (days <= 0) return 'today';
   if (days === 1) return 'yesterday';
   if (days <= 7) return 'week';
