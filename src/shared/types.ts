@@ -1,7 +1,7 @@
-import type { QuickActionId } from '../renderer/features/quick-actions/ids';
 import type { DiscoveredContact } from './contacts/discovered';
 import type { LogLevel } from './logLevels';
 import type { DistanceUnit, MacroTemplate } from './macros/types';
+import { DEFAULT_QUICK_ACTION_IDS, type QuickActionId } from './quickActions';
 
 export type { LogLevel } from './logLevels';
 export type { MacroTemplate } from './macros/types';
@@ -573,7 +573,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   commandPalette: { hintWeightPct: 50 },
   unreadsPreview: { enabled: true, limit: 25 },
   logging: { fileEnabled: false, level: 'info' },
-  quickActions: ['flood', 'gps', 'shareLoc', 'disconnect'],
+  quickActions: [...DEFAULT_QUICK_ACTION_IDS],
   updates: { channel: 'stable', autoCheck: true },
   distanceUnit: 'metric',
 };
