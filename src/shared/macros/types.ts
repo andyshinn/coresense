@@ -68,6 +68,10 @@ export interface MacroContext {
 
 export type MacroScope = 'global' | 'channel' | 'contact';
 
+/** The context a macro renders against: replying to a received message, or
+ *  composing a new send (where reply-only variables are null). */
+export type MacroRenderMode = 'reply' | 'send';
+
 export interface MacroTemplate {
   id: string;
   name: string;
