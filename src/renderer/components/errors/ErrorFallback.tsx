@@ -1,21 +1,11 @@
 import { MapIcon, RotateCcw, TriangleAlert } from 'lucide-react';
 import type { ErrorInfo } from 'react';
 import type { FallbackProps } from 'react-error-boundary';
+import { errorMessage } from '../../../shared/errors';
 import { log } from '../../lib/logger';
 import { isGpuInitializationError } from '../../lib/map/gpu-error';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
-
-/** Best-effort human-readable message from whatever a component threw. */
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
-}
 
 /**
  * Shared `onError` handler for every boundary. Render-time crashes only reach
