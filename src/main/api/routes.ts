@@ -224,11 +224,17 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // POST /api/app/relaunch — used by Proxy settings after the user changes
   // port/bind/enabled/mdns. The bridge listeners are bound at startup, so the
   // simplest correct way to apply them is to restart the whole app.
+  //
+  // quit(), never exit(): app.exit() skips before-quit/will-quit, so the
+  // shutdown pipeline (settings and holder flushes, closeDb) would never run —
+  // and this lands right after a coalesced settings write. With the quit
+  // already confirmed, before-quit goes straight to that shutdown and then
+  // exits, which is when Electron performs the relaunch.
   api.post('/api/app/relaunch', (c) => {
     markQuitConfirmed();
     setTimeout(() => {
       appLifecycle().relaunch();
-      appLifecycle().exit(0);
+      appLifecycle().quit();
     }, 0);
     return c.json({ ok: true });
   });

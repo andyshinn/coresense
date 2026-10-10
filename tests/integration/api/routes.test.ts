@@ -38,6 +38,15 @@ describe('api routes', () => {
     expect((appLifecycle() as SpyLifecycle).calls).toContain('quit');
   });
 
+  // Regression: relaunch used exit(0), which skips before-quit and with it the
+  // whole shutdown pipeline (flushes, closeDb).
+  it('relaunches through quit(), never exit(), on /api/app/relaunch', async () => {
+    const res = await app().request('/api/app/relaunch', { method: 'POST' });
+    expect(res.status).toBe(200);
+    await flush();
+    expect((appLifecycle() as SpyLifecycle).calls).toEqual(['relaunch', 'quit']);
+  });
+
   it('round-trips the map api-key through secretStore', async () => {
     const set = await app().request('/api/map/api-key', {
       method: 'POST',
