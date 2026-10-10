@@ -8,8 +8,8 @@ interface Seg {
   desc?: string;
 }
 
-// Companion-radio frame layouts. `codeName` values come from main's
-// companionFrame.ts (PUSH_NAMES / RESP_NAMES); the byte offsets below are the
+// Companion-radio frame layouts. `codeName` values come from
+// shared/companionFrames.ts (PUSH_NAMES / RESP_NAMES); the byte offsets below are the
 // frame body WITHOUT the leading 1-byte type code (main strips it into
 // `payloadHex`), and were taken from the authoritative wire formats documented
 // in @andyshinn/meshcore-ts. Frames not listed here fall back to a single raw

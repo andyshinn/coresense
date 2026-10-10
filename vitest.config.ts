@@ -21,9 +21,9 @@ const sharedResolve = {
   },
 };
 
-// Approach A from the testing design: one config, a `projects` array. Phase 1
-// defines only the `unit` project (pure Node, no Electron). Phase 2 adds an
-// `integration` project alongside it.
+// One config with three projects: `unit` (pure Node, no Electron),
+// `integration` (main-process modules wired together) and `dom` (renderer
+// components under a DOM environment).
 export default defineConfig({
   test: {
     projects: [

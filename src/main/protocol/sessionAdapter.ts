@@ -9,7 +9,7 @@ const APP_NAME = 'coresense';
 const APP_VERSION = 1;
 
 /** Owns a MeshCoreSession and bridges its events into coresense's persistence
- *  + bus, and its command methods to the API layer. Replaces ProtocolSession. */
+ *  + bus, and its command methods to the API layer. */
 export class SessionAdapter {
   readonly session: MeshCoreSession;
   private started = false;

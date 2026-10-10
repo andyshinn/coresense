@@ -8,7 +8,7 @@ import { makeTestSession } from '../../support/session-harness';
 const startFrame = (total: number) => u32Frame(Protocol.RESP.CONTACTS_START, total);
 const endFrame = u32Frame(Protocol.RESP.END_OF_CONTACTS, 0);
 
-describe('inbound contacts iterator via the feature registry + contactsSync bridge', () => {
+describe('inbound contacts iterator via the feature registry + contactSync coalescer', () => {
   it('drives syncProgress 0/2 → 1/2 → 2/2 → 2/2 and surfaces both contacts', async () => {
     const { receive } = makeTestSession();
 
@@ -26,7 +26,7 @@ describe('inbound contacts iterator via the feature registry + contactsSync brid
     // trailing pass. syncProgress is not coalesced and is already complete.
     await flushContactSyncEmits();
 
-    // The contactsSync bridge must reproduce the legacy handler's progress
+    // The contactSync coalescer must reproduce the legacy handler's progress
     // transitions exactly: start(0/total) → per-contact(done/total) → end-snap.
     expect(progress.values.map((p) => p.contacts)).toEqual([
       { done: 0, total: 2 },

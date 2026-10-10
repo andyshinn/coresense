@@ -229,7 +229,9 @@ export interface MessageMeta {
    *  observation (PUSH_CODE_LOG_RX_DATA 0x88) preceded the channel-msg push. */
   paths?: MessagePath[];
   /** Number of distinct flood receptions merged into this Message row. Absent
-   *  ⇒ treat as 1. Bumped by holder.upsertMessage on collision. */
+   *  ⇒ treat as 1. Bumped by the lib's multi-path merge for inbound messages,
+   *  and by holder.appendMessagePath (mirrored by the renderer store's
+   *  appendMessagePath) for outgoing relay echoes. */
   timesHeard?: number;
   signatureHex?: string;
   /** Set by main when the message matches an active block rule. The
