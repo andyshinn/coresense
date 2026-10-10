@@ -1,3 +1,4 @@
+/** A WGS84 position in decimal degrees. */
 export interface LatLon {
   lat: number;
   lon: number;
@@ -6,6 +7,7 @@ export interface LatLon {
 const R = 6371008.8; // mean Earth radius (metres)
 const toRad = (d: number): number => (d * Math.PI) / 180;
 
+/** Great-circle distance between two positions, in metres (mean Earth radius). */
 export function haversineMeters(a: LatLon, b: LatLon): number {
   const phi1 = toRad(a.lat);
   const phi2 = toRad(b.lat);
@@ -15,6 +17,7 @@ export function haversineMeters(a: LatLon, b: LatLon): number {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
+/** Initial (forward-azimuth) bearing from `a` to `b`, in degrees 0..360 clockwise from north. */
 export function initialBearingDeg(a: LatLon, b: LatLon): number {
   const phi1 = toRad(a.lat);
   const phi2 = toRad(b.lat);
@@ -26,6 +29,7 @@ export function initialBearingDeg(a: LatLon, b: LatLon): number {
 
 const POINTS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
 
+/** 16-wind compass label (N, NNE, ...) for a bearing in degrees; any angle is normalised. */
 export function compassPoint(deg: number): string {
   const idx = Math.round((((deg % 360) + 360) % 360) / 22.5) % 16;
   return POINTS[idx];

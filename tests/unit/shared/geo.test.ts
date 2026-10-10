@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compassPoint, haversineMeters, initialBearingDeg } from '../../../src/shared/macros/geo';
+import { compassPoint, haversineMeters, initialBearingDeg } from '../../../src/shared/geo';
 
 describe('haversineMeters', () => {
   it('is zero for identical points', () => {

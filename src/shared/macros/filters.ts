@@ -1,5 +1,5 @@
 import type { Liquid } from 'liquidjs';
-import { compassPoint, haversineMeters, initialBearingDeg, type LatLon } from './geo';
+import { compassPoint, haversineMeters, initialBearingDeg, type LatLon } from '../geo';
 import { isPlaceholder } from './placeholder';
 import type { DistanceUnit } from './types';
 
