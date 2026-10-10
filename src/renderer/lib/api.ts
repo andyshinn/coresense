@@ -314,11 +314,6 @@ export const api = {
       body: JSON.stringify({ favourite }),
     }),
   clearDiscovered: (c: ApiClient) => request<{ ok: true }>(c, `/api/discovered-contacts/clear`, { method: 'POST' }),
-  setPathHashMode: (c: ApiClient, size: 1 | 2 | 4) =>
-    request<{ ok: true }>(c, '/api/radio/path-hash-mode', {
-      method: 'PUT',
-      body: JSON.stringify({ size }),
-    }),
   repeaterLogout: (c: ApiClient, key: string) =>
     request<{ ok: true }>(c, `/api/repeater/${encodeURIComponent(key)}/logout`, {
       method: 'POST',

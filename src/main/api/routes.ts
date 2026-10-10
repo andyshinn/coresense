@@ -1,25 +1,28 @@
 import { Hono } from 'hono';
+import { conversationKind, isChannelKey, pubkeyFromKey } from '../../shared/conversationKey';
 import { errorMessage } from '../../shared/errors';
 import { getManifest, validateTemplate } from '../../shared/macros';
-import type { MacroContext } from '../../shared/macros/types';
+import type { MacroContext, MacroScope } from '../../shared/macros/types';
 import { clampRetention } from '../../shared/packetLog';
 import { checkProxyPort } from '../../shared/ports';
-import type {
-  AppSettings,
-  AutoAddConfig,
-  BridgeStatus,
-  Capabilities,
-  Channel,
-  Contact,
-  DeviceIdentity,
-  GpsConfig,
-  MapSettings,
-  RadioSettings,
-  SearchOptions,
-  ServerStatus,
-  StateSnapshot,
-  TelemetryPolicy,
-  UiState,
+import {
+  type AppSettings,
+  type AutoAddConfig,
+  type BlockRuleType,
+  type BridgeStatus,
+  type Capabilities,
+  type Channel,
+  type Contact,
+  type DeviceIdentity,
+  type GpsConfig,
+  isPathHashSize,
+  type MapSettings,
+  type RadioSettings,
+  type SearchOptions,
+  type ServerStatus,
+  type StateSnapshot,
+  type TelemetryPolicy,
+  type UiState,
 } from '../../shared/types';
 import { adminSessions } from '../bridge/adminSession';
 import { APP_VERSION, GIT_SHA } from '../build-info';
@@ -71,7 +74,7 @@ import { buildTileManifest, registerTileRoutes } from './tiles';
  *    - DELETE → CMD_RESET_PATH, which clears the stored route back to
  *      OUT_PATH_UNKNOWN (0xFF), i.e. no route at all and the radio floods. */
 function mirrorOutPath(contactKey: string, outPathHex: string, opts: { emptyMeans: 'direct' | 'unknown' }): void {
-  const pubkey = contactKey.startsWith('c:') ? contactKey.slice(2) : contactKey;
+  const pubkey = pubkeyFromKey(contactKey);
   if (outPathHex.length === 0) {
     discoveredStore.setOutPath(pubkey, opts.emptyMeans === 'unknown' ? 0xff : 0x00, '');
     scheduleDiscoveredEmit();
@@ -271,7 +274,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   api.post('/api/blocks', async (c) => {
     const body = (await c.req.json().catch(() => null)) as {
       rules?: Array<{
-        type: 'pubkey' | 'pubkeyPrefix' | 'name' | 'nameRegex';
+        type: BlockRuleType;
         pattern: string;
         tsFrom: number;
         enabled: boolean;
@@ -319,8 +322,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     if (!body) return c.json({ error: 'invalid body' }, 400);
     const pushToDevice = body.pushToDevice !== false;
     const session = protocolSession();
-    const t = transportManager.getState();
-    if (pushToDevice && t.state === 'connected') {
+    if (pushToDevice && transportManager.isConnected()) {
       // Only push fields that actually changed. SET_RADIO_PARAMS is split out
       // from SET_PATH_HASH_MODE because they use different opcodes and either
       // panel (Radio or Experimental) may save independently — re-pushing a
@@ -367,10 +369,9 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const body = (await c.req.json().catch(() => null)) as Partial<DeviceIdentity> | null;
     if (!body) return c.json({ error: 'invalid body' }, 400);
     const session = protocolSession();
-    const t = transportManager.getState();
     const holder = stateHolder();
     const current = holder.getDeviceIdentity();
-    if (t.state !== 'connected') {
+    if (!transportManager.isConnected()) {
       // App-only update — useful for staging before a connect.
       const next = { ...current, ...body } as DeviceIdentity;
       holder.setDeviceIdentity(next);
@@ -413,7 +414,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     if (!body) return c.json({ error: 'invalid body' }, 400);
     const holder = stateHolder();
     const current = holder.getAutoAddConfig();
-    const connected = transportManager.getState().state === 'connected';
+    const connected = transportManager.isConnected();
     // Everything that decides what goes ON THE WIRE is compared against the
     // library's mirror, never against the holder. The holder is written
     // optimistically below — while disconnected, and even when the radio
@@ -488,7 +489,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const holder = stateHolder();
     holder.setTelemetryPolicy(body);
     emit.telemetryPolicy(body);
-    if (transportManager.getState().state === 'connected') {
+    if (transportManager.isConnected()) {
       const share = holder.getDeviceIdentity().sharePositionInAdvert;
       // Third argument omitted on purpose — see the identity route above: the
       // library round-trips the radio's own manual-add byte so a telemetry save
@@ -505,7 +506,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const holder = stateHolder();
     holder.setGpsConfig(body);
     emit.gpsConfig(body);
-    if (transportManager.getState().state === 'connected') {
+    if (transportManager.isConnected()) {
       const ok = await protocolSession().setGpsConfig(body);
       if (!ok) return c.json({ error: 'GPS custom-var rejected by radio' }, 503);
     }
@@ -517,7 +518,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // asynchronously and is broadcast via WS — the caller just gets "ok" once
   // the writes succeeded.
   api.post('/api/device/refresh', async (c) => {
-    if (transportManager.getState().state !== 'connected') {
+    if (!transportManager.isConnected()) {
       return c.json({ error: 'no radio attached' }, 503);
     }
     const session = protocolSession();
@@ -601,12 +602,12 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   api.get('/api/channels', (c) => c.json(stateHolder().getChannels()));
   api.get('/api/channels/:key/stats', (c) => {
     const key = c.req.param('key');
-    if (!key.startsWith('ch:')) return c.json({ error: 'not a channel key' }, 400);
+    if (!isChannelKey(key)) return c.json({ error: 'not a channel key' }, 400);
     return c.json(stateHolder().getChannelStats(key));
   });
   api.get('/api/channels/:key/activity', (c) => {
     const key = c.req.param('key');
-    if (!key.startsWith('ch:')) return c.json({ error: 'not a channel key' }, 400);
+    if (!isChannelKey(key)) return c.json({ error: 'not a channel key' }, 400);
     return c.json(stateHolder().getChannelActivity(key));
   });
   api.put('/api/channels/:key', async (c) => {
@@ -706,7 +707,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   });
   api.delete('/api/contacts/:key', async (c) => {
     const key = c.req.param('key');
-    const pubkey = key.startsWith('c:') ? key.slice(2) : key;
+    const pubkey = pubkeyFromKey(key);
     // Tell the radio to drop the contact first (CMD_REMOVE_CONTACT). Strict: if
     // the radio op fails (disconnected, not on radio) we leave local state alone
     // so the app and radio can't desync — a local-only delete would just resync
@@ -759,7 +760,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // Commit a discovered contact to the radio's store.
   api.post('/api/contacts/:key/add-to-radio', async (c) => {
     const key = c.req.param('key');
-    const pubkey = key.startsWith('c:') ? key.slice(2) : key;
+    const pubkey = pubkeyFromKey(key);
     try {
       await protocolSession().addContactToRadio(pubkey);
       return c.json({ ok: true });
@@ -771,7 +772,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // Delete a contact from the radio's store (stays in the discovered pool).
   api.post('/api/contacts/:key/remove-from-radio', async (c) => {
     const key = c.req.param('key');
-    const pubkey = key.startsWith('c:') ? key.slice(2) : key;
+    const pubkey = pubkeyFromKey(key);
     try {
       await protocolSession().removeContactFromRadio(pubkey);
       return c.json({ ok: true });
@@ -783,7 +784,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   // Toggle the radio-level favourite flag.
   api.put('/api/contacts/:key/favourite', async (c) => {
     const key = c.req.param('key');
-    const pubkey = key.startsWith('c:') ? key.slice(2) : key;
+    const pubkey = pubkeyFromKey(key);
     const body = (await c.req.json().catch(() => null)) as { favourite?: boolean } | null;
     if (!body || typeof body.favourite !== 'boolean') {
       return c.json({ error: 'favourite (boolean) required' }, 400);
@@ -870,7 +871,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
 
   api.post('/api/messages/:key', async (c) => {
     const key = c.req.param('key');
-    if (!key.startsWith('ch:') && !key.startsWith('c:')) {
+    if (conversationKind(key) === null) {
       return c.json({ error: 'key must be ch:<name> or c:<pubkey>' }, 400);
     }
     const body = (await c.req.json().catch(() => null)) as { body?: string } | null;
@@ -878,7 +879,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       return c.json({ error: 'body is required' }, 400);
     }
     const result = await sendMessage(key, body.body);
-    if (key.startsWith('ch:')) {
+    if (isChannelKey(key)) {
       return result.ok ? c.json({ ok: true, id: result.id }) : c.json({ error: result.error }, 503);
     }
     return c.json({ ok: true, id: result.id });
@@ -890,7 +891,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   api.delete('/api/messages/:key/:id', (c) => {
     const key = c.req.param('key');
     const id = c.req.param('id');
-    if (!key.startsWith('ch:') && !key.startsWith('c:')) {
+    if (conversationKind(key) === null) {
       return c.json({ error: 'key must be ch:<name> or c:<pubkey>' }, 400);
     }
     // The delete is scoped to `key` inside the DAO, so an id belonging to a
@@ -950,11 +951,11 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   api.put('/api/radio/path-hash-mode', async (c) => {
     const body = (await c.req.json().catch(() => null)) as { size?: number } | null;
     const size = body?.size;
-    if (size !== 1 && size !== 2 && size !== 3) {
+    if (!isPathHashSize(size)) {
       return c.json({ error: 'size must be 1, 2, or 3' }, 400);
     }
     try {
-      await protocolSession().setPathHashMode(size as 1 | 2 | 3);
+      await protocolSession().setPathHashMode(size);
       return c.json({ ok: true });
     } catch (err) {
       return fail503(c, err);
@@ -1208,7 +1209,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const body = (await c.req.json().catch(() => null)) as {
       name?: string;
       template?: string;
-      scope?: 'global' | 'channel' | 'contact';
+      scope?: MacroScope;
       channelKey?: string;
       contactKey?: string;
     } | null;
@@ -1232,7 +1233,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const patch = (await c.req.json().catch(() => null)) as Partial<{
       name: string;
       template: string;
-      scope: 'global' | 'channel' | 'contact';
+      scope: MacroScope;
       channelKey: string;
       contactKey: string;
     }> | null;
