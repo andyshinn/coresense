@@ -1,6 +1,7 @@
 import { Map as MapIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { type ApiClient, api } from '../../lib/api';
+import { updateMapSettings } from '../../lib/map/settings';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 import { Row, TextInput } from './Field';
@@ -31,8 +32,7 @@ export function MapKeySection({ client }: Props) {
   const hasKey = useStore((s) => s.mapSettings.hasProtomapsApiKey);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
-  const settings = useStore((s) => s.mapSettings);
-  const applyMapSettings = useStore((s) => s.applyMapSettings);
+  const tileCacheMaxBytes = useStore((s) => s.mapSettings.tileCacheMaxBytes);
   const [cacheInfo, setCacheInfo] = useState<{ bytes: number; count: number } | null>(null);
 
   useEffect(() => {
@@ -71,9 +71,7 @@ export function MapKeySection({ client }: Props) {
   }
 
   function setCacheCap(bytes: number) {
-    const next = { ...settings, tileCacheMaxBytes: bytes };
-    applyMapSettings(next);
-    if (client) void api.putMapSettings(client, next);
+    updateMapSettings(client, { tileCacheMaxBytes: bytes });
   }
 
   async function save() {
@@ -148,7 +146,7 @@ export function MapKeySection({ client }: Props) {
         control={
           <select
             aria-label="Cache size limit"
-            value={String(settings.tileCacheMaxBytes)}
+            value={String(tileCacheMaxBytes)}
             disabled={!client}
             onChange={(e) => setCacheCap(Number(e.target.value))}
             className="rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text disabled:cursor-not-allowed disabled:opacity-50"

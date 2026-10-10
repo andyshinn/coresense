@@ -95,6 +95,15 @@ vi.mock('maplibre-gl', async (importOriginal) => {
     getZoom() {
       return 4;
     }
+    getCenter() {
+      return { lng: 5, lat: 6 };
+    }
+    getBearing() {
+      return 7;
+    }
+    getPitch() {
+      return 8;
+    }
     flyTo(opts: unknown) {
       fake.flyTo(opts);
     }
@@ -111,9 +120,14 @@ vi.mock('maplibre-gl', async (importOriginal) => {
   };
 });
 
+vi.mock('../../src/renderer/lib/api', () => ({
+  api: { putMapSettings: vi.fn(async () => ({ ok: true })) },
+}));
+
 import { AJAXError, GPUInitializationError, type StyleSpecification } from 'maplibre-gl';
 import { MapErrorFallback } from '../../src/renderer/components/errors/ErrorFallback';
 import { MapCanvas } from '../../src/renderer/components/map/MapCanvas';
+import { api } from '../../src/renderer/lib/api';
 import { setRendererLogSink } from '../../src/renderer/lib/logger';
 import { publish as publishMapBus } from '../../src/renderer/lib/map/bus';
 import { buildStyle, SOURCE_ONLINE } from '../../src/renderer/lib/map/style-builder';
@@ -134,7 +148,7 @@ const manifest: TileManifest = {
 };
 const client = { baseUrl: 'http://x', apiKey: 'k' };
 
-function mapCanvas(settings: MapSettings = DEFAULT_MAP_SETTINGS) {
+function mapCanvas(settings: MapSettings = DEFAULT_MAP_SETTINGS, persistViewport = false) {
   return (
     <ErrorBoundary FallbackComponent={MapErrorFallback}>
       <MapCanvas
@@ -142,7 +156,7 @@ function mapCanvas(settings: MapSettings = DEFAULT_MAP_SETTINGS) {
         manifest={manifest}
         settings={settings}
         renderOverlays={() => null}
-        persistViewport={false}
+        persistViewport={persistViewport}
       />
     </ErrorBoundary>
   );
@@ -166,6 +180,7 @@ beforeEach(() => {
   fake.setStyle.mockClear();
   fake.flyTo.mockClear();
   fake.setMaxZoom.mockClear();
+  vi.mocked(api.putMapSettings).mockClear();
   fake.spriteRequests = [];
   useStore.getState().setThemePref('light');
 });
@@ -286,6 +301,22 @@ describe('MapCanvas camera wiring', () => {
     render(mapCanvas());
     act(() => publishMapBus({ kind: 'flyTo', lng: 1, lat: 2 }));
     expect(fake.flyTo).toHaveBeenCalledWith({ center: [1, 2], zoom: 4 });
+  });
+
+  it('persists the resting viewport once the camera settles', () => {
+    vi.useFakeTimers();
+    try {
+      useStore.getState().applyMapSettings(DEFAULT_MAP_SETTINGS);
+      render(mapCanvas(DEFAULT_MAP_SETTINGS, true));
+      fire('moveend');
+      expect(api.putMapSettings).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(500));
+      const viewport = { lastCenter: { lng: 5, lat: 6 }, lastZoom: 4, lastBearing: 7, lastPitch: 8 };
+      expect(api.putMapSettings).toHaveBeenCalledWith(client, { ...DEFAULT_MAP_SETTINGS, ...viewport });
+      expect(useStore.getState().mapSettings).toMatchObject(viewport);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('replays a bus event published before the map mounted', () => {

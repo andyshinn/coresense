@@ -3,10 +3,11 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import '../../lib/map/maplibre-worker';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { hasValidFix, type MapSettings, type TileManifest } from '../../../shared/types';
-import { type ApiClient, api } from '../../lib/api';
+import type { ApiClient } from '../../lib/api';
 import { log } from '../../lib/logger';
 import { subscribe as subscribeMapBus } from '../../lib/map/bus';
 import { ensurePmtilesProtocol } from '../../lib/map/pmtiles-protocol';
+import { updateMapSettings } from '../../lib/map/settings';
 import { buildStyle, maxZoomFor } from '../../lib/map/style-builder';
 import { useStore } from '../../lib/store';
 import { resolveTheme } from '../../lib/theme';
@@ -240,15 +241,12 @@ export function MapCanvas({
       ) {
         return;
       }
-      const next: MapSettings = {
-        ...current,
+      updateMapSettings(client, {
         lastCenter: { lng: center.lng, lat: center.lat },
         lastZoom: zoom,
         lastBearing: bearing,
         lastPitch: pitch,
-      };
-      useStore.getState().applyMapSettings(next);
-      void api.putMapSettings(client, next);
+      });
     };
     const schedule = () => {
       if (timer) clearTimeout(timer);

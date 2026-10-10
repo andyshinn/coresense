@@ -3,7 +3,8 @@ import { useMemo, useState } from 'react';
 import { type ContactKind, hasValidFix, type MapSettings } from '../../../shared/types';
 import { MARKER_KIND_ORDER, MARKER_TYPES, MarkerShape } from '../../components/map/markers/MarkerShape';
 import { Input } from '../../components/ui/input';
-import { type ApiClient, api } from '../../lib/api';
+import type { ApiClient } from '../../lib/api';
+import { updateMapSettings } from '../../lib/map/settings';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
 import { NumberRow, SectionHeader, SwitchVisual, ToggleRow } from './controls/atoms';
@@ -16,7 +17,6 @@ interface Props {
 export function ControlsCard({ client }: Props) {
   const contacts = useStore((s) => s.contacts);
   const settings = useStore((s) => s.mapSettings);
-  const applyMapSettings = useStore((s) => s.applyMapSettings);
   const [query, setQuery] = useState('');
 
   const counts = useMemo(() => {
@@ -37,13 +37,12 @@ export function ControlsCard({ client }: Props) {
       .slice(0, 10);
   }, [contacts, query]);
 
-  function persist(next: MapSettings) {
-    applyMapSettings(next);
-    if (client) void api.putMapSettings(client, next);
+  function update(patch: Partial<MapSettings>) {
+    updateMapSettings(client, patch);
   }
 
   function setKindFilter(kind: ContactKind, on: boolean) {
-    persist({ ...settings, kindFilters: { ...settings.kindFilters, [kind]: on } });
+    update({ kindFilters: { ...settings.kindFilters, [kind]: on } });
   }
 
   return (
@@ -113,30 +112,23 @@ export function ControlsCard({ client }: Props) {
       {/* Last heard */}
       <SectionHeader>Last heard</SectionHeader>
       <div className="px-3 pb-3">
-        <LastHeardSlider
-          value={settings.lastHeardHours}
-          onChange={(hours) => persist({ ...settings, lastHeardHours: hours })}
-        />
+        <LastHeardSlider value={settings.lastHeardHours} onChange={(hours) => update({ lastHeardHours: hours })} />
       </div>
 
       {/* Show */}
       <SectionHeader>Show</SectionHeader>
       <div className="space-y-1 px-3 pb-3">
-        <ToggleRow
-          label="Favourites only"
-          on={settings.favouritesOnly}
-          onChange={(v) => persist({ ...settings, favouritesOnly: v })}
-        />
+        <ToggleRow label="Favourites only" on={settings.favouritesOnly} onChange={(v) => update({ favouritesOnly: v })} />
         <ToggleRow
           label="Stale fade"
           on={settings.staleFadeEnabled}
           sub="fade vs hide stale nodes"
-          onChange={(v) => persist({ ...settings, staleFadeEnabled: v })}
+          onChange={(v) => update({ staleFadeEnabled: v })}
         />
         <ToggleRow
           label="Cluster nearby"
           on={settings.clusteringEnabled}
-          onChange={(v) => persist({ ...settings, clusteringEnabled: v })}
+          onChange={(v) => update({ clusteringEnabled: v })}
         />
         <NumberRow
           label="Co-location distance"
@@ -146,13 +138,13 @@ export function ControlsCard({ client }: Props) {
           max={1000}
           step={5}
           unit="m"
-          onChange={(meters) => persist({ ...settings, coLocationMeters: meters })}
+          onChange={(meters) => update({ coLocationMeters: meters })}
         />
         <ToggleRow
           label="Marker labels"
           on={settings.showMarkerLabels}
           sub="auto · hover-only when off"
-          onChange={(v) => persist({ ...settings, showMarkerLabels: v })}
+          onChange={(v) => update({ showMarkerLabels: v })}
         />
       </div>
 
@@ -163,7 +155,7 @@ export function ControlsCard({ client }: Props) {
           label="Light basemap"
           on={settings.lightBasemap}
           sub="override theme-derived flavor"
-          onChange={(v) => persist({ ...settings, lightBasemap: v })}
+          onChange={(v) => update({ lightBasemap: v })}
         />
       </div>
     </div>
