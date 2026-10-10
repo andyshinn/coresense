@@ -1,9 +1,10 @@
+import { DAY_MS } from '../../../shared/time';
 import type { UsageEntry, UsageMap } from '../../../shared/types';
 
 /** Curated, airtime-aware seed shown before the user has any history. */
 export const EMOJI_SEED: readonly string[] = ['👍', '✅', '📡', '🔋', '😂', '❤️'];
 
-const HALF_LIFE_MS = 14 * 86_400_000; // recency weight halves every ~2 weeks
+const HALF_LIFE_MS = 14 * DAY_MS; // recency weight halves every ~2 weeks
 
 /** Frecency: usage count decayed by how long ago it was last used. An absent
  *  entry scores 0, so never-used ids rank below every used one. */

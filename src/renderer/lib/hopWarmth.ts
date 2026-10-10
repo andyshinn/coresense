@@ -5,7 +5,7 @@
 // and it matches the existing precedent in lib/contactColor.ts, which builds
 // its own color-mix strings the same way.
 
-import type { PathHashSize } from '../../shared/types';
+import { isPathHashSize, type PathHashSize } from '../../shared/types';
 
 /** Maximum hop count per path-hash mode: min(63, floor(64 / hashMode)). The
  *  64-byte path buffer bounds it, and the 6-bit hop-count field (bits 5-0 of
@@ -26,10 +26,10 @@ export const HOP_RAMP_CAP_DIVISOR = 4;
  *  reads as unknown to both `hopWarmth` and `PathHashBadge`. */
 export const HASH_MODE_UNKNOWN = 0;
 
-/** Narrow a raw hash mode to the 1/2/3 the firmware can actually emit. The one
- *  place the "is this mode real" question is answered. */
+/** Narrow a raw hash mode to the 1/2/3 the firmware can emit; delegates to
+ *  shared isPathHashSize. */
 export function isKnownHashMode(hashMode: number | null | undefined): hashMode is PathHashSize {
-  return hashMode === 1 || hashMode === 2 || hashMode === 3;
+  return isPathHashSize(hashMode);
 }
 
 /** Hop ceiling for a mode, or null when the mode is unknown. */

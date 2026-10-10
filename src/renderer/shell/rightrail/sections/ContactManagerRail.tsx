@@ -12,6 +12,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { useState } from 'react';
+import { DAY_MS, WEEK_MS } from '../../../../shared/time';
 import type { ContactKind } from '../../../../shared/types';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
@@ -160,10 +161,10 @@ function BulkActions({ client }: { client: ApiClient | null }) {
 }
 
 const PRUNE_OPTIONS: Array<{ label: string; ms: number }> = [
-  { label: '7 days', ms: 604_800_000 },
-  { label: '1 month', ms: 2_592_000_000 },
-  { label: '3 months', ms: 7_776_000_000 },
-  { label: '6 months', ms: 15_552_000_000 },
+  { label: '7 days', ms: WEEK_MS },
+  { label: '1 month', ms: 30 * DAY_MS },
+  { label: '3 months', ms: 90 * DAY_MS },
+  { label: '6 months', ms: 180 * DAY_MS },
 ];
 
 function ListActions({ client }: { client: ApiClient | null }) {

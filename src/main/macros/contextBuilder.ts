@@ -1,6 +1,7 @@
 // src/main/macros/contextBuilder.ts
 import type { MacroContext, MacroPath, MacroPathHop, MacroPosition } from '../../shared/macros/types';
 import { firstPathStats, relayHopCount } from '../../shared/messagePath';
+import { DAY_MS, HOUR_MS, MINUTE_MS } from '../../shared/time';
 import type { Contact, DeviceIdentity, DeviceInfo, Message, MessagePath, Owner } from '../../shared/types';
 
 export interface SelfState {
@@ -15,10 +16,10 @@ function pos(lat: number | null | undefined, lon: number | null | undefined): Ma
 }
 
 function humanizeAgo(ms: number): string {
-  if (ms < 60_000) return 'just now';
-  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m`;
-  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h`;
-  return `${Math.floor(ms / 86_400_000)}d`;
+  if (ms < MINUTE_MS) return 'just now';
+  if (ms < HOUR_MS) return `${Math.floor(ms / MINUTE_MS)}m`;
+  if (ms < DAY_MS) return `${Math.floor(ms / HOUR_MS)}h`;
+  return `${Math.floor(ms / DAY_MS)}d`;
 }
 
 /** Resolve a relay hop's wire prefix against known repeaters. Demands exactly

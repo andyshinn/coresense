@@ -1,5 +1,6 @@
 import { contactKey, pubkeyFromKey } from '../../shared/conversationKey';
 import { errorMessage } from '../../shared/errors';
+import { DAY_MS } from '../../shared/time';
 import { child } from '../log';
 import { protocolSession } from '../protocol';
 import { discoveredStore } from '../storage/discoveredContacts';
@@ -37,7 +38,7 @@ export const ADVERT_PATH_COOLDOWN_MS = 60_000;
  *  fast clock would otherwise park last_heard_ms ahead of now and, because the
  *  column only ever moves forward, silently block every REAL reception after
  *  it. */
-export const MAX_OBSERVED_HEARD_AGE_MS = 7 * 86_400_000;
+export const MAX_OBSERVED_HEARD_AGE_MS = 7 * DAY_MS;
 
 export type AdvertPathResult =
   /** A real answer. `fromCache` means it came from the sqlite mirror under the
