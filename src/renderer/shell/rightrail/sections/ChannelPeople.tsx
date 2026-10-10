@@ -196,13 +196,18 @@ function EmptyNote({ children }: { children: ReactNode }) {
   return <p className="px-3 py-4 text-[11.5px] text-cs-text-dim">{children}</p>;
 }
 
-/** The roster view state the header count and the section body both read,
+/** The roster narrowing the header count and the section body both read,
  *  with the never-touched defaults applied in one place. */
-function usePeopleView(channelKey: string): { sort: PeopleSort; filter: PeopleFilter; query: string } {
+function usePeopleFilter(channelKey: string): { filter: PeopleFilter; query: string } {
   const query = useStore((s) => s.peopleQuery);
-  const sort = useStore((s) => s.ui.peopleRail[channelKey]?.sort ?? DEFAULT_PEOPLE_PREFS.sort);
   const filter = useStore((s) => s.ui.peopleRail[channelKey]?.filter ?? DEFAULT_PEOPLE_PREFS.filter);
-  return { sort, filter, query };
+  return { filter, query };
+}
+
+/** usePeopleFilter plus the sort, which only the section body reads. */
+function usePeopleView(channelKey: string): { sort: PeopleSort; filter: PeopleFilter; query: string } {
+  const sort = useStore((s) => s.ui.peopleRail[channelKey]?.sort ?? DEFAULT_PEOPLE_PREFS.sort);
+  return { sort, ...usePeopleFilter(channelKey) };
 }
 
 /** Header count: `156`, or `«n» / 156` while a query or filter narrows it.
@@ -220,7 +225,7 @@ export const ChannelPeopleCount = memo(function ChannelPeopleCount({
   const { stats } = useChannelStats(channel.key, client);
   const contacts = useStore((s) => s.contacts);
   const discovered = useStore((s) => s.discovered);
-  const { filter, query } = usePeopleView(channel.key);
+  const { filter, query } = usePeopleFilter(channel.key);
 
   const roster = stats?.roster;
   const all = useMemo(() => toRosterRows(roster ?? [], contacts, discovered), [roster, contacts, discovered]);
