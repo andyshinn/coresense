@@ -1,5 +1,5 @@
-import { Errors } from '@andyshinn/meshcore-ts';
 import { Hono } from 'hono';
+import { errorMessage } from '../../shared/errors';
 import { getManifest, validateTemplate } from '../../shared/macros';
 import type { MacroContext } from '../../shared/macros/types';
 import { clampRetention } from '../../shared/packetLog';
@@ -28,7 +28,7 @@ import { applyLoggingSettings } from '../logging/apply';
 import { currentPath, folderPath } from '../logging/fileSink';
 import { buildReplyContext, buildSendContext } from '../macros/contextBuilder';
 import { renderMacro } from '../macros/service';
-import { MacroValidationError, macrosStore } from '../macros/store';
+import { macrosStore } from '../macros/store';
 import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
 import { clampTileCacheMaxBytes, getTileCache } from '../map/tile-cache';
 import { sendMessage } from '../messaging/sendMessage';
@@ -45,6 +45,7 @@ import { searchMessages } from '../storage/search';
 import { transportManager } from '../transport/manager';
 import { updatesController } from '../updates/controller';
 import { markQuitConfirmed } from '../window/quit';
+import { fail503, knownErrorResponse, onApiError } from './errors';
 import { getConfigPath } from './middleware/auth';
 import { buildTileManifest, registerTileRoutes } from './tiles';
 
@@ -95,6 +96,9 @@ interface RoutesDeps {
 
 export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   const api = new Hono();
+  // Installed here, not only on the server app: a sub-app's own handler is the
+  // one that sees its routes' throws, and the route tests drive this app alone.
+  api.onError(onApiError);
 
   registerTileRoutes(api);
 
@@ -339,7 +343,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
         try {
           await session.setPathHashMode(body.pathHashMode);
         } catch (err) {
-          return c.json({ error: (err as Error).message }, 503);
+          return fail503(c, err);
         }
       }
       return c.json({ ok: true });
@@ -394,7 +398,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       }
       return c.json({ ok: true });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      return fail503(c, err);
     }
   });
 
@@ -559,7 +563,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     try {
       await setApiKey(body.key);
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      return fail503(c, err);
     }
     const holder = stateHolder();
     const next: MapSettings = { ...holder.getMapSettings(), hasProtomapsApiKey: true };
@@ -704,7 +708,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     try {
       await protocolSession().removeContactFromRadio(pubkey);
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      return fail503(c, err);
     }
     const holder = stateHolder();
     holder.removeContact(key);
@@ -754,11 +758,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       await protocolSession().addContactToRadio(pubkey);
       return c.json({ ok: true });
     } catch (err) {
-      if (err instanceof Errors.UnknownContactError) return c.json({ error: err.message }, 422);
-      if (err instanceof Errors.ContactTableFullError) {
-        return c.json({ error: err.message, code: 'CONTACT_TABLE_FULL' }, 409);
-      }
-      return c.json({ error: (err as Error).message }, 503);
+      return knownErrorResponse(c, err) ?? fail503(c, err);
     }
   });
 
@@ -770,7 +770,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       await protocolSession().removeContactFromRadio(pubkey);
       return c.json({ ok: true });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      return fail503(c, err);
     }
   });
 
@@ -786,8 +786,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       await protocolSession().setContactFavourite(pubkey, body.favourite);
       return c.json({ ok: true });
     } catch (err) {
-      if (err instanceof Errors.UnknownContactError) return c.json({ error: err.message }, 422);
-      return c.json({ error: (err as Error).message }, 503);
+      return knownErrorResponse(c, err) ?? fail503(c, err);
     }
   });
 
@@ -925,7 +924,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       mirrorOutPath(key, outPathHex, { emptyMeans: 'direct' });
       return c.json({ ok: true });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      return fail503(c, err);
     }
   });
 
@@ -937,7 +936,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       mirrorOutPath(key, '', { emptyMeans: 'unknown' });
       return c.json({ ok: true });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      return fail503(c, err);
     }
   });
 
@@ -952,7 +951,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       await protocolSession().setPathHashMode(size as 1 | 2 | 3);
       return c.json({ ok: true });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      return fail503(c, err);
     }
   });
 
@@ -1011,7 +1010,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       const result = await protocolSession().repeaterLogin(key, body.password);
       return c.json({ ok: true, session: adminSessions.getSession(key), login: result });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      return fail503(c, err);
     }
   });
 
@@ -1021,7 +1020,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       await protocolSession().repeaterLogout(key);
       return c.json({ ok: true });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      return fail503(c, err);
     }
   });
 
@@ -1031,7 +1030,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       const entries = await protocolSession().repeaterRequestAcl(key);
       return c.json({ ok: true, entries });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      return fail503(c, err);
     }
   });
 
@@ -1047,7 +1046,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       const page = await protocolSession().repeaterRequestNeighbours(key, body);
       return c.json({ ok: true, page });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      return fail503(c, err);
     }
   });
 
@@ -1057,7 +1056,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       const info = await protocolSession().repeaterRequestOwnerInfo(key);
       return c.json({ ok: true, info });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      return fail503(c, err);
     }
   });
 
@@ -1087,7 +1086,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       // Coerce defensively: a non-Error rejection (thrown string, or an object
       // without a string `.message`) would make `.includes(...)` throw and mask
       // the real failure as an opaque 500.
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       // The library rejects a lapsed reply with `CLI command timed out after
       // <ms>ms` (§7.1). Everything else — transport drop, superseded-by-newer —
       // is a transport-tier failure; the renderer re-reads the message to split
@@ -1125,7 +1124,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       noteHeard(key);
       return c.json({ ok: true, trace });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      return fail503(c, err);
     }
   });
 
@@ -1141,7 +1140,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       const stats = await protocolSession().repeaterGetLocalStats(subtype);
       return c.json({ ok: true, stats });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
+      return fail503(c, err);
     }
   });
 
@@ -1159,7 +1158,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       await transport.scan();
       return c.json({ ok: true });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 500);
+      return fail503(c, err);
     }
   });
 
@@ -1173,7 +1172,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       await transport.connect(deviceId);
       return c.json({ ok: true });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 500);
+      return fail503(c, err);
     }
   });
 
@@ -1184,7 +1183,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       await transport.disconnect();
       return c.json({ ok: true });
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 500);
+      return fail503(c, err);
     }
   });
 
@@ -1210,20 +1209,16 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     if (!body?.name || typeof body.template !== 'string' || !body.scope) {
       return c.json({ error: 'name, template, scope required' }, 400);
     }
-    try {
-      const macro = macrosStore.add({
-        name: body.name,
-        template: body.template,
-        scope: body.scope,
-        channelKey: body.channelKey,
-        contactKey: body.contactKey,
-      });
-      emit.macros(macrosStore.list());
-      return c.json({ macro });
-    } catch (e) {
-      if (e instanceof MacroValidationError) return c.json({ error: 'invalid template', errors: e.errors }, 400);
-      throw e;
-    }
+    // A MacroValidationError propagates to onApiError, which answers 400.
+    const macro = macrosStore.add({
+      name: body.name,
+      template: body.template,
+      scope: body.scope,
+      channelKey: body.channelKey,
+      contactKey: body.contactKey,
+    });
+    emit.macros(macrosStore.list());
+    return c.json({ macro });
   });
 
   api.put('/api/macros/:id', async (c) => {
@@ -1236,15 +1231,11 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       contactKey: string;
     }> | null;
     if (!patch) return c.json({ error: 'invalid body' }, 400);
-    try {
-      const updated = macrosStore.update(id, patch);
-      if (!updated) return c.json({ error: 'not found' }, 404);
-      emit.macros(macrosStore.list());
-      return c.json({ macro: updated });
-    } catch (e) {
-      if (e instanceof MacroValidationError) return c.json({ error: 'invalid template', errors: e.errors }, 400);
-      throw e;
-    }
+    // A MacroValidationError propagates to onApiError, which answers 400.
+    const updated = macrosStore.update(id, patch);
+    if (!updated) return c.json({ error: 'not found' }, 404);
+    emit.macros(macrosStore.list());
+    return c.json({ macro: updated });
   });
 
   api.delete('/api/macros/:id', (c) => {

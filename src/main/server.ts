@@ -40,6 +40,7 @@ import type {
   UpdateState,
   WsMessage,
 } from '../shared/types';
+import { onApiError } from './api/errors';
 import { apiKeyAuth, checkWsKey } from './api/middleware/auth';
 import { createRoutes } from './api/routes';
 import type { BridgeHandle } from './bridge';
@@ -101,6 +102,9 @@ export async function startServer(
       maxAge: 600,
     }),
   );
+  // createRoutes installs the same handler on its own app; this one covers
+  // throws from the middleware and the static file routes below.
+  app.onError(onApiError);
   app.use('/api/*', apiKeyAuth);
   app.route(
     '/',
@@ -110,6 +114,9 @@ export async function startServer(
       bridgeStatus: () => bridge.getStatus(),
     }),
   );
+  // An unknown API path is a JSON 404 — never the SPA fallback below, which
+  // would answer it with index.html and a 200.
+  app.all('/api/*', (c) => c.json({ error: 'not found', code: 'not_found' }, 404));
 
   if (rendererDir) {
     // Preload index.html once at startup; the production bundle is immutable.
