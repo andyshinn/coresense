@@ -33,7 +33,9 @@ interface ErrorFallbackBaseProps {
  * subtree still feels like part of the app.
  */
 function ErrorFallbackBase({ icon: Icon, title, description, error, actionLabel, onAction }: ErrorFallbackBaseProps) {
-  const message = errorMessage(error);
+  // Nothing useful to show for these: errorMessage would stringify them to a
+  // literal "undefined", a function's source or "Symbol()", so hide the block.
+  const message = error === undefined || typeof error === 'function' || typeof error === 'symbol' ? '' : errorMessage(error);
   return (
     <div className="flex h-full w-full items-center justify-center p-8">
       <div className="max-w-lg space-y-4 text-center">
