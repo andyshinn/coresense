@@ -49,7 +49,7 @@ function applyShieldTextOverrides(
   });
 }
 
-export const ONLINE_LAYER_SUFFIX = '_online';
+const ONLINE_LAYER_SUFFIX = '_online';
 
 // Protomaps layers we never render. `address_label` is the house-number / unit
 // label layer that lights up around z=15 — useful for general-purpose maps,

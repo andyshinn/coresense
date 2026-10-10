@@ -1,4 +1,5 @@
 import Supercluster from 'supercluster';
+import { haversineMeters } from '../../../../shared/geo';
 import { type Contact, type ContactKind, hasValidFix } from '../../../../shared/types';
 
 export interface ContactPoint {
@@ -35,18 +36,6 @@ export interface PointFeatureProps {
 
 export type TypeBreakdown = Record<ContactKind, number>;
 
-const EARTH_RADIUS_M = 6_371_008.8;
-
-function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const toRad = (x: number) => (x * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
-}
-
 // Greedy co-location grouping. O(n²) in worst case but n is the number of
 // contacts with a valid fix — currently small enough that the simplicity wins.
 // Returns each contact wrapped as either a single point or a site group.
@@ -62,7 +51,7 @@ export function groupByColocation(contacts: Contact[], meters: number): GroupedI
     if (meters > 0) {
       for (const other of sources) {
         if (assigned.has(other.key)) continue;
-        const d = haversineMeters({ lat: c.gpsLat, lng: c.gpsLon }, { lat: other.gpsLat, lng: other.gpsLon });
+        const d = haversineMeters({ lat: c.gpsLat, lon: c.gpsLon }, { lat: other.gpsLat, lon: other.gpsLon });
         if (d <= meters) {
           members.push(other);
           assigned.add(other.key);
@@ -133,13 +122,4 @@ export function buildClusterIndex(items: GroupedItem[]): Supercluster<PointFeatu
   });
   index.load(features);
   return index;
-}
-
-export function totalsByKind(items: GroupedItem[]): TypeBreakdown {
-  const out = emptyBreakdown();
-  for (const item of items) {
-    if (item.kind === 'single') out[item.contact.kind] += 1;
-    else for (const m of item.site.members) out[m.kind] += 1;
-  }
-  return out;
 }

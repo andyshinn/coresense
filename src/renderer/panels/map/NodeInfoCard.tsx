@@ -2,16 +2,12 @@ import { MessageSquare, Star, X } from 'lucide-react';
 import { type Contact, hasValidFix } from '../../../shared/types';
 import { MARKER_TYPES, MarkerShape } from '../../components/map/markers/MarkerShape';
 import { Button } from '../../components/ui/button';
-import type { ApiClient } from '../../lib/api';
 import { publish as publishMapBus } from '../../lib/map/bus';
 import { useStore } from '../../lib/store';
 import { fmtRelative } from '../../lib/time';
 
 interface Props {
   contact: Contact;
-  // Unused since starring started going through the ui-state subscriber;
-  // preserved for parity with the call-site (cf. SiteInfoCard).
-  client: ApiClient | null;
 }
 
 export function NodeInfoCard({ contact }: Props) {

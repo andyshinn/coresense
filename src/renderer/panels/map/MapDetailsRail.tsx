@@ -42,9 +42,9 @@ export function MapDetailsRail({ client }: Props) {
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto">
         {selectedContact ? (
-          <NodeInfoCard contact={selectedContact} client={client} />
+          <NodeInfoCard contact={selectedContact} />
         ) : selectedSite ? (
-          <SiteInfoCard site={selectedSite} client={client} />
+          <SiteInfoCard site={selectedSite} />
         ) : (
           <ControlsCard client={client} />
         )}

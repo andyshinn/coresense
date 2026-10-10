@@ -8,7 +8,6 @@ import { fmtRelative } from '../../lib/time';
 
 interface Props {
   site: { key: string; members: Contact[] };
-  client: unknown; // unused; preserved for parity with NodeInfoCard's call-site
 }
 
 // Card shown when a co-located site marker (≥2 contacts within the

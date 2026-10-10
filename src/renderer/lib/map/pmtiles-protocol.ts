@@ -7,7 +7,6 @@ import type { ApiClient } from '../api';
 // the API client (and therefore the auth header) changes, since pmtiles.js
 // otherwise reuses cached PMTiles instances forever.
 
-let installed = false;
 let activeProtocol: Protocol | null = null;
 let activeClientKey: string | null = null;
 
@@ -17,9 +16,9 @@ function clientKey(client: ApiClient): string {
 
 export function ensurePmtilesProtocol(client: ApiClient): void {
   const key = clientKey(client);
-  if (installed && activeClientKey === key) return;
+  if (activeProtocol && activeClientKey === key) return;
 
-  if (installed && activeProtocol) {
+  if (activeProtocol) {
     // Drop the old protocol so the GC can release the cached PMTiles instances
     // (each holds an in-memory directory tree from the header). MapLibre's
     // removeProtocol is a no-op if nothing is registered, so this is safe.
@@ -35,7 +34,6 @@ export function ensurePmtilesProtocol(client: ApiClient): void {
   }
   addProtocol('pmtiles', protocol.tile);
 
-  installed = true;
   activeProtocol = protocol;
   activeClientKey = key;
 }

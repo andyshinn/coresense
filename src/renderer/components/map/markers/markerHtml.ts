@@ -30,7 +30,7 @@ export function buildContactMarker(contact: Contact, state: MarkerState): HTMLBu
   return btn;
 }
 
-export function applyMarkerState(el: HTMLElement, state: MarkerState): void {
+function applyMarkerState(el: HTMLElement, state: MarkerState): void {
   el.classList.toggle('is-selected', state.selected);
   el.classList.toggle('is-faded', state.faded);
   el.classList.toggle('is-stale', state.stale);
