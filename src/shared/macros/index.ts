@@ -1,7 +1,7 @@
 export { createMacroEngine, getMacroEngine, type MacroEngineOptions } from './engine';
 export { lintTemplate, type MacroWarning } from './lint';
 export { buildSampleContext, getManifest, MACRO_FILTERS, MACRO_VARIABLES, replyOnlyVariableNames } from './manifest';
-export { renderTemplate } from './render';
+export { MACRO_PLACEHOLDER, renderTemplate } from './render';
 export {
   fieldsAt,
   type PathSegment,

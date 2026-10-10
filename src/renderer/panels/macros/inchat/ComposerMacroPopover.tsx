@@ -41,9 +41,13 @@ export const ComposerMacroPopover = forwardRef<ComposerMacroPopoverHandle, Compo
     }, [items.length]);
 
     const choose = async (macro: MacroTemplate) => {
-      const text = await expandMacro(client, macro, targetKey);
-      if (text != null) onExpand(text);
-      onClose();
+      try {
+        const text = await expandMacro(client, macro, targetKey);
+        if (text != null) onExpand(text);
+      } finally {
+        // Close even if the expand path throws, or the popover stays stuck open.
+        onClose();
+      }
     };
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: choose closes over items/sel, which are the listed deps

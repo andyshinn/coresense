@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { type ApiClient, api } from '@/lib/api';
+import type { ApiClient } from '@/lib/api';
 import type { MacroTemplate } from '../../../../shared/macros/types';
+import { renderMacroSafe } from './inchat';
 
 export type PreviewState =
   | { status: 'loading' }
@@ -37,22 +38,13 @@ export function useReplyPreviews(
     setPreviews(Object.fromEntries(macros.map((m) => [m.id, { status: 'loading' } as PreviewState])));
     void Promise.all(
       macros.map(async (m) => {
-        // Catch per-macro: one transport failure must not leave every other
-        // row stuck on 'loading'.
-        try {
-          const res = await api.renderMacro(client, {
-            macroId: m.id,
-            mode: 'reply',
-            messageId,
-            placeholder: '?',
-          });
-          const state: PreviewState = res.ok
-            ? { status: 'ok', text: res.text, len: res.text.length }
-            : { status: 'error', message: res.error.message };
-          return [m.id, state] as const;
-        } catch (err) {
-          return [m.id, { status: 'error', message: (err as Error).message }] as const;
-        }
+        // renderMacroSafe settles per macro, never rejecting: one transport
+        // failure must not leave every other row stuck on 'loading'.
+        const res = await renderMacroSafe(client, m.id, { mode: 'reply', messageId });
+        const state: PreviewState = res.ok
+          ? { status: 'ok', text: res.text, len: res.text.length }
+          : { status: 'error', message: res.message };
+        return [m.id, state] as const;
       }),
     ).then((entries) => {
       if (!cancelled) setPreviews(Object.fromEntries(entries));

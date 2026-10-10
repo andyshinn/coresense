@@ -3,6 +3,9 @@ import { DEFAULT_RENDER_LIMIT } from './engine';
 import { PlaceholderDrop } from './placeholder';
 import type { MacroError, RenderOptions, RenderResult } from './types';
 
+/** What an empty (null / undefined) value renders as unless a caller overrides it. */
+export const MACRO_PLACEHOLDER = '?';
+
 function wrapScope(context: object, placeholder: string): Record<string, unknown> {
   const ph = new PlaceholderDrop(placeholder);
   const out: Record<string, unknown> = {};
@@ -40,7 +43,7 @@ export function classifyRenderError(e: unknown, elapsedMs: number, limit: number
 }
 
 export function renderTemplate(engine: Liquid, template: string, context: object, opts: RenderOptions = {}): RenderResult {
-  const placeholder = opts.placeholder ?? '?';
+  const placeholder = opts.placeholder ?? MACRO_PLACEHOLDER;
   let templates: ReturnType<Liquid['parse']>;
   try {
     templates = engine.parse(template);

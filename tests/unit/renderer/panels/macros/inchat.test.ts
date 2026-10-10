@@ -4,7 +4,7 @@ vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), error: vi.fn(), inf
 
 import { type ApiClient, api } from '@/lib/api';
 import { notify } from '@/lib/notify';
-import { expandMacroReply, targetToContext } from '@/panels/macros/lib/inchat';
+import { expandMacro, expandMacroReply, renderMacroSafe, targetToContext } from '@/panels/macros/lib/inchat';
 import type { MacroTemplate } from '../../../../../src/shared/macros/types';
 
 describe('targetToContext', () => {
@@ -68,5 +68,45 @@ describe('expandMacroReply', () => {
     vi.spyOn(api, 'renderMacro').mockRejectedValue(new Error('network down'));
     await expect(expandMacroReply(client, macro, { id: 'msg1' })).resolves.toBeNull();
     expect(notify.error).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('expandMacro', () => {
+  it('renders the macro in send mode bound to the target conversation', async () => {
+    const spy = vi.spyOn(api, 'renderMacro').mockResolvedValue({ ok: true, text: 'rendered send' });
+    await expect(expandMacro(client, macro, 'ch:testing')).resolves.toBe('rendered send');
+    expect(spy.mock.calls[0][1]).toMatchObject({ macroId: 'a', mode: 'send', channelKey: 'ch:testing', placeholder: '?' });
+  });
+
+  it('returns null and toasts when the render fails', async () => {
+    vi.spyOn(api, 'renderMacro').mockResolvedValue({ ok: false, error: { kind: 'render', message: 'boom' } });
+    await expect(expandMacro(client, macro, 'c:abc')).resolves.toBeNull();
+    expect(notify.error).toHaveBeenCalledWith('Couldn’t expand “Signal report”: boom');
+  });
+
+  // Regression: the send path had no try/catch, so a transport failure
+  // rejected instead of toasting, and the composer popover never closed.
+  it('returns null and toasts when the API call throws (network/transport error)', async () => {
+    const err = new Error('network down');
+    vi.spyOn(api, 'renderMacro').mockRejectedValue(err);
+    await expect(expandMacro(client, macro, 'c:abc')).resolves.toBeNull();
+    expect(notify.error).toHaveBeenCalledWith('Couldn’t expand “Signal report”: network down', err);
+  });
+});
+
+describe('renderMacroSafe', () => {
+  it('maps a template error to a failed outcome', async () => {
+    vi.spyOn(api, 'renderMacro').mockResolvedValue({ ok: false, error: { kind: 'parse', message: 'bad tag' } });
+    await expect(renderMacroSafe(client, 'a', { mode: 'send' })).resolves.toEqual({ ok: false, message: 'bad tag' });
+  });
+
+  it('maps a transport failure to a failed outcome instead of rejecting', async () => {
+    const err = new Error('HTTP 500');
+    vi.spyOn(api, 'renderMacro').mockRejectedValue(err);
+    await expect(renderMacroSafe(client, 'a', { mode: 'reply', messageId: 'm' })).resolves.toEqual({
+      ok: false,
+      message: 'HTTP 500',
+      cause: err,
+    });
   });
 });
