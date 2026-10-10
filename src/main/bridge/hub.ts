@@ -177,7 +177,7 @@ export class BridgeHub extends EventEmitter {
         const item = this.sendQueue.shift();
         if (!item) break;
         const transport = transportManager.getTransport();
-        if (!transport?.sendBytes) {
+        if (!transport) {
           logger.warn(`no radio attached; dropped ${item.payload.length}B from ${item.client.remoteAddr}`);
           emit.error(`Bridge: dropped ${item.payload.length} bytes from ${item.client.remoteAddr} (no radio)`);
           continue;
