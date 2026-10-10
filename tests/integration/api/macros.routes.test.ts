@@ -35,9 +35,28 @@ describe('macros api', () => {
     expect(del.status).toBeLessThan(400);
   });
 
+  // The 400 comes from onApiError (no local catch), and the macro editor reads
+  // `errors` off the body, so pin both.
   it('rejects an invalid template on create', async () => {
     const res = await app().request('/api/macros', json({ name: 'bad', template: '{% if %}', scope: 'global' }));
     expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; errors: unknown[] };
+    expect(body.error).toBe('invalid template');
+    expect(body.errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects an invalid template on update and keeps the stored one', async () => {
+    const created = await app().request('/api/macros', json({ name: 'sig', template: 'hi', scope: 'global' }));
+    const { macro } = (await created.json()) as { macro: { id: string } };
+
+    const res = await app().request(`/api/macros/${macro.id}`, { ...json({ template: '{% if %}' }), method: 'PUT' });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; errors: unknown[] };
+    expect(body.error).toBe('invalid template');
+    expect(body.errors.length).toBeGreaterThan(0);
+
+    const list = (await (await app().request('/api/macros')).json()) as Array<{ id: string; template: string }>;
+    expect(list.find((m) => m.id === macro.id)?.template).toBe('hi');
   });
 
   it('serves the manifest', async () => {

@@ -1,7 +1,9 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Hono } from 'hono';
 import { afterEach, describe, expect, it } from 'vitest';
+import { onApiError } from '../../../src/main/api/errors';
 import { getApiKey } from '../../../src/main/api/middleware/auth';
 import { createRoutes } from '../../../src/main/api/routes';
 import { startServer } from '../../../src/main/server';
@@ -20,13 +22,27 @@ describe('route error contract', () => {
   // Regression: with no onError registered, a throw escaped as Hono's plain-text
   // "Internal Server Error", which the renderer could only show as raw text.
   it('answers an unexpected throw with JSON { error, code: internal }', async () => {
-    // No transport installed, so protocolSession() throws while building the snapshot.
-    const res = await app().request('/api/state/snapshot');
+    const throwing = new Hono();
+    throwing.onError(onApiError);
+    throwing.get('/boom', () => {
+      throw new Error('kaboom');
+    });
+    const res = await throwing.request('/boom');
     expect(res.status).toBe(500);
     expect(res.headers.get('content-type')).toMatch(/application\/json/);
-    const body = (await res.json()) as { error: string; code: string };
-    expect(body.code).toBe('internal');
-    expect(body.error.length).toBeGreaterThan(0);
+    expect((await res.json()) as { error: string; code: string }).toEqual({ error: 'kaboom', code: 'internal' });
+  });
+
+  // createRoutes must register onApiError itself: routes that dropped their
+  // local catches (e.g. macros) rely on it for their 4xx answers.
+  it('registers onApiError on the routes app', async () => {
+    const routes = app();
+    routes.get('/api/test-boom', () => {
+      throw new Error('kaboom');
+    });
+    const res = await routes.request('/api/test-boom');
+    expect(res.status).toBe(500);
+    expect((await res.json()) as { error: string; code: string }).toEqual({ error: 'kaboom', code: 'internal' });
   });
 
   // Regression: transport scan/connect/disconnect answered a radio failure with
