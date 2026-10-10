@@ -13,8 +13,12 @@ const { RESP, PUSH, TXT_TYPE } = Protocol;
  *  follow it. */
 export const OUT_PATH_UNKNOWN = 0xff;
 
-/** The pubkey `contactsSync` gives record `i`: its index byte repeated. */
+/** The pubkey `contactsSync` gives record `i`: its index byte repeated, so
+ *  every record also has a distinct first byte. One byte, so `i` stops at 255:
+ *  past that the hex goes odd-length and Buffer.from() silently truncates it
+ *  into a colliding key. */
 export function syncPubkey(i: number): string {
+  if (!Number.isInteger(i) || i < 0 || i > 0xff) throw new RangeError(`syncPubkey: ${i} does not fit one byte`);
   return i.toString(16).padStart(2, '0').repeat(32);
 }
 
