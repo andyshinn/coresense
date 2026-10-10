@@ -13,14 +13,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../../../components/ui/dialog';
+import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { KeyValueRow } from '../../../components/ui/KeyValueRow';
 import { useContactRefresh } from '../../../hooks/useContactRefresh';
 import { type ApiClient, api } from '../../../lib/api';
@@ -307,32 +300,15 @@ function ListActions({ client }: { client: ApiClient | null }) {
         />
       </div>
 
-      <Dialog open={showClear} onOpenChange={(open) => !open && setShowClear(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Clear discovered list</DialogTitle>
-            <DialogDescription>
-              Delete {clearCount} discovered-only contact{clearCount === 1 ? '' : 's'}? On-radio contacts are kept.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <button
-              type="button"
-              onClick={() => setShowClear(false)}
-              className="rounded-md border border-cs-border bg-cs-bg-2 px-3 py-1.5 text-xs hover:bg-cs-bg-3"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={clearDiscovered}
-              className="rounded-md border border-cs-danger bg-cs-danger/10 px-3 py-1.5 text-xs text-cs-danger hover:bg-cs-danger/20"
-            >
-              Delete {clearCount}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={showClear}
+        title="Clear discovered list"
+        description={`Delete ${clearCount} discovered-only contact${clearCount === 1 ? '' : 's'}? On-radio contacts are kept.`}
+        confirmLabel={`Delete ${clearCount}`}
+        tone="danger"
+        onConfirm={clearDiscovered}
+        onCancel={() => setShowClear(false)}
+      />
 
       {showBlock && <BlockSenderDialog client={client} open prefill={{}} onClose={() => setShowBlock(false)} />}
     </div>

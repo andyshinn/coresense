@@ -16,17 +16,10 @@ import { formatHops, formatLastHeard, formatObservedHops } from '../../../../sha
 import { errorMessage } from '../../../../shared/errors';
 import { hasValidFix } from '../../../../shared/types';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
+import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { CopyButton } from '../../../components/CopyButton';
 import { PathHashBadge } from '../../../components/PathHashBadge';
 import { SetPathEditor } from '../../../components/path/SetPathEditor';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../../../components/ui/dialog';
 import { KeyValueRow } from '../../../components/ui/KeyValueRow';
 import { useAdvertPath } from '../../../hooks/useAdvertPath';
 import { type ApiClient, api } from '../../../lib/api';
@@ -185,35 +178,18 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
         />
       )}
 
-      <Dialog open={removeOpen} onOpenChange={(o) => !o && setRemoveOpen(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Remove from radio</DialogTitle>
-            <DialogDescription>
-              Remove {rc.name} from the radio's contact store? It stays in your discovered list and can be re-added later.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <button
-              type="button"
-              onClick={() => setRemoveOpen(false)}
-              className="rounded-md border border-cs-border bg-cs-bg-2 px-3 py-1.5 text-xs hover:bg-cs-bg-3"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setRemoveOpen(false);
-                void act((c) => api.removeFromRadio(c, rc.publicKeyHex), `Removed ${rc.name} from radio`);
-              }}
-              className="rounded-md border border-cs-danger bg-cs-danger/10 px-3 py-1.5 text-xs text-cs-danger hover:bg-cs-danger/20"
-            >
-              Remove
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={removeOpen}
+        title="Remove from radio"
+        description={`Remove ${rc.name} from the radio's contact store? It stays in your discovered list and can be re-added later.`}
+        confirmLabel="Remove"
+        tone="danger"
+        onConfirm={() => {
+          setRemoveOpen(false);
+          void act((c) => api.removeFromRadio(c, rc.publicKeyHex), `Removed ${rc.name} from radio`);
+        }}
+        onCancel={() => setRemoveOpen(false)}
+      />
 
       <div className="space-y-1.5">
         <KeyValueRow
