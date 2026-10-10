@@ -2,16 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   fmtBandwidth,
   fmtFirmware,
-  fmtFreq,
   fmtFreqMhz,
   fmtGpsInterval,
   fmtStorageKb,
 } from '../../../../../src/renderer/shell/leftnav/ownerFormat';
 
 describe('ownerFormat', () => {
-  it('formats frequency with and without unit', () => {
+  it('formats frequency in MHz without a unit', () => {
     expect(fmtFreqMhz(910_525_000)).toBe('910.525');
-    expect(fmtFreq(910_525_000)).toBe('910.525 MHz');
   });
   it('formats bandwidth in kHz', () => {
     expect(fmtBandwidth(62_500)).toBe('62.5 kHz');

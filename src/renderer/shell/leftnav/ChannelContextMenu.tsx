@@ -1,10 +1,9 @@
 import { BellOff, Copy, Minus, PinIcon, PinOff, Plus, Trash2 } from 'lucide-react';
 import type { Channel } from '../../../shared/types';
-import { copyToClipboard, menuItem, menuSeparator } from '../../components/ContextMenu';
+import { ContextMenu, type ContextMenuEntry, copyToClipboard, menuItem, menuSeparator } from '../../components/ContextMenu';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
-import { type ContextMenuEntry, EntryContextMenu } from './contextMenu';
 
 /** State payload for a positioned channel context menu. */
 export interface ChannelMenuState {
@@ -96,5 +95,5 @@ export function ChannelContextMenu({
     ),
   ];
 
-  return <EntryContextMenu x={x} y={y} items={items} onClose={onClose} />;
+  return <ContextMenu x={x} y={y} items={items} onClose={onClose} />;
 }

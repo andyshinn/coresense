@@ -1,9 +1,8 @@
-import { PanelLeftOpen, PanelRightOpen } from 'lucide-react';
+import { PanelRightOpen } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { SidebarInset, SidebarProvider } from '../components/ui/sidebar';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
-import { cn } from '../lib/utils';
 import { LeftNav } from './leftnav';
 import { RightRail } from './rightrail';
 import { TitleBar } from './TitleBar';
@@ -43,16 +42,9 @@ export function AppShell({ title, children, showShell = true, client = null }: A
       <TitleBar
         title={title}
         trailing={
-          <RailToggles
-            // When the sidebar is in icon mode, the rail itself is still visible — only
-            // expose the "show left nav" button when the user has fully hidden it. Since
-            // collapsible="icon" never fully hides, hide this button when leftOpen is
-            // also false (icon rail visible) too.
-            leftOpen={true}
-            rightOpen={rightOpen}
-            onToggleLeft={toggleLeftNav}
-            onToggleRight={toggleRightRail}
-          />
+          // No "show left nav" toggle: the sidebar is collapsible="icon", so it
+          // never fully hides and its icon rail is always there to reopen it.
+          <RailToggles rightOpen={rightOpen} onToggleRight={toggleRightRail} />
         }
       />
       <SidebarProvider
@@ -70,41 +62,17 @@ export function AppShell({ title, children, showShell = true, client = null }: A
   );
 }
 
-function RailToggles({
-  leftOpen,
-  rightOpen,
-  onToggleLeft,
-  onToggleRight,
-}: {
-  leftOpen: boolean;
-  rightOpen: boolean;
-  onToggleLeft: () => void;
-  onToggleRight: () => void;
-}) {
+function RailToggles({ rightOpen, onToggleRight }: { rightOpen: boolean; onToggleRight: () => void }) {
+  if (rightOpen) return null;
   return (
-    <>
-      {!leftOpen && (
-        <button
-          type="button"
-          onClick={onToggleLeft}
-          title="Show left nav (⌘\\)"
-          aria-label="Show left nav"
-          className={cn('titlebar-no-drag rounded p-1 text-cs-text-dim hover:bg-cs-bg-3 hover:text-cs-text')}
-        >
-          <PanelLeftOpen size={12} />
-        </button>
-      )}
-      {!rightOpen && (
-        <button
-          type="button"
-          onClick={onToggleRight}
-          title="Show right rail (⌘.)"
-          aria-label="Show right rail"
-          className="titlebar-no-drag rounded p-1 text-cs-text-dim hover:bg-cs-bg-3 hover:text-cs-text"
-        >
-          <PanelRightOpen size={12} />
-        </button>
-      )}
-    </>
+    <button
+      type="button"
+      onClick={onToggleRight}
+      title="Show right rail (⌘.)"
+      aria-label="Show right rail"
+      className="titlebar-no-drag rounded p-1 text-cs-text-dim hover:bg-cs-bg-3 hover:text-cs-text"
+    >
+      <PanelRightOpen size={12} />
+    </button>
   );
 }

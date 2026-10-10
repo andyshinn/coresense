@@ -1,5 +1,5 @@
 import { ArrowUpCircle, Bluetooth, RotateCw } from 'lucide-react';
-import { type MouseEvent, useCallback, useEffect, useState } from 'react';
+import { type MouseEvent, useEffect, useState } from 'react';
 import type { SyncProgress, TransportState } from '../../../shared/types';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Progress } from '../../components/ui/progress';
@@ -58,24 +58,24 @@ export function ConnectionFooter({
   const syncing = state === 'connected' && sync.phase === 'syncing';
   const justFinished = state === 'connected' && sync.phase === 'done';
   const [reconnecting, setReconnecting] = useState(false);
+  // Re-read every render, deliberately unmemoised: BleConnect can save or
+  // forget the device while the transport state stays put, so no dep list
+  // would catch every change. It's one small localStorage parse.
   const lastDevice = loadLastDevice();
   const canReconnect = !!client && !!lastDevice && (state === 'idle' || state === 'error') && !reconnecting;
 
-  const handleReconnect = useCallback(
-    async (e: MouseEvent) => {
-      e.stopPropagation();
-      if (!client || !lastDevice) return;
-      setReconnecting(true);
-      try {
-        await api.connect(client, lastDevice.id);
-      } catch (err) {
-        notify.error(`Reconnect failed: ${(err as Error).message}`, err);
-      } finally {
-        setReconnecting(false);
-      }
-    },
-    [client, lastDevice],
-  );
+  const handleReconnect = async (e: MouseEvent) => {
+    e.stopPropagation();
+    if (!client || !lastDevice) return;
+    setReconnecting(true);
+    try {
+      await api.connect(client, lastDevice.id);
+    } catch (err) {
+      notify.error(`Reconnect failed: ${(err as Error).message}`, err);
+    } finally {
+      setReconnecting(false);
+    }
+  };
   const [showFinishedBar, setShowFinishedBar] = useState(false);
   useEffect(() => {
     if (!justFinished) {

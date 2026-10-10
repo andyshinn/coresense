@@ -1,10 +1,9 @@
 import { BellOff, Copy, Megaphone, PinIcon, PinOff, Trash2 } from 'lucide-react';
 import type { Contact } from '../../../shared/types';
-import { copyToClipboard, menuItem, menuSeparator } from '../../components/ContextMenu';
+import { ContextMenu, type ContextMenuEntry, copyToClipboard, menuItem, menuSeparator } from '../../components/ContextMenu';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
-import { type ContextMenuEntry, EntryContextMenu } from './contextMenu';
 
 /** State payload for a positioned contact context menu. */
 export interface ContactMenuState {
@@ -82,5 +81,5 @@ export function ContactContextMenu({
     ),
   ];
 
-  return <EntryContextMenu x={x} y={y} items={items} onClose={onClose} />;
+  return <ContextMenu x={x} y={y} items={items} onClose={onClose} />;
 }
