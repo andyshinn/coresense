@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import { IPC, type IpcSyncReplies } from './shared/ipc';
 import type { CoreSenseBridge } from './shared/types';
 
 // The bundled Electron window is a first-party client of our own API server,
@@ -9,9 +10,9 @@ import type { CoreSenseBridge } from './shared/types';
 // this script, so it still sees the gate — which is correct, it genuinely
 // needs to be told the key.
 const bridge: CoreSenseBridge = {
-  apiKey: ipcRenderer.sendSync('coresense:get-api-key') as string,
-  httpPort: ipcRenderer.sendSync('coresense:get-http-port') as number,
-  revealLogs: () => ipcRenderer.send('coresense:logs:reveal'),
+  apiKey: ipcRenderer.sendSync(IPC.getApiKey) as IpcSyncReplies[typeof IPC.getApiKey],
+  httpPort: ipcRenderer.sendSync(IPC.getHttpPort) as IpcSyncReplies[typeof IPC.getHttpPort],
+  revealLogs: () => ipcRenderer.send(IPC.revealLogs),
 };
 
 contextBridge.exposeInMainWorld('coresense', bridge);
