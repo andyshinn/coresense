@@ -1,7 +1,9 @@
 import type { QuickActionId } from '../renderer/features/quick-actions/ids';
 import type { DiscoveredContact } from './contacts/discovered';
+import type { LogLevel } from './logLevels';
 import type { DistanceUnit, MacroTemplate } from './macros/types';
 
+export type { LogLevel } from './logLevels';
 export type { MacroTemplate } from './macros/types';
 
 export type TransportState = 'idle' | 'scanning' | 'connecting' | 'connected' | 'error';
@@ -382,8 +384,6 @@ export interface SearchResults {
    *  `conversations` is the visible count (we don't paginate that section). */
   total: { conversations: number; messages: number };
 }
-
-export type LogLevel = 'silly' | 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
 export interface LogEntry {
   id: string; // monotonically increasing, used as virtuoso key
