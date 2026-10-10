@@ -1,7 +1,7 @@
 import { openDb } from '../../src/main/storage/db';
 
 export interface SqlCounter {
-  /** Number of write statements executed against discovered_contacts so far. */
+  /** Number of write statements executed against the counted table so far. */
   readonly count: number;
   /** Restore the original `prepare`/`exec`. Safe to call more than once. */
   restore(): void;
