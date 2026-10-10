@@ -13,6 +13,7 @@ import { useRailSettleTick } from '../useRailSettleTick';
 import { PeopleControls } from './PeopleControls';
 import { PeopleRow } from './PeopleRow';
 import {
+  DEFAULT_PEOPLE_PREFS,
   filterRoster,
   groupByBucket,
   maxCount,
@@ -195,6 +196,15 @@ function EmptyNote({ children }: { children: ReactNode }) {
   return <p className="px-3 py-4 text-[11.5px] text-cs-text-dim">{children}</p>;
 }
 
+/** The roster view state the header count and the section body both read,
+ *  with the never-touched defaults applied in one place. */
+function usePeopleView(channelKey: string): { sort: PeopleSort; filter: PeopleFilter; query: string } {
+  const query = useStore((s) => s.peopleQuery);
+  const sort = useStore((s) => s.ui.peopleRail[channelKey]?.sort ?? DEFAULT_PEOPLE_PREFS.sort);
+  const filter = useStore((s) => s.ui.peopleRail[channelKey]?.filter ?? DEFAULT_PEOPLE_PREFS.filter);
+  return { sort, filter, query };
+}
+
 /** Header count: `156`, or `«n» / 156` while a query or filter narrows it.
  *
  *  Memoised because the rail evaluates `trailing={section.trailing?.()}` outside
@@ -210,9 +220,7 @@ export const ChannelPeopleCount = memo(function ChannelPeopleCount({
   const { stats } = useChannelStats(channel.key, client);
   const contacts = useStore((s) => s.contacts);
   const discovered = useStore((s) => s.discovered);
-  const query = useStore((s) => s.peopleQuery);
-  const prefs = useStore((s) => s.ui.peopleRail[channel.key]);
-  const filter = prefs?.filter ?? 'all';
+  const { filter, query } = usePeopleView(channel.key);
 
   const roster = stats?.roster;
   const all = useMemo(() => toRosterRows(roster ?? [], contacts, discovered), [roster, contacts, discovered]);
@@ -241,9 +249,8 @@ export const ChannelPeopleSection = memo(function ChannelPeopleSection({
   // value here would re-render this section (and therefore the whole roster) on
   // every drag frame no matter how many memo boundaries sit below it.
   const wide = useStore((s) => railIsWide(s.ui.rightWidth));
-  const query = useStore((s) => s.peopleQuery);
+  const { sort, filter, query } = usePeopleView(channel.key);
   const setQuery = useStore((s) => s.setPeopleQuery);
-  const prefs = useStore((s) => s.ui.peopleRail[channel.key]);
   const setPeopleRail = useStore((s) => s.setPeopleRail);
   const setActiveKey = useStore((s) => s.setActiveKey);
 
@@ -284,9 +291,9 @@ export const ChannelPeopleSection = memo(function ChannelPeopleSection({
     [client],
   );
 
-  const onSort = useCallback((sort: PeopleSort) => setPeopleRail(channel.key, { sort }), [channel.key, setPeopleRail]);
+  const onSort = useCallback((next: PeopleSort) => setPeopleRail(channel.key, { sort: next }), [channel.key, setPeopleRail]);
   const onFilter = useCallback(
-    (filter: PeopleFilter) => setPeopleRail(channel.key, { filter }),
+    (next: PeopleFilter) => setPeopleRail(channel.key, { filter: next }),
     [channel.key, setPeopleRail],
   );
 
@@ -294,8 +301,8 @@ export const ChannelPeopleSection = memo(function ChannelPeopleSection({
     <ChannelPeopleBody
       stats={stats}
       wide={wide}
-      sort={prefs?.sort ?? 'recent'}
-      filter={prefs?.filter ?? 'all'}
+      sort={sort}
+      filter={filter}
       query={query}
       onQuery={setQuery}
       onSort={onSort}

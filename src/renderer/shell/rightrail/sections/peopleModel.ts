@@ -5,7 +5,7 @@
 // environment: 'node'.
 
 import type { DiscoveredContact } from '../../../../shared/contacts/discovered';
-import type { ChannelSenderStat, Contact, PeopleFilter, PeopleSort } from '../../../../shared/types';
+import type { ChannelSenderStat, Contact, PeopleFilter, PeopleRailPrefs, PeopleSort } from '../../../../shared/types';
 import { discoveredNameIndex, type IdentitySource, resolveIdentity } from '../../../lib/identity';
 
 export type BucketId = 'today' | 'yesterday' | 'week' | 'earlier';
@@ -215,6 +215,9 @@ export function volumeWidth(count: number, max: number): string {
   if (max <= 0) return '0%';
   return `${Math.max(6, (count / max) * 100)}%`;
 }
+
+/** View prefs for a channel the user has never sorted or filtered. */
+export const DEFAULT_PEOPLE_PREFS: PeopleRailPrefs = { sort: 'recent', filter: 'all' };
 
 /** Rows the list paints before the "Show all" reveal.
  *
