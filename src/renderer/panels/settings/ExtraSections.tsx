@@ -6,8 +6,10 @@ import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 
-// The Extra Tools tab — device-level maintenance actions. Everything here is an
-// action button, so there is no dirty state and no per-section Save.
+// The Extra Tools tab's action sections — device-level maintenance actions.
+// Everything here is an action button, so these sections have no dirty state and
+// no Save. (The tab's one editable section, Packet Log, lives in
+// PacketLogSection.)
 
 interface SectionProps {
   client: ApiClient | null;
