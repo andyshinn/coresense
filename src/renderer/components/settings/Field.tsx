@@ -49,6 +49,9 @@ export function Toggle({ checked, onChange, disabled }: ToggleProps) {
   );
 }
 
+const SELECT_CLASS =
+  'rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text disabled:cursor-not-allowed disabled:opacity-50';
+
 interface SelectProps<T extends string> {
   value: T;
   options: ReadonlyArray<{ value: T; label: string }>;
@@ -58,14 +61,38 @@ interface SelectProps<T extends string> {
 
 export function Select<T extends string>({ value, options, onChange, disabled }: SelectProps<T>) {
   return (
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value as T)}
-      className="rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text disabled:cursor-not-allowed disabled:opacity-50"
-    >
+    <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as T)} className={SELECT_CLASS}>
       {options.map((opt) => (
         <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+interface NumberSelectProps<T extends number> {
+  value: T;
+  options: ReadonlyArray<{ value: T; label: string }>;
+  onChange: (next: T) => void;
+  disabled?: boolean;
+}
+
+// Select for a numeric setting. <option> values are strings, so the pick is
+// mapped back to its option's number — a typo'd option can't become NaN.
+export function NumberSelect<T extends number>({ value, options, onChange, disabled }: NumberSelectProps<T>) {
+  return (
+    <select
+      value={String(value)}
+      disabled={disabled}
+      onChange={(e) => {
+        const picked = options.find((opt) => String(opt.value) === e.target.value);
+        if (picked) onChange(picked.value);
+      }}
+      className={SELECT_CLASS}
+    >
+      {options.map((opt) => (
+        <option key={opt.value} value={String(opt.value)}>
           {opt.label}
         </option>
       ))}

@@ -1,6 +1,6 @@
 import { FlaskConical } from 'lucide-react';
 import type { PathHashSize, RadioSettings } from '../../../../shared/types';
-import { Row, Select } from '../../../components/settings/Field';
+import { NumberSelect, Row } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
 import { notify } from '../../../lib/notify';
@@ -10,11 +10,11 @@ import type { SectionProps } from './shared';
 
 const eq = (a: RadioSettings, b: RadioSettings) => a.pathHashMode === b.pathHashMode;
 
-const PATH_HASH_OPTIONS: { value: string; label: string }[] = [
-  { value: '1', label: '1-byte (max 64 hops) — legacy' },
-  { value: '2', label: '2-byte (max 32 hops) — recommended' },
-  { value: '3', label: '3-byte (max ~21 hops)' },
-];
+const PATH_HASH_OPTIONS = [
+  { value: 1, label: '1-byte (max 64 hops) — legacy' },
+  { value: 2, label: '2-byte (max 32 hops) — recommended' },
+  { value: 3, label: '3-byte (max ~21 hops)' },
+] satisfies { value: PathHashSize; label: string }[];
 
 export function ExperimentalSection({ client }: SectionProps) {
   const saved = useStore((s) => s.radioSettings);
@@ -53,10 +53,10 @@ export function ExperimentalSection({ client }: SectionProps) {
         description="Bytes per hop in source-routed paths. Larger values reduce hash collisions per hop but lower the maximum path length."
         changed={draft.pathHashMode !== saved.pathHashMode}
         control={
-          <Select<string>
-            value={String(draft.pathHashMode)}
+          <NumberSelect
+            value={draft.pathHashMode}
             options={PATH_HASH_OPTIONS}
-            onChange={(v) => setDraft((d) => ({ ...d, pathHashMode: Number(v) as PathHashSize }))}
+            onChange={(pathHashMode) => setDraft((d) => ({ ...d, pathHashMode }))}
           />
         }
       />

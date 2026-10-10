@@ -1,4 +1,5 @@
 import { Copy, FileText } from 'lucide-react';
+import { LOG_LEVELS } from '../../../../shared/logLevels';
 import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { CopyButton } from '../../../components/CopyButton';
 import { Row, Select, Toggle } from '../../../components/settings/Field';
@@ -8,15 +9,7 @@ import type { SectionProps } from '../radio/shared';
 import { useSettingsSection } from '../useSectionDraft';
 import { saveApp } from './shared';
 
-const LEVEL_OPTIONS = [
-  { value: 'silly', label: 'silly' },
-  { value: 'trace', label: 'trace' },
-  { value: 'debug', label: 'debug' },
-  { value: 'info', label: 'info' },
-  { value: 'warn', label: 'warn' },
-  { value: 'error', label: 'error' },
-  { value: 'fatal', label: 'fatal' },
-] as const;
+const LEVEL_OPTIONS = LOG_LEVELS.map((level) => ({ value: level, label: level }));
 
 const BTN =
   'flex items-center gap-1 rounded border border-cs-border bg-cs-bg-2 px-2 py-1 text-[12px] text-cs-text hover:bg-cs-bg-3 disabled:cursor-not-allowed disabled:opacity-50';
@@ -42,11 +35,7 @@ export function LoggingSection({ client }: SectionProps) {
         description="Filter how verbose logs are. `debug` is useful while developing; `info` is fine for everyday use."
         changed={draft.level !== saved.level}
         control={
-          <Select
-            value={draft.level}
-            options={LEVEL_OPTIONS}
-            onChange={(v) => setDraft((s) => ({ ...s, level: v as AppSettingsType['logging']['level'] }))}
-          />
+          <Select value={draft.level} options={LEVEL_OPTIONS} onChange={(level) => setDraft((s) => ({ ...s, level }))} />
         }
       />
       <Row
