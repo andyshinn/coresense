@@ -45,6 +45,7 @@ import { flushSettings } from './storage/settings';
 import { transportManager } from './transport/manager';
 import { installStartupTransport } from './transport/select';
 import { startUpdates } from './updates/wiring';
+import { withTimeout } from './util/async';
 import { isQuitConfirmed, shouldDeferQuit } from './window/quit';
 import { getMainWindow, setMainWindow } from './window/registry';
 import { flushWindowState, loadWindowState, trackWindow } from './window/state';
@@ -540,15 +541,6 @@ function settle(label: string, p: Promise<unknown>): Promise<void> {
   );
 }
 
-/** Race `p` against a timer; a rejection from `p` still propagates. */
-function withTimeout(p: Promise<unknown>, ms: number): Promise<'ok' | 'timeout'> {
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<'timeout'>((resolve) => {
-    timer = setTimeout(() => resolve('timeout'), ms);
-  });
-  return Promise.race([p.then(() => 'ok' as const), timeout]).finally(() => clearTimeout(timer));
-}
-
 /** Hand back every open server handle, nulling each so shutdown closes it once. */
 function takeClosables(): Array<[label: string, handle: { close(): Promise<unknown> }]> {
   const closables: Array<[string, { close(): Promise<unknown> } | null]> = [
@@ -569,14 +561,7 @@ async function shutdown() {
   // Electron process can terminate on macOS. Race against a timeout in case
   // a flaky peripheral makes disconnect hang.
   tasks.push(
-    settle(
-      'transport shutdown',
-      withTimeout(transportManager.shutdown(), SHUTDOWN_BLE_TIMEOUT_MS).then((result) => {
-        if (result === 'timeout') {
-          log.warn(`transport shutdown did not finish within ${SHUTDOWN_BLE_TIMEOUT_MS}ms`);
-        }
-      }),
-    ),
+    settle('transport shutdown', withTimeout(transportManager.shutdown(), SHUTDOWN_BLE_TIMEOUT_MS, 'transport shutdown')),
   );
 
   await Promise.all(tasks);

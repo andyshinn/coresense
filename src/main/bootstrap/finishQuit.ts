@@ -1,3 +1,5 @@
+import { withTimeout } from '../util/async';
+
 export interface FinishQuitDeps {
   shutdown: () => Promise<void>;
   onShutdownError: (err: unknown) => void;
@@ -19,12 +21,7 @@ export function finishQuit(deps: FinishQuitDeps): Promise<void> {
   return deps
     .shutdown()
     .catch(deps.onShutdownError)
-    .then(() => {
-      let timer: NodeJS.Timeout | undefined;
-      const timeout = new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, deps.flushTimeoutMs);
-      });
-      return Promise.race([deps.flushLog(), timeout]).finally(() => clearTimeout(timer));
-    })
+    // flushLog never rejects, so the only rejection swallowed here is the timeout.
+    .then(() => withTimeout(deps.flushLog(), deps.flushTimeoutMs, 'log flush').catch(() => {}))
     .finally(deps.exit);
 }

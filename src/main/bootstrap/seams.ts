@@ -17,7 +17,6 @@ setUserDataDir(app.getPath('userData'));
 setAppLifecycle({
   quit: () => app.quit(),
   relaunch: () => app.relaunch(),
-  exit: (code) => app.exit(code),
 });
 setSecretStore({
   available: () => safeStorage.isEncryptionAvailable(),
