@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock('@/lib/notify', () => import('../../support/notifyMock'));
 
 import { type ApiClient, api } from '@/lib/api';
 import { useStore } from '@/lib/store';

@@ -5,7 +5,7 @@ import { HopChip, ListRow, TableView } from '@/panels/contacts/ContactRows';
 import type { DiscoveredContact } from '../../src/shared/contacts/discovered';
 
 // ContactRows pulls in notify (sonner) and the api client at module scope.
-vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() } }));
+vi.mock('@/lib/notify', () => import('../support/notifyMock'));
 vi.mock('@/lib/api', () => ({ api: { addToRadio: vi.fn(), removeFromRadio: vi.fn() } }));
 
 function contact(hops: number | undefined, lastHeardMs?: number, observedHops?: number): DiscoveredContact {

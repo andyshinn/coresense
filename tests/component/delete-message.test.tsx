@@ -1,13 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock('@/lib/notify', () => import('../support/notifyMock'));
 
 import { DeleteConfirmPopover } from '@/features/message-actions/DeleteConfirmPopover';
 import { type ApiClient, api } from '@/lib/api';
-import { notify } from '@/lib/notify';
 import { useStore } from '@/lib/store';
 import type { Message } from '../../src/shared/types';
+import { notify } from '../support/notifyMock';
 
 const msg = (id: string): Message => ({ id, key: 'ch:x', fromPublicKeyHex: 'a3f9', body: id, ts: 0, state: 'received' });
 

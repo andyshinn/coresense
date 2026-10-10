@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock('@/lib/notify', () => import('../support/notifyMock'));
 
 import { MacroChip, MacroPanel } from '@/features/message-actions/MacroPanel';
 import { type ApiClient, api } from '@/lib/api';

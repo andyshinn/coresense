@@ -11,9 +11,7 @@ vi.mock('../../src/renderer/lib/api', () => ({
     putMapSettings: vi.fn(async () => ({ ok: true })),
   },
 }));
-vi.mock('../../src/renderer/lib/notify', () => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn(), failure: vi.fn() },
-}));
+vi.mock('../../src/renderer/lib/notify', () => import('../support/notifyMock'));
 
 import { MapKeySection } from '../../src/renderer/components/settings/MapKeySection';
 import { api } from '../../src/renderer/lib/api';

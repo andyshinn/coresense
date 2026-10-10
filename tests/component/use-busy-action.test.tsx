@@ -1,11 +1,9 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useBusyAction } from '@/hooks/useBusyAction';
-import { notify } from '@/lib/notify';
+import { notify } from '../support/notifyMock';
 
-vi.mock('@/lib/notify', () => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn(), failure: vi.fn() },
-}));
+vi.mock('@/lib/notify', () => import('../support/notifyMock'));
 
 function deferred() {
   let resolve!: () => void;

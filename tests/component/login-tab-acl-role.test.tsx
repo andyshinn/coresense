@@ -2,9 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 // LoginTab imports notify + api at module scope; stub both so mounting is inert.
-vi.mock('../../src/renderer/lib/notify', () => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
+vi.mock('../../src/renderer/lib/notify', () => import('../support/notifyMock'));
 vi.mock('../../src/renderer/lib/api', () => ({
   api: { repeaterLogin: vi.fn() },
 }));

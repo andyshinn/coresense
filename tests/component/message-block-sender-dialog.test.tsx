@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ApiClient } from '@/lib/api';
+import { notify } from '../support/notifyMock';
 
 const addBlockRules = vi.fn();
 vi.mock('@/lib/api', () => ({ api: { addBlockRules: (...a: unknown[]) => addBlockRules(...a) } }));
-const notify = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), failure: vi.fn() }));
-vi.mock('@/lib/notify', () => ({ notify }));
+vi.mock('@/lib/notify', () => import('../support/notifyMock'));
 
 const { BlockSenderDialog } = await import('@/components/BlockSenderDialog');
 

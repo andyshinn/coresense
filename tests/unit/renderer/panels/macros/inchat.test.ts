@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock('@/lib/notify', () => import('../../../../support/notifyMock'));
 
 import { type ApiClient, api } from '@/lib/api';
-import { notify } from '@/lib/notify';
 import { expandMacro, expandMacroReply, renderMacroSafe, targetToContext } from '@/panels/macros/lib/inchat';
 import type { MacroTemplate } from '../../../../../src/shared/macros/types';
+import { notify, resetNotifyMock } from '../../../../support/notifyMock';
 
 describe('targetToContext', () => {
   it('maps a channel key to channelKey', () => {
@@ -34,7 +34,7 @@ const macro: MacroTemplate = {
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  vi.mocked(notify.error).mockClear();
+  resetNotifyMock();
 });
 
 describe('expandMacroReply', () => {

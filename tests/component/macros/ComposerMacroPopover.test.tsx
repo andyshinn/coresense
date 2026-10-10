@@ -1,13 +1,13 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock('@/lib/notify', () => import('../../support/notifyMock'));
 
 import { type ApiClient, api } from '@/lib/api';
-import { notify } from '@/lib/notify';
 import { useStore } from '@/lib/store';
 import { ComposerMacroPopover } from '@/panels/macros/inchat/ComposerMacroPopover';
 import type { MacroTemplate } from '../../../src/shared/macros/types';
+import { notify } from '../../support/notifyMock';
 
 const client: ApiClient = { baseUrl: 'http://x', apiKey: 'k' };
 const macros: MacroTemplate[] = [

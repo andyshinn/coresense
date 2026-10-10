@@ -3,15 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../../../../src/renderer/lib/api', () => ({
   api: { putMapSettings: vi.fn() },
 }));
-vi.mock('../../../../../src/renderer/lib/notify', () => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn(), failure: vi.fn() },
-}));
+vi.mock('../../../../../src/renderer/lib/notify', () => import('../../../../support/notifyMock'));
 
 import { api } from '../../../../../src/renderer/lib/api';
 import { updateMapSettings } from '../../../../../src/renderer/lib/map/settings';
-import { notify } from '../../../../../src/renderer/lib/notify';
 import { useStore } from '../../../../../src/renderer/lib/store';
 import { DEFAULT_MAP_SETTINGS } from '../../../../../src/shared/types';
+import { notify } from '../../../../support/notifyMock';
 
 const client = { baseUrl: 'http://x', apiKey: 'k' };
 const put = vi.mocked(api.putMapSettings);

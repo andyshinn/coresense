@@ -11,9 +11,7 @@ vi.mock('../../src/renderer/components/map/NeighbourMapLayer', () => ({
   NeighbourMapLayer: () => null,
 }));
 
-vi.mock('../../src/renderer/lib/notify', () => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn(), failure: vi.fn() },
-}));
+vi.mock('../../src/renderer/lib/notify', () => import('../support/notifyMock'));
 
 // Owner-info fetch returns data scoped to whichever repeater key was asked for,
 // so a stale render is unambiguous: "A-FW" must never appear while viewing B.

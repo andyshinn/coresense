@@ -3,13 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../../../../src/renderer/lib/api', () => ({
   api: { clearPackets: vi.fn(async () => ({ ok: true })) },
 }));
-vi.mock('../../../../../src/renderer/lib/notify', () => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
+vi.mock('../../../../../src/renderer/lib/notify', () => import('../../../../support/notifyMock'));
 
 import { buildActionItems } from '../../../../../src/renderer/features/command-palette/items/actions';
 import { api } from '../../../../../src/renderer/lib/api';
-import { notify } from '../../../../../src/renderer/lib/notify';
+import { notify } from '../../../../support/notifyMock';
 
 const client = { baseUrl: 'http://x', apiKey: 'k' };
 

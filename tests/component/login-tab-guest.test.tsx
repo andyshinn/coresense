@@ -16,9 +16,7 @@ const repeaterLogin = vi.fn(async (_c: unknown, _key: string, _password: string)
   login: { effective: 'flood' as const },
 }));
 
-vi.mock('../../src/renderer/lib/notify', () => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
+vi.mock('../../src/renderer/lib/notify', () => import('../support/notifyMock'));
 vi.mock('../../src/renderer/lib/api', () => ({
   api: { repeaterLogin: (...a: unknown[]) => repeaterLogin(...(a as Parameters<typeof repeaterLogin>)) },
 }));
