@@ -19,17 +19,22 @@ beforeEach(() => {
 afterEach(async () => {
   // Whatever the support helpers started — test sessions, servers, the
   // protocolSession() seam (see tests/support/teardown.ts). First, because
-  // their teardown can still write to the bus and to sqlite.
-  await runDeferredTeardowns();
-  bus.removeAllListeners();
-  transportManager.clearTransport();
-  transportManager.setState('idle');
-  // Drain fire-and-forget settings writes before removing the temp dir, so a
-  // pending channels.json/map-settings.json write can't race the cleanup and
-  // log a spurious ENOENT.
-  await flushSettings();
-  cleanupTempUserData();
-  setAppInfo(null);
-  setAppLifecycle(null);
-  setSecretStore(null);
+  // their teardown can still write to the bus and to sqlite. A failing teardown
+  // still fails the test, but must not skip the resets below and leak this
+  // test's state into the next one.
+  try {
+    await runDeferredTeardowns();
+  } finally {
+    bus.removeAllListeners();
+    transportManager.clearTransport();
+    transportManager.setState('idle');
+    // Drain fire-and-forget settings writes before removing the temp dir, so a
+    // pending channels.json/map-settings.json write can't race the cleanup and
+    // log a spurious ENOENT.
+    await flushSettings();
+    cleanupTempUserData();
+    setAppInfo(null);
+    setAppLifecycle(null);
+    setSecretStore(null);
+  }
 });

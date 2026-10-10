@@ -1,5 +1,5 @@
 import { Protocol } from '@andyshinn/meshcore-ts';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bus } from '../../../src/main/events/bus';
 import { fetchAdvertPath, resetAdvertPathState } from '../../../src/main/state/advertPath';
 import { isContactAutoRefreshRunning } from '../../../src/main/state/contactRefresh';
@@ -53,8 +53,14 @@ function driveTransport(s: TestSession, state: TransportState, deviceId?: string
   s.transport.setState(state === 'connected' ? 'connected' : 'idle');
 }
 
-afterEach(() => {
+// Reset before each test rather than after: the previous test's session and
+// server are stopped only in the global afterEach (tests/support/teardown.ts),
+// which runs after this file's hooks.
+beforeEach(() => {
   resetAdvertPathState();
+});
+
+afterEach(() => {
   vi.useRealTimers();
 });
 

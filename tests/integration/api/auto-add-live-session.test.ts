@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { Protocol } from '@andyshinn/meshcore-ts';
-import { afterEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { stateHolder } from '../../../src/main/state/holder';
 import { type AutoAddConfig, DEFAULT_AUTO_ADD_CONFIG } from '../../../src/shared/types';
 import { json, testRoutes } from '../../support/api';
@@ -38,7 +38,10 @@ function putAutoAdd(body: AutoAddConfig) {
 /** Every frame the session put on the wire whose code byte is `code`, as hex. */
 const sentHex = (s: TestSession, code: number) => s.sentWithCode(code).map((f) => f.toString('hex'));
 
-afterEach(() => {
+// In beforeEach, not afterEach: the previous test's session is stopped only in
+// the global afterEach (tests/support/teardown.ts), after this file's hooks, and
+// its background handshake can still write the holder until then.
+beforeEach(() => {
   stateHolder().setAutoAddConfig({ ...DEFAULT_AUTO_ADD_CONFIG });
 });
 
