@@ -16,7 +16,7 @@ function harness(over: Partial<ActionDeps> = {}) {
   const contacts: Contact[] = [contact()];
   let ui: UiState = { lastReadByKey: {} } as UiState;
   const deps: ActionDeps = {
-    sendMessage: vi.fn(async () => ({ ok: true })),
+    sendMessage: vi.fn(async () => ({ ok: true, id: 'local-1' })),
     getChannels: () => channels,
     getContacts: () => contacts,
     upsertChannel: (c) => {
@@ -45,6 +45,13 @@ describe('notification actions', () => {
     const h = harness();
     await h.actions.reply('ch:General', 'hello');
     expect(h.deps.sendMessage).toHaveBeenCalledWith('ch:General', 'hello');
+  });
+
+  it('reply rejects with the send error when the send reports failure', async () => {
+    // Was swallowed: the SendResult was discarded, so a failed reply from a
+    // notification was never logged anywhere.
+    const h = harness({ sendMessage: vi.fn(async () => ({ ok: false, id: 'local-1', error: 'no radio' })) });
+    await expect(h.actions.reply('ch:General', 'hello')).rejects.toThrow('no radio');
   });
 
   it('reply ignores empty/whitespace text', async () => {

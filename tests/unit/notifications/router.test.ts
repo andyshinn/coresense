@@ -131,6 +131,17 @@ describe('notification router', () => {
     expect(h.deps.actions.mute).toHaveBeenCalledWith('ch:General');
   });
 
+  it('logs a rejected inline reply instead of leaving it unhandled', async () => {
+    const warn = vi.fn();
+    const h = harness({
+      warn,
+      actions: { reply: vi.fn(async () => Promise.reject(new Error('no radio'))), markRead: vi.fn(), mute: vi.fn() },
+    });
+    h.router.handleMessages('ch:General', [chMsg({ id: 'm6' })]);
+    h.shown[0].onReply?.('yo');
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledWith('notification reply to ch:General failed: no radio'));
+  });
+
   it('clears an individual notification group when its conversation is opened', () => {
     const h = harness();
     h.router.handleMessages('ch:General', [chMsg({ id: 'live1' })]);

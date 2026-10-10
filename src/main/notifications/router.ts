@@ -1,3 +1,4 @@
+import { errorMessage } from '../../shared/errors';
 import type { AppSettings, Channel, Contact, ContactKind, MenuAction, Message, Owner, UiState } from '../../shared/types';
 import type { NotificationActions } from './actions';
 import { createAggregator, type StaleDescriptor } from './aggregator';
@@ -27,6 +28,9 @@ export interface RouterDeps {
   isBlocked(m: Message): boolean;
   /** Optional diagnostic sink (wired to the main logger in production). */
   debug?(message: string): void;
+  /** Optional sink for failures the user can't otherwise see, such as a
+   *  rejected inline reply (wired to the main logger in production). */
+  warn?(message: string): void;
 }
 
 export interface NotificationRouter {
@@ -38,6 +42,7 @@ export interface NotificationRouter {
 
 export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
   const debug = deps.debug ?? (() => {});
+  const warn = deps.warn ?? (() => {});
   const notifiedIds = new Set<string>();
   const summaryKeys = new Set<string>();
   // Snapshot of lastReadByKey from the previous uiState push, so handleUiState
@@ -90,7 +95,8 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
       reply: deps.caps.reply ? true : undefined,
       replyPlaceholder: deps.caps.reply ? 'Reply…' : undefined,
       actions: deps.caps.actions ? ACTION_LABELS : undefined,
-      onReply: (text) => void deps.actions.reply(key, text),
+      onReply: (text) =>
+        void deps.actions.reply(key, text).catch((err) => warn(`notification reply to ${key} failed: ${errorMessage(err)}`)),
       onAction: (index) => (index === 0 ? deps.actions.markRead(key) : deps.actions.mute(key)),
     };
   }
