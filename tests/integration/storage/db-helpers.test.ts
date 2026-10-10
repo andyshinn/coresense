@@ -1,6 +1,8 @@
+import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { addColumnIfMissing, clampLimit, openDb, withTransaction } from '../../../src/main/storage/db';
+import { userDataDir } from '../../../src/main/runtime/userData';
+import { addColumnIfMissing, clampLimit, closeDb, openDb, withTransaction } from '../../../src/main/storage/db';
 
 describe('addColumnIfMissing', () => {
   it('treats "duplicate column name" as already migrated', () => {
@@ -26,6 +28,38 @@ describe('openDb schema', () => {
       .prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?`)
       .get('messages_by_state');
     expect(row).toBeUndefined();
+  });
+
+  // Regression: openDb() used to cache the connection BEFORE running the
+  // schema, so a failed migration left a half-migrated handle that every later
+  // call returned without retrying (and reads then saw `undefined` columns).
+  it('does not cache a connection whose schema setup failed, and retries on the next call', () => {
+    closeDb();
+    const path = join(userDataDir(), 'messages.db');
+    const seed = new DatabaseSync(path);
+    // An old-shape discovered_contacts (no observed_* columns) plus a VIEW
+    // squatting on `packets`: CREATE TABLE IF NOT EXISTS skips it, then
+    // indexing it throws, so the guarded ADD COLUMNs never get to run.
+    seed.exec(`
+      CREATE TABLE discovered_contacts (
+        pubkey TEXT PRIMARY KEY, name TEXT NOT NULL, type INTEGER NOT NULL, flags INTEGER NOT NULL,
+        out_path_len INTEGER NOT NULL, out_path_hex TEXT NOT NULL, last_advert_unix INTEGER NOT NULL,
+        gps_lat REAL NOT NULL, gps_lon REAL NOT NULL, lastmod INTEGER NOT NULL,
+        first_heard_ms INTEGER NOT NULL, last_heard_ms INTEGER NOT NULL DEFAULT 0,
+        on_radio INTEGER NOT NULL DEFAULT 0, favourite INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE VIEW packets AS SELECT 0 AS ts;
+    `);
+
+    expect(() => openDb()).toThrow(/views may not be indexed/);
+    // A cached handle would come back here without throwing.
+    expect(() => openDb()).toThrow(/views may not be indexed/);
+
+    seed.exec('DROP VIEW packets');
+    seed.close();
+
+    const cols = (openDb().prepare('PRAGMA table_info(discovered_contacts)').all() as { name: string }[]).map((c) => c.name);
+    expect(cols).toEqual(expect.arrayContaining(['observed_hops', 'observed_path_hex', 'observed_at_unix']));
   });
 });
 
