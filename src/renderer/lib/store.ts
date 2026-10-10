@@ -553,6 +553,26 @@ function pushPast(past: string[], key: string): string[] {
   return next.length > NAV_HISTORY_MAX ? next.slice(-NAV_HISTORY_MAX) : next;
 }
 
+/**
+ * Apply `update` to message `id`, rebuilding only the list(s) that hold it.
+ * Every other key keeps its array identity, and so does `messagesByKey` itself
+ * when no list holds the id. mergeMessages works to keep identities stable so a
+ * changed reference means changed contents; rebuilding every key here would
+ * re-render every `messagesByKey[key]` subscriber, and refetch the open
+ * channel's activity, on any DM's delivery-state change.
+ */
+function updateMessageById(s: CoreState, id: string, update: (m: Message) => Message): Partial<CoreState> {
+  // Searching every key is fine for normal volumes; if this becomes a hot
+  // path we can switch to an id→key index.
+  let next: Record<string, Message[]> | null = null;
+  for (const [k, list] of Object.entries(s.messagesByKey)) {
+    if (!list.some((m) => m.id === id)) continue;
+    next ??= { ...s.messagesByKey };
+    next[k] = list.map((m) => (m.id === id ? update(m) : m));
+  }
+  return next ? { messagesByKey: next } : {};
+}
+
 function anyDirty(dirtyById: Record<string, boolean>): boolean {
   return Object.values(dirtyById).some(Boolean);
 }
@@ -698,38 +718,24 @@ export const useStore = create<CoreState>((set) => ({
       return { messagesByKey: { ...s.messagesByKey, [key]: capped } };
     }),
 
-  applyMessageState: (id, state) =>
-    set((s) => {
-      // Searching every key is fine for normal volumes; if this becomes a hot
-      // path we can switch to an id→key index.
-      const next: Record<string, Message[]> = {};
-      for (const [k, list] of Object.entries(s.messagesByKey)) {
-        next[k] = list.map((m) => (m.id === id ? { ...m, state } : m));
-      }
-      return { messagesByKey: next };
-    }),
+  applyMessageState: (id, state) => set((s) => updateMessageById(s, id, (m) => ({ ...m, state }))),
 
   appendMessagePath: (id, path, state) =>
-    set((s) => {
-      const next: Record<string, Message[]> = {};
-      for (const [k, list] of Object.entries(s.messagesByKey)) {
-        next[k] = list.map((m) => {
-          if (m.id !== id) return m;
-          const existingPaths = m.meta?.paths ?? [];
-          if (existingPaths.some((p) => p.id === path.id)) return { ...m, state };
-          return {
-            ...m,
-            state,
-            meta: {
-              ...m.meta,
-              paths: [...existingPaths, path],
-              timesHeard: (m.meta?.timesHeard ?? 0) + 1,
-            },
-          };
-        });
-      }
-      return { messagesByKey: next };
-    }),
+    set((s) =>
+      updateMessageById(s, id, (m) => {
+        const existingPaths = m.meta?.paths ?? [];
+        if (existingPaths.some((p) => p.id === path.id)) return { ...m, state };
+        return {
+          ...m,
+          state,
+          meta: {
+            ...m.meta,
+            paths: [...existingPaths, path],
+            timesHeard: (m.meta?.timesHeard ?? 0) + 1,
+          },
+        };
+      }),
+    ),
 
   removeMessages: (key, ids) =>
     set((s) => {
