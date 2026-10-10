@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Contact, IdentityColorMode, PathHashSize } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
+import { splitHopsHex } from '../../lib/packetPath';
 import { useStore } from '../../lib/store';
 import { ContactAvatar } from '../ContactAvatar';
 import { PathHashBadge } from '../PathHashBadge';
@@ -30,7 +31,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Separator } from '../ui/separator';
-import { makeId, splitHopsHex } from './resolveRepeater';
+import { makeId } from './resolveRepeater';
 
 interface Hop {
   id: string;

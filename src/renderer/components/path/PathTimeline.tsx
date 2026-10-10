@@ -5,14 +5,10 @@ import { HopRow } from './HopRow';
 export function PathTimeline({
   hops,
   knownRepeaters,
-  onHopClick,
-  onSelectCandidate,
   subject = 'message',
 }: {
   hops: MessageHop[];
   knownRepeaters: Contact[];
-  onHopClick?: (hop: MessageHop) => void;
-  onSelectCandidate?: (hop: MessageHop, contact: Contact) => void;
   subject?: 'message' | 'packet';
 }) {
   const [openConflict, setOpenConflict] = useState<number | null>(null);
@@ -30,8 +26,6 @@ export function PathTimeline({
             knownRepeaters={knownRepeaters}
             conflictOpen={openConflict === i}
             onToggleConflict={() => setOpenConflict(openConflict === i ? null : i)}
-            onHopClick={onHopClick}
-            onSelectCandidate={onSelectCandidate}
             subject={subject}
           />
         );

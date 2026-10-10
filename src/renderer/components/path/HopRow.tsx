@@ -3,7 +3,7 @@ import type { Contact, MessageHop } from '../../../shared/types';
 import { cn } from '../../lib/utils';
 import { ConflictPanel } from './ConflictPanel';
 import { HopAvatar } from './HopAvatar';
-import { candidatesFor } from './resolveRepeater';
+import { resolveHop } from './resolveRepeater';
 
 export function HopRow({
   hop,
@@ -12,8 +12,6 @@ export function HopRow({
   knownRepeaters,
   conflictOpen,
   onToggleConflict,
-  onHopClick,
-  onSelectCandidate,
   subject = 'message',
 }: {
   hop: MessageHop;
@@ -22,41 +20,18 @@ export function HopRow({
   knownRepeaters: Contact[];
   conflictOpen: boolean;
   onToggleConflict: () => void;
-  onHopClick?: (hop: MessageHop) => void;
-  onSelectCandidate?: (hop: MessageHop, contact: Contact) => void;
   subject?: 'message' | 'packet';
 }) {
   const AVATAR = 28;
   const ROW_PAD = 10;
-  const candidates = hop.kind === 'hop' ? candidatesFor(hop, knownRepeaters) : [];
-  const hasConflict = candidates.length > 1;
-  const resolved = candidates[0] ?? null;
-  const displayName = resolved ? resolved.name : hop.unnamed ? null : (hop.name ?? null);
+  const { candidates, resolved, label, hasConflict } = resolveHop(hop, knownRepeaters);
   const displayPk = resolved ? resolved.publicKeyHex : (hop.pk ?? null);
   const showAsUnnamed = !resolved && hop.unnamed;
-  const unknownLabel = hop.kind === 'origin' ? 'Unknown sender' : 'Unknown repeater';
 
-  const rowProps = onHopClick
-    ? {
-        role: 'button' as const,
-        tabIndex: 0,
-        onClick: () => onHopClick(hop),
-        onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onHopClick(hop);
-          }
-        },
-      }
-    : {};
   return (
     <div className="relative">
       <div
-        {...rowProps}
-        className={cn(
-          'relative flex w-full gap-2.5 rounded text-left transition-colors',
-          onHopClick ? 'cursor-pointer hover:bg-cs-bg-3' : '',
-        )}
+        className="relative flex w-full gap-2.5 rounded text-left transition-colors"
         style={{ padding: `${ROW_PAD}px 0` }}
       >
         {!isLast && (
@@ -78,7 +53,7 @@ export function HopRow({
           <div
             className={cn('truncate text-[12.5px]', showAsUnnamed ? 'italic text-cs-text-dim' : 'font-medium text-cs-text')}
           >
-            {showAsUnnamed ? unknownLabel : (displayName ?? unknownLabel)}
+            {label}
           </div>
           <div className="mt-0.5 truncate font-mono text-[10.5px] text-cs-text-dim">
             {hop.kind === 'origin' && `Sent the ${subject}`}
@@ -97,7 +72,7 @@ export function HopRow({
                   onToggleConflict();
                 }}
                 aria-expanded={conflictOpen}
-                aria-label={`${candidates.length} repeaters match this prefix — click to resolve`}
+                aria-label={`${candidates.length} repeaters match this prefix — click to list them`}
                 className={cn(
                   'inline-flex items-center gap-0.5 rounded border border-cs-warn/40 px-1.5 py-0.5 font-mono text-[9.5px] font-medium text-cs-warn transition-colors',
                   conflictOpen ? 'bg-cs-warn/10' : 'hover:bg-cs-warn/10',
@@ -111,9 +86,7 @@ export function HopRow({
               </button>
             </div>
           )}
-          {hop.kind === 'hop' && hasConflict && conflictOpen && (
-            <ConflictPanel hop={hop} candidates={candidates} onSelectCandidate={onSelectCandidate} />
-          )}
+          {hop.kind === 'hop' && hasConflict && conflictOpen && <ConflictPanel hop={hop} candidates={candidates} />}
         </div>
       </div>
     </div>
