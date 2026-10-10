@@ -36,6 +36,32 @@ export interface PointFeatureProps {
 
 export type TypeBreakdown = Record<ContactKind, number>;
 
+const SITE_KEY_PREFIX = 'site:';
+const SITE_KEY_SEPARATOR = '|';
+
+/** A site's stable key: its sorted member contact keys, so the same group gets
+ *  the same key whatever order the contacts arrive in. */
+export function siteKeyFor(members: ReadonlyArray<Pick<Contact, 'key'>>): string {
+  return `${SITE_KEY_PREFIX}${members
+    .map((m) => m.key)
+    .sort()
+    .join(SITE_KEY_SEPARATOR)}`;
+}
+
+/** The member contact keys encoded in a `siteKeyFor` key. */
+export function parseSiteKey(key: string): string[] {
+  const raw = key.startsWith(SITE_KEY_PREFIX) ? key.slice(SITE_KEY_PREFIX.length) : key;
+  return raw.split(SITE_KEY_SEPARATOR);
+}
+
+/** Centroid of a set of fixes as the simple lng/lat average — good enough at
+ *  the 10m scale sites group within. */
+export function centroidOf(fixes: ReadonlyArray<{ gpsLat: number; gpsLon: number }>): { lng: number; lat: number } {
+  const lng = fixes.reduce((s, m) => s + m.gpsLon, 0) / fixes.length;
+  const lat = fixes.reduce((s, m) => s + m.gpsLat, 0) / fixes.length;
+  return { lng, lat };
+}
+
 // Greedy co-location grouping. O(n²) in worst case but n is the number of
 // contacts with a valid fix — currently small enough that the simplicity wins.
 // Returns each contact wrapped as either a single point or a site group.
@@ -46,7 +72,7 @@ export function groupByColocation(contacts: Contact[], meters: number): GroupedI
 
   for (const c of sources) {
     if (assigned.has(c.key)) continue;
-    const members: Contact[] = [c];
+    const members = [c];
     assigned.add(c.key);
     if (meters > 0) {
       for (const other of sources) {
@@ -61,12 +87,7 @@ export function groupByColocation(contacts: Contact[], meters: number): GroupedI
     if (members.length === 1) {
       out.push({ kind: 'single', contact: c, lng: c.gpsLon, lat: c.gpsLat });
     } else {
-      // Centroid of the site is the simple lng/lat average — good enough at
-      // the 10m scale this groups within.
-      const lng = members.reduce((s, m) => s + (m.gpsLon ?? 0), 0) / members.length;
-      const lat = members.reduce((s, m) => s + (m.gpsLat ?? 0), 0) / members.length;
-      const key = `site:${[...members.map((m) => m.key)].sort().join('|')}`;
-      out.push({ kind: 'site', site: { key, centroid: { lng, lat }, members } });
+      out.push({ kind: 'site', site: { key: siteKeyFor(members), centroid: centroidOf(members), members } });
     }
   }
   return out;

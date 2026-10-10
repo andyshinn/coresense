@@ -85,7 +85,7 @@ export function ControlsCard({ client }: Props) {
       <div className="space-y-1 px-3 pb-3">
         {MARKER_KIND_ORDER.map((kind) => {
           const meta = MARKER_TYPES[kind];
-          const on = settings.kindFilters[kind] !== false;
+          const on = settings.kindFilters[kind];
           return (
             <button
               key={kind}

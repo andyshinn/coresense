@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   buildClusterIndex,
   type ClusterFeatureProps,
+  centroidOf,
   type GroupedItem,
   groupByColocation,
   type PointFeatureProps,
+  parseSiteKey,
+  siteKeyFor,
 } from '../../../../../src/renderer/components/map/markers/cluster';
 import type { Contact, ContactKind } from '../../../../../src/shared/types';
 
@@ -109,5 +112,34 @@ describe('buildClusterIndex', () => {
     const breakdowns = leaves.map((f) => (f.properties as PointFeatureProps).breakdown);
     expect(breakdowns).toContainEqual({ chat: 1, repeater: 0, room: 0, sensor: 0 });
     expect(breakdowns).toContainEqual({ chat: 0, repeater: 1, room: 0, sensor: 0 });
+  });
+});
+
+describe('site keys', () => {
+  it('round-trips the member keys, sorted', () => {
+    const key = siteKeyFor([{ key: 'c:bb' }, { key: 'c:aa' }]);
+    expect(key).toBe('site:c:aa|c:bb');
+    expect(parseSiteKey(key)).toEqual(['c:aa', 'c:bb']);
+  });
+
+  it('is independent of member order and does not reorder the input', () => {
+    const members = [{ key: 'z' }, { key: 'a' }];
+    expect(siteKeyFor(members)).toBe(siteKeyFor([...members].reverse()));
+    expect(members.map((m) => m.key)).toEqual(['z', 'a']);
+  });
+
+  it('treats an unprefixed key as a bare member list', () => {
+    expect(parseSiteKey('a|b')).toEqual(['a', 'b']);
+  });
+});
+
+describe('centroidOf', () => {
+  it('averages longitude and latitude', () => {
+    expect(
+      centroidOf([
+        { gpsLat: 10, gpsLon: 20 },
+        { gpsLat: 12, gpsLon: 26 },
+      ]),
+    ).toEqual({ lng: 23, lat: 11 });
   });
 });

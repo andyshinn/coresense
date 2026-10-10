@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { parseSiteKey } from '../../components/map/markers/cluster';
 import type { ApiClient } from '../../lib/api';
 import { useStore } from '../../lib/store';
 import { ControlsCard } from './ControlsCard';
@@ -25,13 +26,11 @@ export function MapDetailsRail({ client }: Props) {
     [contacts, selectedContactKey],
   );
 
-  // Site keys are built as `site:k1|k2|…` (see cluster.ts). Recover the member
-  // list by splitting on the delimiter so we don't need a second store field.
+  // A site key encodes its member keys, so recover the member list from it
+  // rather than keeping a second store field.
   const selectedSite = useMemo(() => {
     if (!selectedSiteKey) return null;
-    const raw = selectedSiteKey.startsWith('site:') ? selectedSiteKey.slice(5) : selectedSiteKey;
-    const memberKeys = raw.split('|');
-    const members = memberKeys
+    const members = parseSiteKey(selectedSiteKey)
       .map((k) => contacts.find((c) => c.key === k))
       .filter((c): c is NonNullable<typeof c> => Boolean(c));
     if (members.length < 2) return null;
