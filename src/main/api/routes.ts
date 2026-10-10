@@ -1,3 +1,4 @@
+import { Errors } from '@andyshinn/meshcore-ts';
 import { Hono } from 'hono';
 import { getManifest, validateTemplate } from '../../shared/macros';
 import type { MacroContext } from '../../shared/macros/types';
@@ -32,7 +33,6 @@ import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
 import { clampTileCacheMaxBytes, getTileCache } from '../map/tile-cache';
 import { sendMessage } from '../messaging/sendMessage';
 import { protocolSession } from '../protocol';
-import { ContactTableFullError, UnknownContactError } from '../protocol/errors';
 import { appLifecycle } from '../runtime/appLifecycle';
 import { fetchAdvertPath } from '../state/advertPath';
 import { refreshContacts } from '../state/contactRefresh';
@@ -754,8 +754,8 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       await protocolSession().addContactToRadio(pubkey);
       return c.json({ ok: true });
     } catch (err) {
-      if (err instanceof UnknownContactError) return c.json({ error: err.message }, 422);
-      if (err instanceof ContactTableFullError) {
+      if (err instanceof Errors.UnknownContactError) return c.json({ error: err.message }, 422);
+      if (err instanceof Errors.ContactTableFullError) {
         return c.json({ error: err.message, code: 'CONTACT_TABLE_FULL' }, 409);
       }
       return c.json({ error: (err as Error).message }, 503);
@@ -786,7 +786,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       await protocolSession().setContactFavourite(pubkey, body.favourite);
       return c.json({ ok: true });
     } catch (err) {
-      if (err instanceof UnknownContactError) return c.json({ error: err.message }, 422);
+      if (err instanceof Errors.UnknownContactError) return c.json({ error: err.message }, 422);
       return c.json({ error: (err as Error).message }, 503);
     }
   });
