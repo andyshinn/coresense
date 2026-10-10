@@ -119,7 +119,7 @@ export function RepeaterAdmin({ contact, client }: Props) {
       setSession(null);
       notify.success('Logged out');
     } catch (err) {
-      notify.error(`Logout failed: ${(err as Error).message}`, err);
+      notify.failure('Logout', err);
     }
   };
 

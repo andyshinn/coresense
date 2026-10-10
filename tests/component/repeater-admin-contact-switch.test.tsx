@@ -12,7 +12,7 @@ vi.mock('../../src/renderer/components/map/NeighbourMapLayer', () => ({
 }));
 
 vi.mock('../../src/renderer/lib/notify', () => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
+  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn(), failure: vi.fn() },
 }));
 
 // Owner-info fetch returns data scoped to whichever repeater key was asked for,

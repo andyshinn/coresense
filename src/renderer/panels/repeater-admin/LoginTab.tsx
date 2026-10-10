@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { formatHops } from '../../../shared/contacts/discovered';
 import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { RelativeTime } from '../../components/RelativeTime';
+import { useBusyAction } from '../../hooks/useBusyAction';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
-import { ACL_ROLE_LABEL } from './aclRole';
+import { ACL_ROLE_LABEL, formatPermissions } from './aclRole';
 
 interface Props {
   contact: Contact;
@@ -35,28 +36,23 @@ function deriveLoginLabel(contact: Contact, isGuest: boolean): string {
 
 export function LoginTab({ contact, client, session, onSession }: Props) {
   const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [login, busy] = useBusyAction(async () => {
+    if (!client) return;
+    const result = await api.repeaterLogin(client, contact.key, password);
+    onSession(result.session);
+    const via =
+      result.login.effective === 'direct'
+        ? 'direct'
+        : result.login.effective === 'path'
+          ? `${Math.max(1, Math.floor((contact.outPathHex ?? '').length / 2 / (contact.outPathHashSize ?? 2)))} hop`
+          : 'flood';
+    notify.success(`Logged in as ${result.session?.role ?? 'guest'} · ${via}`);
+    setPassword('');
+  }, 'Login');
 
-  const onSubmit = async (e: React.FormEvent) => {
+  const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!client || busy) return;
-    setBusy(true);
-    try {
-      const result = await api.repeaterLogin(client, contact.key, password);
-      onSession(result.session);
-      const via =
-        result.login.effective === 'direct'
-          ? 'direct'
-          : result.login.effective === 'path'
-            ? `${Math.max(1, Math.floor((contact.outPathHex ?? '').length / 2 / (contact.outPathHashSize ?? 2)))} hop`
-            : 'flood';
-      notify.success(`Logged in as ${result.session?.role ?? 'guest'} · ${via}`);
-      setPassword('');
-    } catch (err) {
-      notify.error(`Login failed: ${(err as Error).message}`, err);
-    } finally {
-      setBusy(false);
-    }
+    void login();
   };
 
   return (
@@ -72,7 +68,7 @@ export function LoginTab({ contact, client, session, onSession }: Props) {
             <dt className="text-cs-text-muted">Mode</dt>
             <dd className="font-mono text-cs-text">{session.mode}</dd>
             <dt className="text-cs-text-muted">Permissions</dt>
-            <dd className="font-mono text-cs-text">0x{session.permissionsBits.toString(16).padStart(2, '0')}</dd>
+            <dd className="font-mono text-cs-text">{formatPermissions(session.permissionsBits)}</dd>
             {session.aclPermissionsBits !== null && (
               <>
                 {/* The raw byte stays visible because it is the only place
@@ -80,7 +76,7 @@ export function LoginTab({ contact, client, session, onSession }: Props) {
                     role is what the repeater actually enforces. */}
                 <dt className="text-cs-text-muted">ACL perms</dt>
                 <dd className="font-mono text-cs-text">
-                  0x{session.aclPermissionsBits.toString(16).padStart(2, '0')}
+                  {formatPermissions(session.aclPermissionsBits)}
                   {session.aclRole !== null && (
                     <span className="ml-2 font-sans text-cs-text-muted">{ACL_ROLE_LABEL[session.aclRole]}</span>
                   )}
