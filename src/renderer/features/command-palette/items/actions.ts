@@ -74,7 +74,7 @@ export function buildActionItems({
       run: () => {
         if (!client) return;
         void api.connect(client, lastDevice.id).catch((err) => {
-          notify.error(`Reconnect failed: ${(err as Error).message}`, err);
+          notify.failure('Reconnect', err);
         });
         close();
       },
@@ -92,7 +92,7 @@ export function buildActionItems({
       if (!client) return;
       void api.sendAdvert(client, true).then(
         () => notify.success('Flood advert sent'),
-        (err) => notify.error(`Advert failed: ${(err as Error).message}`, err),
+        (err) => notify.failure('Advert', err),
       );
       close();
     },
@@ -108,7 +108,7 @@ export function buildActionItems({
       if (!client) return;
       void api.sendAdvert(client, false).then(
         () => notify.success('Zero-hop advert sent'),
-        (err) => notify.error(`Advert failed: ${(err as Error).message}`, err),
+        (err) => notify.failure('Advert', err),
       );
       close();
     },
@@ -139,7 +139,7 @@ export function buildActionItems({
         if (!client) return;
         void api.repeaterStatus(client, activeContact.key).then(
           () => notify.success('Status requested'),
-          (err) => notify.error(`Status request failed: ${(err as Error).message}`, err),
+          (err) => notify.failure('Status request', err),
         );
         close();
       },
@@ -155,7 +155,7 @@ export function buildActionItems({
         if (!client) return;
         void api.repeaterTelemetry(client, activeContact.key).then(
           () => notify.success('Telemetry requested'),
-          (err) => notify.error(`Telemetry request failed: ${(err as Error).message}`, err),
+          (err) => notify.failure('Telemetry request', err),
         );
         close();
       },
@@ -179,7 +179,7 @@ export function buildActionItems({
       run: () => {
         if (!client) return;
         void api.scan(client).catch((err) => {
-          notify.error(`Scan failed: ${(err as Error).message}`, err);
+          notify.failure('Scan', err);
         });
         setActiveKey('tool:bleconnect');
         close();
@@ -198,7 +198,7 @@ export function buildActionItems({
       run: () => {
         void navigator.clipboard.writeText(owner.publicKeyHex).then(
           () => notify.success('Public key copied'),
-          (err) => notify.error(`Copy failed: ${(err as Error).message}`, err),
+          (err) => notify.failure('Copy', err),
         );
         close();
       },
@@ -215,7 +215,7 @@ export function buildActionItems({
       run: () => {
         void navigator.clipboard.writeText(activeContact.publicKeyHex).then(
           () => notify.success('Public key copied'),
-          (err) => notify.error(`Copy failed: ${(err as Error).message}`, err),
+          (err) => notify.failure('Copy', err),
         );
         close();
       },
@@ -312,7 +312,7 @@ export function buildActionItems({
       const { packets } = useStore.getState();
       void navigator.clipboard.writeText(JSON.stringify(packets, null, 2)).then(
         () => notify.success(`Copied ${packets.length} packets`),
-        (err) => notify.error(`Copy failed: ${(err as Error).message}`, err),
+        (err) => notify.failure('Copy', err),
       );
       close();
     },
@@ -370,7 +370,7 @@ export function buildActionItems({
     run: () => {
       if (!client) return;
       void api.disconnect(client).catch((err) => {
-        notify.error(`Disconnect failed: ${(err as Error).message}`, err);
+        notify.failure('Disconnect', err);
       });
       close();
     },
@@ -391,7 +391,7 @@ export function buildActionItems({
           else if (r.updateState?.status === 'up-to-date') notify.info('You are up to date');
           else if (r.updateState?.status === 'error') notify.error(r.updateState.error ?? 'Update check failed');
         },
-        (err) => notify.error(`Update check failed: ${(err as Error).message}`, err),
+        (err) => notify.failure('Update check', err),
       );
       close();
     },
