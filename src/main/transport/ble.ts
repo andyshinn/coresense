@@ -1,11 +1,11 @@
 import { Buffer } from 'node:buffer';
-import { type Models, type Ports, Transports } from '@andyshinn/meshcore-ts';
+import { type Models, type Ports, Protocol, Transports } from '@andyshinn/meshcore-ts';
 import noble, { type Characteristic, type Peripheral } from '@stoprocent/noble';
 import type { BleDevice } from '../../shared/types';
 import { emit } from '../events/bus';
 import { child } from '../log';
 import { withTimeout } from '../util/async';
-import { parseCompanionFrame } from './companionFrame';
+import { toRawPacket } from './rawPacket';
 import type { ITransport } from './types';
 
 const logger = child('transport:ble');
@@ -383,7 +383,7 @@ export class BleTransport implements ITransport {
   };
 
   private onData = (data: Buffer, _isNotification: boolean) => {
-    const parsed = parseCompanionFrame(data);
+    const parsed = Protocol.parseCompanionFrame(data);
     const fullHex = data.toString('hex');
     if (!parsed) {
       logger.trace(`BLE_RX ${data.length}B (unparsed) hex=${fullHex}`);
@@ -398,32 +398,7 @@ export class BleTransport implements ITransport {
         `BLE_RX ${data.length}B mesh snr=${parsed.snr} rssi=${parsed.rssi} bytes=${parsed.meshBytes.length} hex=${fullHex}`,
       );
     }
-    const fullBytes = [...data];
-    if (parsed.kind === 'mesh') {
-      emit.packet({
-        timestamp: Date.now(),
-        transportType: 'ble',
-        kind: 'mesh',
-        hex: fullHex,
-        bytes: fullBytes,
-        payloadHex: parsed.meshHex,
-        payloadBytes: [...parsed.meshBytes],
-        snr: parsed.snr,
-        rssi: parsed.rssi,
-      });
-    } else {
-      emit.packet({
-        timestamp: Date.now(),
-        transportType: 'ble',
-        kind: 'companion',
-        hex: fullHex,
-        bytes: fullBytes,
-        payloadHex: parsed.payloadHex,
-        payloadBytes: [...parsed.payloadBytes],
-        code: parsed.code,
-        codeName: parsed.codeName,
-      });
-    }
+    emit.packet(toRawPacket(data, parsed, { timestamp: Date.now(), transportType: 'ble' }));
     this.libDataCb?.(Uint8Array.from(data));
   };
 
