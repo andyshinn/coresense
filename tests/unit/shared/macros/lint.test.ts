@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { lintTemplate } from '../../../src/shared/macros/lint';
-import { validateTemplate } from '../../../src/shared/macros/validate';
+import { lintTemplate } from '../../../../src/shared/macros/lint';
+import { validateTemplate } from '../../../../src/shared/macros/validate';
 
 const names = (t: string) => lintTemplate(t).map((w) => w.name);
 

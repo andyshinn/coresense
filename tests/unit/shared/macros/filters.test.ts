@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bearingText, distanceValue, normalizeUnit, unitText } from '../../../src/shared/macros/filters';
+import { bearingText, distanceValue, normalizeUnit, unitText } from '../../../../src/shared/macros/filters';
 
 describe('distanceValue', () => {
   it('returns metres for two valid positions', () => {

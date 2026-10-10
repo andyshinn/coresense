@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMacroEngine, getMacroEngine } from '../../../src/shared/macros/engine';
+import { createMacroEngine, getMacroEngine } from '../../../../src/shared/macros/engine';
 
 describe('createMacroEngine', () => {
   it('renders a simple variable', () => {

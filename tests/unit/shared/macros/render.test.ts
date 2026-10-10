@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createMacroEngine } from '../../../src/shared/macros/engine';
-import { buildSampleContext } from '../../../src/shared/macros/manifest';
-import { renderTemplate } from '../../../src/shared/macros/render';
+import { createMacroEngine } from '../../../../src/shared/macros/engine';
+import { buildSampleContext } from '../../../../src/shared/macros/manifest';
+import { renderTemplate } from '../../../../src/shared/macros/render';
 
 const engine = createMacroEngine({ defaultDistanceUnit: 'metric' });
 const ctx = () => buildSampleContext();

@@ -1,9 +1,9 @@
-// tests/unit/macros/contextBuilder.test.ts
+// tests/unit/main/macros/contextBuilder.test.ts
 import { describe, expect, it } from 'vitest';
-import { buildReplyContext, buildSendContext } from '../../../src/main/macros/contextBuilder';
-import { createMacroEngine } from '../../../src/shared/macros/engine';
-import { renderTemplate } from '../../../src/shared/macros/render';
-import type { Contact, DeviceIdentity, DeviceInfo, Message, Owner } from '../../../src/shared/types';
+import { buildReplyContext, buildSendContext } from '../../../../src/main/macros/contextBuilder';
+import { createMacroEngine } from '../../../../src/shared/macros/engine';
+import { renderTemplate } from '../../../../src/shared/macros/render';
+import type { Contact, DeviceIdentity, DeviceInfo, Message, Owner } from '../../../../src/shared/types';
 
 const owner: Owner = { name: 'N0CALL', publicKeyHex: 'aabbccdd', publicKeyShort: 'aabbccdd' };
 const deviceInfo = { batteryMv: 4100 } as DeviceInfo;

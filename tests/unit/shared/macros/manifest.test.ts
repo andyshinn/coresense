@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createMacroEngine } from '../../../src/shared/macros/engine';
+import { createMacroEngine } from '../../../../src/shared/macros/engine';
 import {
   buildSampleContext,
   getManifest,
   MACRO_FILTERS,
   MACRO_VARIABLES,
   STANDARD_FILTER_DOCS,
-} from '../../../src/shared/macros/manifest';
-import { renderTemplate } from '../../../src/shared/macros/render';
+} from '../../../../src/shared/macros/manifest';
+import { renderTemplate } from '../../../../src/shared/macros/render';
 
 describe('macro manifest', () => {
   it('exposes core variables with availability', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateTemplate } from '../../../src/shared/macros/validate';
+import { validateTemplate } from '../../../../src/shared/macros/validate';
 
 describe('validateTemplate', () => {
   it('accepts a valid template', () => {

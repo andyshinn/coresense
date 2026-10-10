@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildSampleContext, sampleStructure } from '../../../src/shared/macros/manifest';
-import { PlaceholderDrop } from '../../../src/shared/macros/placeholder';
-import { fieldsAt, hasBrowsableChildren, resolvePath, structureOf } from '../../../src/shared/macros/structure';
+import { buildSampleContext, sampleStructure } from '../../../../src/shared/macros/manifest';
+import { PlaceholderDrop } from '../../../../src/shared/macros/placeholder';
+import { fieldsAt, hasBrowsableChildren, resolvePath, structureOf } from '../../../../src/shared/macros/structure';
 
 const root = () => structureOf(buildSampleContext());
 
