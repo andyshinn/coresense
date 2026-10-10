@@ -12,6 +12,15 @@ const buildInfoAlias = {
   '~build/package': path.resolve(__dirname, 'tests/support/build-info-stub.ts'),
 };
 
+// Every project resolves `@` to the renderer, as vite.renderer.config.mts and
+// tsconfig's `paths` do, plus the build-info stubs above.
+const sharedResolve = {
+  alias: {
+    '@': path.resolve(__dirname, 'src/renderer'),
+    ...buildInfoAlias,
+  },
+};
+
 // Approach A from the testing design: one config, a `projects` array. Phase 1
 // defines only the `unit` project (pure Node, no Electron). Phase 2 adds an
 // `integration` project alongside it.
@@ -19,12 +28,7 @@ export default defineConfig({
   test: {
     projects: [
       {
-        resolve: {
-          alias: {
-            '@': path.resolve(__dirname, 'src/renderer'),
-            ...buildInfoAlias,
-          },
-        },
+        resolve: sharedResolve,
         test: {
           name: 'unit',
           environment: 'node',
@@ -32,12 +36,7 @@ export default defineConfig({
         },
       },
       {
-        resolve: {
-          alias: {
-            '@': path.resolve(__dirname, 'src/renderer'),
-            ...buildInfoAlias,
-          },
-        },
+        resolve: sharedResolve,
         test: {
           name: 'integration',
           environment: 'node',
@@ -52,12 +51,7 @@ export default defineConfig({
         // (see tests/component/deselect-on-outside-click.test.tsx). The react
         // plugin transforms TSX; jsdom supplies the DOM.
         plugins: [react()],
-        resolve: {
-          alias: {
-            '@': path.resolve(__dirname, 'src/renderer'),
-            ...buildInfoAlias,
-          },
-        },
+        resolve: sharedResolve,
         test: {
           name: 'dom',
           environment: 'jsdom',
@@ -70,6 +64,8 @@ export default defineConfig({
       provider: 'v8',
       reportsDirectory: './coverage',
       include: ['src/**'],
+      // Vendored shadcn primitives and type-only declarations aren't ours to cover.
+      exclude: ['src/renderer/components/ui/**', '**/*.d.ts'],
     },
   },
 });
