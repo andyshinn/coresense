@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoutes } from '../../../src/main/api/routes';
+import { getTileCache } from '../../../src/main/map/tile-cache';
 import { transportManager } from '../../../src/main/transport/manager';
 import type { StateSnapshot } from '../../../src/shared/types';
 import { FakeTransport } from '../../support/fake-transport';
@@ -36,6 +37,7 @@ beforeEach(() => transportManager.setTransport(new FakeTransport()));
 afterEach(() => {
   transportManager.clearTransport();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('online tile proxy', () => {
@@ -73,6 +75,22 @@ describe('online tile proxy', () => {
     const second = await a.request('/api/map/online-tile-proxy/basemap/7/11/22');
     expect(second.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(1); // served from cache
+  });
+
+  // Regression: the cache write shared the fetch's try, so a full or read-only
+  // disk turned every freshly fetched tile into a 502.
+  it('still serves a fetched tile when the cache write fails', async () => {
+    const a = app();
+    await setKey(a);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => fakeResponse(200)),
+    );
+    vi.spyOn(getTileCache(), 'put').mockRejectedValue(Object.assign(new Error('no space left'), { code: 'ENOSPC' }));
+
+    const res = await a.request('/api/map/online-tile-proxy/basemap/9/3/3');
+    expect(res.status).toBe(200);
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4]));
   });
 
   it('maps upstream 401 to a rejected key + 401, then clears on success', async () => {
