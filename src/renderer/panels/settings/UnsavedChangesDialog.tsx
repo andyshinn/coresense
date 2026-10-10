@@ -12,7 +12,8 @@ import {
 } from '../../components/ui/dialog';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
-import { getSectionHandle, useStore } from '../../lib/store';
+import { useStore } from '../../lib/store';
+import { getSectionHandle } from './sectionHandles';
 
 // Raised when the user tries to leave the Settings panel, switch tabs, or quit
 // the app while a section has unsaved changes. "Save all" commits every dirty

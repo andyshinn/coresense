@@ -11,7 +11,6 @@ import {
   type Capabilities,
   type Channel,
   type Contact,
-  type ContactKind,
   DEFAULT_APP_SETTINGS,
   DEFAULT_AUTO_ADD_CONFIG,
   DEFAULT_DEVICE_CAPABILITIES,
@@ -45,7 +44,6 @@ import {
   type RepeaterNeighboursPage,
   type RepeaterStatusSnapshot,
   type RepeaterTelemetrySnapshot,
-  type SearchCategory,
   type SearchSort,
   type StateSnapshot,
   type SyncProgress,
@@ -58,11 +56,44 @@ import {
   type UsageMap,
 } from '../../shared/types';
 import { recordUsage } from '../features/message-actions/frecency';
-import type { MacroStudioBridge } from '../panels/macros/studio/bridge';
 import { setRendererLogLevel, setRendererLogSink } from './logger';
 import { mergeMessages } from './mergeMessages';
 import type { NeighbourSortKey } from './neighbours';
 import type { PacketLogColumn, PacketLogColumnWidths } from './packetLogColumns';
+import type {
+  CmSortDir,
+  CmSortField,
+  ContactManagerState,
+  LivePacket,
+  MacroStudioBridge,
+  NeighboursViewState,
+  PacketLogView,
+  RepeaterAdminTab,
+  SearchFilters,
+  SettingsPendingTarget,
+  SettingsSectionMeta,
+  SettingsTab,
+  SettingsUiState,
+} from './storeTypes';
+
+export type {
+  CmHeard,
+  CmLayout,
+  CmSortDir,
+  CmSortField,
+  CmStateTab,
+  ContactManagerState,
+  LivePacket,
+  MacroPreviewMode,
+  MacroStudioBridge,
+  NeighboursViewState,
+  PacketLogView,
+  RepeaterAdminTab,
+  SearchFilters,
+  SettingsPendingTarget,
+  SettingsSectionMeta,
+  SettingsTab,
+} from './storeTypes';
 
 /** Rows main returns per history window (`byKey`'s default limit). The renderer
  *  holds more than this by design; a few places need to know the server's unit. */
@@ -84,16 +115,6 @@ const HISTORY_KEEP = 4000;
 const DEFAULT_MAP_MANIFEST: TileManifest = { missing: true, basemap: null };
 
 const MAX_LOGS = 5000;
-
-export type LivePacket = RawPacket & { id: string };
-
-/** Where the Packet Log was scrolled when it last unmounted: the bottom-most visible
- *  packet and how far its bottom edge sat from the viewport's. Null when it was at the
- *  bottom. Session memory only, never persisted. Packet ids are renumbered on reload anyway. */
-export interface PacketLogView {
-  anchorId: string;
-  anchorBottomOffset: number;
-}
 
 // Monotonic id for live + hydrated packets so list keys and selection never
 // collide regardless of source. Not persisted; a reload restarts the counter
@@ -142,43 +163,9 @@ export function migratePacketLogFilter(f: unknown): { source: 'both' | 'rf' | 'b
   return { source: 'both' };
 }
 
-export interface SearchFilters {
-  categories: SearchCategory[];
-  key?: string;
-  /** Sender hex public key or the literal 'self' for owner-sent. */
-  fromPk?: string;
-  tsFrom?: number;
-  tsTo?: number;
-}
-
 const DEFAULT_SEARCH_FILTERS: SearchFilters = { categories: ['channel', 'dm', 'contact'] };
 
 // ---- Contact Manager view state -------------------------------------------
-export type CmStateTab = 'all' | 'on-radio' | 'discovered' | 'blocked';
-export type CmHeard = 'any' | 'hour' | 'day' | 'week';
-export type CmSortField = 'lastHeard' | 'firstHeard' | 'name' | 'type' | 'hops' | 'key';
-export type CmSortDir = 'asc' | 'desc';
-export type CmLayout = 'table' | 'list';
-
-/** Tabs in the RepeaterAdmin panel. Lives here (not the panel) so the store
- *  can carry a pending deep-link target without importing a panel module. */
-export type RepeaterAdminTab = 'login' | 'path' | 'status' | 'acl' | 'neighbours' | 'owner' | 'cli';
-
-export interface ContactManagerState {
-  search: string;
-  stateTab: CmStateTab;
-  types: ContactKind[];
-  heard: CmHeard;
-  favOnly: boolean;
-  sortField: CmSortField;
-  sortDir: CmSortDir;
-  layout: CmLayout;
-  compact: boolean;
-  showKeys: boolean;
-  selected: string[];
-  focusKey: string | null;
-}
-
 const CM_DEFAULTS: ContactManagerState = {
   search: '',
   stateTab: 'all',
@@ -194,22 +181,7 @@ const CM_DEFAULTS: ContactManagerState = {
   focusKey: null,
 };
 
-// Repeater Neighbours view state — shared between the map (main pane) and the
-// neighbour list (right rail) so hover/selection couple across the two. `forKey`
-// tags the data to the focal repeater so a fetched page never shows under a
-// different repeater.
-export interface NeighboursViewState {
-  forKey: string | null;
-  page: RepeaterNeighboursPage | null;
-  sortKey: NeighbourSortKey;
-  count: number;
-  busy: boolean;
-  selectedId: string | null;
-  hoveredId: string | null;
-  /** Show name labels on every neighbour marker (not just the focal). */
-  showNames: boolean;
-}
-
+// Repeater Neighbours view state — see NeighboursViewState.
 const NB_DEFAULTS: NeighboursViewState = {
   forKey: null,
   page: null,
@@ -221,34 +193,7 @@ const NB_DEFAULTS: NeighboursViewState = {
   showNames: true,
 };
 
-// ---- Settings panel UI state ----------------------------------------------
-// The redesigned Settings panel and the RightRail jump-list are sibling
-// components under AppShell, so their shared state (which sections exist,
-// which are dirty, the active section, the unsaved-changes prompt) lives here.
-export type SettingsTab = 'app' | 'quickActions' | 'radio' | 'blocked' | 'extra';
-
-export interface SettingsSectionMeta {
-  id: string;
-  title: string;
-  tab: SettingsTab;
-}
-
-// Where the user was trying to go when a dirty section blocked them.
-export type SettingsPendingTarget = { kind: 'nav'; key: string } | { kind: 'tab'; tab: SettingsTab } | { kind: 'quit' };
-
-interface SettingsUiState {
-  activeTab: SettingsTab;
-  /** Ordered section metadata for the active tab — drives the jump rail. */
-  sections: SettingsSectionMeta[];
-  dirtyById: Record<string, boolean>;
-  /** Section currently scroll-spied into view; highlights in the jump rail. */
-  activeSectionId: string | null;
-  /** Set when navigation/quit was blocked by unsaved changes. */
-  pendingTarget: SettingsPendingTarget | null;
-  /** Jump-rail click target the panel should smooth-scroll to, then clear. */
-  pendingScrollSectionId: string | null;
-}
-
+// ---- Settings panel UI state (see SettingsUiState) -------------------------
 const DEFAULT_SETTINGS_UI: SettingsUiState = {
   activeTab: 'app',
   sections: [],
@@ -257,25 +202,6 @@ const DEFAULT_SETTINGS_UI: SettingsUiState = {
   pendingTarget: null,
   pendingScrollSectionId: null,
 };
-
-// Per-section save/reset callbacks. Kept in a plain module map rather than the
-// store so registering a section doesn't trigger a store-wide re-render — the
-// UnsavedChangesDialog reads them imperatively when resolving "Save all".
-interface SettingsSectionHandle {
-  save: () => Promise<void>;
-  reset: () => void;
-}
-const sectionHandles = new Map<string, SettingsSectionHandle>();
-
-export function registerSectionHandle(id: string, handle: SettingsSectionHandle): void {
-  sectionHandles.set(id, handle);
-}
-export function unregisterSectionHandle(id: string): void {
-  sectionHandles.delete(id);
-}
-export function getSectionHandle(id: string): SettingsSectionHandle | undefined {
-  return sectionHandles.get(id);
-}
 
 interface CoreState {
   // OS-level dark-mode signal pushed from main. Drives the resolved theme

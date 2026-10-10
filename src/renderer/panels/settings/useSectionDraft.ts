@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { notify } from '../../lib/notify';
-import { registerSectionHandle, unregisterSectionHandle, useStore } from '../../lib/store';
+import { useStore } from '../../lib/store';
+import { registerSectionHandle, unregisterSectionHandle } from './sectionHandles';
 
 // Local edit buffer for a settings section. Holds a `draft` that the user edits
 // freely; `dirty` is true while it diverges from the saved store value. Server
