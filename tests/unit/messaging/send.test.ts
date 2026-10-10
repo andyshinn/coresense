@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createSender } from '../../../src/main/messaging/sendMessage';
+import type { Message } from '../../../src/shared/types';
 
 function harness(over: { channelOk?: boolean; channelHash?: number; timestampUnix?: number } = {}) {
-  const inserted: unknown[] = [];
+  const inserted: Message[] = [];
   const states: Array<{ id: string; state: string }> = [];
   const registered: unknown[] = [];
   const session = {
@@ -15,7 +16,7 @@ function harness(over: { channelOk?: boolean; channelHash?: number; timestampUni
     registerChannelSend: vi.fn((p: unknown) => registered.push(p)),
   };
   const holder = {
-    insertMessage: (m: unknown) => inserted.push(m),
+    insertMessage: (m: Message) => inserted.push(m),
     setMessageState: (id: string, state: string) => states.push({ id, state }),
     getMessagesForKey: () => inserted,
   };
@@ -88,4 +89,5 @@ describe('createSender', () => {
     expect(states).toContainEqual({ id: 'local-test', state: 'failed' });
     expect(logError).toHaveBeenCalledWith(expect.stringContaining('local-test'));
   });
+
 });

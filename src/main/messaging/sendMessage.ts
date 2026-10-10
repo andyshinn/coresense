@@ -1,7 +1,10 @@
+import { isChannelKey } from '../../shared/conversationKey';
+import { errorMessage } from '../../shared/errors';
+import type { Message, MessageState } from '../../shared/types';
 import { emit } from '../events/bus';
 import { child } from '../log';
-import { protocolSession } from '../protocol';
-import { stateHolder } from '../state/holder';
+import { protocolSession, type SessionAdapter } from '../protocol';
+import { type StateHolder, stateHolder } from '../state/holder';
 
 const log = child('messaging');
 
@@ -11,26 +14,11 @@ export interface SendResult {
   error?: string;
 }
 
-interface Session {
-  sendChannelText(
-    key: string,
-    text: string,
-  ): Promise<{ ok: boolean; error?: string; channelHash?: number; timestampUnix?: number }>;
-  sendDmTextWithRetry(key: string, text: string, id: string): Promise<{ ok: boolean; error?: string }>;
-  registerChannelSend(p: { messageId: string; channelHash: number; timestampUnix?: number }): void;
-}
-
-interface Holder {
-  insertMessage(m: { id: string; key: string; body: string; ts: number; state: 'sending' }): void;
-  setMessageState(id: string, state: 'sent' | 'failed'): void;
-  getMessagesForKey(key: string): unknown[];
-}
-
 export interface SenderDeps {
-  getSession(): Session;
-  getHolder(): Holder;
-  emitMessages(key: string, messages: unknown[]): void;
-  emitMessageState(id: string, state: 'sent' | 'failed'): void;
+  getSession(): Pick<SessionAdapter, 'sendChannelText' | 'sendDmTextWithRetry' | 'registerChannelSend'>;
+  getHolder(): Pick<StateHolder, 'insertMessage' | 'setMessageState' | 'getMessagesForKey'>;
+  emitMessages(key: string, messages: Message[]): void;
+  emitMessageState(id: string, state: MessageState): void;
   now(): number;
   genId(): string;
   /** Optional sink for background DM send failures. */
@@ -48,7 +36,7 @@ export function createSender(deps: SenderDeps): (key: string, body: string) => P
     holder.insertMessage({ id, key, body, ts: deps.now(), state: 'sending' });
     deps.emitMessages(key, holder.getMessagesForKey(key));
 
-    if (key.startsWith('ch:')) {
+    if (isChannelKey(key)) {
       const result = await session.sendChannelText(key, body);
       const nextState = result.ok ? 'sent' : 'failed';
       holder.setMessageState(id, nextState);
@@ -71,7 +59,7 @@ export function createSender(deps: SenderDeps): (key: string, body: string) => P
     session.sendDmTextWithRetry(key, body, id).catch((err) => {
       holder.setMessageState(id, 'failed');
       deps.emitMessageState(id, 'failed');
-      deps.logError?.(`sendDmTextWithRetry id=${id}: ${(err as Error).message}`);
+      deps.logError?.(`sendDmTextWithRetry id=${id}: ${errorMessage(err)}`);
     });
     return { ok: true, id };
   };
@@ -80,7 +68,7 @@ export function createSender(deps: SenderDeps): (key: string, body: string) => P
 export const sendMessage = createSender({
   getSession: () => protocolSession(),
   getHolder: () => stateHolder(),
-  emitMessages: (key, messages) => emit.messages(key, messages as never),
+  emitMessages: (key, messages) => emit.messages(key, messages),
   emitMessageState: (id, state) => emit.messageState(id, state),
   now: () => Date.now(),
   genId: () => `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,

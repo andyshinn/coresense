@@ -427,6 +427,8 @@ class StateHolder {
   }
 }
 
+export type { StateHolder };
+
 // Constructed lazily so we don't touch electron.app.getPath() until ready.
 let _instance: StateHolder | null = null;
 export function stateHolder(): StateHolder {
