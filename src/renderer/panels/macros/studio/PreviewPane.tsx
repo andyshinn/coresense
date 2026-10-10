@@ -3,10 +3,14 @@ import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { getMacroEngine } from '../../../../shared/macros';
 import type { MacroWarning } from '../../../../shared/macros/lint';
-import type { DistanceUnit, ValidateResult } from '../../../../shared/macros/types';
+import type { DistanceUnit, MacroRenderMode, ValidateResult } from '../../../../shared/macros/types';
 import { type BudgetStatus, budgetStatus, MSG_LIMIT, renderPreview } from '../lib/preview';
 import { replyContext, sendContext, worstCaseContext } from '../lib/sampleContext';
-import type { PreviewMode } from './useStudio';
+
+const MODE_TABS: readonly { m: MacroRenderMode; label: string }[] = [
+  { m: 'reply', label: 'Reply' },
+  { m: 'send', label: 'New send' },
+];
 
 const STATUS_BAR: Record<BudgetStatus, string> = {
   ok: 'bg-cs-online',
@@ -16,8 +20,8 @@ const STATUS_BAR: Record<BudgetStatus, string> = {
 
 interface PreviewPaneProps {
   value: string;
-  mode: PreviewMode;
-  onModeChange: (m: PreviewMode) => void;
+  mode: MacroRenderMode;
+  onModeChange: (m: MacroRenderMode) => void;
   distanceUnit: DistanceUnit;
   validation: ValidateResult;
   warnings: MacroWarning[];
@@ -56,10 +60,7 @@ export function PreviewPane({ value, mode, onModeChange, distanceUnit, validatio
         <Eye className="size-4 text-cs-accent" aria-hidden="true" />
         <span className="text-[12px] font-semibold text-cs-text">Preview</span>
         <div className="ml-auto inline-flex rounded-md border border-cs-border bg-cs-bg p-0.5" role="tablist">
-          {[
-            { m: 'reply' as PreviewMode, label: 'Reply' },
-            { m: 'send' as PreviewMode, label: 'New send' },
-          ].map(({ m, label }) => (
+          {MODE_TABS.map(({ m, label }) => (
             <button
               key={m}
               type="button"

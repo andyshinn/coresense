@@ -1,12 +1,11 @@
 import { type CSSProperties, type RefObject, useMemo, useRef, useState } from 'react';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import type { MacroVariable } from '../../../../shared/macros/types';
+import type { MacroRenderMode, MacroVariable } from '../../../../shared/macros/types';
 import { detectOpenVarTag } from '../lib/autocomplete';
 import { MACRO_CATALOG } from '../lib/catalog';
 import { TOKEN_COLORS } from '../lib/tokenColors';
 import { keyedRuns, tokenize } from '../lib/tokenize';
-import type { PreviewMode } from './useStudio';
 
 // Shared metrics so the painted <pre> and the real <textarea> register glyph
 // for glyph — the textarea is transparent and layered exactly over the colours.
@@ -35,7 +34,7 @@ interface MacroEditorProps {
   value: string;
   onChange: (v: string) => void;
   taRef: RefObject<HTMLTextAreaElement | null>;
-  mode: PreviewMode;
+  mode: MacroRenderMode;
   variables: MacroVariable[];
   placeholder?: string;
   minHeight?: number;

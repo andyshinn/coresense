@@ -3,11 +3,10 @@ import { useMemo, useState } from 'react';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { cn } from '@/lib/utils';
 import { buildSampleContext, MACRO_FILTERS, MACRO_VARIABLES, resolvePath, structureOf } from '../../../../shared/macros';
-import type { MacroVariable } from '../../../../shared/macros/types';
+import type { MacroRenderMode, MacroVariable } from '../../../../shared/macros/types';
 import { replyContext, sendContext } from '../lib/sampleContext';
 import { ContextTree } from './ContextTree';
 import { FilterHoverCard } from './FilterHoverCard';
-import type { PreviewMode } from './useStudio';
 import { VariableHoverCard } from './VariableHoverCard';
 
 /** Ready-to-edit insert text per filter — realistic argument stubs the author
@@ -69,7 +68,7 @@ const TYPE_TAG: Record<MacroVariable['type'], string> = {
 type Tab = 'vars' | 'filters' | 'context';
 
 interface ReferencePanelProps {
-  mode: PreviewMode;
+  mode: MacroRenderMode;
   onInsertVar: (name: string) => void;
   onInsertFilter: (segment: string) => void;
 }
