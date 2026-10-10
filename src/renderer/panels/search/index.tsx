@@ -257,7 +257,6 @@ export function SearchResults({ client }: Props) {
       />
       <ResultsList
         hasQuery={hasQuery}
-        loading={loading}
         error={error}
         empty={empty}
         searchQuery={searchQuery}

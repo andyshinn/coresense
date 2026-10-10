@@ -9,7 +9,6 @@ import { partitionConversations } from './partition';
 
 interface Props {
   hasQuery: boolean;
-  loading: boolean;
   error: string | null;
   empty: boolean;
   searchQuery: string;
