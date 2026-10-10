@@ -150,18 +150,67 @@ export const MACRO_FILTERS: MacroFilterDoc[] = [
     description: 'Great-circle distance in metres between two positions',
     signature: '{{ a | distance: b }}',
     example: '{{ my_pos | distance: peer_pos }}',
+    insert: ' | distance: peer_pos',
   },
   {
     name: 'bearing',
     description: 'Initial bearing as degrees + compass point',
     signature: '{{ a | bearing: b }}',
     example: '{{ my_pos | bearing: peer_pos }}',
+    insert: ' | bearing: peer_pos',
   },
   {
     name: 'unit',
     description: 'Format metres as km/mi (auto sub-unit)',
     signature: "{{ metres | unit: 'km' }}",
     example: '{{ my_pos | distance: peer_pos | unit }}',
+    insert: " | unit: 'km'",
+  },
+];
+
+/** A curated subset of the standard LiquidJS filters relevant to macros
+ *  (paths/arrays), documented for the Studio reference. Kept apart from
+ *  MACRO_FILTERS: the catalog paints every manifest filter as a MeshCore custom
+ *  one, so appending these to getManifest().filters would mis-colour them. */
+export const STANDARD_FILTER_DOCS: MacroFilterDoc[] = [
+  { name: 'first', signature: '{{ array | first }}', description: 'First item of an array', insert: ' | first' },
+  { name: 'last', signature: '{{ array | last }}', description: 'Last item of an array', insert: ' | last' },
+  {
+    name: 'where',
+    signature: '{{ array | where: "key", "value" }}',
+    description: 'Keep items whose property equals a value (e.g. relay hops)',
+    insert: ' | where: "kind", "hop"',
+  },
+  {
+    name: 'map',
+    signature: '{{ array | map: "key" }}',
+    description: 'Pull one property from each item',
+    insert: ' | map: "short_id"',
+  },
+  {
+    name: 'join',
+    signature: '{{ array | join: " → " }}',
+    description: 'Join an array into a string',
+    insert: ' | join: " → "',
+  },
+  {
+    name: 'sort',
+    signature: '{{ array | sort: "key" }}',
+    description: 'Sort an array (by key for objects)',
+    insert: ' | sort: "final_snr"',
+  },
+  { name: 'size', signature: '{{ array | size }}', description: 'Number of items / characters', insert: ' | size' },
+  {
+    name: 'json',
+    signature: '{{ value | json: 2 }}',
+    description: 'Dump a value as JSON — use it to discover an object’s fields',
+    insert: ' | json: 2',
+  },
+  {
+    name: 'inspect',
+    signature: '{{ value | inspect }}',
+    description: 'Like json, but prints [Circular] instead of failing on cycles',
+    insert: ' | inspect',
   },
 ];
 

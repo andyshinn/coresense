@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createMacroEngine } from '../../../src/shared/macros/engine';
-import { buildSampleContext, getManifest, MACRO_VARIABLES } from '../../../src/shared/macros/manifest';
+import {
+  buildSampleContext,
+  getManifest,
+  MACRO_FILTERS,
+  MACRO_VARIABLES,
+  STANDARD_FILTER_DOCS,
+} from '../../../src/shared/macros/manifest';
 import { renderTemplate } from '../../../src/shared/macros/render';
 
 describe('macro manifest', () => {
@@ -13,6 +19,21 @@ describe('macro manifest', () => {
 
   it('lists the custom filters', () => {
     expect(getManifest().filters.map((f) => f.name)).toEqual(expect.arrayContaining(['distance', 'bearing', 'unit']));
+  });
+
+  it('keeps the standard filter docs out of the manifest filters', () => {
+    // The catalog paints every manifest filter as a MeshCore custom one.
+    const custom = new Set(getManifest().filters.map((f) => f.name));
+    for (const f of STANDARD_FILTER_DOCS) expect(custom.has(f.name), f.name).toBe(false);
+  });
+
+  it('gives every documented filter an insert stub the engine accepts', () => {
+    const engine = createMacroEngine({ defaultDistanceUnit: 'metric' });
+    for (const f of [...MACRO_FILTERS, ...STANDARD_FILTER_DOCS]) {
+      expect(f.insert, f.name).toMatch(new RegExp(`^ \\| ${f.name}\\b`));
+      // strictFilters: parse throws on an unknown filter name.
+      expect(() => engine.parse(`{{ paths${f.insert} }}`), f.name).not.toThrow();
+    }
   });
 
   it('documents the relay-only hops example with a direct fallback', () => {

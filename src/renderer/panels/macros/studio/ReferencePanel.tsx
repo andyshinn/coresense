@@ -2,60 +2,24 @@ import { Braces, Plus, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { cn } from '@/lib/utils';
-import { buildSampleContext, MACRO_FILTERS, MACRO_VARIABLES, resolvePath, structureOf } from '../../../../shared/macros';
-import type { MacroRenderMode, MacroVariable } from '../../../../shared/macros/types';
+import {
+  buildSampleContext,
+  MACRO_FILTERS,
+  MACRO_VARIABLES,
+  resolvePath,
+  STANDARD_FILTER_DOCS,
+  structureOf,
+} from '../../../../shared/macros';
+import type { MacroFilterDoc, MacroRenderMode, MacroVariable } from '../../../../shared/macros/types';
 import { replyContext, sendContext } from '../lib/sampleContext';
 import { ContextTree } from './ContextTree';
 import { FilterHoverCard } from './FilterHoverCard';
 import { VariableHoverCard } from './VariableHoverCard';
 
-/** Ready-to-edit insert text per filter — realistic argument stubs the author
- *  can tweak. Custom filters come from the manifest; these standard ones are a
- *  curated subset relevant to macros (paths/arrays). */
-const FILTER_INSERT: Record<string, string> = {
-  distance: ' | distance: peer_pos',
-  bearing: ' | bearing: peer_pos',
-  unit: " | unit: 'km'",
-  first: ' | first',
-  last: ' | last',
-  where: ' | where: "kind", "hop"',
-  map: ' | map: "short_id"',
-  join: ' | join: " → "',
-  sort: ' | sort: "final_snr"',
-  size: ' | size',
-  json: ' | json: 2',
-  inspect: ' | inspect',
-};
-
-interface FilterDoc {
-  name: string;
-  signature: string;
-  description: string;
+/** A filter's insert text: its documented stub, or a bare ` | name`. */
+function filterInsert(f: MacroFilterDoc): string {
+  return f.insert ?? ` | ${f.name}`;
 }
-
-const STANDARD_FILTERS: FilterDoc[] = [
-  { name: 'first', signature: '{{ array | first }}', description: 'First item of an array' },
-  { name: 'last', signature: '{{ array | last }}', description: 'Last item of an array' },
-  {
-    name: 'where',
-    signature: '{{ array | where: "key", "value" }}',
-    description: 'Keep items whose property equals a value (e.g. relay hops)',
-  },
-  { name: 'map', signature: '{{ array | map: "key" }}', description: 'Pull one property from each item' },
-  { name: 'join', signature: '{{ array | join: " → " }}', description: 'Join an array into a string' },
-  { name: 'sort', signature: '{{ array | sort: "key" }}', description: 'Sort an array (by key for objects)' },
-  { name: 'size', signature: '{{ array | size }}', description: 'Number of items / characters' },
-  {
-    name: 'json',
-    signature: '{{ value | json: 2 }}',
-    description: 'Dump a value as JSON — use it to discover an object’s fields',
-  },
-  {
-    name: 'inspect',
-    signature: '{{ value | inspect }}',
-    description: 'Like json, but prints [Circular] instead of failing on cycles',
-  },
-];
 
 const TYPE_TAG: Record<MacroVariable['type'], string> = {
   string: 'str',
@@ -138,7 +102,8 @@ export function ReferencePanel({ mode, onInsertVar, onInsertFilter }: ReferenceP
     [q],
   );
   const standardFilters = useMemo(
-    () => STANDARD_FILTERS.filter((f) => !q || f.name.toLowerCase().includes(q) || f.description.toLowerCase().includes(q)),
+    () =>
+      STANDARD_FILTER_DOCS.filter((f) => !q || f.name.toLowerCase().includes(q) || f.description.toLowerCase().includes(q)),
     [q],
   );
 
@@ -230,10 +195,8 @@ export function ReferencePanel({ mode, onInsertVar, onInsertFilter }: ReferenceP
               <InsertRow
                 key={f.name}
                 label={`Insert ${f.name} filter`}
-                onInsert={() => onInsertFilter(FILTER_INSERT[f.name] ?? ` | ${f.name}`)}
-                hoverCard={
-                  <FilterHoverCard name={f.name} description={f.description} signature={f.signature} example={f.example} />
-                }
+                onInsert={() => onInsertFilter(filterInsert(f))}
+                hoverCard={<FilterHoverCard doc={f} />}
               >
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[12px] text-[#7fd1c4]">{f.name}</span>
@@ -247,8 +210,8 @@ export function ReferencePanel({ mode, onInsertVar, onInsertFilter }: ReferenceP
               <InsertRow
                 key={f.name}
                 label={`Insert ${f.name} filter`}
-                onInsert={() => onInsertFilter(FILTER_INSERT[f.name] ?? ` | ${f.name}`)}
-                hoverCard={<FilterHoverCard name={f.name} description={f.description} signature={f.signature} />}
+                onInsert={() => onInsertFilter(filterInsert(f))}
+                hoverCard={<FilterHoverCard doc={f} />}
               >
                 <span className="font-mono text-[12px] text-[#9ed36a]">{f.name}</span>
                 <div className="truncate text-[11px] text-cs-text-muted">{f.description}</div>

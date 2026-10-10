@@ -104,7 +104,10 @@ export interface MacroFilterDoc {
   name: string;
   description: string;
   signature: string;
-  example: string;
+  example?: string;
+  /** Ready-to-edit text the Studio reference inserts: a realistic argument
+   *  stub the author can tweak. Defaults to a bare ` | name`. */
+  insert?: string;
 }
 
 export interface MacroManifest {

@@ -2,14 +2,6 @@ import type { StructureNode } from '../../../../shared/macros/structure';
 import type { MacroVariable } from '../../../../shared/macros/types';
 import { Head, typeLabel } from './hoverAtoms';
 
-const TYPE_LABEL: Record<MacroVariable['type'], string> = {
-  string: 'string',
-  number: 'number',
-  position: 'position',
-  array: 'array',
-  boolean: 'boolean',
-};
-
 /** Field names + types, two levels deep. Arrays show their element's fields —
  *  one level of `paths` would only say `hops: array`, which is exactly the dead
  *  end this feature exists to remove. Depth is capped so a card stays readable. */
@@ -42,9 +34,7 @@ export function VariableHoverCard({ variable, structure }: { variable: MacroVari
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <span className="font-mono text-[12px] text-cs-accent">{variable.name}</span>
-          <span className="rounded bg-cs-bg-3 px-1 font-mono text-[9px] text-cs-text-muted">
-            {TYPE_LABEL[variable.type]}
-          </span>
+          <span className="rounded bg-cs-bg-3 px-1 font-mono text-[9px] text-cs-text-muted">{variable.type}</span>
           {variable.available === 'reply' && (
             <span className="rounded bg-cs-bg-3 px-1 font-mono text-[9px] text-cs-warn">reply only</span>
           )}

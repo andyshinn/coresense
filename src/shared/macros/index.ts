@@ -1,6 +1,13 @@
 export { createMacroEngine, getMacroEngine, type MacroEngineOptions } from './engine';
 export { lintTemplate, type MacroWarning } from './lint';
-export { buildSampleContext, getManifest, MACRO_FILTERS, MACRO_VARIABLES, replyOnlyVariableNames } from './manifest';
+export {
+  buildSampleContext,
+  getManifest,
+  MACRO_FILTERS,
+  MACRO_VARIABLES,
+  replyOnlyVariableNames,
+  STANDARD_FILTER_DOCS,
+} from './manifest';
 export { MACRO_PLACEHOLDER, renderTemplate } from './render';
 export {
   fieldsAt,
