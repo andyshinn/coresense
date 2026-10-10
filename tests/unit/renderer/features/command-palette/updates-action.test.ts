@@ -29,7 +29,7 @@ function checkForUpdatesAction() {
     lastDevice: null,
     transportState: 'idle' as const,
     owner: null,
-    packets: [],
+    packetCount: 0,
     activeKey: '',
     activeContact: undefined,
   });

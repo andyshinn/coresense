@@ -2,7 +2,7 @@ import type { MenuAction } from '../../shared/types';
 import { api } from '../lib/api';
 import { loadLastDevice } from '../lib/lastDevice';
 import { notify } from '../lib/notify';
-import { useStore } from '../lib/store';
+import { selectAnySettingsDirty, selectIsConnected, useStore } from '../lib/store';
 import { firstUnreadMessageId } from '../lib/utils';
 import { flushDrafts } from './useDraftsPersistence';
 import { flushUiState } from './useUiStatePersistence';
@@ -60,8 +60,7 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         // Main deferred a quit/close. If a Settings section is dirty, raise
         // the unsaved-changes dialog; otherwise tell main it's safe to quit.
         const st = useStore.getState();
-        const dirty = Object.values(st.settingsUi.dirtyById).some(Boolean);
-        if (dirty) {
+        if (selectAnySettingsDirty(st)) {
           st.setPendingTarget({ kind: 'quit' });
         } else if (baseUrl && apiKey) {
           // Last boundary: main quits ~immediately after confirmQuit, so get
@@ -82,7 +81,7 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         if (!baseUrl || !apiKey) break;
         void api.sendAdvert({ baseUrl, apiKey }).then(
           () => notify.success('Self-advert sent'),
-          (err) => notify.error(`Advert failed: ${(err as Error).message}`, err),
+          (err) => notify.failure('Advert', err),
         );
         break;
       }
@@ -98,9 +97,7 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         }
         const ts = useStore.getState().transportState;
         if (ts !== 'idle' && ts !== 'error') break; // already connected/connecting
-        void api.connect({ baseUrl, apiKey }, last.id).catch((err) => {
-          notify.error(`Reconnect failed: ${(err as Error).message}`, err);
-        });
+        void api.connect({ baseUrl, apiKey }, last.id).catch((err) => notify.failure('Reconnect', err));
         break;
       }
       case 'toggleRepeat': {
@@ -108,7 +105,7 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         const rs = useStore.getState().radioSettings;
         void api.putRadioSettings({ baseUrl, apiKey }, { ...rs, repeatMode: !rs.repeatMode }).then(
           () => notify.success(`Repeat mode ${rs.repeatMode ? 'disabled' : 'enabled'}`),
-          (err) => notify.error(`Repeat toggle failed: ${(err as Error).message}`, err),
+          (err) => notify.failure('Repeat toggle', err),
         );
         break;
       }
@@ -130,8 +127,25 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         else state.goForward();
         break;
       }
-      default:
+      case 'newChannel': {
+        // Same gate as the palette's "Add channel…": joining needs a radio.
+        // Say so rather than swallow the click.
+        const st = useStore.getState();
+        if (selectIsConnected(st)) st.setAddChannelOpen(true);
+        else notify.info('Connect a radio first');
         break;
+      }
+      case 'addContact':
+        setActiveKey('tool:contacts');
+        break;
+      case 'disconnect': {
+        if (!baseUrl || !apiKey) break;
+        void api.disconnect({ baseUrl, apiKey }).catch((err) => notify.failure('Disconnect', err));
+        break;
+      }
+      default:
+        // A MenuAction kind with no case above fails to compile here.
+        action satisfies never;
     }
   };
 }

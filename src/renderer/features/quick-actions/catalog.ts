@@ -30,10 +30,12 @@ export interface QuickActionDef {
 }
 
 const ok = (msg: string) => () => notify.success(msg);
-const fail = (label: string) => (err: unknown) => notify.error(`${label} failed: ${(err as Error).message}`, err);
+const fail = (label: string) => (err: unknown) => notify.failure(label, err);
 
-export const QUICK_ACTIONS: QuickActionDef[] = [
-  {
+// Keyed by id so a QuickActionId without a def (or a def under the wrong key)
+// fails to compile instead of crashing QuickActionButton at runtime.
+export const QUICK_ACTIONS_BY_ID: { [K in QuickActionId]: QuickActionDef & { id: K } } = {
+  flood: {
     id: 'flood',
     label: 'Flood advert',
     short: 'Flood',
@@ -45,7 +47,7 @@ export const QUICK_ACTIONS: QuickActionDef[] = [
       return api.sendAdvert(client, true).then(ok('Flood advert sent'), fail('Flood advert'));
     },
   },
-  {
+  direct: {
     id: 'direct',
     label: 'Direct advert',
     short: 'Direct',
@@ -57,7 +59,7 @@ export const QUICK_ACTIONS: QuickActionDef[] = [
       return api.sendAdvert(client, false).then(ok('Direct advert sent'), fail('Direct advert'));
     },
   },
-  {
+  gps: {
     id: 'gps',
     label: 'Toggle GPS',
     short: 'GPS',
@@ -73,7 +75,7 @@ export const QUICK_ACTIONS: QuickActionDef[] = [
         .then(ok(gps.enabled ? 'GPS turned off' : 'GPS turned on'), fail('Toggle GPS'));
     },
   },
-  {
+  shareLoc: {
     id: 'shareLoc',
     label: 'Share location in advert',
     short: 'Adv loc',
@@ -89,7 +91,7 @@ export const QUICK_ACTIONS: QuickActionDef[] = [
         .then(ok(cur ? 'Location no longer shared in advert' : 'Location shared in advert'), fail('Update share-location'));
     },
   },
-  {
+  copyKey: {
     id: 'copyKey',
     label: 'Copy public key',
     short: 'Key',
@@ -101,7 +103,7 @@ export const QUICK_ACTIONS: QuickActionDef[] = [
       return navigator.clipboard.writeText(owner.publicKeyHex).then(ok('Public key copied'), fail('Copy'));
     },
   },
-  {
+  reboot: {
     id: 'reboot',
     label: 'Reboot radio',
     short: 'Reboot',
@@ -118,7 +120,7 @@ export const QUICK_ACTIONS: QuickActionDef[] = [
       return api.rebootDevice(client).then(ok('Reboot requested'), fail('Reboot'));
     },
   },
-  {
+  disconnect: {
     id: 'disconnect',
     label: 'Disconnect',
     short: 'Unplug',
@@ -131,8 +133,4 @@ export const QUICK_ACTIONS: QuickActionDef[] = [
       return api.disconnect(client).then(ok('Disconnected'), fail('Disconnect'));
     },
   },
-];
-
-export const QUICK_ACTIONS_BY_ID: Record<QuickActionId, QuickActionDef> = Object.fromEntries(
-  QUICK_ACTIONS.map((a) => [a.id, a]),
-) as Record<QuickActionId, QuickActionDef>;
+};

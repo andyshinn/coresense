@@ -1,3 +1,4 @@
+import type { RendererShortcut } from '../../shared/shortcuts';
 import type { ShortcutKeyEvent } from '../../shared/shortcuts-format';
 import { computeUnreadConversations } from '../hooks/useUnreads';
 import { resolveShortcut } from './shortcut-resolve';
@@ -5,7 +6,7 @@ import { adjacentUnreadKey, isTypingTarget, nthChannelKey } from './shortcut-sel
 import { useStore } from './store';
 
 /** Run the side effect for a resolved shortcut id. */
-function run(id: string, ev: ShortcutKeyEvent): void {
+function run(id: RendererShortcut['id'], ev: ShortcutKeyEvent): void {
   const s = useStore.getState();
   switch (id) {
     case 'help':
@@ -34,7 +35,8 @@ function run(id: string, ev: ShortcutKeyEvent): void {
       break;
     }
     default:
-      break;
+      // A renderer-surface shortcut with no case above fails to compile here.
+      id satisfies never;
   }
 }
 

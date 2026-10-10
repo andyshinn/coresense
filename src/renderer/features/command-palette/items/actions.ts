@@ -14,7 +14,7 @@ import {
   Signal,
   Sun,
 } from 'lucide-react';
-import type { Contact, Owner, RawPacket, TransportState } from '../../../../shared/types';
+import type { Contact, Owner, TransportState } from '../../../../shared/types';
 import { type ApiClient, api } from '../../../lib/api';
 import type { LastDevice } from '../../../lib/lastDevice';
 import { notify } from '../../../lib/notify';
@@ -36,7 +36,7 @@ export interface BuildActionsArgs {
   lastDevice: LastDevice | null;
   transportState: TransportState;
   owner: Owner | null;
-  packets: RawPacket[];
+  packetCount: number;
   activeKey: string;
   activeContact: Contact | undefined;
 }
@@ -56,7 +56,7 @@ export function buildActionItems({
   lastDevice,
   transportState,
   owner,
-  packets,
+  packetCount,
   activeKey,
   activeContact,
 }: BuildActionsArgs): PaletteItem[] {
@@ -69,13 +69,12 @@ export function buildActionItems({
       label: `Reconnect to ${lastDevice.name ?? lastDevice.id.slice(0, 12)}`,
       hint: 'BLE',
       group: 'action',
-      groupLabel: 'Actions',
       icon: Radio,
       keywords: `reconnect ${lastDevice.id}`,
       run: () => {
         if (!client) return;
         void api.connect(client, lastDevice.id).catch((err) => {
-          notify.error(`Reconnect failed: ${(err as Error).message}`, err);
+          notify.failure('Reconnect', err);
         });
         close();
       },
@@ -87,14 +86,13 @@ export function buildActionItems({
     label: 'Send advert (flood)',
     hint: 'Discoverable to the whole mesh',
     group: 'action',
-    groupLabel: 'Actions',
     icon: Radio,
     keywords: 'advert flood self',
     run: () => {
       if (!client) return;
       void api.sendAdvert(client, true).then(
         () => notify.success('Flood advert sent'),
-        (err) => notify.error(`Advert failed: ${(err as Error).message}`, err),
+        (err) => notify.failure('Advert', err),
       );
       close();
     },
@@ -104,14 +102,13 @@ export function buildActionItems({
     label: 'Send advert (zero-hop)',
     hint: 'Direct neighbors only',
     group: 'action',
-    groupLabel: 'Actions',
     icon: Radio,
     keywords: 'advert zero-hop direct',
     run: () => {
       if (!client) return;
       void api.sendAdvert(client, false).then(
         () => notify.success('Zero-hop advert sent'),
-        (err) => notify.error(`Advert failed: ${(err as Error).message}`, err),
+        (err) => notify.failure('Advert', err),
       );
       close();
     },
@@ -121,7 +118,6 @@ export function buildActionItems({
     label: 'Add channel…',
     hint: transportState === 'connected' ? 'Create or join' : 'Connect a radio first',
     group: 'action',
-    groupLabel: 'Actions',
     icon: Hash,
     keywords: 'add new create join channel hashtag private public',
     run: () => {
@@ -137,14 +133,13 @@ export function buildActionItems({
       label: 'Request repeater status',
       hint: activeContact.name,
       group: 'action',
-      groupLabel: 'Actions',
       icon: Radio,
       keywords: 'repeater status',
       run: () => {
         if (!client) return;
         void api.repeaterStatus(client, activeContact.key).then(
           () => notify.success('Status requested'),
-          (err) => notify.error(`Status request failed: ${(err as Error).message}`, err),
+          (err) => notify.failure('Status request', err),
         );
         close();
       },
@@ -154,14 +149,13 @@ export function buildActionItems({
       label: 'Request repeater telemetry',
       hint: activeContact.name,
       group: 'action',
-      groupLabel: 'Actions',
       icon: Radio,
       keywords: 'repeater telemetry',
       run: () => {
         if (!client) return;
         void api.repeaterTelemetry(client, activeContact.key).then(
           () => notify.success('Telemetry requested'),
-          (err) => notify.error(`Telemetry request failed: ${(err as Error).message}`, err),
+          (err) => notify.failure('Telemetry request', err),
         );
         close();
       },
@@ -180,13 +174,12 @@ export function buildActionItems({
       label: 'Scan for radios',
       hint: 'BLE',
       group: 'action',
-      groupLabel: 'Actions',
       icon: Radio,
       keywords: 'scan ble discover',
       run: () => {
         if (!client) return;
         void api.scan(client).catch((err) => {
-          notify.error(`Scan failed: ${(err as Error).message}`, err);
+          notify.failure('Scan', err);
         });
         setActiveKey('tool:bleconnect');
         close();
@@ -200,13 +193,12 @@ export function buildActionItems({
       label: 'Copy my public key',
       hint: owner.publicKeyShort,
       group: 'action',
-      groupLabel: 'Actions',
       icon: Clipboard,
       keywords: 'copy pubkey identity',
       run: () => {
         void navigator.clipboard.writeText(owner.publicKeyHex).then(
           () => notify.success('Public key copied'),
-          (err) => notify.error(`Copy failed: ${(err as Error).message}`, err),
+          (err) => notify.failure('Copy', err),
         );
         close();
       },
@@ -218,13 +210,12 @@ export function buildActionItems({
       label: `Copy ${activeContact.name}'s public key`,
       hint: `${activeContact.publicKeyHex.slice(0, 12)}…`,
       group: 'action',
-      groupLabel: 'Actions',
       icon: Clipboard,
       keywords: 'copy pubkey contact',
       run: () => {
         void navigator.clipboard.writeText(activeContact.publicKeyHex).then(
           () => notify.success('Public key copied'),
-          (err) => notify.error(`Copy failed: ${(err as Error).message}`, err),
+          (err) => notify.failure('Copy', err),
         );
         close();
       },
@@ -237,7 +228,6 @@ export function buildActionItems({
       label: 'Mark all read (current)',
       hint: activeKey,
       group: 'action',
-      groupLabel: 'Actions',
       icon: CheckCheck,
       keywords: 'unread mark read',
       run: () => {
@@ -250,7 +240,6 @@ export function buildActionItems({
     id: 'action:markAllReadGlobal',
     label: 'Mark all read (everywhere)',
     group: 'action',
-    groupLabel: 'Actions',
     icon: CheckCheck,
     keywords: 'unread mark read all',
     run: () => {
@@ -264,11 +253,10 @@ export function buildActionItems({
     label: 'Show last RX signal',
     hint: 'RSSI / SNR',
     group: 'action',
-    groupLabel: 'Actions',
     icon: Signal,
     keywords: 'rssi snr signal diagnostics',
     run: () => {
-      const last = [...packets].reverse().find((p) => p.rssi != null || p.snr != null);
+      const last = [...useStore.getState().packets].reverse().find((p) => p.rssi != null || p.snr != null);
       if (!last) {
         notify.info('No packets received yet');
       } else {
@@ -284,7 +272,6 @@ export function buildActionItems({
     id: 'action:clearPacketLog',
     label: 'Clear packet log',
     group: 'action',
-    groupLabel: 'Actions',
     icon: Eraser,
     keywords: 'clear packet log',
     run: () => {
@@ -307,7 +294,6 @@ export function buildActionItems({
     label: 'Decode packet…',
     hint: 'hex / base64 / meshcore://',
     group: 'action',
-    groupLabel: 'Actions',
     icon: Binary,
     keywords: 'decode packet hex base64 byon inspector',
     run: () => {
@@ -318,15 +304,15 @@ export function buildActionItems({
   list.push({
     id: 'action:exportPacketLog',
     label: 'Export packet log (copy JSON)',
-    hint: `${packets.length} packets`,
+    hint: `${packetCount} packets`,
     group: 'action',
-    groupLabel: 'Actions',
     icon: FileJson,
     keywords: 'export packet log json',
     run: () => {
+      const { packets } = useStore.getState();
       void navigator.clipboard.writeText(JSON.stringify(packets, null, 2)).then(
         () => notify.success(`Copied ${packets.length} packets`),
-        (err) => notify.error(`Copy failed: ${(err as Error).message}`, err),
+        (err) => notify.failure('Copy', err),
       );
       close();
     },
@@ -337,7 +323,6 @@ export function buildActionItems({
     label: 'Cycle theme',
     hint: 'auto → dark → light',
     group: 'action',
-    groupLabel: 'Actions',
     icon: Sun,
     run: () => {
       cycleThemePref();
@@ -348,7 +333,6 @@ export function buildActionItems({
     id: 'action:toggleLeftNav',
     label: 'Toggle left nav',
     group: 'action',
-    groupLabel: 'Actions',
     icon: PanelLeft,
     run: () => {
       toggleLeftNav();
@@ -359,7 +343,6 @@ export function buildActionItems({
     id: 'action:toggleRightRail',
     label: 'Toggle right rail',
     group: 'action',
-    groupLabel: 'Actions',
     icon: PanelRight,
     run: () => {
       toggleRightRail();
@@ -372,7 +355,6 @@ export function buildActionItems({
       label: 'Pin / unpin current',
       hint: activeKey,
       group: 'action',
-      groupLabel: 'Actions',
       icon: Pin,
       run: () => {
         togglePin(activeKey);
@@ -384,12 +366,11 @@ export function buildActionItems({
     id: 'action:disconnect',
     label: 'Disconnect radio',
     group: 'action',
-    groupLabel: 'Actions',
     icon: PowerOff,
     run: () => {
       if (!client) return;
       void api.disconnect(client).catch((err) => {
-        notify.error(`Disconnect failed: ${(err as Error).message}`, err);
+        notify.failure('Disconnect', err);
       });
       close();
     },
@@ -400,7 +381,6 @@ export function buildActionItems({
     label: 'Check for updates',
     hint: 'App',
     group: 'action',
-    groupLabel: 'Actions',
     icon: ArrowUpCircle,
     keywords: 'update upgrade version check',
     run: () => {
@@ -411,7 +391,7 @@ export function buildActionItems({
           else if (r.updateState?.status === 'up-to-date') notify.info('You are up to date');
           else if (r.updateState?.status === 'error') notify.error(r.updateState.error ?? 'Update check failed');
         },
-        (err) => notify.error(`Update check failed: ${(err as Error).message}`, err),
+        (err) => notify.failure('Update check', err),
       );
       close();
     },

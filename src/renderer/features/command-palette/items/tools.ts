@@ -1,49 +1,8 @@
-import { Braces, Cog, FileText, Hash, Inbox, MapIcon, MessageCircle, Radio, ScrollText, Search, Users } from 'lucide-react';
-import type { PaletteItem, ToolItem } from '../types';
+import { Hash, MessageCircle, Radio } from 'lucide-react';
+import { TOOL_DEFS, TOOL_KEYS } from '../../../lib/tools';
+import type { PaletteItem } from '../types';
 
-export const TOOL_ITEMS: ToolItem[] = [
-  {
-    key: 'tool:settings:app',
-    label: 'App Settings',
-    hint: 'Theme, notifications, proxy',
-    icon: Cog,
-  },
-  {
-    key: 'tool:settings:radio',
-    label: 'Radio Settings',
-    hint: 'Frequency, SF, TX power',
-    icon: Radio,
-  },
-  {
-    key: 'tool:settings:identity',
-    label: 'Identity',
-    hint: 'Owner name + public key',
-    icon: Users,
-  },
-  {
-    key: 'tool:search',
-    label: 'Search Messages',
-    hint: 'Full-text across channels + DMs',
-    icon: Search,
-  },
-  {
-    key: 'tool:unreads',
-    label: 'Unreads',
-    hint: 'All missed activity in one place',
-    icon: Inbox,
-  },
-  { key: 'tool:packetlog', label: 'Packet Log', hint: 'Live RX/TX', icon: ScrollText },
-  { key: 'tool:logs', label: 'Logs', hint: 'View application logs', icon: FileText },
-  { key: 'tool:map', label: 'Map', hint: 'Contact locations', icon: MapIcon },
-  { key: 'tool:contacts', label: 'Contact Management', hint: 'Add / edit contacts', icon: Users },
-  { key: 'tool:macros', label: 'Macros', hint: 'Reusable message templates', icon: Braces },
-  {
-    key: 'tool:bleconnect',
-    label: 'BLE Connect',
-    hint: 'Scan + connect a radio',
-    icon: Radio,
-  },
-];
+export const TOOL_ITEMS = TOOL_KEYS.map((key) => ({ key, ...TOOL_DEFS[key] }));
 
 export function resolveKeyItem(
   key: string,

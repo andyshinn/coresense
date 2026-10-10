@@ -16,7 +16,7 @@ import { buildActionItems } from './items/actions';
 import { buildGotoItems } from './items/goto';
 import { buildPinnedItems } from './items/pinned';
 import { buildRecentItems } from './items/recent';
-import type { PaletteItem } from './types';
+import { GROUP_LABEL, type PaletteGroup, type PaletteItem } from './types';
 
 // Smaller, filled key-cap look for the palette footer hints (overrides the
 // shared Kbd's default outline/size).
@@ -51,7 +51,30 @@ function makePaletteFilter(hintWeight: number) {
 export function CommandPalette({ client, cycleThemePref }: Props) {
   const open = useStore((s) => s.paletteOpen);
   const close = useStore((s) => s.closePalette);
+  const hintWeightPct = useStore((s) => s.appSettings.commandPalette.hintWeightPct);
+  const paletteFilter = useMemo(() => makePaletteFilter(hintWeightPct / 100), [hintWeightPct]);
 
+  return (
+    <CommandDialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) close();
+      }}
+      title="Command palette"
+      description="Search channels, contacts, tools, and actions"
+      filter={paletteFilter}
+      showCloseButton={false}
+      className="border-cs-border bg-cs-bg sm:max-w-xl"
+    >
+      {/* The dialog content (and so PaletteBody) is only mounted while open or
+          animating closed, so a closed palette doesn't subscribe to packets
+          and messages or rebuild its items on every RX. */}
+      <PaletteBody client={client} cycleThemePref={cycleThemePref} close={close} />
+    </CommandDialog>
+  );
+}
+
+function PaletteBody({ client, cycleThemePref, close }: Props & { close: () => void }) {
   const channels = useStore((s) => s.channels);
   const contacts = useStore((s) => s.contacts);
   const recentKeys = useStore((s) => s.ui.recentKeys);
@@ -63,17 +86,16 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
   const toggleRightRail = useStore((s) => s.toggleRightRail);
   const transportState = useStore((s) => s.transportState);
   const owner = useStore((s) => s.owner);
-  const packets = useStore((s) => s.packets);
+  const packetCount = useStore((s) => s.packets.length);
   const messagesByKey = useStore((s) => s.messagesByKey);
   const lastReadByKey = useStore((s) => s.ui.lastReadByKey);
   const markAllRead = useStore((s) => s.markAllRead);
   const markAllReadGlobal = useStore((s) => s.markAllReadGlobal);
   const clearPackets = useStore((s) => s.clearPackets);
   const setAddChannelOpen = useStore((s) => s.setAddChannelOpen);
-  const hintWeightPct = useStore((s) => s.appSettings.commandPalette.hintWeightPct);
 
-  const lastDevice = useMemo(() => (open ? loadLastDevice() : null), [open]);
-  const paletteFilter = useMemo(() => makePaletteFilter(hintWeightPct / 100), [hintWeightPct]);
+  // Read on mount: the body mounts when the palette opens.
+  const lastDevice = useMemo(() => loadLastDevice(), []);
 
   const items = useMemo<PaletteItem[]>(() => {
     const activeContact = contacts.find((c) => c.key === activeKey);
@@ -95,7 +117,7 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
         lastDevice,
         transportState,
         owner,
-        packets,
+        packetCount,
         activeKey,
         activeContact,
       }),
@@ -125,7 +147,7 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
     lastDevice,
     transportState,
     owner,
-    packets,
+    packetCount,
     messagesByKey,
     lastReadByKey,
     markAllRead,
@@ -134,36 +156,24 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
     setAddChannelOpen,
   ]);
 
+  // Sections follow the order their first item appears in.
   const groupedItems = useMemo(() => {
-    const groups = new Map<string, PaletteItem[]>();
+    const groups = new Map<PaletteGroup, PaletteItem[]>();
     for (const item of items) {
-      const bucket = groups.get(item.groupLabel);
+      const bucket = groups.get(item.group);
       if (bucket) bucket.push(item);
-      else groups.set(item.groupLabel, [item]);
+      else groups.set(item.group, [item]);
     }
-    return [...groups.entries()].map(([groupLabel, groupItems]) => ({
-      groupLabel,
-      items: groupItems,
-    }));
+    return [...groups.entries()].map(([group, groupItems]) => ({ group, items: groupItems }));
   }, [items]);
 
   return (
-    <CommandDialog
-      open={open}
-      onOpenChange={(o) => {
-        if (!o) close();
-      }}
-      title="Command palette"
-      description="Search channels, contacts, tools, and actions"
-      filter={paletteFilter}
-      showCloseButton={false}
-      className="border-cs-border bg-cs-bg sm:max-w-xl"
-    >
+    <>
       <CommandInput placeholder="Type to search channels, contacts, tools, actions…" />
       <CommandList className="max-h-[60vh]">
         <CommandEmpty>No matches. Try: advert, scan, unread, theme…</CommandEmpty>
-        {groupedItems.map(({ groupLabel, items: groupItems }) => (
-          <CommandGroup key={groupLabel} heading={groupLabel}>
+        {groupedItems.map(({ group, items: groupItems }) => (
+          <CommandGroup key={group} heading={GROUP_LABEL[group]}>
             {groupItems.map((it) => {
               const Icon = it.icon;
               return (
@@ -187,6 +197,6 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
         <Kbd className={FOOTER_KBD_CLS}>↵</Kbd> run
         <Kbd className={FOOTER_KBD_CLS}>esc</Kbd> close
       </footer>
-    </CommandDialog>
+    </>
   );
 }

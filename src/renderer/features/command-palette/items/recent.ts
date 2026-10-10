@@ -27,7 +27,6 @@ export function buildRecentItems({
     list.push({
       ...item,
       group: 'recent',
-      groupLabel: 'Recent',
       run: () => {
         setActiveKey(key);
         close();
