@@ -9,8 +9,8 @@ vi.mock('../../src/renderer/lib/api', () => ({
 
 import { LoginTab } from '../../src/renderer/panels/repeater-admin/LoginTab';
 import type { Contact, RepeaterAdminSession } from '../../src/shared/types';
+import { TEST_CLIENT as client } from '../support/apiClient';
 
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 const repeater: Contact = {
   key: `c:${'aa'.repeat(32)}`,
   publicKeyHex: 'aa'.repeat(32),

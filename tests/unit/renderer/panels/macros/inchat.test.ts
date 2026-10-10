@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/notify', () => import('../../../../support/notifyMock'));
 
-import { type ApiClient, api } from '@/lib/api';
+import { api } from '@/lib/api';
 import { expandMacro, expandMacroReply, renderMacroSafe, targetToContext } from '@/panels/macros/lib/inchat';
 import type { MacroTemplate } from '../../../../../src/shared/macros/types';
+import { TEST_CLIENT as client } from '../../../../support/apiClient';
 import { notify, resetNotifyMock } from '../../../../support/notifyMock';
 
 describe('targetToContext', () => {
@@ -22,7 +23,6 @@ describe('targetToContext', () => {
   });
 });
 
-const client: ApiClient = { baseUrl: 'http://x', apiKey: 'k' };
 const macro: MacroTemplate = {
   id: 'a',
   name: 'Signal report',

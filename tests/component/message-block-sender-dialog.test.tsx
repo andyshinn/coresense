@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ApiClient } from '@/lib/api';
+import { TEST_CLIENT as client } from '../support/apiClient';
 import { notify } from '../support/notifyMock';
 
 const addBlockRules = vi.fn();
@@ -8,8 +8,6 @@ vi.mock('@/lib/api', () => ({ api: { addBlockRules: (...a: unknown[]) => addBloc
 vi.mock('@/lib/notify', () => import('../support/notifyMock'));
 
 const { BlockSenderDialog } = await import('@/components/BlockSenderDialog');
-
-const client: ApiClient = { baseUrl: 'http://x', apiKey: 'k' };
 
 beforeEach(() => {
   addBlockRules.mockReset().mockResolvedValue(undefined);

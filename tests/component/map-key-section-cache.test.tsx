@@ -15,8 +15,7 @@ vi.mock('../../src/renderer/lib/notify', () => import('../support/notifyMock'));
 
 import { MapKeySection } from '../../src/renderer/components/settings/MapKeySection';
 import { api } from '../../src/renderer/lib/api';
-
-const client = { baseUrl: 'http://x', apiKey: 'k' };
+import { TEST_CLIENT as client } from '../support/apiClient';
 
 afterEach(() => vi.clearAllMocks());
 

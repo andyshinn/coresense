@@ -7,9 +7,8 @@ vi.mock('../../../../../src/renderer/lib/notify', () => import('../../../../supp
 
 import { buildActionItems } from '../../../../../src/renderer/features/command-palette/items/actions';
 import { api } from '../../../../../src/renderer/lib/api';
+import { TEST_CLIENT as client } from '../../../../support/apiClient';
 import { notify } from '../../../../support/notifyMock';
-
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 
 function clearPacketLogAction(clearPackets: () => void) {
   const items = buildActionItems({

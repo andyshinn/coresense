@@ -9,8 +9,7 @@ vi.mock('../../src/renderer/lib/api', () => ({
 
 import { LoginTab } from '../../src/renderer/panels/repeater-admin/LoginTab';
 import type { Contact } from '../../src/shared/types';
-
-const client = { baseUrl: 'http://x', apiKey: 'k' };
+import { TEST_CLIENT as client } from '../support/apiClient';
 
 function repeater(overrides: Partial<Contact>): Contact {
   return {

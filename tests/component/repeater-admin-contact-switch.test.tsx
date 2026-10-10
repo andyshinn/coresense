@@ -32,8 +32,7 @@ vi.mock('../../src/renderer/lib/api', () => ({
 import { useStore } from '../../src/renderer/lib/store';
 import { RepeaterAdmin } from '../../src/renderer/panels/repeater-admin';
 import type { Contact } from '../../src/shared/types';
-
-const client = { baseUrl: 'http://x', apiKey: 'k' };
+import { TEST_CLIENT as client } from '../support/apiClient';
 
 const repeaterA: Contact = {
   key: `c:${'aa'.repeat(32)}`,

@@ -52,6 +52,7 @@ import { RAIL_COLLAPSE_WIDTH } from '@/shell/rightrail/railWidth';
 import { ChannelPeopleSection } from '@/shell/rightrail/sections/ChannelPeople';
 import { PEOPLE_ROW_CAP } from '@/shell/rightrail/sections/peopleModel';
 import type { Channel, ChannelSenderStat, ChannelStats, Contact } from '../../src/shared/types';
+import { TEST_CLIENT as client } from '../support/apiClient';
 
 const ROSTER_SIZE = 120;
 
@@ -81,7 +82,6 @@ const stats = (): ChannelStats => ({
 });
 
 const ch: Channel = { key: 'ch:public', name: 'public', kind: 'public' };
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 
 function setWidth(w: number) {
   act(() => {

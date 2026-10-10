@@ -11,13 +11,14 @@ import { api } from '../../src/renderer/lib/api';
 import { useStore } from '../../src/renderer/lib/store';
 import { ConnectionFooter } from '../../src/renderer/shell/leftnav/ConnectionFooter';
 import type { UpdateState } from '../../src/shared/types';
+import { TEST_CLIENT } from '../support/apiClient';
 import { notify } from '../support/notifyMock';
 
 function renderFooter() {
   return render(
     <SidebarProvider>
       <ConnectionFooter
-        client={{ baseUrl: 'http://x', apiKey: 'k' }}
+        client={TEST_CLIENT}
         state="connected"
         sync={{ phase: 'idle', channels: { done: 0, total: 0 }, contacts: { done: 0, total: 0 } }}
         onClick={() => {}}

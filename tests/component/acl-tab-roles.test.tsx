@@ -21,8 +21,8 @@ vi.mock('../../src/renderer/lib/api', () => ({
 
 import { AclTab } from '../../src/renderer/panels/repeater-admin/AclTab';
 import type { Contact } from '../../src/shared/types';
+import { TEST_CLIENT as client } from '../support/apiClient';
 
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 const repeater: Contact = {
   key: `c:${'aa'.repeat(32)}`,
   publicKeyHex: 'aa'.repeat(32),

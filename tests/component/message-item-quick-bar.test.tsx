@@ -2,10 +2,9 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
 import { MessageItem } from '@/components/MessageItem';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import type { ApiClient } from '@/lib/api';
 import type { Message } from '../../src/shared/types';
+import { TEST_CLIENT as client } from '../support/apiClient';
 
-const client: ApiClient = { baseUrl: 'http://x', apiKey: 'k' };
 const message: Message = { id: 'm1', key: 'ch:x', fromPublicKeyHex: 'a3f9', body: 'hi', ts: 0, state: 'received' };
 const mine = (over: Partial<Message> = {}): Message => ({
   id: 'm2',

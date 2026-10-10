@@ -8,6 +8,7 @@ vi.mock('../../src/renderer/components/map/MapCanvas', () => ({
 import { useStore } from '../../src/renderer/lib/store';
 import { MapView } from '../../src/renderer/panels/MapView';
 import type { TileManifest } from '../../src/shared/types';
+import { TEST_CLIENT as client } from '../support/apiClient';
 
 const presentManifest: TileManifest = {
   missing: false,
@@ -21,7 +22,6 @@ const presentManifest: TileManifest = {
     tileType: 1,
   },
 };
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 
 beforeEach(() => useStore.getState().applyMapManifest(presentManifest));
 afterEach(() => useStore.getState().applyMapTileStatus({ keyConfigured: false, keyRejected: false }));

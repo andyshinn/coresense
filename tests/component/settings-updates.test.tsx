@@ -10,8 +10,7 @@ vi.mock('../../src/renderer/lib/api', () => ({
 
 import { api } from '../../src/renderer/lib/api';
 import { UpdatesSection } from '../../src/renderer/panels/settings/app/Updates';
-
-const client = { baseUrl: 'http://x', apiKey: 'k' };
+import { TEST_CLIENT as client } from '../support/apiClient';
 
 describe('UpdatesSection', () => {
   it('renders channel + auto-check and triggers a manual check', () => {

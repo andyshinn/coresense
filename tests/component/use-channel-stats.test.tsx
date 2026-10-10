@@ -12,8 +12,8 @@ vi.mock('@/lib/api', async (orig) => {
 import { __resetChannelStatsCacheForTests, useChannelStats } from '@/hooks/useChannelStats';
 import { useStore } from '@/lib/store';
 import type { Message } from '../../src/shared/types';
+import { TEST_CLIENT as client } from '../support/apiClient';
 
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 const stats = (count: number): ChannelStats => ({
   count,
   firstTs: 1,

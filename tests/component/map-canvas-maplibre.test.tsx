@@ -133,6 +133,7 @@ import { publish as publishMapBus } from '../../src/renderer/lib/map/bus';
 import { buildStyle, SOURCE_ONLINE } from '../../src/renderer/lib/map/style-builder';
 import { useStore } from '../../src/renderer/lib/store';
 import { DEFAULT_MAP_SETTINGS, type LogEntry, type MapSettings, type TileManifest } from '../../src/shared/types';
+import { TEST_CLIENT as client } from '../support/apiClient';
 
 const manifest: TileManifest = {
   missing: false,
@@ -146,7 +147,6 @@ const manifest: TileManifest = {
     tileType: 1,
   },
 };
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 
 function mapCanvas(settings: MapSettings = DEFAULT_MAP_SETTINGS, persistViewport = false) {
   return (

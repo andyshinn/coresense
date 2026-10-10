@@ -6,6 +6,7 @@ import { useStore } from '@/lib/store';
 import { RAIL_COLLAPSE_WIDTH as COLLAPSE_WIDTH } from '@/shell/rightrail/railWidth';
 import { ActivityBody, ChannelActivitySection } from '@/shell/rightrail/sections/channel-activity';
 import type { ActivityWindow, ActivityWindowKey, Channel, ChannelActivity } from '../../src/shared/types';
+import { TEST_CLIENT as client } from '../support/apiClient';
 
 const NOW = 1_700_000_000_000;
 const midnight = (() => {
@@ -41,7 +42,6 @@ vi.mock('@/lib/api', () => ({
   },
 }));
 
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 const channel: Channel = { key: 'ch:Test', name: 'Test', kind: 'public' };
 
 const body = (props: Partial<React.ComponentProps<typeof ActivityBody>> = {}) =>

@@ -14,15 +14,18 @@ const nobleMock = vi.hoisted(() => ({
 
 vi.mock('@stoprocent/noble', () => ({ default: nobleMock }));
 
-import { bus } from '../../../src/main/events/bus';
 import { BleTransport } from '../../../src/main/transport/ble';
+import { captureBus } from '../../support/bus';
 
 type StateEvent = { state: TransportState; deviceId?: string };
 
-function recordTransportState(): StateEvent[] {
-  const seen: StateEvent[] = [];
-  bus.on('transportState', (state: TransportState, deviceId?: string) => seen.push({ state, deviceId }));
-  return seen;
+function recordTransportState(): { readonly events: StateEvent[] } {
+  const cap = captureBus('transportState');
+  return {
+    get events() {
+      return cap.calls.map(([state, deviceId]) => ({ state, deviceId }));
+    },
+  };
 }
 
 /** Plant a connected peripheral without going through the GATT dance. `connect()`
@@ -59,7 +62,7 @@ describe('BleTransport scan vs. a live link', () => {
     // state, but the command palette's "Scan for radios" did not.
     await expect(t.scan()).rejects.toThrow(/Already connected to radio-1/);
 
-    expect(seen).toEqual([]);
+    expect(seen.events).toEqual([]);
     expect(nobleMock.startScanning).not.toHaveBeenCalled();
   });
 
@@ -87,7 +90,7 @@ describe('BleTransport scan vs. a live link', () => {
 
     // 'connected' with the radio's id, never 'idle' and never leaving the
     // app's last-heard state as the scan's 'scanning'.
-    expect(seen).toEqual([{ state: 'connected', deviceId: 'radio-1' }]);
+    expect(seen.events).toEqual([{ state: 'connected', deviceId: 'radio-1' }]);
   });
 
   it('still reports idle when a scan is stopped with no link', async () => {
@@ -97,7 +100,7 @@ describe('BleTransport scan vs. a live link', () => {
 
     await t.stopScan();
 
-    expect(seen).toEqual([{ state: 'idle', deviceId: undefined }]);
+    expect(seen.events).toEqual([{ state: 'idle', deviceId: undefined }]);
   });
 
   it('announces nothing when a stop lands with a link up and no scan running', async () => {
@@ -110,7 +113,7 @@ describe('BleTransport scan vs. a live link', () => {
     // noise, and server.ts applies every emit, so it must not happen.
     await t.stopScan();
 
-    expect(seen).toEqual([]);
+    expect(seen.events).toEqual([]);
   });
 
   it('stops scanning when a connect finds no peripheral in the scan window', async () => {

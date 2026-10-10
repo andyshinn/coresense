@@ -3,12 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/notify', () => import('../../support/notifyMock'));
 
-import { type ApiClient, api } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { MacroLibrary } from '@/panels/macros/MacroLibrary';
 import type { MacroTemplate } from '../../../src/shared/macros/types';
-
-const client: ApiClient = { baseUrl: 'http://x', apiKey: 'k' };
+import { TEST_CLIENT as client } from '../../support/apiClient';
 
 const macros: MacroTemplate[] = [
   { id: 'a', name: 'Signal report', template: '{{ snr }} snr', scope: 'global', createdAt: 0, updatedAt: 0 },

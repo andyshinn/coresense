@@ -23,8 +23,8 @@ vi.mock('../../src/renderer/lib/api', () => ({
 
 import { LoginTab } from '../../src/renderer/panels/repeater-admin/LoginTab';
 import type { Contact } from '../../src/shared/types';
+import { TEST_CLIENT as client } from '../support/apiClient';
 
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 // A flood-routed repeater (no out_path yet) — the case the guest login bootstraps.
 const floodRepeater: Contact = {
   key: `c:${'aa'.repeat(32)}`,

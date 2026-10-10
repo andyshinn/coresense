@@ -4,9 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/notify', () => import('../support/notifyMock'));
 
 import { DeleteConfirmPopover } from '@/features/message-actions/DeleteConfirmPopover';
-import { type ApiClient, api } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import type { Message } from '../../src/shared/types';
+import { TEST_CLIENT as client } from '../support/apiClient';
 import { notify } from '../support/notifyMock';
 
 const msg = (id: string): Message => ({ id, key: 'ch:x', fromPublicKeyHex: 'a3f9', body: id, ts: 0, state: 'received' });
@@ -75,8 +76,6 @@ describe('store.setPendingDeleteMessageId', () => {
     expect(useStore.getState().pendingDeleteMessageId).toBeNull();
   });
 });
-
-const client: ApiClient = { baseUrl: 'http://x', apiKey: 'k' };
 
 describe('DeleteConfirmPopover', () => {
   it('renders nothing until its message is staged', () => {

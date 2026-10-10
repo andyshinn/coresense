@@ -6,10 +6,11 @@ vi.mock('../../src/renderer/lib/api', () => ({
 }));
 
 import { NotificationsSection } from '../../src/renderer/panels/settings/app/Notifications';
+import { TEST_CLIENT } from '../support/apiClient';
 
 describe('NotificationsSection', () => {
   it('renders the backlog-summary toggle row', () => {
-    render(<NotificationsSection client={{ baseUrl: 'http://x', apiKey: 'k' }} />);
+    render(<NotificationsSection client={TEST_CLIENT} />);
     expect(screen.getByText('Summarize while away')).toBeTruthy();
   });
 });

@@ -10,8 +10,7 @@ vi.mock('../../src/renderer/lib/api', () => ({
 import { api } from '../../src/renderer/lib/api';
 import { useStore } from '../../src/renderer/lib/store';
 import { AppearanceSection } from '../../src/renderer/panels/settings/app/Appearance';
-
-const client = { baseUrl: 'http://x', apiKey: 'k' };
+import { TEST_CLIENT as client } from '../support/apiClient';
 
 afterEach(() => {
   vi.mocked(api.putAppSettings).mockClear();

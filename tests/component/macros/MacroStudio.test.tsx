@@ -3,13 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/notify', () => import('../../support/notifyMock'));
 
-import { type ApiClient, api } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { MacroStudio, QUICK_VARS } from '@/panels/macros/MacroStudio';
 import { MACRO_VARIABLES } from '../../../src/shared/macros';
 import type { MacroTemplate } from '../../../src/shared/macros/types';
-
-const client: ApiClient = { baseUrl: 'http://x', apiKey: 'k' };
+import { TEST_CLIENT as client } from '../../support/apiClient';
 
 const existing: MacroTemplate = {
   id: 'm1',

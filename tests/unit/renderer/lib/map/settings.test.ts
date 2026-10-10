@@ -9,9 +9,9 @@ import { api } from '../../../../../src/renderer/lib/api';
 import { updateMapSettings } from '../../../../../src/renderer/lib/map/settings';
 import { useStore } from '../../../../../src/renderer/lib/store';
 import { DEFAULT_MAP_SETTINGS } from '../../../../../src/shared/types';
+import { TEST_CLIENT as client } from '../../../../support/apiClient';
 import { notify } from '../../../../support/notifyMock';
 
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 const put = vi.mocked(api.putMapSettings);
 const mapSettings = () => useStore.getState().mapSettings;
 

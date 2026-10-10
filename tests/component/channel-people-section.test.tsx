@@ -13,6 +13,7 @@ import { __resetChannelStatsCacheForTests } from '@/hooks/useChannelStats';
 import { useStore } from '@/lib/store';
 import { ChannelPeopleBody, ChannelPeopleCount, ChannelPeopleSection } from '@/shell/rightrail/sections/ChannelPeople';
 import type { Channel, ChannelStats, Contact } from '../../src/shared/types';
+import { TEST_CLIENT as client } from '../support/apiClient';
 
 // Pinned, not Date.now(). `bucketFor` is calendar-relative (spec §5.6), so a
 // fixture built from the real clock puts "3 hours ago" on the *previous*
@@ -165,7 +166,6 @@ describe('ChannelPeopleBody', () => {
   });
 });
 
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 const ch: Channel = { key: 'ch:public', name: 'public', kind: 'public' };
 
 describe('ChannelPeopleCount', () => {
