@@ -24,8 +24,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src/renderer'),
     },
   },
-  // Electron 42 ships Chromium 134 — skip the polyfills/transforms that target
-  // older browsers. Trims bundle size and shortens parse time on first paint.
+  // Electron 44 ships a newer Chromium, so target chrome134 (Electron 35's) as
+  // a safe floor and skip the polyfills/transforms aimed at older browsers.
+  // Trims bundle size and shortens parse time on first paint.
   build: {
     target: 'chrome134',
   },
