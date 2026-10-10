@@ -24,14 +24,14 @@ export function openDb(): DatabaseSync {
   return conn;
 }
 
-function initSchema(db: DatabaseSync): void {
-  db.exec('PRAGMA journal_mode = WAL');
-  db.exec('PRAGMA synchronous = NORMAL');
-  db.exec('PRAGMA foreign_keys = ON');
+function initSchema(conn: DatabaseSync): void {
+  conn.exec('PRAGMA journal_mode = WAL');
+  conn.exec('PRAGMA synchronous = NORMAL');
+  conn.exec('PRAGMA foreign_keys = ON');
 
   // Idempotent: existing tables/indexes/triggers survive across launches so
   // persisted messages are retained.
-  db.exec(`
+  conn.exec(`
     CREATE TABLE IF NOT EXISTS messages (
       id      INTEGER PRIMARY KEY,         -- FTS5 anchor (rowid)
       mid     TEXT NOT NULL UNIQUE,        -- app-level message id
@@ -170,7 +170,7 @@ function initSchema(db: DatabaseSync): void {
     "ALTER TABLE discovered_contacts ADD COLUMN observed_path_hex TEXT NOT NULL DEFAULT ''",
     'ALTER TABLE discovered_contacts ADD COLUMN observed_at_unix INTEGER NOT NULL DEFAULT 0',
   ]) {
-    addColumnIfMissing(db, ddl);
+    addColumnIfMissing(conn, ddl);
   }
 }
 
@@ -179,9 +179,9 @@ function initSchema(db: DatabaseSync): void {
  *  full disk, a typo in the DDL) is a real failure and is rethrown, rather than
  *  being read as "already migrated" and surfacing later as `undefined` columns
  *  on every SELECT *. Exported for tests. */
-export function addColumnIfMissing(db: DatabaseSync, ddl: string): void {
+export function addColumnIfMissing(conn: DatabaseSync, ddl: string): void {
   try {
-    db.exec(ddl);
+    conn.exec(ddl);
   } catch (err) {
     if (/duplicate column name/i.test(errorMessage(err))) return; // column already exists — nothing to do
     log.error(`migration failed (${ddl}): ${errorMessage(err)}`);
@@ -192,15 +192,15 @@ export function addColumnIfMissing(db: DatabaseSync, ddl: string): void {
 /** Run `fn` between BEGIN and COMMIT, rolling back if it throws. Always rethrows
  *  `fn`'s own error: a ROLLBACK that fails too is logged rather than allowed to
  *  replace the error that explains what went wrong. */
-export function withTransaction<T>(db: DatabaseSync, fn: () => T): T {
-  db.exec('BEGIN');
+export function withTransaction<T>(conn: DatabaseSync, fn: () => T): T {
+  conn.exec('BEGIN');
   try {
     const result = fn();
-    db.exec('COMMIT');
+    conn.exec('COMMIT');
     return result;
   } catch (err) {
     try {
-      db.exec('ROLLBACK');
+      conn.exec('ROLLBACK');
     } catch (rollbackErr) {
       log.warn(`rollback failed: ${errorMessage(rollbackErr)}`);
     }

@@ -1,4 +1,5 @@
 import { basename, join } from 'node:path';
+import { conversationKind } from '../../shared/conversationKey';
 import { errorMessage } from '../../shared/errors';
 import type { MacroTemplate } from '../../shared/macros/types';
 import { clampRetention } from '../../shared/packetLog';
@@ -142,7 +143,7 @@ function pruneLastRead(
   for (const [key, ts] of Object.entries(map)) {
     // Conversation keys only. `tool:` and anything added later have no
     // channel/contact to be live against, so they are never candidates.
-    const isConversation = key.startsWith('ch:') || key.startsWith('c:');
+    const isConversation = conversationKind(key) !== null;
     if (isConversation && !liveKeys.has(key) && now - ts > LAST_READ_GRACE_MS) {
       dropped++;
       continue;

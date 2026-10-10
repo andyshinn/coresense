@@ -55,12 +55,14 @@ function htmlEscape(s: string): string {
 //
 // Returns null when there is no usable input — callers short-circuit to an
 // empty result set rather than asking FTS5 to match nothing.
-function buildMatchExpression(raw: string): {
+interface MatchExpression {
   match: string;
   /** Reversed forms of hex-looking tokens for suffix lookup against
    *  conversations_fts.pk_suffix_rev. */
   reversedHex: string[];
-} | null {
+}
+
+function buildMatchExpression(raw: string): MatchExpression | null {
   const tokens = stripMeta(raw)
     .split(/\s+/)
     .map((t) => t.trim())
@@ -132,10 +134,7 @@ const SNIPPET_END = '\u{1F539}END\u{1F539}';
 /** Conversation hits, keyed by conversation key. Two passes: forward match on
  *  name + pk_prefix, then a separate pass on pk_suffix_rev for hex tokens.
  *  Results are merged by key with the better (more negative) score winning. */
-function searchConversations(
-  db: DatabaseSync,
-  built: NonNullable<ReturnType<typeof buildMatchExpression>>,
-): Map<string, ConversationRow> {
+function searchConversations(db: DatabaseSync, built: MatchExpression): Map<string, ConversationRow> {
   const byKey = new Map<string, ConversationRow>();
   const merge = (match: string) => {
     for (const r of all<ConversationRow>(db.prepare(CONVERSATION_SQL), match)) {
