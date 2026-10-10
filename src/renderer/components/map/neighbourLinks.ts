@@ -1,5 +1,5 @@
 import type { ResolvedNeighbour } from '../../lib/neighbours';
-import { snrColor } from '../path/SignalBars';
+import { snrColor } from '../../lib/signal';
 
 export interface FocalPoint {
   lat: number;

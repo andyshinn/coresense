@@ -15,6 +15,7 @@ import { summarizeBleFrame } from '../lib/bleFrameLayouts';
 import { type PacketSummary, summarizePacket } from '../lib/decodePacket';
 import { meshTypeName, spaceWords } from '../lib/packetInspect';
 import { columnTemplate, columnWidth, type PacketLogColumn } from '../lib/packetLogColumns';
+import { loraRssiClass } from '../lib/signal';
 import { type LivePacket, type PacketLogView, useStore } from '../lib/store';
 import { fmtTimePrecise } from '../lib/time';
 import { VIRTUOSO_LICENSE_KEY } from '../lib/virtuosoLicense';
@@ -117,13 +118,6 @@ function badge(packet: LivePacket, summary: PacketSummary | null): { letter: str
     : { letter: 'F', varName: '--cs-route-flood' };
 }
 
-function rssiClass(rssi?: number): string {
-  if (rssi == null) return 'text-cs-text-dim';
-  if (rssi > -80) return 'text-cs-online';
-  if (rssi > -96) return 'text-cs-text-muted';
-  return 'text-cs-warn';
-}
-
 function Row({ packet, selected, onSelect }: { packet: LivePacket; selected: boolean; onSelect: () => void }) {
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
   // Only mesh packets decode as mesh frames; companion (BLE) frames are summarized
@@ -154,7 +148,7 @@ function Row({ packet, selected, onSelect }: { packet: LivePacket; selected: boo
         <span className="truncate text-[12.5px] text-cs-text">{typeName}</span>
       </span>
       <span className="truncate text-[12.5px] text-cs-text-muted">{detail || '—'}</span>
-      <span className={`truncate font-mono text-[11px] ${rssiClass(packet.rssi)}`}>
+      <span className={`truncate font-mono text-[11px] ${loraRssiClass(packet.rssi)}`}>
         {packet.rssi == null || packet.snr == null ? '—' : `${packet.rssi} / ${packet.snr}`}
       </span>
       <span className="text-right font-mono text-[11px] text-cs-text-muted">{hop}</span>

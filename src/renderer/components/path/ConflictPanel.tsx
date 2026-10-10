@@ -1,8 +1,8 @@
 import { AlertTriangle } from 'lucide-react';
 import type { Contact, MessageHop } from '../../../shared/types';
+import { fmtSnr, snrTokenVar } from '../../lib/signal';
 import { fmtAgoShort } from '../../lib/time';
 import { cn } from '../../lib/utils';
-import { fmtSnr, snrTokenVar } from './SignalBars';
 
 export function ConflictPanel({ hop, candidates }: { hop: MessageHop; candidates: Contact[] }) {
   return (

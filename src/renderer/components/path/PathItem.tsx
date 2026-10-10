@@ -2,13 +2,14 @@ import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { useMemo } from 'react';
 import type { Contact, MessagePath } from '../../../shared/types';
 import { isKnownHashMode } from '../../lib/hopWarmth';
+import { fmtSnr, snrTokenVar } from '../../lib/signal';
 import { cn } from '../../lib/utils';
 import { HopBadge } from '../HopBadge';
 import { PathHashBadge } from '../PathHashBadge';
 import { HopAvatar } from './HopAvatar';
 import { PathTimeline } from './PathTimeline';
 import { resolveHop } from './resolveRepeater';
-import { fmtSnr, SignalBars, snrTokenVar } from './SignalBars';
+import { SignalBars } from './SignalBars';
 
 export function PathItem({
   path,
