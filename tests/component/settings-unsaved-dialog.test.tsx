@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { notify } from '@/lib/notify';
-import { registerSectionHandle, unregisterSectionHandle, useStore } from '@/lib/store';
+import { useStore } from '@/lib/store';
+import { registerSectionHandle, unregisterSectionHandle } from '@/panels/settings/sectionHandles';
 import { UnsavedChangesDialog } from '@/panels/settings/UnsavedChangesDialog';
 
 const initial = useStore.getState();

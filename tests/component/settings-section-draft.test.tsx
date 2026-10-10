@@ -1,7 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { notify } from '@/lib/notify';
-import { getSectionHandle, useStore } from '@/lib/store';
+import { useStore } from '@/lib/store';
+import { getSectionHandle } from '@/panels/settings/sectionHandles';
 import { useSectionDraft, useSettingsSection } from '@/panels/settings/useSectionDraft';
 
 interface Draft {
