@@ -30,10 +30,7 @@ export function HopRow({
 
   return (
     <div className="relative">
-      <div
-        className="relative flex w-full gap-2.5 rounded text-left transition-colors"
-        style={{ padding: `${ROW_PAD}px 0` }}
-      >
+      <div className="relative flex w-full gap-2.5" style={{ padding: `${ROW_PAD}px 0` }}>
         {!isLast && (
           <span
             aria-hidden
