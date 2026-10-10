@@ -45,7 +45,7 @@ export const ComposerMacroPopover = forwardRef<ComposerMacroPopoverHandle, Compo
         const text = await expandMacro(client, macro, targetKey);
         if (text != null) onExpand(text);
       } finally {
-        // Close even if the expand path throws, or the popover stays stuck open.
+        // Always close, even if onExpand throws: a stuck-open popover was the original bug.
         onClose();
       }
     };

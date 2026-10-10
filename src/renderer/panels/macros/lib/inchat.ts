@@ -51,6 +51,8 @@ async function expandOrToast(
   const res = await renderMacroSafe(client, macro.id, target);
   if (res.ok) return res.text;
   const msg = `Couldn’t expand “${macro.name}”: ${res.message}`;
+  // Not notify.error(msg, res.cause): tslog keeps an explicit undefined as a
+  // positional arg, so a template error would log "msg " plus an args array.
   if (res.cause === undefined) notify.error(msg);
   else notify.error(msg, res.cause);
   return null;
