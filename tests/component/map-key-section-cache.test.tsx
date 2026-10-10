@@ -12,7 +12,7 @@ vi.mock('../../src/renderer/lib/api', () => ({
   },
 }));
 vi.mock('../../src/renderer/lib/notify', () => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
+  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn(), failure: vi.fn() },
 }));
 
 import { MapKeySection } from '../../src/renderer/components/settings/MapKeySection';

@@ -15,7 +15,7 @@ interface Viewport {
 
 // Live viewport readout pinned bottom-left. Subscribes to MapLibre's `move`
 // event directly so re-renders stay scoped to this component — MapCanvas
-// doesn't see them.
+// doesn't see them. `move` fires for zoom, rotate and pitch changes too.
 export function MapInfo({ map }: Props) {
   const [vp, setVp] = useState<Viewport | null>(null);
 
@@ -33,14 +33,8 @@ export function MapInfo({ map }: Props) {
     };
     update();
     map.on('move', update);
-    map.on('zoom', update);
-    map.on('rotate', update);
-    map.on('pitch', update);
     return () => {
       map.off('move', update);
-      map.off('zoom', update);
-      map.off('rotate', update);
-      map.off('pitch', update);
     };
   }, [map]);
 

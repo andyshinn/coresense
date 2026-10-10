@@ -15,6 +15,8 @@ const { setWorkerUrl, fake } = vi.hoisted(() => ({
     parsedStyle: {} as { sprite?: unknown } | undefined,
     listeners: new Map<string, Set<Listener>>(),
     setStyle: vi.fn(),
+    flyTo: vi.fn(),
+    setMaxZoom: vi.fn(),
     // Sprite downloads in start order — the initial style's first, then one per
     // sprite-changing setStyle — mirroring maplibre's private Style._spriteRequest.
     spriteRequests: [] as AbortController[],
@@ -87,7 +89,24 @@ vi.mock('maplibre-gl', async (importOriginal) => {
     getMaxZoom() {
       return 5;
     }
-    setMaxZoom() {}
+    setMaxZoom(zoom: number) {
+      fake.setMaxZoom(zoom);
+    }
+    getZoom() {
+      return 4;
+    }
+    getCenter() {
+      return { lng: 5, lat: 6 };
+    }
+    getBearing() {
+      return 7;
+    }
+    getPitch() {
+      return 8;
+    }
+    flyTo(opts: unknown) {
+      fake.flyTo(opts);
+    }
   }
   return {
     AJAXError: actual.AJAXError,
@@ -101,10 +120,16 @@ vi.mock('maplibre-gl', async (importOriginal) => {
   };
 });
 
+vi.mock('../../src/renderer/lib/api', () => ({
+  api: { putMapSettings: vi.fn(async () => ({ ok: true })) },
+}));
+
 import { AJAXError, GPUInitializationError, type StyleSpecification } from 'maplibre-gl';
 import { MapErrorFallback } from '../../src/renderer/components/errors/ErrorFallback';
 import { MapCanvas } from '../../src/renderer/components/map/MapCanvas';
+import { api } from '../../src/renderer/lib/api';
 import { setRendererLogSink } from '../../src/renderer/lib/logger';
+import { publish as publishMapBus } from '../../src/renderer/lib/map/bus';
 import { buildStyle, SOURCE_ONLINE } from '../../src/renderer/lib/map/style-builder';
 import { useStore } from '../../src/renderer/lib/store';
 import { DEFAULT_MAP_SETTINGS, type LogEntry, type MapSettings, type TileManifest } from '../../src/shared/types';
@@ -123,7 +148,7 @@ const manifest: TileManifest = {
 };
 const client = { baseUrl: 'http://x', apiKey: 'k' };
 
-function mapCanvas(settings: MapSettings = DEFAULT_MAP_SETTINGS) {
+function mapCanvas(settings: MapSettings = DEFAULT_MAP_SETTINGS, persistViewport = false) {
   return (
     <ErrorBoundary FallbackComponent={MapErrorFallback}>
       <MapCanvas
@@ -131,7 +156,7 @@ function mapCanvas(settings: MapSettings = DEFAULT_MAP_SETTINGS) {
         manifest={manifest}
         settings={settings}
         renderOverlays={() => null}
-        persistViewport={false}
+        persistViewport={persistViewport}
       />
     </ErrorBoundary>
   );
@@ -153,6 +178,9 @@ beforeEach(() => {
   fake.parsedStyle = {};
   fake.listeners.clear();
   fake.setStyle.mockClear();
+  fake.flyTo.mockClear();
+  fake.setMaxZoom.mockClear();
+  vi.mocked(api.putMapSettings).mockClear();
   fake.spriteRequests = [];
   useStore.getState().setThemePref('light');
 });
@@ -211,7 +239,7 @@ describe('MapCanvas restyle (API key / theme flips)', () => {
   const aborted = () => fake.spriteRequests.map((r) => r.signal.aborted);
 
   it("aborts the initial style's sprite download when the first flip changes the sprite", async () => {
-    fake.parsedStyle = buildStyle({ baseUrl: client.baseUrl, manifest, settings: DEFAULT_MAP_SETTINGS, theme: 'light' });
+    fake.parsedStyle = buildStyle({ baseUrl: client.baseUrl, manifest, theme: 'light', onlineTiles: false });
     render(mapCanvas());
     await flipTheme('dark');
     // [initial light, dark]
@@ -219,7 +247,7 @@ describe('MapCanvas restyle (API key / theme flips)', () => {
   });
 
   it('aborts every superseded sprite download so an older, slower sprite cannot land last', async () => {
-    fake.parsedStyle = buildStyle({ baseUrl: client.baseUrl, manifest, settings: DEFAULT_MAP_SETTINGS, theme: 'light' });
+    fake.parsedStyle = buildStyle({ baseUrl: client.baseUrl, manifest, theme: 'light', onlineTiles: false });
     render(mapCanvas());
     await flipTheme('dark');
     await flipTheme('light');
@@ -229,7 +257,7 @@ describe('MapCanvas restyle (API key / theme flips)', () => {
   });
 
   it('leaves the in-flight sprite download alone when a restyle keeps the same sprite', async () => {
-    fake.parsedStyle = buildStyle({ baseUrl: client.baseUrl, manifest, settings: withKey(false), theme: 'light' });
+    fake.parsedStyle = buildStyle({ baseUrl: client.baseUrl, manifest, theme: 'light', onlineTiles: false });
     const { rerender } = render(mapCanvas(withKey(false)));
     await flipTheme('dark');
     rerender(mapCanvas(withKey(true)));
@@ -239,7 +267,7 @@ describe('MapCanvas restyle (API key / theme flips)', () => {
   });
 
   it('still aborts a tracked download after a same-sprite restyle, once maplibre has nulled its handle', async () => {
-    fake.parsedStyle = buildStyle({ baseUrl: client.baseUrl, manifest, settings: withKey(false), theme: 'light' });
+    fake.parsedStyle = buildStyle({ baseUrl: client.baseUrl, manifest, theme: 'light', onlineTiles: false });
     const { rerender } = render(mapCanvas(withKey(false)));
     await flipTheme('dark');
     await flipTheme('light'); // aborting dark nulls style._spriteRequest while light downloads
@@ -257,6 +285,44 @@ describe('MapCanvas restyle (API key / theme flips)', () => {
     fire('style.load');
     expect(fake.setStyle).toHaveBeenCalledTimes(1);
     expect(appliedStyle(0).sources[SOURCE_ONLINE]).toBeUndefined();
+  });
+});
+
+describe('MapCanvas camera wiring', () => {
+  it('lifts the max zoom when the online fallback turns on, and ignores unrelated settings changes', () => {
+    const { rerender } = render(mapCanvas(withKey(false)));
+    rerender(mapCanvas({ ...withKey(false), showMarkerLabels: false }));
+    expect(fake.setMaxZoom).not.toHaveBeenCalled();
+    rerender(mapCanvas(withKey(true)));
+    expect(fake.setMaxZoom).toHaveBeenCalledWith(18);
+  });
+
+  it('flies to a bus event published while the map is mounted', () => {
+    render(mapCanvas());
+    act(() => publishMapBus({ kind: 'flyTo', lng: 1, lat: 2 }));
+    expect(fake.flyTo).toHaveBeenCalledWith({ center: [1, 2], zoom: 4 });
+  });
+
+  it('persists the resting viewport once the camera settles', () => {
+    vi.useFakeTimers();
+    try {
+      useStore.getState().applyMapSettings(DEFAULT_MAP_SETTINGS);
+      render(mapCanvas(DEFAULT_MAP_SETTINGS, true));
+      fire('moveend');
+      expect(api.putMapSettings).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(500));
+      const viewport = { lastCenter: { lng: 5, lat: 6 }, lastZoom: 4, lastBearing: 7, lastPitch: 8 };
+      expect(api.putMapSettings).toHaveBeenCalledWith(client, { ...DEFAULT_MAP_SETTINGS, ...viewport });
+      expect(useStore.getState().mapSettings).toMatchObject(viewport);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('replays a bus event published before the map mounted', () => {
+    publishMapBus({ kind: 'flyTo', lng: 3, lat: 4, zoom: 9 });
+    render(mapCanvas());
+    expect(fake.flyTo).toHaveBeenCalledWith({ center: [3, 4], zoom: 9 });
   });
 });
 

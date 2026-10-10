@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { type Contact, hasValidFix } from '../../../shared/types';
+import { centroidOf } from '../../components/map/markers/cluster';
 import { MARKER_TYPES, MarkerShape } from '../../components/map/markers/MarkerShape';
 import { Button } from '../../components/ui/button';
 import { publish as publishMapBus } from '../../lib/map/bus';
@@ -8,7 +9,6 @@ import { fmtRelative } from '../../lib/time';
 
 interface Props {
   site: { key: string; members: Contact[] };
-  client: unknown; // unused; preserved for parity with NodeInfoCard's call-site
 }
 
 // Card shown when a co-located site marker (≥2 contacts within the
@@ -19,7 +19,8 @@ export function SiteInfoCard({ site }: Props) {
   const setSelectedSite = useStore((s) => s.setSelectedSite);
   const coLocationMeters = useStore((s) => s.mapSettings.coLocationMeters);
 
-  const centroid = computeCentroid(site.members);
+  const fixes = site.members.filter(hasValidFix);
+  const centroid = fixes.length ? centroidOf(fixes) : null;
 
   return (
     <div className="border-b border-cs-border px-3 pb-3 pt-3">
@@ -78,12 +79,4 @@ export function SiteInfoCard({ site }: Props) {
       </div>
     </div>
   );
-}
-
-function computeCentroid(members: Contact[]): { lng: number; lat: number } | null {
-  const fixes = members.filter(hasValidFix);
-  if (!fixes.length) return null;
-  const lng = fixes.reduce((s, c) => s + c.gpsLon, 0) / fixes.length;
-  const lat = fixes.reduce((s, c) => s + c.gpsLat, 0) / fixes.length;
-  return { lng, lat };
 }

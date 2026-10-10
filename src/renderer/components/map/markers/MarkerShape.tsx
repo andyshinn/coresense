@@ -1,3 +1,4 @@
+import { createElement } from 'react';
 import type { ContactKind } from '../../../../shared/types';
 
 // Type → shape + color mapping. Shape carries the signal so the encoding still
@@ -31,41 +32,66 @@ interface ShapeArgs {
   dashed?: boolean;
 }
 
-// Returns the inner SVG markup (no <svg> wrapper) for the requested type. Used
-// by both the React component and the imperative HTML builder so the visual
-// stays identical regardless of mount path.
-export function shapeMarkup(args: ShapeArgs): string {
-  const { type, size = 18, fill, stroke = '#0c0a06', strokeWidth = 1.5, opacity = 1, dashed } = args;
+const DEFAULT_SIZE = 18;
+
+type ShapeAttrs = Record<string, string | number>;
+
+// Single source of the marker geometry: the SVG element and its attributes
+// (SVG names, in output order) for the requested type. shapeMarkup() and
+// <MarkerShape> only serialise it, so the map markers and the React badges
+// can't drift apart.
+function shapeGeometry(args: ShapeArgs): { tag: 'circle' | 'rect' | 'polygon'; attrs: ShapeAttrs } {
+  const { type, size = DEFAULT_SIZE, fill, stroke = '#0c0a06', strokeWidth = 1.5, opacity = 1, dashed } = args;
   const meta = MARKER_TYPES[type];
-  const c = fill ?? meta.color;
   const sw = strokeWidth;
-  const dashAttr = dashed ? ` stroke-dasharray="2 1.5"` : '';
-  const opAttr = opacity === 1 ? '' : ` opacity="${opacity}"`;
+  const paint: ShapeAttrs = { fill: fill ?? meta.color, stroke, 'stroke-width': sw };
+  const tail: ShapeAttrs = {
+    ...(opacity === 1 ? {} : { opacity }),
+    ...(dashed ? { 'stroke-dasharray': '2 1.5' } : {}),
+  };
 
   if (meta.shape === 'circle') {
     const r = size / 2 - sw;
-    return `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="${c}" stroke="${stroke}" stroke-width="${sw}"${opAttr}${dashAttr} />`;
+    return { tag: 'circle', attrs: { cx: size / 2, cy: size / 2, r, ...paint, ...tail } };
   }
   if (meta.shape === 'square') {
     const inset = sw;
     const sz = size - 2 * inset;
-    const r = (size * 0.18).toFixed(2);
-    return `<rect x="${inset}" y="${inset}" width="${sz}" height="${sz}" rx="${r}" fill="${c}" stroke="${stroke}" stroke-width="${sw}"${opAttr}${dashAttr} />`;
+    const rx = (size * 0.18).toFixed(2);
+    return { tag: 'rect', attrs: { x: inset, y: inset, width: sz, height: sz, rx, ...paint, ...tail } };
   }
+  let points: string;
   if (meta.shape === 'diamond') {
     const c2 = size / 2;
     const off = size / 2 - sw;
-    const pts = `${c2},${c2 - off} ${c2 + off},${c2} ${c2},${c2 + off} ${c2 - off},${c2}`;
-    return `<polygon points="${pts}" fill="${c}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"${opAttr}${dashAttr} />`;
+    points = `${c2},${c2 - off} ${c2 + off},${c2} ${c2},${c2 + off} ${c2 - off},${c2}`;
+  } else {
+    // triangle
+    const c2 = size / 2;
+    const top = sw + 1;
+    const bot = size - sw;
+    const left = sw + 1;
+    const right = size - sw - 1;
+    points = `${c2},${top} ${right},${bot} ${left},${bot}`;
   }
-  // triangle
-  const c2 = size / 2;
-  const top = sw + 1;
-  const bot = size - sw;
-  const left = sw + 1;
-  const right = size - sw - 1;
-  const pts = `${c2},${top} ${right},${bot} ${left},${bot}`;
-  return `<polygon points="${pts}" fill="${c}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"${opAttr}${dashAttr} />`;
+  return { tag: 'polygon', attrs: { points, ...paint, 'stroke-linejoin': 'round', ...tail } };
+}
+
+// Returns the inner SVG markup (no <svg> wrapper) for the requested type. The
+// imperative HTML builders (map markers, co-located site chips) use this.
+export function shapeMarkup(args: ShapeArgs): string {
+  const { tag, attrs } = shapeGeometry(args);
+  const serialised = Object.entries(attrs)
+    .map(([name, value]) => `${name}="${value}"`)
+    .join(' ');
+  return `<${tag} ${serialised} />`;
+}
+
+// SVG attribute name → React prop name (`stroke-width` → `strokeWidth`).
+function reactProps(attrs: ShapeAttrs): ShapeAttrs {
+  return Object.fromEntries(
+    Object.entries(attrs).map(([name, value]) => [name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase()), value]),
+  );
 }
 
 interface MarkerShapeProps extends ShapeArgs {
@@ -73,72 +99,12 @@ interface MarkerShapeProps extends ShapeArgs {
   ariaLabel?: string;
 }
 
-// React wrapper that renders the same primitives as shapeMarkup() via JSX.
-// Kept in sync with shapeMarkup by construction — both consult MARKER_TYPES
-// for the shape and use the same geometry. Used by the legend, filter rows,
-// node card; markers on the map use shapeMarkup() directly for the HTML
-// element path.
+// React wrapper that renders the same primitive as shapeMarkup() — both
+// serialise shapeGeometry(). Used by the legend, filter rows, node card;
+// markers on the map use shapeMarkup() directly for the HTML element path.
 export function MarkerShape({ className, ariaLabel, ...args }: MarkerShapeProps) {
-  const { type, size = 18, fill, stroke = '#0c0a06', strokeWidth = 1.5, opacity = 1, dashed } = args;
-  const meta = MARKER_TYPES[type];
-  const c = fill ?? meta.color;
-  const sw = strokeWidth;
-  const dashAttr = dashed ? { strokeDasharray: '2 1.5' } : undefined;
-
-  let body: React.ReactNode;
-  if (meta.shape === 'circle') {
-    const r = size / 2 - sw;
-    body = (
-      <circle cx={size / 2} cy={size / 2} r={r} fill={c} stroke={stroke} strokeWidth={sw} opacity={opacity} {...dashAttr} />
-    );
-  } else if (meta.shape === 'square') {
-    const inset = sw;
-    body = (
-      <rect
-        x={inset}
-        y={inset}
-        width={size - 2 * inset}
-        height={size - 2 * inset}
-        rx={size * 0.18}
-        fill={c}
-        stroke={stroke}
-        strokeWidth={sw}
-        opacity={opacity}
-        {...dashAttr}
-      />
-    );
-  } else if (meta.shape === 'diamond') {
-    const c2 = size / 2;
-    const off = size / 2 - sw;
-    body = (
-      <polygon
-        points={`${c2},${c2 - off} ${c2 + off},${c2} ${c2},${c2 + off} ${c2 - off},${c2}`}
-        fill={c}
-        stroke={stroke}
-        strokeWidth={sw}
-        strokeLinejoin="round"
-        opacity={opacity}
-        {...dashAttr}
-      />
-    );
-  } else {
-    const c2 = size / 2;
-    const top = sw + 1;
-    const bot = size - sw;
-    const left = sw + 1;
-    const right = size - sw - 1;
-    body = (
-      <polygon
-        points={`${c2},${top} ${right},${bot} ${left},${bot}`}
-        fill={c}
-        stroke={stroke}
-        strokeWidth={sw}
-        strokeLinejoin="round"
-        opacity={opacity}
-        {...dashAttr}
-      />
-    );
-  }
+  const size = args.size ?? DEFAULT_SIZE;
+  const { tag, attrs } = shapeGeometry(args);
 
   return (
     <svg
@@ -150,7 +116,7 @@ export function MarkerShape({ className, ariaLabel, ...args }: MarkerShapeProps)
       aria-label={ariaLabel}
       aria-hidden={ariaLabel ? undefined : true}
     >
-      {body}
+      {createElement(tag, reactProps(attrs))}
     </svg>
   );
 }

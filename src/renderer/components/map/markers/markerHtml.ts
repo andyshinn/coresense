@@ -1,6 +1,10 @@
 import type { Contact } from '../../../../shared/types';
 import { MARKER_TYPES, shapeMarkup } from './MarkerShape';
 
+/** The contact fields a marker renders from. A full Contact satisfies it, so
+ *  overlays plotting non-contacts (repeater neighbours) can build one honestly. */
+export type MarkerSubject = Pick<Contact, 'key' | 'name' | 'kind'>;
+
 export interface MarkerState {
   selected: boolean;
   faded: boolean;
@@ -15,10 +19,10 @@ const SELECTED_SIZE = Math.round(BASE_SIZE * 1.45);
 // Build the imperative DOM element for a single contact marker (Direction A —
 // tactical chip). Returns a button so it's keyboard-focusable when MapLibre
 // inserts it into the marker layer.
-export function buildContactMarker(contact: Contact, state: MarkerState): HTMLButtonElement {
+export function buildContactMarker(contact: MarkerSubject, state: MarkerState): HTMLButtonElement {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.setAttribute('aria-label', `${contact.name} (${MARKER_TYPES[contact.kind].label})`);
+  btn.setAttribute('aria-label', ariaLabelFor(contact));
   btn.dataset.contactKey = contact.key;
   btn.className = 'cs-map-marker';
 
@@ -30,24 +34,26 @@ export function buildContactMarker(contact: Contact, state: MarkerState): HTMLBu
   return btn;
 }
 
-export function applyMarkerState(el: HTMLElement, state: MarkerState): void {
+function applyMarkerState(el: HTMLElement, state: MarkerState): void {
   el.classList.toggle('is-selected', state.selected);
   el.classList.toggle('is-faded', state.faded);
   el.classList.toggle('is-stale', state.stale);
   el.classList.toggle('has-label', state.showLabel);
 }
 
-export function syncMarkerVisual(el: HTMLElement, contact: Contact, state: MarkerState, prevKind: string | null): void {
+export function syncMarkerVisual(el: HTMLElement, contact: MarkerSubject, state: MarkerState): void {
   applyMarkerState(el, state);
-  setLabelText(el, contact.name);
   // Re-render the inner SVG when shape/size or selection-driven size changes.
   // We always re-render on a selection flip so the halo SVG appears/disappears
   // without re-creating the whole marker.
   el.innerHTML = renderMarkerInner(contact.kind, state);
   setLabelText(el, contact.name);
-  if (prevKind && prevKind !== contact.kind) {
-    el.setAttribute('aria-label', `${contact.name} (${MARKER_TYPES[contact.kind].label})`);
-  }
+  // Name and kind are both in the label, and either can change under a live marker.
+  el.setAttribute('aria-label', ariaLabelFor(contact));
+}
+
+function ariaLabelFor(contact: MarkerSubject): string {
+  return `${contact.name} (${MARKER_TYPES[contact.kind].label})`;
 }
 
 function renderMarkerInner(kind: Contact['kind'], state: MarkerState): string {
