@@ -1,3 +1,4 @@
+import { errorMessage } from '../../shared/errors';
 import { child } from '../log';
 
 const log = child('coalesce');
@@ -37,7 +38,7 @@ export function coalesce(run: () => void, intervalMs: number): Coalescer {
     try {
       run();
     } catch (err) {
-      log.warn(`coalesced run failed: ${(err as Error).message}`);
+      log.warn(`coalesced run failed: ${errorMessage(err)}`);
     }
   };
 

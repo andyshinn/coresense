@@ -459,7 +459,7 @@ function createWindow() {
 
 app.on('ready', () => {
   bootstrap().catch((err) => {
-    reportFatalStartupError(err as Error);
+    reportFatalStartupError(err);
     app.quit();
   });
 });
@@ -471,13 +471,13 @@ app.on('ready', () => {
  * left guessing why nothing opened. The common case by far is a port already
  * held by another CoreSense (see server.ts's portInUseError).
  */
-function reportFatalStartupError(err: Error): void {
-  log.fatal(`failed to start: ${err.stack ?? err}`);
+function reportFatalStartupError(err: unknown): void {
+  log.fatal(`failed to start: ${err instanceof Error ? (err.stack ?? err.message) : errorMessage(err)}`);
   // Automated runs (the Playwright harness sets CORESENSE_FAKE_TRANSPORT) must
   // never block on a modal nobody can dismiss.
   if (process.env.CORESENSE_FAKE_TRANSPORT) return;
   try {
-    dialog.showErrorBox('CoreSense could not start', err.message || String(err));
+    dialog.showErrorBox('CoreSense could not start', errorMessage(err) || String(err));
   } catch {
     // showErrorBox can throw on a headless/unusable display; the log line above
     // is still written.
