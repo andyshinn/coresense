@@ -1,5 +1,5 @@
 import { RotateCcw, TriangleAlert, X } from 'lucide-react';
-import { CLI_BY_NAME, type CliCommand } from '../../../../shared/repeater-cli/catalog';
+import { CLI_GETTER_BY_KEY, type CliCommand, isSetter } from '../../../../shared/repeater-cli/catalog';
 import type { RebootPending } from './lib/persistence';
 
 // One shape: phase 1 owns the persisted RebootPending; this is just its alias.
@@ -10,16 +10,8 @@ export const EMPTY_REBOOT: RebootPendingState = { settings: [], dismissed: false
 // Derive a settings entry from the command that armed it (§6): verify is the
 // get-command sharing this key, else null; label is the name minus 'set '.
 function deriveRebootEntry(cmd: CliCommand): { label: string; verify: string | null } {
-  const label = cmd.name.startsWith('set ') ? cmd.name.slice(4) : cmd.name;
-  let verify: string | null = null;
-  if (cmd.key) {
-    for (const c of Object.values(CLI_BY_NAME)) {
-      if (c.key === cmd.key && c.name.startsWith('get ')) {
-        verify = c.name;
-        break;
-      }
-    }
-  }
+  const label = isSetter(cmd) ? cmd.name.slice(4) : cmd.name;
+  const verify = cmd.key ? (CLI_GETTER_BY_KEY.get(cmd.key)?.name ?? null) : null;
   return { label, verify };
 }
 

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { CliGroup } from '../../../../src/shared/repeater-cli/catalog';
-import { CLI_BY_NAME, CLI_COMMANDS, CLI_GROUP_ORDER } from '../../../../src/shared/repeater-cli/catalog';
+import {
+  CLI_BY_NAME,
+  CLI_COMMANDS,
+  CLI_GETTER_BY_KEY,
+  CLI_GROUP_ORDER,
+  CLI_SETTER_BY_KEY,
+  isGetter,
+  isSetter,
+} from '../../../../src/shared/repeater-cli/catalog';
 
 const EXPECTED_GROUPS: CliGroup[] = [
   'Operational',
@@ -105,5 +113,35 @@ describe('CLI catalog invariants', () => {
 
   it('lists the four setperm permission levels', () => {
     expect(CLI_BY_NAME.setperm?.args?.[1].enum).toEqual(['0', '1', '2', '3']);
+  });
+
+  it('flags only reboot and clkreboot as restarting the node', () => {
+    const rebooting = CLI_COMMANDS.filter((c) => c.rebootsNode).map((c) => c.name);
+    expect(rebooting).toEqual(['reboot', 'clkreboot']);
+  });
+});
+
+describe('get/set indexes by key', () => {
+  it('pairs each key with at most one getter and one setter', () => {
+    for (const pick of [isGetter, isSetter]) {
+      const keys = CLI_COMMANDS.filter((c) => c.key && pick(c)).map((c) => c.key);
+      expect(new Set(keys).size).toBe(keys.length);
+    }
+  });
+
+  it('indexes every keyed getter and setter', () => {
+    for (const c of CLI_COMMANDS) {
+      if (!c.key) continue;
+      if (isGetter(c)) expect(CLI_GETTER_BY_KEY.get(c.key)).toBe(c);
+      if (isSetter(c)) expect(CLI_SETTER_BY_KEY.get(c.key)).toBe(c);
+    }
+  });
+
+  it('finds the sibling of a pair and skips single-command keys', () => {
+    expect(CLI_SETTER_BY_KEY.get('radio')?.name).toBe('set radio');
+    expect(CLI_GETTER_BY_KEY.get('radio')?.name).toBe('get radio');
+    // `gps` carries a key but is neither half of a get/set pair.
+    expect(CLI_GETTER_BY_KEY.has('gps')).toBe(false);
+    expect(CLI_SETTER_BY_KEY.has('gps')).toBe(false);
   });
 });
