@@ -17,9 +17,9 @@ export interface CliRowProps {
   onCancel: (id: string) => void;
 }
 
-// Live only while active. Drives the in-flight elapsed counter.
-const TICK_MS = 47;
+const TICK_MS = 47; // in-flight elapsed counter refresh
 
+// Live only while active. Drives the in-flight elapsed counter.
 function useTick(active: boolean) {
   const [, force] = useState(0);
   useEffect(() => {
