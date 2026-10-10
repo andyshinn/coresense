@@ -30,7 +30,7 @@ export function MaintenanceSection({ client }: SectionProps) {
       await api.rebootDevice(client);
       notify.success('Reboot command sent — link will drop momentarily');
     } catch (err) {
-      notify.error(`Reboot failed: ${(err as Error).message}`, err);
+      notify.failure('Reboot', err);
     } finally {
       setRebootBusy(false);
     }

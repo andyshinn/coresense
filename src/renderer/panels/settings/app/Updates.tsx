@@ -48,7 +48,7 @@ export function UpdatesSection({ client }: SectionProps) {
         else if (r.updateState?.status === 'up-to-date') notify.info('You are up to date');
         else if (r.updateState?.status === 'error') notify.error(r.updateState.error ?? 'Update check failed');
       },
-      (err) => notify.error(`Update check failed: ${(err as Error).message}`, err),
+      (err) => notify.failure('Update check', err),
     );
   };
 

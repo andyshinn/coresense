@@ -80,7 +80,7 @@ export function RowActions({ c, client }: { c: DiscoveredContact; client: ApiCli
       await api.addToRadio(client, c.publicKeyHex);
       notify.success(`Added ${c.name} to radio`);
     } catch (err) {
-      notify.error(`Add failed: ${(err as Error).message}`, err);
+      notify.failure('Add', err);
     }
   }
   async function removeFromRadio(e: React.MouseEvent) {
@@ -90,7 +90,7 @@ export function RowActions({ c, client }: { c: DiscoveredContact; client: ApiCli
       await api.removeFromRadio(client, c.publicKeyHex);
       notify.success(`Removed ${c.name} from radio`);
     } catch (err) {
-      notify.error(`Remove failed: ${(err as Error).message}`, err);
+      notify.failure('Remove', err);
     }
   }
 
