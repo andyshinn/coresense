@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { isLogLevel, LOG_LEVELS, logLevelFromId, logLevelId, parseLogLevel } from '../../../src/shared/logLevels';
+import {
+  isLogLevel,
+  LOG_LEVELS,
+  logLevelFromId,
+  logLevelId,
+  parseLogLevel,
+  resolveLogLevel,
+} from '../../../src/shared/logLevels';
 
 describe('log levels', () => {
   it('orders levels by tslog id', () => {
@@ -31,5 +38,15 @@ describe('log levels', () => {
     expect(parseLogLevel('')).toBeNull();
     expect(parseLogLevel(undefined)).toBeNull();
     expect(parseLogLevel(null)).toBeNull();
+    // Object.prototype keys are not levels (CORESENSE_LOG_LEVEL=constructor
+    // falls back to the default rather than yielding a non-number minLevel).
+    expect(parseLogLevel('constructor')).toBeNull();
+  });
+
+  it('resolveLogLevel prefers the name, then the id, then info', () => {
+    expect(resolveLogLevel('WARN', 0)).toBe('warn');
+    expect(resolveLogLevel(undefined, 5)).toBe('error');
+    expect(resolveLogLevel('custom', 1)).toBe('trace');
+    expect(resolveLogLevel('custom', 99)).toBe('info');
   });
 });

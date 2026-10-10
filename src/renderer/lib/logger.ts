@@ -1,6 +1,6 @@
 import type { ILogObjMeta } from 'tslog';
 import { Logger } from 'tslog';
-import { type LogLevel, logLevelFromId, logLevelId, parseLogLevel } from '../../shared/logLevels';
+import { type LogLevel, logLevelId, resolveLogLevel } from '../../shared/logLevels';
 import type { LogEntry } from '../../shared/types';
 
 // ---------------------------------------------------------------------------
@@ -53,7 +53,7 @@ log.attachTransport((logObj: unknown) => {
     };
 
     const levelId = meta.logLevelId;
-    const level: LogLevel = parseLogLevel(meta.logLevelName) ?? logLevelFromId(levelId) ?? 'info';
+    const level = resolveLogLevel(meta.logLevelName, levelId);
 
     // Build logger name: join parent names + own name
     const nameParts: string[] = [];

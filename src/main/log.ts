@@ -1,6 +1,6 @@
 import * as util from 'node:util';
 import { type ILogObjMeta, Logger } from 'tslog';
-import { type LogLevel, logLevelFromId, logLevelId, parseLogLevel } from '../shared/logLevels';
+import { type LogLevel, logLevelId, parseLogLevel, resolveLogLevel } from '../shared/logLevels';
 import type { LogEntry } from '../shared/types';
 import { emit } from './events/bus';
 import { write as fileSinkWrite } from './logging/fileSink';
@@ -65,7 +65,7 @@ export function toLogEntry(logObj: TslogObj): LogEntry {
   };
 
   const levelId = meta.logLevelId;
-  const level: LogLevel = parseLogLevel(meta.logLevelName) ?? logLevelFromId(levelId) ?? 'info';
+  const level = resolveLogLevel(meta.logLevelName, levelId);
 
   // Build logger name: join parent names + own name (mirrors tslog's template {{name}})
   const parts: string[] = [];

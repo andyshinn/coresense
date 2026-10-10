@@ -27,3 +27,8 @@ export function logLevelId(level: LogLevel): number {
 export function logLevelFromId(id: number): LogLevel | undefined {
   return Number.isInteger(id) ? LOG_LEVELS[id] : undefined;
 }
+
+/** Level for a tslog record: its level name, else its numeric id, else 'info'. */
+export function resolveLogLevel(name: string | undefined, id: number): LogLevel {
+  return parseLogLevel(name) ?? logLevelFromId(id) ?? 'info';
+}
