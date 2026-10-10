@@ -90,4 +90,43 @@ describe('createSender', () => {
     expect(logError).toHaveBeenCalledWith(expect.stringContaining('local-test'));
   });
 
+  it('DM: logs and marks failed when the retry send resolves {ok:false}', async () => {
+    // The lib resolves (rather than rejects) for an unknown contact or one
+    // without a full 32B key, and emits no messageState of its own — so the
+    // row would sit in 'sending' forever unless the sender fails it.
+    const logError = vi.fn();
+    const states: Array<{ id: string; state: string }> = [];
+    const emitMessageState = vi.fn();
+    const send = createSender({
+      getSession: () => ({
+        sendChannelText: vi.fn(async () => ({ ok: true })),
+        sendDmTextWithRetry: vi.fn(async () => ({ ok: false, error: 'unknown contact c:abcd' })),
+        registerChannelSend: vi.fn(),
+      }),
+      getHolder: () => ({
+        insertMessage: () => {},
+        setMessageState: (id: string, state: string) => states.push({ id, state }),
+        getMessagesForKey: () => [],
+      }),
+      emitMessages: vi.fn(),
+      emitMessageState,
+      now: () => 1000,
+      genId: () => 'local-test',
+      logError,
+    });
+    await send('c:abcd', 'yo');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(states).toEqual([{ id: 'local-test', state: 'failed' }]);
+    expect(emitMessageState).toHaveBeenCalledWith('local-test', 'failed');
+    expect(logError).toHaveBeenCalledWith(expect.stringContaining('unknown contact c:abcd'));
+  });
+
+  it('DM: leaves the row alone when the retry send resolves ok', async () => {
+    const h = harness();
+    await h.send('c:abcd', 'yo');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(h.states).toEqual([]);
+  });
 });

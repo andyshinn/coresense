@@ -56,11 +56,20 @@ export function createSender(deps: SenderDeps): (key: string, body: string) => P
     }
 
     // DM: return after the first write; the retry loop runs in the background.
-    session.sendDmTextWithRetry(key, body, id).catch((err) => {
+    // The lib can also RESOLVE {ok:false} without emitting messageState (unknown
+    // contact, no full 32B public key), so a resolved failure fails the row the
+    // same way a rejection does — otherwise it sits in 'sending' forever.
+    const markFailed = (error: string): void => {
       holder.setMessageState(id, 'failed');
       deps.emitMessageState(id, 'failed');
-      deps.logError?.(`sendDmTextWithRetry id=${id}: ${errorMessage(err)}`);
-    });
+      deps.logError?.(`sendDmTextWithRetry id=${id}: ${error}`);
+    };
+    session.sendDmTextWithRetry(key, body, id).then(
+      (result) => {
+        if (!result.ok) markFailed(result.error ?? 'send failed');
+      },
+      (err) => markFailed(errorMessage(err)),
+    );
     return { ok: true, id };
   };
 }
