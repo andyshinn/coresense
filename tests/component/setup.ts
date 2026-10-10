@@ -6,8 +6,17 @@
 import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
 
-afterEach(() => {
+afterEach(async () => {
   cleanup();
+  // Put the zustand store back to its initial state, so one test's
+  // setState can't leak into the next. Imported here rather than at the top:
+  // a setup file's static imports load before a test file's vi.mock() calls
+  // register, so a top-level import would pin the store's own dependencies
+  // (logger, frecency, …) to their real modules even in a file that mocks
+  // them. By now the test file has loaded the store, so this is the same
+  // instance it used.
+  const { useStore } = await import('@/lib/store');
+  useStore.setState(useStore.getInitialState(), true);
 });
 
 // jsdom doesn't implement matchMedia. shadcn's SidebarProvider -> useIsMobile
