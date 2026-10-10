@@ -1,22 +1,17 @@
-import type { LogLevel } from '../../../../shared/types';
+import { LOG_LEVELS } from '../../../../shared/logLevels';
 import { Select } from '../../../components/settings/Field';
 import { useStore } from '../../../lib/store';
 
-const LEVEL_OPTIONS = [
-  { value: 'silly', label: 'silly' },
-  { value: 'trace', label: 'trace' },
-  { value: 'debug', label: 'debug' },
-  { value: 'info', label: 'info' },
-  { value: 'warn', label: 'warn' },
-  { value: 'error', label: 'error' },
-  { value: 'fatal', label: 'fatal' },
-] as const satisfies ReadonlyArray<{ value: LogLevel; label: string }>;
+const LEVEL_OPTIONS = LOG_LEVELS.map((level) => ({ value: level, label: level }));
+
+const ACTION_BUTTON_CLASS =
+  'inline-flex items-center rounded border border-cs-border bg-cs-bg-3 px-2 py-0.5 text-[11px] text-cs-text hover:bg-cs-border';
 
 /** Minimum log level selector for the logs right-rail filter. */
 export function LogsLevelSection() {
   const minLevel = useStore((s) => s.ui.logsFilter.minLevel);
   const setLogsFilter = useStore((s) => s.setLogsFilter);
-  return <Select value={minLevel} options={LEVEL_OPTIONS} onChange={(v) => setLogsFilter({ minLevel: v as LogLevel })} />;
+  return <Select value={minLevel} options={LEVEL_OPTIONS} onChange={(v) => setLogsFilter({ minLevel: v })} />;
 }
 
 /** Source checkboxes (Main / Renderer) for the logs right-rail filter. */
@@ -96,18 +91,10 @@ export function LogsActionsSection() {
         Pause auto-scroll
       </label>
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={clearLogs}
-          className="inline-flex items-center rounded border border-cs-border bg-cs-bg-3 px-2 py-0.5 text-[11px] text-cs-text hover:bg-cs-border"
-        >
+        <button type="button" onClick={clearLogs} className={ACTION_BUTTON_CLASS}>
           Clear
         </button>
-        <button
-          type="button"
-          onClick={() => setActiveKey('tool:settings:app')}
-          className="inline-flex items-center rounded border border-cs-border bg-cs-bg-3 px-2 py-0.5 text-[11px] text-cs-text hover:bg-cs-border"
-        >
+        <button type="button" onClick={() => setActiveKey('tool:settings:app')} className={ACTION_BUTTON_CLASS}>
           Back to Settings
         </button>
       </div>

@@ -1,4 +1,5 @@
 import { BellOff, Copy, Minus, PinIcon, PinOff, Plus, Trash2 } from 'lucide-react';
+import { errorMessage } from '../../../shared/errors';
 import type { Channel } from '../../../shared/types';
 import { ContextMenu, type ContextMenuEntry, copyToClipboard, menuItem, menuSeparator } from '../../components/ContextMenu';
 import { type ApiClient, api } from '../../lib/api';
@@ -43,7 +44,7 @@ export function ChannelContextMenu({
         try {
           await api.putChannel(client, { ...channel, muted: !channel.muted });
         } catch (err) {
-          notify.error(`Mute toggle failed: ${(err as Error).message}`, err);
+          notify.error(`Mute toggle failed: ${errorMessage(err)}`, err);
         }
       },
       { icon: BellOff, disabled: !client },
@@ -61,7 +62,7 @@ export function ChannelContextMenu({
               await api.removeChannelFromDevice(client, channel.key);
               notify.success(`Removed "${channel.name}" from device`);
             } catch (err) {
-              notify.error(`Remove failed: ${(err as Error).message}`, err);
+              notify.error(`Remove failed: ${errorMessage(err)}`, err);
             }
           },
           { icon: Minus, disabled: !connected || !client },
@@ -74,7 +75,7 @@ export function ChannelContextMenu({
               const res = await api.pushChannelToDevice(client, channel.key);
               notify.success(`Added "${channel.name}" to device (slot ${res.idx})`);
             } catch (err) {
-              notify.error(`Add failed: ${(err as Error).message}`, err);
+              notify.error(`Add failed: ${errorMessage(err)}`, err);
             }
           },
           { icon: Plus, disabled: !connected || !client },
@@ -88,7 +89,7 @@ export function ChannelContextMenu({
           await api.deleteChannel(client, channel.key);
           notify.success(`Deleted "${channel.name}" from app`);
         } catch (err) {
-          notify.error(`Delete failed: ${(err as Error).message}`, err);
+          notify.error(`Delete failed: ${errorMessage(err)}`, err);
         }
       },
       { icon: Trash2, danger: true, disabled: !client },

@@ -1,5 +1,6 @@
 import { Hash, Plus, Search, Users, X } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { errorMessage } from '../../../shared/errors';
 import type { Contact, ContactKind } from '../../../shared/types';
 import { AddChannelPopover } from '../../components/AddChannelPopover';
 import { ContextMenu, menuItem } from '../../components/ContextMenu';
@@ -215,7 +216,7 @@ export function LeftNav({ client }: LeftNavProps) {
       try {
         await api.reorderChannels(client, orderedKeys);
       } catch (err) {
-        notify.error(`Reorder failed: ${(err as Error).message}`, err);
+        notify.error(`Reorder failed: ${errorMessage(err)}`, err);
       }
     },
     [client],

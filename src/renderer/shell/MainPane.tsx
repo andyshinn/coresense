@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
+import { isChannelKey, isContactKey } from '../../shared/conversationKey';
 import { logError, PanelErrorFallback } from '../components/errors/ErrorFallback';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
@@ -95,7 +96,7 @@ function MainPaneInner({ client, onScan, onConnect, onDisconnect, renderPacketLo
     return <MacrosPanel client={client} />;
   }
 
-  if (activeKey.startsWith('ch:')) {
+  if (isChannelKey(activeKey)) {
     const ch = channels.find((c) => c.key === activeKey);
     if (!ch) {
       return (
@@ -107,7 +108,7 @@ function MainPaneInner({ client, onScan, onConnect, onDisconnect, renderPacketLo
     }
     return <ChannelView channel={ch} client={client} />;
   }
-  if (activeKey.startsWith('c:')) {
+  if (isContactKey(activeKey)) {
     const contact = contacts.find((c) => c.key === activeKey);
     if (!contact) {
       return (
