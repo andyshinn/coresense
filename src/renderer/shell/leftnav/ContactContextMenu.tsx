@@ -1,10 +1,10 @@
 import { BellOff, Copy, Megaphone, PinIcon, PinOff, Trash2 } from 'lucide-react';
+import { errorMessage } from '../../../shared/errors';
 import type { Contact } from '../../../shared/types';
-import { copyToClipboard, menuItem, menuSeparator } from '../../components/ContextMenu';
+import { ContextMenu, type ContextMenuEntry, copyToClipboard, menuItem, menuSeparator } from '../../components/ContextMenu';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
-import { type ContextMenuEntry, EntryContextMenu } from './contextMenu';
 
 /** State payload for a positioned contact context menu. */
 export interface ContactMenuState {
@@ -44,7 +44,7 @@ export function ContactContextMenu({
         try {
           await api.putContact(client, { ...contact, muted: !contact.muted });
         } catch (err) {
-          notify.error(`Mute toggle failed: ${(err as Error).message}`, err);
+          notify.error(`Mute toggle failed: ${errorMessage(err)}`, err);
         }
       },
       { icon: BellOff, disabled: !client },
@@ -61,7 +61,7 @@ export function ContactContextMenu({
           await api.sendAdvert(client);
           notify.success('Self-advert sent');
         } catch (err) {
-          notify.error(`Advert failed: ${(err as Error).message}`, err);
+          notify.error(`Advert failed: ${errorMessage(err)}`, err);
         }
       },
       { icon: Megaphone, disabled: !connected || !client },
@@ -75,12 +75,12 @@ export function ContactContextMenu({
           await api.deleteContact(client, contact.key);
           notify.success(`Removed "${contact.name}"`);
         } catch (err) {
-          notify.error(`Remove failed: ${(err as Error).message}`, err);
+          notify.error(`Remove failed: ${errorMessage(err)}`, err);
         }
       },
       { icon: Trash2, danger: true, disabled: !client },
     ),
   ];
 
-  return <EntryContextMenu x={x} y={y} items={items} onClose={onClose} />;
+  return <ContextMenu x={x} y={y} items={items} onClose={onClose} />;
 }

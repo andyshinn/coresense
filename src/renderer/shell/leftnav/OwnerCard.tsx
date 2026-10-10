@@ -16,9 +16,8 @@ import { OwnerCardPopover } from './OwnerCardPopover';
  *  user's configured quick actions. Hovering the header reveals full radio detail. */
 export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiClient | null }) {
   const deviceInfo = useStore((s) => s.deviceInfo);
-  const radio = useStore((s) => s.radioSettings);
+  const pathHashMode = useStore((s) => s.radioSettings.pathHashMode);
   const transport = useStore((s) => s.transportState);
-  const pathHashMode = radio.pathHashMode;
   const connected = transport === 'connected';
 
   const battMv = deviceInfo.batteryMv;

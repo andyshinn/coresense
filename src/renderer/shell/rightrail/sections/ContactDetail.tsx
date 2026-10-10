@@ -13,18 +13,13 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { formatHops, formatLastHeard, formatObservedHops } from '../../../../shared/contacts/discovered';
+import { errorMessage } from '../../../../shared/errors';
+import { hasValidFix } from '../../../../shared/types';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
-import { copyToClipboard } from '../../../components/ContextMenu';
+import { ConfirmDialog } from '../../../components/ConfirmDialog';
+import { CopyButton } from '../../../components/CopyButton';
 import { PathHashBadge } from '../../../components/PathHashBadge';
 import { SetPathEditor } from '../../../components/path/SetPathEditor';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../../../components/ui/dialog';
 import { KeyValueRow } from '../../../components/ui/KeyValueRow';
 import { useAdvertPath } from '../../../hooks/useAdvertPath';
 import { type ApiClient, api } from '../../../lib/api';
@@ -53,23 +48,9 @@ interface Props {
 }
 
 /** Center the Map panel on a resolved contact's last position. */
-function flyToContact(rc: ResolvedContact) {
+function flyToContact(pos: { gpsLat: number; gpsLon: number }) {
   useStore.getState().setActiveKey('tool:map');
-  publishMapBus({ kind: 'flyTo', lng: rc.gpsLon as number, lat: rc.gpsLat as number, zoom: 12 });
-}
-
-/** True iff a resolved contact carries a usable WGS84 fix (mirrors hasValidFix
- *  but for the merged shape). */
-function rcHasFix(rc: ResolvedContact): boolean {
-  return (
-    typeof rc.gpsLat === 'number' &&
-    typeof rc.gpsLon === 'number' &&
-    (rc.gpsLat !== 0 || rc.gpsLon !== 0) &&
-    rc.gpsLat >= -90 &&
-    rc.gpsLat <= 90 &&
-    rc.gpsLon >= -180 &&
-    rc.gpsLon <= 180
-  );
+  publishMapBus({ kind: 'flyTo', lng: pos.gpsLon, lat: pos.gpsLat, zoom: 12 });
 }
 
 export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) {
@@ -100,7 +81,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
       await fn(client);
       notify.success(ok);
     } catch (err) {
-      notify.error(`Action failed: ${(err as Error).message}`, err);
+      notify.error(`Action failed: ${errorMessage(err)}`, err);
     }
   }
 
@@ -111,12 +92,11 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
   }
 
   const shortKey = `${rc.publicKeyHex.slice(0, 6)}…${rc.publicKeyHex.slice(-4)}`;
-  const hasFix = rcHasFix(rc);
-  const selfHasFix =
-    typeof identity.lat === 'number' && typeof identity.lon === 'number' && (identity.lat !== 0 || identity.lon !== 0);
+  const fix = hasValidFix(rc) ? { gpsLat: rc.gpsLat, gpsLon: rc.gpsLon } : null;
+  const { lat: selfLat, lon: selfLon } = identity;
   const distance =
-    hasFix && selfHasFix
-      ? distanceKm(identity.lat as number, identity.lon as number, rc.gpsLat as number, rc.gpsLon as number)
+    fix && selfLat != null && selfLon != null && (selfLat !== 0 || selfLon !== 0)
+      ? distanceKm(selfLat, selfLon, fix.gpsLat, fix.gpsLon)
       : null;
 
   // Three states, and the difference matters: never measured, measured but the
@@ -144,16 +124,15 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
               {rc.name || '(unnamed)'}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => copyToClipboard(rc.publicKeyHex, () => notify.success('Public key copied'))}
+          <CopyButton
+            value={rc.publicKeyHex}
             title={`${rc.publicKeyHex} — click to copy`}
             className="font-mono text-[10px] text-cs-text-dim hover:text-cs-text-muted"
           >
             {shortKey}
-          </button>
+          </CopyButton>
         </div>
-        <StatusPill c={{ blocked: rc.blocked, onRadio: rc.onRadio } as never} />
+        <StatusPill c={rc} />
       </div>
 
       <div className="flex flex-wrap gap-1.5">
@@ -175,7 +154,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
             )
           }
         />
-        {hasFix && <CardActionButton icon={MapPin} label="View on map" onClick={() => flyToContact(rc)} />}
+        {fix && <CardActionButton icon={MapPin} label="View on map" onClick={() => flyToContact(fix)} />}
         {canAdminister && (
           <>
             <CardActionButton icon={Radio} label="Telemetry" onClick={() => openRepeaterTab('status')} />
@@ -199,35 +178,18 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
         />
       )}
 
-      <Dialog open={removeOpen} onOpenChange={(o) => !o && setRemoveOpen(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Remove from radio</DialogTitle>
-            <DialogDescription>
-              Remove {rc.name} from the radio's contact store? It stays in your discovered list and can be re-added later.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <button
-              type="button"
-              onClick={() => setRemoveOpen(false)}
-              className="rounded-md border border-cs-border bg-cs-bg-2 px-3 py-1.5 text-xs hover:bg-cs-bg-3"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setRemoveOpen(false);
-                void act((c) => api.removeFromRadio(c, rc.publicKeyHex), `Removed ${rc.name} from radio`);
-              }}
-              className="rounded-md border border-cs-danger bg-cs-danger/10 px-3 py-1.5 text-xs text-cs-danger hover:bg-cs-danger/20"
-            >
-              Remove
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={removeOpen}
+        title="Remove from radio"
+        description={`Remove ${rc.name} from the radio's contact store? It stays in your discovered list and can be re-added later.`}
+        confirmLabel="Remove"
+        tone="danger"
+        onConfirm={() => {
+          setRemoveOpen(false);
+          void act((c) => api.removeFromRadio(c, rc.publicKeyHex), `Removed ${rc.name} from radio`);
+        }}
+        onCancel={() => setRemoveOpen(false)}
+      />
 
       <div className="space-y-1.5">
         <KeyValueRow
@@ -235,23 +197,19 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
           mono
           title={rc.publicKeyHex}
           value={
-            <button
-              type="button"
-              onClick={() => copyToClipboard(rc.publicKeyHex, () => notify.success('Public key copied'))}
-              className="truncate font-mono hover:text-cs-text"
-            >
+            <CopyButton value={rc.publicKeyHex} className="truncate font-mono hover:text-cs-text">
               {shortKey}
-            </button>
+            </CopyButton>
           }
         />
         <KeyValueRow label="Type" value={KIND_LABEL[rc.kind]} />
-        {hasFix && (
+        {fix && (
           <KeyValueRow
             label="Position"
             mono
             value={
-              <button type="button" onClick={() => flyToContact(rc)} title="View on map" className="hover:text-cs-text">
-                {(rc.gpsLat as number).toFixed(5)}, {(rc.gpsLon as number).toFixed(5)}
+              <button type="button" onClick={() => flyToContact(fix)} title="View on map" className="hover:text-cs-text">
+                {fix.gpsLat.toFixed(5)}, {fix.gpsLon.toFixed(5)}
               </button>
             }
           />

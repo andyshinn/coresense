@@ -1,10 +1,12 @@
+import { isChannelKey, isContactKey } from '../../../shared/conversationKey';
+
 /** View "kind" derived from activeKey. Each kind has its own rail section set. */
-export type ViewKind = 'channel' | 'dm' | 'repeater' | 'packetlog' | 'tool' | 'none';
+export type ViewKind = 'channel' | 'dm' | 'packetlog' | 'tool' | 'none';
 
 /** Classify the active route key into a rail view kind. */
 export function viewKindFor(activeKey: string): ViewKind {
-  if (activeKey.startsWith('ch:')) return 'channel';
-  if (activeKey.startsWith('c:')) return 'dm'; // Repeater contacts route to 'repeater' once the protocol layer differentiates.
+  if (isChannelKey(activeKey)) return 'channel';
+  if (isContactKey(activeKey)) return 'dm';
   if (activeKey === 'tool:packetlog') return 'packetlog';
   if (activeKey === 'tool:bleconnect') return 'none';
   if (activeKey.startsWith('tool:')) return 'tool';
@@ -23,12 +25,8 @@ export function railTitle(activeKey: string): string {
       return 'Channel';
     case 'dm':
       return 'Contact';
-    case 'repeater':
-      return 'Repeater';
     case 'packetlog':
       return 'Packet';
-    case 'tool':
-      return 'Details';
     default:
       return 'Details';
   }

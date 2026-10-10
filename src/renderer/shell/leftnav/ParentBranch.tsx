@@ -3,6 +3,7 @@ import { Collapsible } from 'radix-ui';
 import type { MouseEvent, ReactNode } from 'react';
 import { SidebarMenuButton, SidebarMenuItem, useSidebar } from '../../components/ui/sidebar';
 import { cn } from '../../lib/utils';
+import { UnreadChip } from './atoms';
 
 /** Top-level menu row that opens a submenu with icon + label + rotating chevron and aggregate unread badge. */
 export function ParentBranch({
@@ -44,15 +45,7 @@ export function ParentBranch({
         <SidebarMenuButton tooltip={label} onClick={handleClick} onContextMenu={onContextMenu}>
           <Icon />
           <span>{label}</span>
-          {unreadTotal > 0 && (
-            <span
-              role="status"
-              aria-label={`${unreadTotal} unread`}
-              className="ml-auto rounded-full bg-cs-accent px-1.5 py-px font-mono text-[10px] leading-none text-cs-bg tabular-nums"
-            >
-              {unreadTotal > 99 ? '99+' : unreadTotal}
-            </span>
-          )}
+          {unreadTotal > 0 && <UnreadChip count={unreadTotal} className="ml-auto" />}
           <ChevronRight
             className={cn(
               'transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90',

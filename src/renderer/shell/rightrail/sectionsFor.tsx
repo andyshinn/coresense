@@ -161,14 +161,15 @@ export function sectionsFor(
 
   // The repeater Neighbours tab promotes its list to the top of the rail, with
   // the usual contact sections kept below it.
+  const contact = data.contact;
   const neighbourSections: RailSection[] =
-    data.contact?.kind === 'repeater' && data.repeaterAdminActiveTab === 'neighbours'
+    contact?.kind === 'repeater' && data.repeaterAdminActiveTab === 'neighbours'
       ? [
           {
             id: 'rail.repeater.neighbours',
             label: 'Neighbours',
             defaultOpen: true,
-            body: () => <NeighboursRailBody contact={data.contact as Contact} client={actions.client} />,
+            body: () => <NeighboursRailBody contact={contact} client={actions.client} />,
           },
         ]
       : [];
@@ -219,7 +220,6 @@ export function sectionsFor(
       return [...mentionedSections, ...messageSections, ...channelSections];
     }
     case 'dm':
-    case 'repeater':
       return [
         ...neighbourSections,
         ...mentionedSections,
@@ -234,26 +234,11 @@ export function sectionsFor(
           id: 'rail.contact.path',
           label: 'Path',
           body: () =>
-            data.contact && data.contact.publicKeyHex.length >= 64 ? (
-              <SetPathEditor contact={data.contact} client={actions.client} />
+            contact && contact.publicKeyHex.length >= 64 ? (
+              <SetPathEditor contact={contact} client={actions.client} />
             ) : (
               <Placeholder label="path editor needs a full public key (waiting on advert)" />
             ),
-        },
-      ];
-    case 'packetlog':
-      return [
-        ...mentionedSections,
-        {
-          id: 'rail.packet.filter',
-          label: 'Filter',
-          defaultOpen: baseDefaultOpen,
-          body: () => <Placeholder label="filter by kind, hex, RSSI" />,
-        },
-        {
-          id: 'rail.packet.decoder',
-          label: 'Decoder details',
-          body: () => <Placeholder label="decoded fields of the selected packet" />,
         },
       ];
     default:
