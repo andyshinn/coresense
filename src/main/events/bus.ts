@@ -60,8 +60,9 @@ export function summarizeContactSync(delivered: number, stored: number, onRadio:
   return { delivered, stored, onRadio, complete: stored >= delivered };
 }
 
-/** Every bus event and its listener arguments. `bus.on`/`off`/`emit` are
- *  checked against it, so a listener can't drift from what the emitter sends. */
+/** Every bus event and its listener arguments. `bus` is typed against it (see
+ *  `TypedBus`), so neither a misspelled event name nor a listener that drifts
+ *  from what the emitter sends compiles. */
 export type BusEventMap = {
   packet: [p: RawPacket];
   transportState: [state: TransportState, deviceId?: string];
@@ -104,16 +105,33 @@ export type BusEventMap = {
   updateState: [state: UpdateState];
 };
 
-export const bus = new EventEmitter<BusEventMap>();
+type BusEvent = keyof BusEventMap;
 
-/** A named emitter for one bus event, typed by the map. It emits through an
- *  unparameterised view of `bus` only because @types/node's conditional Args<>
- *  can't resolve an unbound K; the returned function's own signature is what
- *  every caller is checked against. */
-const emitter = <K extends keyof BusEventMap>(event: K) => {
-  const emitRaw: (event: string, ...args: unknown[]) => boolean = bus.emit.bind(bus);
-  return (...args: BusEventMap[K]): boolean => emitRaw(event, ...args);
-};
+/** The slice of EventEmitter the app uses, keyed strictly by `BusEventMap`.
+ *  @types/node's typed `EventEmitter<T>` still accepts ANY string as an event
+ *  name (`bus.on('contactEvicted ', …)` compiles and silently never fires), so
+ *  `bus` is exported through this narrower view instead. */
+export interface TypedBus {
+  on<K extends BusEvent>(event: K, listener: (...args: BusEventMap[K]) => void): this;
+  once<K extends BusEvent>(event: K, listener: (...args: BusEventMap[K]) => void): this;
+  off<K extends BusEvent>(event: K, listener: (...args: BusEventMap[K]) => void): this;
+  emit<K extends BusEvent>(event: K, ...args: BusEventMap[K]): boolean;
+  removeAllListeners(event?: BusEvent): this;
+  listenerCount(event: BusEvent): number;
+  eventNames(): BusEvent[];
+}
+
+// The cast only bridges @types/node's conditional listener types, which can't
+// resolve against an unbound K; at runtime this IS the EventEmitter.
+export const bus = new EventEmitter<BusEventMap>() as unknown as TypedBus;
+
+/** A named emitter for one bus event, typed by the map. It looks `bus.emit` up
+ *  on every call (not bound once) so a later spy or patch on it still sees
+ *  these emits. */
+const emitter =
+  <K extends BusEvent>(event: K) =>
+  (...args: BusEventMap[K]): boolean =>
+    bus.emit(event, ...args);
 
 // Note: avoid Node EventEmitter's reserved 'error' event — it throws when
 // emitted with no listeners, and listeners can come and go across shutdown.
