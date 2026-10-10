@@ -6,10 +6,11 @@ import { ReferencePanel } from '../../panels/macros/studio/ReferencePanel';
  *  bridge the studio publishes to the store. */
 export function MacroReferenceRail() {
   const bridge = useStore((s) => s.macroStudioBridge);
+  const previewMode = useStore((s) => s.macroStudioPreviewMode);
 
   if (!bridge) {
     return <div className="p-4 text-[12px] text-cs-text-dim">Open or create a macro to see its variables and filters.</div>;
   }
 
-  return <ReferencePanel mode={bridge.previewMode} onInsertVar={bridge.insertVar} onInsertFilter={bridge.insertText} />;
+  return <ReferencePanel mode={previewMode} onInsertVar={bridge.insertVar} onInsertFilter={bridge.insertText} />;
 }

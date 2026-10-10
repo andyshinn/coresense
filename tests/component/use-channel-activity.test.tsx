@@ -42,6 +42,23 @@ describe('useChannelActivity', () => {
     await waitFor(() => expect(getChannelActivity).toHaveBeenCalledTimes(2));
   });
 
+  it("does not refetch when another conversation's message changes state", async () => {
+    useStore.setState({
+      messagesByKey: {
+        'ch:Test': [{ id: 'c1', key: 'ch:Test', body: 'hi', ts: 1, state: 'received' }],
+        'c:dm': [{ id: 'd1', key: 'c:dm', body: 'yo', ts: 2, state: 'sending' }],
+      },
+    });
+    renderHook(() => useChannelActivity('ch:Test', client));
+    await waitFor(() => expect(getChannelActivity).toHaveBeenCalledTimes(1));
+    // Used to rebuild every key's array, so the channel's list changed identity
+    // and the histogram refetched on every DM delivery-state transition.
+    await act(async () => {
+      useStore.getState().applyMessageState('d1', 'ack');
+    });
+    expect(getChannelActivity).toHaveBeenCalledTimes(1);
+  });
+
   it('surfaces a fetch error', async () => {
     getChannelActivity.mockRejectedValueOnce(new Error('boom'));
     const { result } = renderHook(() => useChannelActivity('ch:Test', client));

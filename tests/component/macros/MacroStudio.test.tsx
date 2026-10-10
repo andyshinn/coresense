@@ -171,4 +171,23 @@ describe('MacroStudio', () => {
     fireEvent.click(screen.getByRole('button', { name: 'sender_name' }));
     expect((screen.getByTestId('macro-editor') as HTMLTextAreaElement).value).toBe('{{ sender_name }}');
   });
+
+  it('opens the rail once on mount, and a preview-mode toggle never re-opens it', () => {
+    useStore.setState((s) => ({ ui: { ...s.ui, rightOpen: false } }));
+    const { unmount } = render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
+    expect(useStore.getState().ui.rightOpen).toBe(true);
+    expect(useStore.getState().macroStudioBridge).not.toBeNull();
+    expect(useStore.getState().macroStudioPreviewMode).toBe('send');
+
+    // The user collapses the rail, then flips the preview mode.
+    useStore.getState().toggleRightRail();
+    const uiBefore = useStore.getState().ui;
+    fireEvent.click(screen.getByTestId('preview-mode-reply'));
+    expect(useStore.getState().macroStudioPreviewMode).toBe('reply');
+    expect(useStore.getState().ui.rightOpen).toBe(false);
+    expect(useStore.getState().ui).toBe(uiBefore);
+
+    unmount();
+    expect(useStore.getState().macroStudioBridge).toBeNull();
+  });
 });
