@@ -1,4 +1,7 @@
+import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import { isMessageBlocked } from '../../shared/blocking/match';
+import { isContactKey, pubkeyFromKey } from '../../shared/conversationKey';
+import { clampFiniteInt } from '../../shared/math';
 import type {
   BlockRule,
   Channel,
@@ -10,7 +13,7 @@ import type {
   SearchOptions,
   SearchResults,
 } from '../../shared/types';
-import { openDb } from './db';
+import { all, clampLimit, get, openDb, withTransaction } from './db';
 
 // Tokens shorter than this are dropped to avoid massively broad result sets
 // from single-letter terms (FTS5 BM25 ranking suffers and the snippet noise
@@ -52,12 +55,14 @@ function htmlEscape(s: string): string {
 //
 // Returns null when there is no usable input — callers short-circuit to an
 // empty result set rather than asking FTS5 to match nothing.
-function buildMatchExpression(raw: string): {
+interface MatchExpression {
   match: string;
   /** Reversed forms of hex-looking tokens for suffix lookup against
    *  conversations_fts.pk_suffix_rev. */
   reversedHex: string[];
-} | null {
+}
+
+function buildMatchExpression(raw: string): MatchExpression | null {
   const tokens = stripMeta(raw)
     .split(/\s+/)
     .map((t) => t.trim())
@@ -93,7 +98,13 @@ interface ConversationRow {
   score: number;
 }
 
-// `contacts` is injected by the caller (the API route reads it from the state
+/** A SQL fragment and the values for its `?` placeholders, in order. Built and
+ *  consumed together so the positional binding can't drift from the text. */
+interface SqlFragment {
+  sql: string;
+  params: SQLInputValue[];
+}
+
 /** Everything searchMessages needs to flag hits that match an active block
  *  rule: `contacts` resolves from_pk → contact name, `blockRules` + `regexCache`
  *  drive isMessageBlocked. Injected by the caller (the API route builds it from
@@ -106,157 +117,117 @@ export interface SearchBlockContext {
   regexCache: Map<string, RegExp>;
 }
 
-export function searchMessages(opts: SearchOptions, block: SearchBlockContext): SearchResults {
-  const db = openDb();
-  const built = buildMatchExpression(opts.query);
-  if (!built) {
-    return { conversations: [], messages: [], total: { conversations: 0, messages: 0 } };
-  }
-
-  const limit = Math.min(opts.limit ?? DEFAULT_LIMIT, HARD_LIMIT);
-  const offset = Math.min(Math.max(opts.offset ?? 0, 0), HARD_OFFSET);
-  const categories = opts.categories?.length ? opts.categories : (['channel', 'dm', 'contact'] as SearchCategory[]);
-  const showChannels = categories.includes('channel');
-  const showContacts = categories.includes('contact');
-  // Message rows are gated by the message-kind subset of the selected
-  // categories. 'contact' is a conversation-section category, not a message
-  // kind, so it never appears here.
-  const msgKinds = categories.filter((c) => c === 'channel' || c === 'dm');
-
-  // ---- Conversation hits (run first; feeds the sender-union) -------------
-  // Two passes: forward match on name + pk_prefix, then a separate pass on
-  // pk_suffix_rev for hex tokens. Results are merged by key with the better
-  // (more negative) score winning.
-  const convoRows = db
-    .prepare(
-      `SELECT kind, key, name, pk_prefix, contact_kind, bm25(conversations_fts) AS score
+const CONVERSATION_SQL = `SELECT kind, key, name, pk_prefix, contact_kind, bm25(conversations_fts) AS score
        FROM conversations_fts
        WHERE conversations_fts MATCH ?
        ORDER BY bm25(conversations_fts) ASC
-       LIMIT 50`,
-    )
-    .all(built.match) as unknown as ConversationRow[];
+       LIMIT 50`;
 
-  const convoByKey = new Map<string, ConversationRow>();
-  for (const r of convoRows) {
-    const prev = convoByKey.get(r.key);
-    if (!prev || r.score < prev.score) convoByKey.set(r.key, r);
-  }
+// snippet(table, colIdx, start, end, ellipsis, tokens). FTS5 doesn't
+// HTML-escape its output, so we route the marker pair through unique
+// placeholders that the user can't smuggle in as message text, escape the
+// body, then swap the placeholders for real <mark> tags. The renderer
+// dangerouslySetInnerHTMLs the result.
+const SNIPPET_START = '\u{1F539}START\u{1F539}';
+const SNIPPET_END = '\u{1F539}END\u{1F539}';
+
+/** Conversation hits, keyed by conversation key. Two passes: forward match on
+ *  name + pk_prefix, then a separate pass on pk_suffix_rev for hex tokens.
+ *  Results are merged by key with the better (more negative) score winning. */
+function searchConversations(db: DatabaseSync, built: MatchExpression): Map<string, ConversationRow> {
+  const byKey = new Map<string, ConversationRow>();
+  const merge = (match: string) => {
+    for (const r of all<ConversationRow>(db.prepare(CONVERSATION_SQL), match)) {
+      const prev = byKey.get(r.key);
+      if (!prev || r.score < prev.score) byKey.set(r.key, r);
+    }
+  };
+  merge(built.match);
   if (built.reversedHex.length > 0) {
     // Build a separate MATCH that only consults pk_suffix_rev so the prefix
     // wildcard hits the (already reversed) suffix bytes.
-    const revMatch = built.reversedHex.map((t) => `pk_suffix_rev: ${escapePhrase(t)}*`).join(' OR ');
-    const revRows = db
-      .prepare(
-        `SELECT kind, key, name, pk_prefix, contact_kind, bm25(conversations_fts) AS score
-         FROM conversations_fts
-         WHERE conversations_fts MATCH ?
-         ORDER BY bm25(conversations_fts) ASC
-         LIMIT 50`,
-      )
-      .all(revMatch) as unknown as ConversationRow[];
-    for (const r of revRows) {
-      const prev = convoByKey.get(r.key);
-      if (!prev || r.score < prev.score) convoByKey.set(r.key, r);
-    }
+    merge(built.reversedHex.map((t) => `pk_suffix_rev: ${escapePhrase(t)}*`).join(' OR '));
   }
+  return byKey;
+}
 
-  // Pubkeys of matched *contact* conversations — these become the sender
-  // expansion. A search for "Alice" pulls every message where she's the
-  // from_pk in addition to bodies containing 'Alice'.
-  //
-  // Deliberately collected from the unfiltered matches, BEFORE the showContacts
-  // category filter below: sender-expansion is part of the message ('dm') leg,
-  // not the Contacts section. So searching "Alice" with the dm category on still
-  // surfaces her DMs even when the Contacts section itself is hidden.
-  const senderPks: string[] = [];
-  for (const r of convoByKey.values()) {
-    if (r.kind === 'contact' && r.key.startsWith('c:')) senderPks.push(r.key.slice(2));
-  }
-
-  // ---- Filter clause (shared by body + sender legs of the union) ----------
-  // Each leg appends its own ?-bound params in order; we keep a single
-  // filterParams array and splice it in twice.
+/** The filter clause shared by the body and sender legs of the message union,
+ *  as `AND …` (or empty). Each leg splices it in, params and all. */
+function buildMessageFilter(opts: SearchOptions, msgKinds: SearchCategory[]): SqlFragment {
   const filters: string[] = [];
-  const filterParams: (string | number)[] = [];
+  const params: SQLInputValue[] = [];
   if (msgKinds.length === 1) {
     filters.push(`m.kind = ?`);
-    filterParams.push(msgKinds[0]);
+    params.push(msgKinds[0]);
   }
   if (opts.key) {
     filters.push(`m.key = ?`);
-    filterParams.push(opts.key);
+    params.push(opts.key);
   }
   if (opts.fromPk === 'self') {
     filters.push(`m.from_pk IS NULL`);
   } else if (opts.fromPk) {
     filters.push(`m.from_pk = ?`);
-    filterParams.push(opts.fromPk);
+    params.push(opts.fromPk);
   }
   if (opts.tsFrom != null) {
     filters.push(`m.ts >= ?`);
-    filterParams.push(opts.tsFrom);
+    params.push(opts.tsFrom);
   }
   if (opts.tsTo != null) {
     filters.push(`m.ts <= ?`);
-    filterParams.push(opts.tsTo);
+    params.push(opts.tsTo);
   }
-  const filterSql = filters.length ? `AND ${filters.join(' AND ')}` : '';
+  return { sql: filters.length ? `AND ${filters.join(' AND ')}` : '', params };
+}
 
-  // ---- Message hits (body UNION sender-from-matched-contacts) -------------
-  // The sender leg is omitted when no contact conversations matched, since
-  // SQLite rejects `IN ()`. Sender-only rows have no snippet and a neutral
-  // score (0), so body-match rows outrank them under relevance sort while
-  // recency sort interleaves them by ts.
-  //
-  // snippet(table, colIdx, start, end, ellipsis, tokens). FTS5 doesn't
-  // HTML-escape its output, so we route the marker pair through unique
-  // placeholders that the user can't smuggle in as message text, escape the
-  // body, then swap the placeholders for real <mark> tags. The renderer
-  // dangerouslySetInnerHTMLs the result.
-  const SNIPPET_START = '\u{1F539}START\u{1F539}';
-  const SNIPPET_END = '\u{1F539}END\u{1F539}';
-
+/** Message hits: body matches UNION messages sent by a matched contact. The
+ *  sender leg is omitted when no contact conversations matched, since SQLite
+ *  rejects `IN ()`. Sender-only rows have no snippet and a neutral score (0),
+ *  so body-match rows outrank them under relevance sort while recency sort
+ *  interleaves them by ts. Shared, unchanged, by the page query and the COUNT
+ *  that drives Load more. */
+function buildMessageUnion(match: string, filter: SqlFragment, senderPks: string[]): SqlFragment {
   const bodyLeg = `
     SELECT m.id AS id, m.mid AS mid, m.key AS key, m.ts AS ts, m.from_pk AS from_pk, m.body AS body,
            snippet(messages_fts, 0, '${SNIPPET_START}', '${SNIPPET_END}', '…', 16) AS snippet,
            bm25(messages_fts) AS score
     FROM messages_fts
     JOIN messages m ON m.id = messages_fts.rowid
-    WHERE messages_fts MATCH ? ${filterSql}
+    WHERE messages_fts MATCH ? ${filter.sql}
   `;
+  if (senderPks.length === 0) return { sql: bodyLeg, params: [match, ...filter.params] };
 
-  const senderPlaceholders = senderPks.map(() => '?').join(',');
-  const senderLeg =
-    senderPks.length > 0
-      ? `
+  const senderLeg = `
     SELECT m.id AS id, m.mid AS mid, m.key AS key, m.ts AS ts, m.from_pk AS from_pk, m.body AS body,
            NULL AS snippet, 0 AS score
     FROM messages m
-    WHERE m.from_pk IN (${senderPlaceholders}) ${filterSql}
+    WHERE m.from_pk IN (${senderPks.map(() => '?').join(',')}) ${filter.sql}
       AND m.id NOT IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)
-  `
-      : '';
+  `;
+  return {
+    sql: `${bodyLeg} UNION ALL ${senderLeg}`,
+    params: [match, ...filter.params, ...senderPks, ...filter.params, match],
+  };
+}
 
-  // Order over the union: body matches (negative bm25) sort ahead of sender
-  // matches (score=0) under relevance. Recency uses ts then score as tiebreak.
-  const orderBy = opts.sort === 'relevance' ? 'score ASC, ts DESC' : 'ts DESC, score ASC';
+/** Body-match count per conversation key (the conversation badges). */
+function matchCountsByKey(db: DatabaseSync, match: string): Map<string, number> {
+  const rows = all<{ key: string; n: number }>(
+    db.prepare(
+      `SELECT m.key AS key, COUNT(*) AS n
+       FROM messages_fts
+       JOIN messages m ON m.id = messages_fts.rowid
+       WHERE messages_fts MATCH ?
+       GROUP BY m.key`,
+    ),
+    match,
+  );
+  return new Map(rows.map((r) => [r.key, r.n]));
+}
 
-  const unionSql = senderLeg
-    ? `SELECT * FROM (${bodyLeg} UNION ALL ${senderLeg}) ORDER BY ${orderBy} LIMIT ? OFFSET ?`
-    : `${bodyLeg} ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
-
-  const unionParams: (string | number)[] = [built.match, ...filterParams];
-  if (senderLeg) {
-    unionParams.push(...senderPks, ...filterParams, built.match);
-  }
-  unionParams.push(limit, offset);
-
-  // No message kinds selected (only 'contact') → skip the message query.
-  const wantMessages = msgKinds.length > 0;
-  const messageRows = wantMessages ? (db.prepare(unionSql).all(...unionParams) as unknown as MessageRow[]) : [];
-
-  const messageHits: MessageHit[] = messageRows.map((r) => ({
+function toMessageHit(r: MessageRow): MessageHit {
+  return {
     id: r.mid,
     key: r.key,
     ts: r.ts,
@@ -268,57 +239,92 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
         // (HTML-escaped) so the row isn't empty.
         htmlEscape(r.body.length > 120 ? `${r.body.slice(0, 120)}…` : r.body),
     score: r.score,
-  }));
+  };
+}
 
-  // Annotate hits that match an active block rule so the renderer can drop
-  // them. Search hits don't carry path data (FTS5 row only knows from_pk +
-  // body), so for channel messages only name / nameRegex rules can ever match
-  // — pubkey / pubkeyPrefix rules silently no-op on channel hits because the
-  // origin-hop shortId/pubkey isn't recoverable from the index.
+/** Flag hits that match an active block rule so the renderer can drop them.
+ *  Search hits don't carry path data (FTS5 row only knows from_pk + body), so
+ *  for channel messages only name / nameRegex rules can ever match — pubkey /
+ *  pubkeyPrefix rules silently no-op on channel hits because the origin-hop
+ *  shortId/pubkey isn't recoverable from the index. */
+function annotateBlocked(hits: MessageHit[], block: SearchBlockContext): void {
   const rules = block.blockRules;
-  if (rules.length > 0) {
-    const regexCache = block.regexCache;
-    const contactNameByPk = (pk: string): string | undefined => block.contacts.find((c) => c.publicKeyHex === pk)?.name;
-    for (const h of messageHits) {
-      const synthetic = {
-        id: h.id,
-        key: h.key,
-        body: h.body,
-        ts: h.ts,
-        state: 'received' as const,
-        fromPublicKeyHex: h.fromPublicKeyHex ?? undefined,
-        meta: undefined,
-      };
-      const { blocked } = isMessageBlocked(synthetic, { contactNameByPk }, rules, regexCache);
-      if (blocked) h.blocked = true;
-    }
+  if (rules.length === 0) return;
+  const contactNameByPk = (pk: string): string | undefined => block.contacts.find((c) => c.publicKeyHex === pk)?.name;
+  for (const h of hits) {
+    const synthetic = {
+      id: h.id,
+      key: h.key,
+      body: h.body,
+      ts: h.ts,
+      state: 'received' as const,
+      fromPublicKeyHex: h.fromPublicKeyHex ?? undefined,
+      meta: undefined,
+    };
+    const { blocked } = isMessageBlocked(synthetic, { contactNameByPk }, rules, block.regexCache);
+    if (blocked) h.blocked = true;
+  }
+}
+
+export function searchMessages(opts: SearchOptions, block: SearchBlockContext): SearchResults {
+  const db = openDb();
+  const built = buildMatchExpression(opts.query);
+  if (!built) {
+    return { conversations: [], messages: [], total: { conversations: 0, messages: 0 } };
   }
 
-  // ---- True total (drives Load more) --------------------------------------
-  // Same union, COUNT(*). Cheap — FTS5's MATCH count is O(matches), and the
-  // sender leg is bounded by from_pk index lookups.
-  const countSql = senderLeg
-    ? `SELECT COUNT(*) AS n FROM (${bodyLeg} UNION ALL ${senderLeg})`
-    : `SELECT COUNT(*) AS n FROM (${bodyLeg})`;
-  const countParams: (string | number)[] = [built.match, ...filterParams];
-  if (senderLeg) countParams.push(...senderPks, ...filterParams, built.match);
-  const totalMessages = wantMessages
-    ? ((db.prepare(countSql).get(...countParams) as unknown as { n: number } | undefined)?.n ?? 0)
-    : 0;
+  // Both arrive from an HTTP body. SQLite reads a negative LIMIT as "no limit",
+  // so an unchecked `limit: -1` would return every matching row.
+  const limit = clampLimit(opts.limit, DEFAULT_LIMIT, HARD_LIMIT);
+  const offset = clampFiniteInt(opts.offset, 0, HARD_OFFSET, 0);
+  const categories = opts.categories?.length ? opts.categories : (['channel', 'dm', 'contact'] as SearchCategory[]);
+  const showChannels = categories.includes('channel');
+  const showContacts = categories.includes('contact');
+  // Message rows are gated by the message-kind subset of the selected
+  // categories. 'contact' is a conversation-section category, not a message
+  // kind, so it never appears here.
+  const msgKinds = categories.filter((c) => c === 'channel' || c === 'dm');
 
-  // ---- Per-key body-match counts (conversation badges) --------------------
-  const matchCountRows = db
-    .prepare(
-      `SELECT m.key AS key, COUNT(*) AS n
-       FROM messages_fts
-       JOIN messages m ON m.id = messages_fts.rowid
-       WHERE messages_fts MATCH ?
-       GROUP BY m.key`,
-    )
-    .all(built.match) as unknown as { key: string; n: number }[];
-  const matchCountByKey = new Map<string, number>();
-  for (const r of matchCountRows) matchCountByKey.set(r.key, r.n);
+  // ---- Conversation hits (run first; feeds the sender-union) -------------
+  const convoByKey = searchConversations(db, built);
 
+  // Pubkeys of matched *contact* conversations — these become the sender
+  // expansion. A search for "Alice" pulls every message where she's the
+  // from_pk in addition to bodies containing 'Alice'.
+  //
+  // Deliberately collected from the unfiltered matches, BEFORE the showContacts
+  // category filter below: sender-expansion is part of the message ('dm') leg,
+  // not the Contacts section. So searching "Alice" with the dm category on still
+  // surfaces her DMs even when the Contacts section itself is hidden.
+  const senderPks: string[] = [];
+  for (const r of convoByKey.values()) {
+    if (r.kind === 'contact' && isContactKey(r.key)) senderPks.push(pubkeyFromKey(r.key));
+  }
+
+  // ---- Message hits + true total (drives Load more) -----------------------
+  // No message kinds selected (only 'contact') → skip both message queries.
+  // The COUNT is cheap — FTS5's MATCH count is O(matches), and the sender leg
+  // is bounded by from_pk index lookups.
+  let messageHits: MessageHit[] = [];
+  let totalMessages = 0;
+  if (msgKinds.length > 0) {
+    const union = buildMessageUnion(built.match, buildMessageFilter(opts, msgKinds), senderPks);
+    // Order over the union: body matches (negative bm25) sort ahead of sender
+    // matches (score=0) under relevance. Recency uses ts then score as tiebreak.
+    const orderBy = opts.sort === 'relevance' ? 'score ASC, ts DESC' : 'ts DESC, score ASC';
+    const rows = all<MessageRow>(
+      db.prepare(`SELECT * FROM (${union.sql}) ORDER BY ${orderBy} LIMIT ? OFFSET ?`),
+      ...union.params,
+      limit,
+      offset,
+    );
+    messageHits = rows.map(toMessageHit);
+    annotateBlocked(messageHits, block);
+    totalMessages = get<{ n: number }>(db.prepare(`SELECT COUNT(*) AS n FROM (${union.sql})`), ...union.params)?.n ?? 0;
+  }
+
+  // ---- Conversation section ------------------------------------------------
+  const matchCountByKey = matchCountsByKey(db, built.match);
   const conversations: ConversationHit[] = [...convoByKey.values()]
     .filter((r) => (r.kind === 'channel' ? showChannels : showContacts))
     .sort((a, b) => a.score - b.score)
@@ -326,7 +332,7 @@ export function searchMessages(opts: SearchOptions, block: SearchBlockContext): 
       key: r.key,
       kind: r.kind,
       name: r.name,
-      publicKeyHex: r.kind === 'contact' && r.key.startsWith('c:') ? r.key.slice(2) : undefined,
+      publicKeyHex: r.kind === 'contact' && isContactKey(r.key) ? pubkeyFromKey(r.key) : undefined,
       contactKind: r.kind === 'contact' ? (r.contact_kind as ContactKind) || undefined : undefined,
       score: r.score,
       messageMatches: matchCountByKey.get(r.key) ?? 0,
@@ -350,8 +356,7 @@ export function rebuildConversationsIndex(snapshot: { channels: Channel[]; conta
   // The wipe must live inside the transaction: if a later insert throws, the
   // ROLLBACK has to restore the prior index rather than leave it empty (a bare
   // DELETE would auto-commit before BEGIN).
-  db.exec('BEGIN');
-  try {
+  withTransaction(db, () => {
     db.exec(`DELETE FROM conversations_fts`);
     for (const ch of snapshot.channels) {
       ins.run('channel', ch.key, ch.name, '', '', '');
@@ -360,11 +365,7 @@ export function rebuildConversationsIndex(snapshot: { channels: Channel[]; conta
       const pk = c.publicKeyHex.toLowerCase();
       ins.run('contact', c.key, c.name, pk.slice(0, 16), reverseStr(pk.slice(-16)), c.kind);
     }
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+  });
 }
 
 // Run periodically (we wire it to before-quit) to compact the FTS index.

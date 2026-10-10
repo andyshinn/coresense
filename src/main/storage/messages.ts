@@ -1,5 +1,11 @@
+import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
+import { conversationKind } from '../../shared/conversationKey';
+import { DAY_MS, HOUR_MS } from '../../shared/time';
 import type { ActivityBand, ChannelActivity, ChannelStats, Message, MessageMeta, MessageState } from '../../shared/types';
-import { openDb } from './db';
+import { all, clampLimit, get, openDb, withTransaction } from './db';
+
+/** The columns every Message read selects; keep in step with Row. */
+const MESSAGE_COLUMNS = 'mid, kind, key, ts, from_pk, body, state, meta';
 
 interface Row {
   mid: string;
@@ -25,10 +31,15 @@ function rowToMessage(row: Row): Message {
   };
 }
 
+/** `SELECT <MESSAGE_COLUMNS> FROM messages <tail>` mapped to Messages, in row order. */
+function selectMessages(db: DatabaseSync, tail: string, ...params: SQLInputValue[]): Message[] {
+  return all<Row>(db.prepare(`SELECT ${MESSAGE_COLUMNS} FROM messages ${tail}`), ...params).map(rowToMessage);
+}
+
 function kindFromKey(key: string): 'channel' | 'dm' {
-  if (key.startsWith('ch:')) return 'channel';
-  if (key.startsWith('c:')) return 'dm';
-  throw new Error(`unrecognized message key '${key}'`);
+  const kind = conversationKind(key);
+  if (!kind) throw new Error(`unrecognized message key '${key}'`);
+  return kind;
 }
 
 // search.ts wraps FTS5 snippet output with a private-use-area sentinel pair
@@ -40,8 +51,6 @@ const SENTINEL_RE = /\u{1F539}(?:START|END)\u{1F539}/gu;
 function sanitizeBody(body: string): string {
   return body.replace(SENTINEL_RE, '');
 }
-
-const HOUR_MS = 3_600_000;
 
 /** Local-midnight edges for `n` calendar days ending with the day containing `now`.
  *  Returns n+1 timestamps: edges[i] opens bucket i, edges[n] closes the last one.
@@ -122,7 +131,7 @@ export const messagesStore = {
     // SQLite reads a negative LIMIT as "no limit", so a request for ?limit=0
     // (or an empty/NaN/negative one) would dump an entire 50k-row conversation
     // through the block annotator and out as a single response.
-    const limit = Number.isFinite(opts.limit) && (opts.limit as number) > 0 ? Math.floor(opts.limit as number) : 200;
+    const limit = clampLimit(opts.limit, 200);
 
     // Centred window, for jumping to a search hit. FTS searches the whole
     // table, so a hit is routinely older than the trailing window the
@@ -130,9 +139,11 @@ export const messagesStore = {
     // scroll to. Half the budget each side. Both legs ride
     // messages_by_key_ts (key, ts DESC).
     if (opts.around) {
-      const anchor = db
-        .prepare(`SELECT rowid AS rid, ts FROM messages WHERE mid = ? AND key = ?`)
-        .get(opts.around, key) as unknown as { rid: number; ts: number } | undefined;
+      const anchor = get<{ rid: number; ts: number }>(
+        db.prepare(`SELECT rowid AS rid, ts FROM messages WHERE mid = ? AND key = ?`),
+        opts.around,
+        key,
+      );
       if (anchor) {
         const half = Math.max(1, Math.floor(limit / 2));
         // The split is on (ts, rowid), not ts alone. Ordering by ts alone
@@ -141,81 +152,79 @@ export const messagesStore = {
         // strict `ts >` upper leg excluded it too — omitting the very row that
         // was asked for. Tie-breaking on rowid makes the anchor's membership
         // exact rather than incidental.
-        const before = db
-          .prepare(
-            `SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages
-             WHERE key = ? AND (ts < ? OR (ts = ? AND rowid <= ?))
-             ORDER BY ts DESC, rowid DESC LIMIT ?`,
-          )
-          .all(key, anchor.ts, anchor.ts, anchor.rid, half) as unknown as Row[];
-        const after = db
-          .prepare(
-            `SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages
-             WHERE key = ? AND (ts > ? OR (ts = ? AND rowid > ?))
-             ORDER BY ts ASC, rowid ASC LIMIT ?`,
-          )
-          .all(key, anchor.ts, anchor.ts, anchor.rid, Math.max(0, limit - half)) as unknown as Row[];
-        return [...before.reverse(), ...after].map(rowToMessage);
+        const before = selectMessages(
+          db,
+          `WHERE key = ? AND (ts < ? OR (ts = ? AND rowid <= ?)) ORDER BY ts DESC, rowid DESC LIMIT ?`,
+          key,
+          anchor.ts,
+          anchor.ts,
+          anchor.rid,
+          half,
+        );
+        const after = selectMessages(
+          db,
+          `WHERE key = ? AND (ts > ? OR (ts = ? AND rowid > ?)) ORDER BY ts ASC, rowid ASC LIMIT ?`,
+          key,
+          anchor.ts,
+          anchor.ts,
+          anchor.rid,
+          Math.max(0, limit - half),
+        );
+        return [...before.reverse(), ...after];
       }
       // Unknown id — fall through to the plain trailing window rather than
       // returning nothing, so a stale search hit still shows the conversation.
     }
 
-    const rows = opts.before
-      ? (db
-          .prepare(
-            `SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages
-             WHERE key = ? AND ts < ? ORDER BY ts DESC LIMIT ?`,
-          )
-          .all(key, opts.before, limit) as unknown as Row[])
-      : (db
-          .prepare(
-            `SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages
-             WHERE key = ? ORDER BY ts DESC LIMIT ?`,
-          )
-          .all(key, limit) as unknown as Row[]);
-    return rows.map(rowToMessage).reverse();
+    const messages = opts.before
+      ? selectMessages(db, `WHERE key = ? AND ts < ? ORDER BY ts DESC LIMIT ?`, key, opts.before, limit)
+      : selectMessages(db, `WHERE key = ? ORDER BY ts DESC LIMIT ?`, key, limit);
+    return messages.reverse();
   },
 
   statsByKey(key: string, now: number = Date.now()): ChannelStats {
     const db = openDb();
-    const DAY = 86_400_000;
-    const since24h = now - DAY;
-    const since7d = now - 7 * DAY;
+    const since24h = now - DAY_MS;
+    const since7d = now - 7 * DAY_MS;
 
-    const agg = db
-      .prepare(`SELECT COUNT(*) AS count, MIN(ts) AS firstTs, MAX(ts) AS lastTs FROM messages WHERE key = ?`)
-      .get(key) as unknown as { count: number; firstTs: number | null; lastTs: number | null };
+    // An aggregate with no GROUP BY always yields exactly one row; the fallback
+    // only satisfies the type.
+    const agg = get<{ count: number; firstTs: number | null; lastTs: number | null }>(
+      db.prepare(`SELECT COUNT(*) AS count, MIN(ts) AS firstTs, MAX(ts) AS lastTs FROM messages WHERE key = ?`),
+      key,
+    ) ?? { count: 0, firstTs: null, lastTs: null };
 
-    const win = db
-      .prepare(
+    const win = get<{ c24: number | null; c7: number | null }>(
+      db.prepare(
         `SELECT
            SUM(CASE WHEN ts >= ? THEN 1 ELSE 0 END) AS c24,
            SUM(CASE WHEN ts >= ? THEN 1 ELSE 0 END) AS c7
          FROM messages WHERE key = ?`,
-      )
-      .get(since24h, since7d, key) as unknown as { c24: number | null; c7: number | null };
+      ),
+      since24h,
+      since7d,
+      key,
+    );
 
-    const senderRows = db
-      .prepare(
+    const senderRows = all<{ fromPk: string | null; count: number; lastTs: number }>(
+      db.prepare(
         `SELECT from_pk AS fromPk, COUNT(*) AS count, MAX(ts) AS lastTs
          FROM messages WHERE key = ? GROUP BY from_pk ORDER BY lastTs DESC`,
-      )
-      .all(key) as unknown as Array<{ fromPk: string | null; count: number; lastTs: number }>;
+      ),
+      key,
+    );
 
     const roster = senderRows.map((r) => ({ fromPk: r.fromPk, count: r.count, lastTs: r.lastTs }));
     const distinctSenders = roster.filter((r) => r.fromPk !== null && r.fromPk !== 'unknown').length;
 
     // Bucket the last 7 calendar days (local tz), index 6 = today.
     const perDay = [0, 0, 0, 0, 0, 0, 0];
-    const tsRows = db.prepare(`SELECT ts FROM messages WHERE key = ? AND ts >= ?`).all(key, since7d) as unknown as Array<{
-      ts: number;
-    }>;
+    const tsRows = all<{ ts: number }>(db.prepare(`SELECT ts FROM messages WHERE key = ? AND ts >= ?`), key, since7d);
     const startOfToday = new Date(now);
     startOfToday.setHours(0, 0, 0, 0);
     const startMs = startOfToday.getTime();
     for (const { ts } of tsRows) {
-      const bucket = 6 + Math.floor((ts - startMs) / DAY);
+      const bucket = 6 + Math.floor((ts - startMs) / DAY_MS);
       if (bucket >= 0 && bucket < 7) perDay[bucket] += 1;
     }
 
@@ -223,8 +232,8 @@ export const messagesStore = {
       count: agg.count,
       firstTs: agg.firstTs,
       lastTs: agg.lastTs,
-      count24h: win.c24 ?? 0,
-      count7d: win.c7 ?? 0,
+      count24h: win?.c24 ?? 0,
+      count7d: win?.c7 ?? 0,
       distinctSenders,
       roster,
       perDay,
@@ -253,9 +262,7 @@ export const messagesStore = {
     const prev30Start = localDayEdges(d30[0] - 1, 30)[0];
     const since = Math.min(prev24Start, prev7Start, prev30Start);
 
-    const rows = db.prepare(`SELECT ts FROM messages WHERE key = ? AND ts >= ?`).all(key, since) as unknown as Array<{
-      ts: number;
-    }>;
+    const rows = all<{ ts: number }>(db.prepare(`SELECT ts FROM messages WHERE key = ? AND ts >= ?`), key, since);
 
     const b24 = new Array<number>(24).fill(0);
     const b7 = new Array<number>(7).fill(0);
@@ -289,9 +296,7 @@ export const messagesStore = {
     }
 
     const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
-    const lastRow = db.prepare(`SELECT MAX(ts) AS lastTs FROM messages WHERE key = ?`).get(key) as unknown as {
-      lastTs: number | null;
-    };
+    const lastRow = get<{ lastTs: number | null }>(db.prepare(`SELECT MAX(ts) AS lastTs FROM messages WHERE key = ?`), key);
 
     return {
       windows: {
@@ -301,41 +306,23 @@ export const messagesStore = {
       },
       peakBand: bandSamples >= BAND_MIN_SAMPLES ? bestBand(hourHist, 3, 'max') : null,
       quietBand: bandSamples >= BAND_MIN_SAMPLES ? bestBand(hourHist, 4, 'min') : null,
-      lastTs: lastRow.lastTs ?? null,
+      lastTs: lastRow?.lastTs ?? null,
     };
   },
 
   recent(limit = 500): Message[] {
-    const db = openDb();
-    const rows = db
-      .prepare(
-        `SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages
-         ORDER BY ts DESC LIMIT ?`,
-      )
-      .all(limit) as unknown as Row[];
-    return rows.map(rowToMessage).reverse();
+    return selectMessages(openDb(), `ORDER BY ts DESC LIMIT ?`, limit).reverse();
   },
 
   /** All messages with ts >= cutoff, ordered by ts asc. Used by the block-rule
    *  backfill pass to credit retro-matches. Capped to avoid runaway scans on
    *  cutoff=0. */
   sinceTs(cutoffMs: number, limit = 50_000): Message[] {
-    const db = openDb();
-    const rows = db
-      .prepare(
-        `SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages
-         WHERE ts >= ? ORDER BY ts ASC LIMIT ?`,
-      )
-      .all(cutoffMs, limit) as unknown as Row[];
-    return rows.map(rowToMessage);
+    return selectMessages(openDb(), `WHERE ts >= ? ORDER BY ts ASC LIMIT ?`, cutoffMs, limit);
   },
 
   findById(id: string): Message | null {
-    const db = openDb();
-    const row = db.prepare(`SELECT mid, kind, key, ts, from_pk, body, state, meta FROM messages WHERE mid = ?`).get(id) as
-      | Row
-      | undefined;
-    return row ? rowToMessage(row) : null;
+    return selectMessages(openDb(), `WHERE mid = ?`, id)[0] ?? null;
   },
 
   markState(id: string, state: MessageState): void {
@@ -365,37 +352,26 @@ export const messagesStore = {
     if (ids.length === 0) return [];
     const db = openDb();
     const probe = ids.map(() => '?').join(', ');
-    db.exec('BEGIN');
-    try {
-      const rows = db
-        .prepare(`SELECT mid FROM messages WHERE key = ? AND mid IN (${probe})`)
-        .all(key, ...ids) as unknown as {
-        mid: string;
-      }[];
-      if (rows.length === 0) {
-        db.exec('COMMIT');
-        return [];
-      }
+    return withTransaction(db, () => {
+      const rows = all<{ mid: string }>(
+        db.prepare(`SELECT mid FROM messages WHERE key = ? AND mid IN (${probe})`),
+        key,
+        ...ids,
+      );
+      if (rows.length === 0) return [];
       const found = rows.map((r) => r.mid);
       const holes = found.map(() => '?').join(', ');
       db.prepare(`DELETE FROM messages WHERE key = ? AND mid IN (${holes})`).run(key, ...found);
       const tombstone = db.prepare(`INSERT OR IGNORE INTO deleted_messages (mid, ts) VALUES (?, ?)`);
       const now = Date.now();
       for (const mid of found) tombstone.run(mid, now);
-      db.exec('COMMIT');
       return found;
-    } catch (err) {
-      db.exec('ROLLBACK');
-      throw err;
-    }
+    });
   },
 
   /** True when the user deleted this id. Guards the inbound write path. */
   isDeleted(id: string): boolean {
     const db = openDb();
-    const row = db.prepare(`SELECT 1 AS present FROM deleted_messages WHERE mid = ?`).get(id) as
-      | { present: number }
-      | undefined;
-    return row != null;
+    return get<{ present: number }>(db.prepare(`SELECT 1 AS present FROM deleted_messages WHERE mid = ?`), id) != null;
   },
 };

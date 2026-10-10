@@ -1,5 +1,6 @@
 import type { Models } from '@andyshinn/meshcore-ts';
 import { advTypeToKind } from '../../shared/contacts/discovered';
+import { contactKey, pubkeyFromKey } from '../../shared/conversationKey';
 import type { Contact } from '../../shared/types';
 import { emit } from '../events/bus';
 import { coalesce } from '../events/coalesce';
@@ -67,7 +68,8 @@ export async function flushContactSyncEmits(): Promise<void> {
  *  since meshcore-ts 0.8.0 is understood to mean the radio REFUSED to store the
  *  node. So on-radio membership has to be established separately, below. */
 export function ingestObservedContact(record: Models.ContactRecord, source: Models.ContactSource): void {
-  const existingRow = discoveredStore.get(record.publicKeyHex);
+  // null = no row yet, i.e. a first sighting.
+  const storedOnRadio = discoveredStore.isOnRadio(record.publicKeyHex);
   // Membership, cheapest reliable answer first:
   //   - a bulk sync is the radio listing its own store, so 'sync' is on-radio;
   //   - otherwise ask the contact list, which the library has ALREADY updated:
@@ -83,8 +85,8 @@ export function ingestObservedContact(record: Models.ContactRecord, source: Mode
     stateHolder()
       .getContacts()
       .some((c) => c.publicKeyHex === record.publicKeyHex) ||
-    existingRow?.on_radio === 1;
-  const isNewDiscovery = source === 'advert' && existingRow === null;
+    storedOnRadio === true;
+  const isNewDiscovery = source === 'advert' && storedOnRadio === null;
 
   // `heardLive` is our-clock reception, not membership: a 0x8a advert is a
   // fully demodulated frame, so we demonstrably heard the node transmit even
@@ -100,7 +102,7 @@ export function ingestObservedContact(record: Models.ContactRecord, source: Mode
 
   if (isNewDiscovery) {
     emit.contactDiscovered({
-      key: `c:${record.publicKeyHex}`,
+      key: contactKey(record.publicKeyHex),
       name: record.name || record.publicKeyHex.slice(0, 12),
       kind: advTypeToKind(record.type),
     });
@@ -128,7 +130,7 @@ const FULL_PUBKEY_HEX = /^[0-9a-f]{64}$/i;
  *  advert path uses, so a burst of inbound traffic collapses to one push. */
 export function noteHeard(keyOrPubkey: string | undefined): void {
   if (!keyOrPubkey) return;
-  const pubkey = keyOrPubkey.startsWith('c:') ? keyOrPubkey.slice(2) : keyOrPubkey;
+  const pubkey = pubkeyFromKey(keyOrPubkey);
   if (!FULL_PUBKEY_HEX.test(pubkey)) return;
   if (discoveredStore.markHeard(pubkey, Date.now())) scheduleDiscoveredEmit();
 }
