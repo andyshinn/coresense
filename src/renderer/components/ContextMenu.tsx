@@ -3,9 +3,6 @@ import type { MouseEvent } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cn } from '../lib/utils';
 
-// Moved to lib/clipboard.ts; re-exported so menu builders keep one import.
-export { copyToClipboard } from '../lib/clipboard';
-
 // Reusable right-click context menu. Renders a fixed-position popover at
 // (x, y), flipped and clamped to stay inside the window, closes on outside
 // click / Escape, and exposes a small declarative API (items + separators) so
@@ -162,3 +159,6 @@ export function menuItem(
 }
 
 export const menuSeparator: ContextMenuSeparator = { kind: 'separator' };
+
+// Moved to lib/clipboard.ts; re-exported so menu builders keep one import.
+export { copyToClipboard } from '../lib/clipboard';
