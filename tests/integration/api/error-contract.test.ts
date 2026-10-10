@@ -5,18 +5,10 @@ import { Hono } from 'hono';
 import { afterEach, describe, expect, it } from 'vitest';
 import { onApiError } from '../../../src/main/api/errors';
 import { getApiKey } from '../../../src/main/api/middleware/auth';
-import { createRoutes } from '../../../src/main/api/routes';
-import { startServer } from '../../../src/main/server';
 import { transportManager } from '../../../src/main/transport/manager';
 import type { ITransport } from '../../../src/main/transport/types';
-
-function app() {
-  return createRoutes({
-    port: () => 8080,
-    wsClients: () => 0,
-    bridgeStatus: () => ({ running: false, clients: 0 }) as never,
-  });
-}
+import { testRoutes } from '../../support/api';
+import { bootTestServer, type TestServer } from '../../support/server';
 
 describe('route error contract', () => {
   // Regression: with no onError registered, a throw escaped as Hono's plain-text
@@ -36,7 +28,7 @@ describe('route error contract', () => {
   // createRoutes must register onApiError itself: routes that dropped their
   // local catches (e.g. macros) rely on it for their 4xx answers.
   it('registers onApiError on the routes app', async () => {
-    const routes = app();
+    const routes = testRoutes();
     routes.get('/api/test-boom', () => {
       throw new Error('kaboom');
     });
@@ -49,14 +41,14 @@ describe('route error contract', () => {
   // 500, where every other radio failure is a 503.
   it('answers a failed transport scan with 503', async () => {
     transportManager.setTransport({ scan: () => Promise.reject(new Error('bluetooth is off')) } as unknown as ITransport);
-    const res = await app().request('/api/transport/scan', { method: 'POST' });
+    const res = await testRoutes().request('/api/transport/scan', { method: 'POST' });
     expect(res.status).toBe(503);
     expect((await res.json()) as { error: string }).toEqual({ error: 'bluetooth is off' });
   });
 });
 
 describe('server: unknown /api paths', () => {
-  let handle: Awaited<ReturnType<typeof startServer>> | null = null;
+  let handle: TestServer | null = null;
   let rendererDir: string | null = null;
 
   afterEach(async () => {
@@ -69,8 +61,7 @@ describe('server: unknown /api paths', () => {
   async function boot() {
     rendererDir = mkdtempSync(join(tmpdir(), 'coresense-renderer-'));
     writeFileSync(join(rendererDir, 'index.html'), '<!doctype html><title>spa</title>');
-    const bridge = { getStatus: () => ({ running: false, clients: 0 }), on: () => {}, off: () => {} };
-    handle = await startServer(rendererDir, bridge as never, { port: 0, bindAddress: '127.0.0.1' });
+    handle = await bootTestServer(rendererDir);
     return `http://127.0.0.1:${handle.port}`;
   }
 

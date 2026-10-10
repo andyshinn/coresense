@@ -1,17 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoutes } from '../../../src/main/api/routes';
 import { getTileCache } from '../../../src/main/map/tile-cache';
 import { transportManager } from '../../../src/main/transport/manager';
 import type { StateSnapshot } from '../../../src/shared/types';
+import { json, testRoutes } from '../../support/api';
 import { FakeTransport } from '../../support/fake-transport';
-
-function app() {
-  return createRoutes({
-    port: () => 8080,
-    wsClients: () => 0,
-    bridgeStatus: () => ({ running: false, clients: 0 }) as never,
-  });
-}
 
 function fakeResponse(status: number, bytes = new Uint8Array([1, 2, 3, 4])) {
   return {
@@ -22,12 +14,8 @@ function fakeResponse(status: number, bytes = new Uint8Array([1, 2, 3, 4])) {
   } as unknown as Response;
 }
 
-async function setKey(a: ReturnType<typeof app>) {
-  await a.request('/api/map/api-key', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ key: 'pm-secret' }),
-  });
+async function setKey(a: ReturnType<typeof testRoutes>) {
+  await a.request('/api/map/api-key', json('POST', { key: 'pm-secret' }));
 }
 
 // GET /api/state/snapshot reads protocolSession().getDevicePresence()/
@@ -42,13 +30,13 @@ afterEach(() => {
 
 describe('online tile proxy', () => {
   it('returns 404 no_api_key when no key is set', async () => {
-    const res = await app().request('/api/map/online-tile-proxy/basemap/6/10/20');
+    const res = await testRoutes().request('/api/map/online-tile-proxy/basemap/6/10/20');
     expect(res.status).toBe(404);
     expect((await res.json()) as { error: string }).toEqual({ error: 'no_api_key' });
   });
 
   it('rejects non-numeric tile coordinates before touching the cache/upstream', async () => {
-    const a = app();
+    const a = testRoutes();
     await setKey(a);
     const fetchMock = vi.fn(async () => fakeResponse(200));
     vi.stubGlobal('fetch', fetchMock);
@@ -63,7 +51,7 @@ describe('online tile proxy', () => {
   });
 
   it('caches a fetched tile so the second request does not hit upstream', async () => {
-    const a = app();
+    const a = testRoutes();
     await setKey(a);
     const fetchMock = vi.fn(async () => fakeResponse(200));
     vi.stubGlobal('fetch', fetchMock);
@@ -80,7 +68,7 @@ describe('online tile proxy', () => {
   // Regression: the cache write shared the fetch's try, so a full or read-only
   // disk turned every freshly fetched tile into a 502.
   it('still serves a fetched tile when the cache write fails', async () => {
-    const a = app();
+    const a = testRoutes();
     await setKey(a);
     vi.stubGlobal(
       'fetch',
@@ -94,7 +82,7 @@ describe('online tile proxy', () => {
   });
 
   it('maps upstream 401 to a rejected key + 401, then clears on success', async () => {
-    const a = app();
+    const a = testRoutes();
     await setKey(a);
 
     vi.stubGlobal(

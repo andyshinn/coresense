@@ -1,9 +1,9 @@
+import { Buffer } from 'node:buffer';
+import { Protocol } from '@andyshinn/meshcore-ts';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createRoutes } from '../../../src/main/api/routes';
-import { setProtocolSession } from '../../../src/main/protocol';
 import { stateHolder } from '../../../src/main/state/holder';
-import { transportManager } from '../../../src/main/transport/manager';
 import { type AutoAddConfig, DEFAULT_AUTO_ADD_CONFIG } from '../../../src/shared/types';
+import { json, testRoutes } from '../../support/api';
 import { makeTestSession, type TestSession } from '../../support/session-harness';
 
 // PUT /api/device/auto-add driven against a REAL MeshCoreSession over a
@@ -14,53 +14,31 @@ import { makeTestSession, type TestSession } from '../../support/session-harness
 // wireSessionEvents persists straight into the holder. Only a session that
 // really emits can catch it.
 
-const CMD_SET_OTHER_PARAMS = 0x26;
-const CMD_SET_AUTO_ADD_CONFIG = 0x3a;
-
-let live: TestSession | null = null;
+const { CMD, RESP } = Protocol;
 
 /** A started session whose transport is connected and which acks the two
  *  commands this route issues, exactly as a radio would. */
 function connectedSession(): TestSession {
-  const s = makeTestSession();
+  const s = makeTestSession({ connected: true, installAsProtocolSession: true });
   const send = s.transport.send.bind(s.transport);
   s.transport.send = async (bytes: Uint8Array) => {
     await send(bytes);
-    if (bytes[0] === CMD_SET_AUTO_ADD_CONFIG || bytes[0] === CMD_SET_OTHER_PARAMS) s.transport.receiveHex('00');
+    if (bytes[0] === CMD.SET_AUTO_ADD_CONFIG || bytes[0] === CMD.SET_OTHER_PARAMS) s.receive(Buffer.from([RESP.OK]));
   };
   // Makes the session `connected` so its command methods run. The handshake it
   // kicks off writes its own frames in the background; nothing here waits on it.
   s.transport.setState('connected');
-  setProtocolSession(s.adapter);
-  transportManager.setState('connected');
-  live = s;
   return s;
 }
 
 function putAutoAdd(body: AutoAddConfig) {
-  const api = createRoutes({
-    port: () => 8080,
-    wsClients: () => 0,
-    bridgeStatus: () => ({ running: false, clients: 0 }) as never,
-  });
-  return api.request('/api/device/auto-add', {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  return testRoutes().request('/api/device/auto-add', json('PUT', body));
 }
 
-/** Every frame the session put on the wire whose code byte is `code`. */
-function sentWithCode(s: TestSession, code: number): string[] {
-  return s.transport.sent.filter((f) => f[0] === code).map((f) => Buffer.from(f).toString('hex'));
-}
+/** Every frame the session put on the wire whose code byte is `code`, as hex. */
+const sentHex = (s: TestSession, code: number) => s.sentWithCode(code).map((f) => f.toString('hex'));
 
 afterEach(() => {
-  live?.transport.setState('idle');
-  live?.adapter.stop();
-  live = null;
-  setProtocolSession(null);
-  transportManager.setState('idle');
   stateHolder().setAutoAddConfig({ ...DEFAULT_AUTO_ADD_CONFIG });
 });
 
@@ -85,8 +63,8 @@ describe('PUT /api/device/auto-add against a live MeshCoreSession', () => {
     expect(res.status).toBe(200);
     // 0x3a [overwriteOldest|chat = 0x03] [hops 3], then 0x26 with the manual-add
     // byte in position 1.
-    expect(sentWithCode(s, CMD_SET_AUTO_ADD_CONFIG)).toEqual(['3a0303']);
-    expect(sentWithCode(s, CMD_SET_OTHER_PARAMS)[0]?.slice(2, 4)).toBe('01');
+    expect(sentHex(s, CMD.SET_AUTO_ADD_CONFIG)).toEqual(['3a0303']);
+    expect(sentHex(s, CMD.SET_OTHER_PARAMS)[0]?.slice(2, 4)).toBe('01');
 
     // The radio is chat-only now. So must the app be: the library's
     // setOtherParams emits the whole mirror, and wireSessionEvents writes it

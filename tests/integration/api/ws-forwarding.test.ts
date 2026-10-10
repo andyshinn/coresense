@@ -2,22 +2,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import { getApiKey } from '../../../src/main/api/middleware/auth';
 import { bus, emit } from '../../../src/main/events/bus';
-import { startServer } from '../../../src/main/server';
 import type { WsMessage } from '../../../src/shared/types';
+import { bootTestServer, type TestServer } from '../../support/server';
 
-let handle: Awaited<ReturnType<typeof startServer>> | null = null;
 let socket: WebSocket | null = null;
 
-afterEach(async () => {
+afterEach(() => {
   socket?.terminate();
   socket = null;
-  await handle?.close();
-  handle = null;
 });
 
-async function bootAndConnect(received: WsMessage[]) {
-  const bridge = { getStatus: () => ({ running: false, clients: 0 }), on: () => {}, off: () => {} };
-  handle = await startServer(null, bridge as never, { port: 0, bindAddress: '127.0.0.1' });
+async function bootAndConnect(received: WsMessage[]): Promise<TestServer> {
+  const handle = await bootTestServer();
   const ws = new WebSocket(`ws://127.0.0.1:${handle.port}/ws?key=${getApiKey()}`);
   socket = ws;
   ws.on('message', (data) => received.push(JSON.parse(String(data)) as WsMessage));
@@ -25,6 +21,7 @@ async function bootAndConnect(received: WsMessage[]) {
     ws.once('open', () => resolve());
     ws.once('error', reject);
   });
+  return handle;
 }
 
 describe('server bus → WS forwarding', () => {
@@ -44,13 +41,12 @@ describe('server bus → WS forwarding', () => {
 
   it('unsubscribes every listener it registered on close', async () => {
     const before = new Map(bus.eventNames().map((e) => [e, bus.listenerCount(e)]));
-    await bootAndConnect([]);
+    const server = await bootAndConnect([]);
     expect(bus.listenerCount('contactEvicted')).toBeGreaterThan(before.get('contactEvicted') ?? 0);
 
     socket?.terminate();
     socket = null;
-    await handle?.close();
-    handle = null;
+    await server.close();
 
     for (const event of bus.eventNames()) expect(bus.listenerCount(event)).toBe(before.get(event) ?? 0);
   });

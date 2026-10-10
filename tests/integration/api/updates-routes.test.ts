@@ -1,15 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createRoutes } from '../../../src/main/api/routes';
 import { setUpdatesController, type UpdateController } from '../../../src/main/updates/controller';
 import type { UpdateState } from '../../../src/shared/types';
-
-function app() {
-  return createRoutes({
-    port: () => 8080,
-    wsClients: () => 0,
-    bridgeStatus: () => ({ running: false, clients: 0 }) as never,
-  });
-}
+import { testRoutes } from '../../support/api';
 
 const sample: UpdateState = {
   status: 'available',
@@ -26,7 +18,7 @@ describe('updates routes', () => {
   it('POST /api/updates/check returns the controller state', async () => {
     const check = vi.fn(async () => sample);
     setUpdatesController({ check, installAndRestart: vi.fn(), getState: () => sample } as unknown as UpdateController);
-    const res = await app().request('/api/updates/check', { method: 'POST' });
+    const res = await testRoutes().request('/api/updates/check', { method: 'POST' });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; updateState: UpdateState };
     expect(body.ok).toBe(true);
@@ -41,7 +33,7 @@ describe('updates routes', () => {
       installAndRestart,
       getState: () => sample,
     } as unknown as UpdateController);
-    const res = await app().request('/api/updates/install', { method: 'POST' });
+    const res = await testRoutes().request('/api/updates/install', { method: 'POST' });
     expect(res.status).toBe(200);
     expect(installAndRestart).toHaveBeenCalledTimes(1);
   });

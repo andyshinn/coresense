@@ -1,9 +1,7 @@
 import type { Models } from '@andyshinn/meshcore-ts';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createRoutes } from '../../../src/main/api/routes';
-import { setProtocolSession } from '../../../src/main/protocol';
-import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
+import { describe, expect, it, vi } from 'vitest';
 import { discoveredStore } from '../../../src/main/storage/discoveredContacts';
+import { installSessionStub, json, testRoutes } from '../../support/api';
 
 // Two receipt paths the library surfaces only as a resolved promise, never as a
 // subscribable event: a repeater CLI reply and a returned trace. The route
@@ -12,14 +10,6 @@ import { discoveredStore } from '../../../src/main/storage/discoveredContacts';
 
 const PK = 'ee'.repeat(32);
 const OTHER = 'ff'.repeat(32);
-
-function app() {
-  return createRoutes({
-    port: () => 8080,
-    wsClients: () => 0,
-    bridgeStatus: () => ({ running: false, clients: 0 }) as never,
-  });
-}
 
 function seed(pubkey: string): void {
   discoveredStore.upsert(
@@ -42,29 +32,19 @@ function seed(pubkey: string): void {
 const heard = (pubkey: string) => discoveredStore.get(pubkey)?.last_heard_ms ?? null;
 
 function postCli(body: unknown) {
-  return app().request(`/api/repeater/c%3A${PK}/cli`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  return testRoutes().request(`/api/repeater/c%3A${PK}/cli`, json('POST', body));
 }
 
 function postTrace(body: unknown) {
-  return app().request(`/api/repeater/c%3A${PK}/trace`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  return testRoutes().request(`/api/repeater/c%3A${PK}/trace`, json('POST', body));
 }
-
-afterEach(() => setProtocolSession(null));
 
 describe('POST /api/repeater/:key/cli — last-heard', () => {
   it('bumps last-heard when the repeater actually replies', async () => {
     seed(PK);
     seed(OTHER);
     const before = Date.now();
-    setProtocolSession({ repeaterSendCli: vi.fn(() => Promise.resolve('uptime: 5d')) } as unknown as SessionAdapter);
+    installSessionStub({ repeaterSendCli: vi.fn(() => Promise.resolve('uptime: 5d')) });
 
     const res = await postCli({ command: 'uptime' });
 
@@ -77,7 +57,7 @@ describe('POST /api/repeater/:key/cli — last-heard', () => {
   // A fire-and-forget send is outbound only; nothing came back to hear.
   it('does not bump for a send that expects no reply', async () => {
     seed(PK);
-    setProtocolSession({ repeaterSendCli: vi.fn(() => Promise.resolve(undefined)) } as unknown as SessionAdapter);
+    installSessionStub({ repeaterSendCli: vi.fn(() => Promise.resolve('')) });
 
     const res = await postCli({ command: 'reboot', expectReply: false });
 
@@ -87,9 +67,9 @@ describe('POST /api/repeater/:key/cli — last-heard', () => {
 
   it('does not bump when the reply never arrives', async () => {
     seed(PK);
-    setProtocolSession({
+    installSessionStub({
       repeaterSendCli: vi.fn(() => Promise.reject(new Error('CLI command timed out after 8000ms'))),
-    } as unknown as SessionAdapter);
+    });
 
     const res = await postCli({ command: 'uptime' });
 
@@ -102,9 +82,11 @@ describe('POST /api/repeater/:key/trace — last-heard', () => {
   it('bumps last-heard for the traced contact when the trace comes back', async () => {
     seed(PK);
     const before = Date.now();
-    setProtocolSession({
-      repeaterTracePath: vi.fn(() => Promise.resolve({ tagHex: '01020304', hops: [] })),
-    } as unknown as SessionAdapter);
+    installSessionStub({
+      repeaterTracePath: vi.fn(() =>
+        Promise.resolve({ tagHex: '01020304', authHex: '', flags: 0, pathHashSize: 1, hops: [], finalSnrDb: 0 }),
+      ),
+    });
 
     const res = await postTrace({ tag: 1, pathHex: 'aabb' });
 
@@ -114,9 +96,9 @@ describe('POST /api/repeater/:key/trace — last-heard', () => {
 
   it('does not bump when the trace never returns', async () => {
     seed(PK);
-    setProtocolSession({
+    installSessionStub({
       repeaterTracePath: vi.fn(() => Promise.reject(new Error('trace timed out'))),
-    } as unknown as SessionAdapter);
+    });
 
     const res = await postTrace({ tag: 1, pathHex: 'aabb' });
 

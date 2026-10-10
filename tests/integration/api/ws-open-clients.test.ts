@@ -1,20 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import { getApiKey } from '../../../src/main/api/middleware/auth';
-import { startServer } from '../../../src/main/server';
+import { bootTestServer } from '../../support/server';
 
 // hasOpenClients() is what the quit path asks before deferring a quit to the
 // renderer (see shouldDeferQuit). It must track real sockets: false before any
 // renderer connects, true while one is open, false again once it goes away.
 
-let handle: Awaited<ReturnType<typeof startServer>> | null = null;
 let socket: WebSocket | null = null;
 
-async function boot() {
-  const bridge = { getStatus: () => ({ running: false, clients: 0 }), on: () => {}, off: () => {} };
-  handle = await startServer(null, bridge as never, { port: 0, bindAddress: '127.0.0.1' });
-  return handle;
-}
+const boot = () => bootTestServer();
 
 function connect(port: number): Promise<WebSocket> {
   const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?key=${getApiKey()}`);
@@ -25,11 +20,9 @@ function connect(port: number): Promise<WebSocket> {
   });
 }
 
-afterEach(async () => {
+afterEach(() => {
   socket?.terminate();
   socket = null;
-  await handle?.close();
-  handle = null;
 });
 
 describe('startServer().hasOpenClients', () => {

@@ -1,14 +1,13 @@
 import type { Models } from '@andyshinn/meshcore-ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createRoutes } from '../../../src/main/api/routes';
 import { bus } from '../../../src/main/events/bus';
-import { setProtocolSession } from '../../../src/main/protocol';
 import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
 import { ADVERT_PATH_COOLDOWN_MS } from '../../../src/main/state/advertPath';
 import { flushContactSyncEmits } from '../../../src/main/state/contactSync';
 import { discoveredStore } from '../../../src/main/storage/discoveredContacts';
 import { transportManager } from '../../../src/main/transport/manager';
 import type { DiscoveredContact } from '../../../src/shared/contacts/discovered';
+import { installSessionStub, testRoutes } from '../../support/api';
 
 // #45 item 7 — POST /api/contacts/:key/advert-path asks the radio for its cached
 // INBOUND advert path for one contact. Every way that round trip can fail to
@@ -18,14 +17,6 @@ import type { DiscoveredContact } from '../../../src/shared/contacts/discovered'
 
 const PK = 'c3'.repeat(32);
 const KEY = `c%3A${PK}`;
-
-function app() {
-  return createRoutes({
-    port: () => 8080,
-    wsClients: () => 0,
-    bridgeStatus: () => ({ running: false, clients: 0 }) as never,
-  });
-}
 
 function seed(pubkey = PK, opts: { nowMs?: number; heardLive?: boolean } = {}): void {
   discoveredStore.upsert(
@@ -46,21 +37,19 @@ function seed(pubkey = PK, opts: { nowMs?: number; heardLive?: boolean } = {}): 
 }
 
 /** A SessionAdapter double exposing the two methods the measurement path uses. */
-function spySession(opts: { path?: () => Promise<unknown>; onRadio?: boolean } = {}) {
+function spySession(opts: { path?: SessionAdapter['getAdvertPath']; onRadio?: boolean } = {}) {
   const getAdvertPath = vi.fn(
     opts.path ?? (() => Promise.resolve({ recvTimestampUnix: 1_760_000_000, hops: 2, pathHex: 'aabb' })),
   );
   const hasRadioContact = vi.fn(() => opts.onRadio ?? true);
-  setProtocolSession({ getAdvertPath, hasRadioContact } as unknown as SessionAdapter);
+  installSessionStub({ getAdvertPath, hasRadioContact });
   return { getAdvertPath, hasRadioContact };
 }
 
-const post = (query = '') => app().request(`/api/contacts/${KEY}/advert-path${query}`, { method: 'POST' });
+const post = (query = '') => testRoutes().request(`/api/contacts/${KEY}/advert-path${query}`, { method: 'POST' });
 const row = (pubkey = PK) => discoveredStore.get(pubkey);
 
 afterEach(() => {
-  setProtocolSession(null);
-  transportManager.setState('idle');
   vi.useRealTimers();
 });
 
@@ -239,7 +228,7 @@ describe('POST /api/contacts/:key/advert-path', () => {
   it('collapses concurrent requests for the same contact into one command', async () => {
     transportManager.setState('connected');
     seed();
-    let finish!: (v: unknown) => void;
+    let finish!: (v: Awaited<ReturnType<SessionAdapter['getAdvertPath']>>) => void;
     const { getAdvertPath } = spySession({ path: () => new Promise((r) => (finish = r)) });
 
     const first = post();
