@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CLI_BY_NAME } from '../../../shared/repeater-cli/catalog';
+import { CLI_SETTER_BY_KEY, isGetter, isSetter } from '../../../shared/repeater-cli/catalog';
 import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { useStore } from '../../lib/store';
@@ -114,7 +114,7 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
         patchStatus(next.id, patch.state as CliHistoryEntry['status']);
         const refused = patch.error?.kind === 'refused';
         // Node value only exists on a reply-bearing settle (never on `sent`).
-        if (!refused && patch.reply != null && next.cmd?.key && next.cmd.name.startsWith('get ')) {
+        if (!refused && patch.reply != null && next.cmd?.key && isGetter(next.cmd)) {
           const v = extractNodeValue(next.cmd, patch.reply);
           if (v != null) setNodeValues((nv) => ({ ...nv, [next.cmd?.key as string]: v }));
         }
@@ -123,12 +123,12 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
         // `sent` (no-reply), because api.repeaterCli resolves for both. No
         // state check needed: error/timeout go to catch and never reach here;
         // a refused reply is gated out.
-        if (mountedRef.current && !refused && next.cmd?.reboot && next.cmd.name.startsWith('set '))
+        if (mountedRef.current && !refused && next.cmd?.reboot && isSetter(next.cmd))
           onPending(armReboot(pending, next.cmd));
         // §6 observable win: `reboot`/`clkreboot` are noReply → now settle
         // `sent` (Phase 2 timed out here and this never fired). markRebootSent
-        // finally runs.
-        if (mountedRef.current && !refused && (next.text === 'reboot' || next.text === 'clkreboot'))
+        // finally runs. Bare command only: `reboot <junk>` is not treated as one.
+        if (mountedRef.current && !refused && next.cmd?.rebootsNode && next.text === next.cmd.name)
           onPending(markRebootSent(pending, Date.now()));
       } catch (err) {
         if (ctrl.signal.aborted) return; // abortAll already moved this entry to cancelled
@@ -167,13 +167,12 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
     (entry: CliEntry): FollowUp[] => {
       const out: FollowUp[] = [];
       const cmd = entry.cmd;
-      if (entry.state === 'ok' && cmd?.key && cmd.name.startsWith('get ')) {
-        const setName = Object.values(CLI_BY_NAME).find((c) => c.key === cmd.key && c.name.startsWith('set '))?.name;
+      if (entry.state === 'ok' && cmd?.key && isGetter(cmd)) {
+        const setName = CLI_SETTER_BY_KEY.get(cmd.key)?.name;
         const value = nodeValues[cmd.key];
         if (setName && value) out.push({ label: 'Change this value', text: `${setName} ${value}` });
       }
-      if (entry.state === 'ok' && cmd?.reboot && cmd.name.startsWith('set '))
-        out.push({ label: 'Apply with', text: 'reboot' });
+      if (entry.state === 'ok' && cmd?.reboot && isSetter(cmd)) out.push({ label: 'Apply with', text: 'reboot' });
       return out;
     },
     [nodeValues],

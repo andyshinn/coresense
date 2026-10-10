@@ -53,7 +53,8 @@ export interface CliCommand {
   def?: string;
   serialOnly?: true;
   noReply?: true;
-  reboot?: true;
+  reboot?: true; // the setting only takes effect after a reboot
+  rebootsNode?: true; // running the command itself restarts the node
   danger?: true;
   fw?: string; // annotation only, never gates
   deprecated?: string;
@@ -84,7 +85,7 @@ export const CLI_GROUP_ORDER: readonly CliGroup[] = [
 ];
 
 const OPERATIONAL: CliCommand[] = [
-  { name: 'reboot', group: 'Operational', desc: 'Restart the node', noReply: true },
+  { name: 'reboot', group: 'Operational', desc: 'Restart the node', noReply: true, rebootsNode: true },
   {
     name: 'poweroff',
     group: 'Operational',
@@ -93,7 +94,13 @@ const OPERATIONAL: CliCommand[] = [
     danger: true,
     note: 'The node goes dark and cannot be woken over the air — someone must power-cycle it in person. `shutdown` is a firmware alias (CommonCLI.cpp:216).',
   },
-  { name: 'clkreboot', group: 'Operational', desc: 'Reset the clock and reboot', noReply: true },
+  {
+    name: 'clkreboot',
+    group: 'Operational',
+    desc: 'Reset the clock and reboot',
+    noReply: true,
+    rebootsNode: true,
+  },
   { name: 'clock', group: 'Operational', desc: 'Display current time in UTC' },
   { name: 'clock sync', group: 'Operational', desc: 'Sync the clock with this device' },
   {
@@ -725,3 +732,26 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
 export const CLI_BY_NAME: Readonly<Record<string, CliCommand>> = Object.freeze(
   Object.fromEntries(CLI_COMMANDS.map((c) => [c.name, c])),
 );
+
+/** The read half of a get/set pair: the command that reports a `key`. */
+export function isGetter(cmd: CliCommand): boolean {
+  return cmd.name.startsWith('get ');
+}
+
+/** The write half of a get/set pair: the command that changes a `key`. */
+export function isSetter(cmd: CliCommand): boolean {
+  return cmd.name.startsWith('set ');
+}
+
+// Each key has at most one getter and one setter; the first in catalog order
+// wins, matching a linear scan of CLI_COMMANDS.
+function indexByKey(pick: (cmd: CliCommand) => boolean): ReadonlyMap<string, CliCommand> {
+  const out = new Map<string, CliCommand>();
+  for (const c of CLI_COMMANDS) if (c.key && pick(c) && !out.has(c.key)) out.set(c.key, c);
+  return out;
+}
+
+/** `get <x>` by its pairing key: what verifies a `set`. */
+export const CLI_GETTER_BY_KEY = indexByKey(isGetter);
+/** `set <x>` by its pairing key: what changes the value a `get` reported. */
+export const CLI_SETTER_BY_KEY = indexByKey(isSetter);

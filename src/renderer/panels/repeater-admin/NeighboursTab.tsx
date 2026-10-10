@@ -1,13 +1,12 @@
 import { MapIcon, MapPinOff } from 'lucide-react';
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import type { Contact } from '../../../shared/types';
-import { hasValidFix } from '../../../shared/types';
+import { type Contact, hasValidFix } from '../../../shared/types';
 import { logError, MapErrorFallback } from '../../components/errors/ErrorFallback';
 import { MapCanvas } from '../../components/map/MapCanvas';
 import { NeighbourMapLayer } from '../../components/map/NeighbourMapLayer';
+import { useNeighbourView } from '../../hooks/useNeighbourView';
 import type { ApiClient } from '../../lib/api';
-import { resolveNeighbours, sortNeighbours } from '../../lib/neighbours';
 import { useStore } from '../../lib/store';
 
 interface Props {
@@ -32,11 +31,8 @@ function MapPlaceholder({ icon, text }: { icon: 'no-gps' | 'no-tiles'; text: str
  *  state through the `neighbours` store slice. This component owns resetting that
  *  slice when the focal repeater changes. */
 export function NeighboursTab({ contact, client }: Props) {
-  const contacts = useStore((s) => s.contacts);
-  const discovered = useStore((s) => s.discovered);
   const manifest = useStore((s) => s.mapManifest);
   const settings = useStore((s) => s.mapSettings);
-  const nb = useStore((s) => s.neighbours);
   const setNeighboursFor = useStore((s) => s.setNeighboursFor);
   const setNeighbourSelected = useStore((s) => s.setNeighbourSelected);
   const setNeighbourHovered = useStore((s) => s.setNeighbourHovered);
@@ -47,22 +43,11 @@ export function NeighboursTab({ contact, client }: Props) {
     setNeighboursFor(contact.key);
   }, [contact.key, setNeighboursFor]);
 
-  const isForThis = nb.forKey === contact.key;
-  const page = isForThis ? nb.page : null;
-  const selectedId = isForThis ? nb.selectedId : null;
-  const hoveredId = isForThis ? nb.hoveredId : null;
+  const { nb, selectedId, hoveredId, tilesOk, mapShown, displayed } = useNeighbourView(contact, client);
 
-  const focalLocated = hasValidFix(contact);
-  const tilesOk = !manifest.missing && !!manifest.basemap;
-  const mapShown = focalLocated && tilesOk && !!client;
-
-  const displayed = useMemo(() => {
-    if (!page) return [];
-    const resolved = resolveNeighbours(page.neighbours, contacts, discovered);
-    return sortNeighbours(resolved, nb.sortKey).slice(0, nb.count);
-  }, [page, contacts, discovered, nb.sortKey, nb.count]);
-
-  if (mapShown && client) {
+  // hasValidFix is restated (mapShown already implies it) so it narrows
+  // contact's coords for the map below.
+  if (mapShown && client && hasValidFix(contact)) {
     return (
       <ErrorBoundary FallbackComponent={MapErrorFallback} onError={logError}>
         <MapCanvas
@@ -71,7 +56,7 @@ export function NeighboursTab({ contact, client }: Props) {
           settings={settings}
           persistViewport={false}
           initialView={{
-            center: [contact.gpsLon as number, contact.gpsLat as number],
+            center: [contact.gpsLon, contact.gpsLat],
             zoom: 12,
             bearing: 0,
             pitch: 0,
@@ -80,8 +65,8 @@ export function NeighboursTab({ contact, client }: Props) {
             <NeighbourMapLayer
               map={map}
               focal={{
-                lat: contact.gpsLat as number,
-                lon: contact.gpsLon as number,
+                lat: contact.gpsLat,
+                lon: contact.gpsLon,
                 name: contact.name,
               }}
               neighbours={displayed}

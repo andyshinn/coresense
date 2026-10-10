@@ -15,7 +15,7 @@ const entries = [
 const repeaterAcl = vi.fn(async () => ({ ok: true as const, entries }));
 
 vi.mock('../../src/renderer/lib/notify', () => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
+  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn(), failure: vi.fn() },
 }));
 vi.mock('../../src/renderer/lib/api', () => ({
   api: { repeaterAcl: () => repeaterAcl() },

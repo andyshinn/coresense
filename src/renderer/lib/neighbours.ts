@@ -1,5 +1,5 @@
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
-import type { Contact, RepeaterNeighbour } from '../../shared/types';
+import { type Contact, hasValidFix, type RepeaterNeighbour } from '../../shared/types';
 
 // 'protocol' is reserved for a future firmware that returns the neighbour's name
 // in the response; current firmware sends only the key prefix, so resolveNeighbours
@@ -33,41 +33,27 @@ interface Candidate {
   heardMs: number;
 }
 
-// Both coords present, not the 0/0 "no GPS" sentinel, and within WGS84 range
-// (mirrors hasValidFix, but works on the looser DiscoveredContact too).
-function coordsValid(lat: number | undefined, lon: number | undefined): boolean {
-  return (
-    typeof lat === 'number' &&
-    typeof lon === 'number' &&
-    (lat !== 0 || lon !== 0) &&
-    lat >= -90 &&
-    lat <= 90 &&
-    lon >= -180 &&
-    lon <= 180
-  );
-}
-
 function contactCandidate(c: Contact): Candidate {
-  const located = coordsValid(c.gpsLat, c.gpsLon);
+  const located = hasValidFix(c);
   return {
     key: c.key,
     publicKeyHex: c.publicKeyHex.toLowerCase(),
     name: c.name,
-    lat: located ? (c.gpsLat as number) : null,
-    lon: located ? (c.gpsLon as number) : null,
+    lat: located ? c.gpsLat : null,
+    lon: located ? c.gpsLon : null,
     located,
     heardMs: c.lastSeenMs ?? 0,
   };
 }
 
 function discoveredCandidate(d: DiscoveredContact): Candidate {
-  const located = coordsValid(d.gpsLat, d.gpsLon);
+  const located = hasValidFix(d);
   return {
     key: d.key,
     publicKeyHex: d.publicKeyHex.toLowerCase(),
     name: d.name,
-    lat: located ? (d.gpsLat as number) : null,
-    lon: located ? (d.gpsLon as number) : null,
+    lat: located ? d.gpsLat : null,
+    lon: located ? d.gpsLon : null,
     located,
     heardMs: d.lastHeardMs ?? d.firstHeardMs ?? 0,
   };

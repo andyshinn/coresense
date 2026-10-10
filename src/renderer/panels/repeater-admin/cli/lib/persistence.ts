@@ -38,54 +38,72 @@ function resolveStorage(storage?: Storage): Storage | null {
   }
 }
 
-export function loadHistory(pubkeyHex: string, storage?: Storage): CliHistoryEntry[] {
+/** The parsed JSON at `key`, or undefined when storage is unavailable, the key
+ *  is absent, or reading/parsing throws. */
+function readJson(key: string, storage?: Storage): unknown {
   const s = resolveStorage(storage);
-  if (!s) return [];
+  if (!s) return undefined;
   try {
-    const raw = s.getItem(historyKey(pubkeyHex));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as CliHistoryEntry[]) : [];
+    const raw = s.getItem(key);
+    return raw ? JSON.parse(raw) : undefined;
   } catch {
-    return [];
+    return undefined;
   }
+}
+
+function writeJson(key: string, value: unknown, storage?: Storage): void {
+  const s = resolveStorage(storage);
+  if (!s) return;
+  try {
+    s.setItem(key, JSON.stringify(value));
+  } catch {
+    // degrade to session-only
+  }
+}
+
+const HISTORY_STATUSES: readonly CliHistoryEntry['status'][] = ['ok', 'error', 'timeout', 'sent'];
+
+// Element guards for what comes back out of storage: a malformed history line
+// would otherwise crash reverse-search (`text.toLowerCase()`) and the status
+// glyph lookup, and a malformed setting the reboot strip.
+function isHistoryEntry(v: unknown): v is CliHistoryEntry {
+  if (typeof v !== 'object' || v === null) return false;
+  const e = v as Record<string, unknown>;
+  return (
+    typeof e.text === 'string' &&
+    HISTORY_STATUSES.includes(e.status as CliHistoryEntry['status']) &&
+    (e.id === undefined || typeof e.id === 'string')
+  );
+}
+
+function isRebootSetting(v: unknown): v is RebootPending['settings'][number] {
+  if (typeof v !== 'object' || v === null) return false;
+  const e = v as Record<string, unknown>;
+  return typeof e.label === 'string' && (e.verify === null || typeof e.verify === 'string');
+}
+
+export function loadHistory(pubkeyHex: string, storage?: Storage): CliHistoryEntry[] {
+  const parsed = readJson(historyKey(pubkeyHex), storage);
+  return Array.isArray(parsed) ? parsed.filter(isHistoryEntry) : [];
 }
 
 export function saveHistory(pubkeyHex: string, h: CliHistoryEntry[], storage?: Storage): void {
-  const s = resolveStorage(storage);
-  if (!s) return;
-  try {
-    s.setItem(historyKey(pubkeyHex), JSON.stringify(h.slice(-HISTORY_CAP)));
-  } catch {
-    // degrade to session-only
-  }
+  writeJson(historyKey(pubkeyHex), h.slice(-HISTORY_CAP), storage);
 }
 
 export function loadPendingReboot(pubkeyHex: string, storage?: Storage): RebootPending {
-  const s = resolveStorage(storage);
-  if (!s) return { ...DEFAULT_REBOOT };
-  try {
-    const raw = s.getItem(rebootKey(pubkeyHex));
-    if (!raw) return { ...DEFAULT_REBOOT };
-    const p = JSON.parse(raw) as Partial<RebootPending>;
-    return {
-      settings: Array.isArray(p.settings) ? p.settings : [],
-      dismissed: !!p.dismissed,
-      rebootSentAtMs: typeof p.rebootSentAtMs === 'number' ? p.rebootSentAtMs : null,
-    };
-  } catch {
-    return { ...DEFAULT_REBOOT };
-  }
+  const parsed = readJson(rebootKey(pubkeyHex), storage);
+  if (typeof parsed !== 'object' || parsed === null) return { ...DEFAULT_REBOOT };
+  const p = parsed as Partial<Record<keyof RebootPending, unknown>>;
+  return {
+    settings: Array.isArray(p.settings) ? p.settings.filter(isRebootSetting) : [],
+    dismissed: !!p.dismissed,
+    rebootSentAtMs: typeof p.rebootSentAtMs === 'number' ? p.rebootSentAtMs : null,
+  };
 }
 
 export function savePendingReboot(pubkeyHex: string, p: RebootPending, storage?: Storage): void {
-  const s = resolveStorage(storage);
-  if (!s) return;
-  try {
-    s.setItem(rebootKey(pubkeyHex), JSON.stringify(p));
-  } catch {
-    // degrade to session-only
-  }
+  writeJson(rebootKey(pubkeyHex), p, storage);
 }
 
 /** Push on submit (so ↑ recalls what you just ran). Consecutive duplicates
