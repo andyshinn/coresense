@@ -3,6 +3,7 @@ import { type DragEvent, type MouseEvent, useRef, useState } from 'react';
 import type { Channel } from '../../../shared/types';
 import { SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '../../components/ui/sidebar';
 import { shouldShowUnread } from '../../hooks/useUnreads';
+import { capList } from '../../lib/capList';
 import { CHANNEL_ICON } from '../../lib/conversationIcons';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
@@ -64,8 +65,7 @@ export function ChannelSubList({
     onReorder(keys);
   };
 
-  const shown = limit !== null && !revealed ? channels.slice(0, limit) : channels;
-  const hidden = channels.length - shown.length;
+  const { rows: shown, hidden } = capList(channels, revealed ? null : limit);
   const windowFocused = useStore((s) => s.windowFocused);
   return (
     <SidebarMenuSub>

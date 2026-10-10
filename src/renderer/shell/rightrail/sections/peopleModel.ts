@@ -228,16 +228,3 @@ export function volumeWidth(count: number, max: number): string {
  *  unbounded" as the trigger; this is that revisit, taken as a plain cap rather
  *  than a virtualiser so the rail stays one scroll container. */
 export const PEOPLE_ROW_CAP = 60;
-
-/** First `cap` rows plus how many were withheld.
- *
- *  Deliberately applied BEFORE `groupByBucket`, not after: grouping the capped
- *  set means a bucket header can never appear above zero visible rows, and each
- *  header's count describes what is actually on screen. The full total stays
- *  available for the reveal affordance and the section's header count. Returns
- *  the input array itself when nothing is withheld, so callers can memoise on
- *  identity. */
-export function capRows(rows: RosterRow[], cap: number): { rows: RosterRow[]; hidden: number } {
-  if (rows.length <= cap) return { rows, hidden: 0 };
-  return { rows: rows.slice(0, cap), hidden: rows.length - cap };
-}

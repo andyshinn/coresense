@@ -4,6 +4,7 @@ import { Skeleton } from '../../../components/ui/skeleton';
 import { useChannelStats } from '../../../hooks/useChannelStats';
 import { useNowTick } from '../../../hooks/useNowTick';
 import { type ApiClient, api } from '../../../lib/api';
+import { capList } from '../../../lib/capList';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
 import { railIsWide } from '../railWidth';
@@ -11,7 +12,6 @@ import { useRailSettleTick } from '../useRailSettleTick';
 import { PeopleControls } from './PeopleControls';
 import { PeopleRow } from './PeopleRow';
 import {
-  capRows,
   filterRoster,
   groupByBucket,
   maxCount,
@@ -78,11 +78,13 @@ export function ChannelPeopleBody({
 
   // Search and filter run over the FULL roster above; only the paint is capped,
   // so the header count and every search result stay complete.
+  //
+  // Deliberately capped BEFORE `groupByBucket`, not after: grouping the capped
+  // set means a bucket header can never appear above zero visible rows, and
+  // each header's count describes what is actually on screen. The full total
+  // stays available for the reveal affordance and the section's header count.
   const expanded = expandedFor === resetKey;
-  const { rows: visible, hidden } = useMemo(
-    () => (expanded ? { rows: shown, hidden: 0 } : capRows(shown, PEOPLE_ROW_CAP)),
-    [shown, expanded],
-  );
+  const { rows: visible, hidden } = useMemo(() => capList(shown, expanded ? null : PEOPLE_ROW_CAP), [shown, expanded]);
   const buckets = useMemo(() => (sort === 'recent' ? groupByBucket(visible, now) : []), [visible, now, sort]);
 
   const showVolume = wide && sort !== 'name';

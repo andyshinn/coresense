@@ -20,6 +20,7 @@ import {
 } from '../../components/ui/sidebar';
 import { useUnreadByKey } from '../../hooks/useUnreads';
 import { type ApiClient, api } from '../../lib/api';
+import { capList } from '../../lib/capList';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 import { ACTIVE_BUTTON_CLASS, EmptySubHint, ShowMoreRow } from './atoms';
@@ -191,8 +192,7 @@ export function LeftNav({ client }: LeftNavProps) {
     (kind: ContactKind) => {
       const items = contactsByKind[kind];
       const key = `contact:${kind}`;
-      const shown = collapseListsEnabled && !revealed[key] ? items.slice(0, collapseListsLimit) : items;
-      const hidden = items.length - shown.length;
+      const { rows: shown, hidden } = capList(items, collapseListsEnabled && !revealed[key] ? collapseListsLimit : null);
       return (
         <SidebarMenuSub>
           {shown.map(renderContactSubItem)}
