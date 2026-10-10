@@ -10,8 +10,8 @@ import { QuickActions } from '../../../features/quick-actions/QuickActions';
 import { sanitizeQuickActionIds } from '../../../features/quick-actions/sanitize';
 import { addSlot, availableToAdd, moveSlot, removeSlot, setSlot } from '../../../features/quick-actions/slots';
 import { useStore } from '../../../lib/store';
-import { saveApp } from '../app/shared';
-import type { SectionProps } from '../radio/shared';
+import { saveApp } from '../save';
+import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 const eqQuickActions = (a: AppSettingsType, b: AppSettingsType) =>

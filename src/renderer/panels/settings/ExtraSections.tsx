@@ -2,19 +2,16 @@ import { AlertTriangle, FolderInput, Wrench } from 'lucide-react';
 import { useState } from 'react';
 import { Row } from '../../components/settings/Field';
 import { SettingsSection } from '../../components/settings/SettingsSection';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
+import type { SectionProps } from './types';
 import { useDeviceRefresh } from './useDeviceRefresh';
 
 // The Extra Tools tab's action sections — device-level maintenance actions.
 // Everything here is an action button, so these sections have no dirty state and
 // no Save. (The tab's one editable section, Packet Log, lives in
 // PacketLogSection.)
-
-interface SectionProps {
-  client: ApiClient | null;
-}
 
 const disabledBtn =
   'cursor-not-allowed rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text-dim opacity-60';

@@ -2,8 +2,8 @@ import { Info } from 'lucide-react';
 import { Row } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { useStore } from '../../../lib/store';
+import type { SectionProps } from '../types';
 import { useDeviceRefresh } from '../useDeviceRefresh';
-import type { SectionProps } from './shared';
 
 export function DeviceInfoSection({ client }: SectionProps) {
   const info = useStore((s) => s.deviceInfo);

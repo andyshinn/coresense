@@ -3,9 +3,9 @@ import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { Row, Select } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../radio/shared';
+import { saveApp } from '../save';
+import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
-import { saveApp } from './shared';
 
 const THEME_OPTIONS = [
   { value: 'auto', label: 'Auto (system)' },

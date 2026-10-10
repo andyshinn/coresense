@@ -3,9 +3,9 @@ import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { NumberInput, Row, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../radio/shared';
+import { saveApp } from '../save';
+import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
-import { saveApp } from './shared';
 
 const eqToasts = (a: AppSettingsType, b: AppSettingsType) =>
   a.toasts.enabled === b.toasts.enabled && a.toasts.durationSec === b.toasts.durationSec;

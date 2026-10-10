@@ -5,9 +5,9 @@ import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../radio/shared';
+import { saveApp } from '../save';
+import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
-import { saveApp } from './shared';
 
 const CHANNEL_OPTIONS = [
   { value: 'stable', label: 'Stable' },

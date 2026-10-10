@@ -12,8 +12,8 @@ import {
   RADIO_PRESETS,
   SPREADING_FACTOR_OPTIONS,
 } from '../presets';
+import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
-import type { SectionProps } from './shared';
 
 // pathHashMode is owned by the Experimental section — exclude it here so a
 // concurrent edit there isn't reverted when this panel saves.

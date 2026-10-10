@@ -5,9 +5,9 @@ import { CopyButton } from '../../../components/CopyButton';
 import { Row, Select, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../radio/shared';
+import { saveApp } from '../save';
+import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
-import { saveApp } from './shared';
 
 const LEVEL_OPTIONS = LOG_LEVELS.map((level) => ({ value: level, label: level }));
 

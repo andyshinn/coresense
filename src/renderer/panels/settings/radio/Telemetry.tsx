@@ -5,8 +5,8 @@ import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
+import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
-import type { SectionProps } from './shared';
 
 const TELEMETRY_MODE_OPTIONS = [
   { value: 0, label: 'Deny all' },

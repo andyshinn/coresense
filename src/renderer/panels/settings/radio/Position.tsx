@@ -5,8 +5,8 @@ import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
+import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
-import type { SectionProps } from './shared';
 
 const eqGps = (a: GpsConfig, b: GpsConfig) => a.enabled === b.enabled && a.intervalSec === b.intervalSec;
 
