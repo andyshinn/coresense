@@ -31,7 +31,7 @@ const KIND_LABEL: Record<ContactKind, string> = {
   sensor: 'Sensor',
 };
 
-export function StatusPill({ c }: { c: DiscoveredContact }) {
+export function StatusPill({ c }: { c: Pick<DiscoveredContact, 'blocked' | 'onRadio'> }) {
   if (c.blocked) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full border border-cs-danger/40 bg-cs-danger/10 px-2 py-px font-mono text-[9.5px] text-cs-danger">
