@@ -141,11 +141,9 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         void api.disconnect({ baseUrl, apiKey }).catch((err) => notify.failure('Disconnect', err));
         break;
       }
-      default: {
+      default:
         // A MenuAction kind with no case above fails to compile here.
-        const unhandled: never = action;
-        return unhandled;
-      }
+        action satisfies never;
     }
   };
 }

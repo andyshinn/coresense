@@ -30,8 +30,17 @@ describe('SHORTCUTS registry', () => {
   it('menuActionFor returns the action for a menu shortcut', () => {
     expect(menuActionFor('toggleSidebar')).toEqual({ kind: 'toggleLeftNav' });
   });
-  it('menuActionFor throws for a non-menu shortcut', () => {
-    expect(() => menuActionFor('help')).toThrow();
+  it('only accepts menu-surface ids in menuActionFor', () => {
+    // @ts-expect-error 'help' is a renderer shortcut, so it has no menuAction
+    expect(menuActionFor('help')).toBeUndefined();
+  });
+  it('rejects unknown ids at compile time', () => {
+    // @ts-expect-error not a ShortcutId
+    expect(() => accelFor('nope')).toThrow();
+  });
+  it('lists reload under General, after the other General rows', () => {
+    const general = SHORTCUTS.filter((s) => s.category === 'General').map((s) => s.id);
+    expect(general.at(-1)).toBe('reload');
   });
 });
 
