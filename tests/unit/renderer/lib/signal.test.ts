@@ -21,8 +21,9 @@ describe('snrColor', () => {
   });
 });
 
-// The two RSSI scales stay separate on purpose: the same -80 dBm reading is a
-// weak BLE link but a healthy LoRa reception.
+// The two RSSI scales stay separate on purpose: they grade the same dBm reading
+// differently (BLE proximity vs over-the-air). -100 dBm is 0 bars, an unusable
+// BLE link, but still a graded (warn) LoRa reception.
 describe('bleRssiBars', () => {
   it('grades BLE proximity RSSI into 0-4 bars', () => {
     expect(bleRssiBars(-55)).toBe(4);
