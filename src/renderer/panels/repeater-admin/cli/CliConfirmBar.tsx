@@ -9,6 +9,8 @@ export interface CliConfirmBarProps {
   onCancel: () => void;
 }
 
+const HOLD_TO_SEND_MS = 900;
+
 function HoldToSend({ label, onComplete }: { label: string; onComplete: () => void }) {
   const [held, setHeld] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -17,7 +19,7 @@ function HoldToSend({ label, onComplete }: { label: string; onComplete: () => vo
     timer.current = setTimeout(() => {
       setHeld(false);
       onComplete();
-    }, 900);
+    }, HOLD_TO_SEND_MS);
   };
   const cancel = () => {
     setHeld(false);
@@ -42,7 +44,10 @@ function HoldToSend({ label, onComplete }: { label: string; onComplete: () => vo
     >
       <span
         className="absolute inset-y-0 left-0 bg-cs-danger/30"
-        style={{ width: held ? '100%' : '0%', transition: held ? 'width 900ms linear' : 'width 120ms ease-out' }}
+        style={{
+          width: held ? '100%' : '0%',
+          transition: held ? `width ${HOLD_TO_SEND_MS}ms linear` : 'width 120ms ease-out',
+        }}
       />
       <span className="relative">{label}</span>
     </button>

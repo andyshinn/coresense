@@ -1,5 +1,6 @@
 import { Radio } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { MAX_MESSAGE_LENGTH } from '@/lib/messageLimits';
 import { cn } from '@/lib/utils';
 import type { RadioSettings } from '../../../../shared/types';
 import { CliConfirmBar } from './CliConfirmBar';
@@ -229,7 +230,8 @@ export function CliPrompt({
             value={state.value}
             spellCheck={false}
             autoComplete="off"
-            maxLength={132}
+            // The text-message cap keeps every command to one outbound frame.
+            maxLength={MAX_MESSAGE_LENGTH}
             placeholder="repeater command"
             onChange={(e) =>
               dispatch({
