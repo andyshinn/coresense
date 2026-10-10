@@ -125,8 +125,12 @@ async function serveRange(c: Context, filePath: string) {
   const length = clampedEnd - start + 1;
 
   // The file can only come up short if it was truncated after the stat; label
-  // what was actually read so the headers never disagree with the body.
+  // what was actually read so the headers never disagree with the body. If it
+  // now ends before `start` there is no valid range left to label.
   const buf = await readSlice(filePath, start, length);
+  if (buf.length === 0) {
+    return c.body(null, 416, { 'Content-Range': `bytes */${total}` });
+  }
   return c.body(toArrayBuffer(buf), 206, {
     'Content-Type': 'application/octet-stream',
     'Content-Length': String(buf.length),
