@@ -3,8 +3,8 @@ import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useStore } from '@/lib/store';
+import { RAIL_COLLAPSE_WIDTH as COLLAPSE_WIDTH } from '@/shell/rightrail/railWidth';
 import { ActivityBody, ChannelActivitySection } from '@/shell/rightrail/sections/channel-activity';
-import { COLLAPSE_WIDTH } from '@/shell/rightrail/sections/channel-activity/activity';
 import type { ActivityWindow, ActivityWindowKey, Channel, ChannelActivity } from '../../src/shared/types';
 
 const NOW = 1_700_000_000_000;

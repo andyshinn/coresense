@@ -1,6 +1,8 @@
-import { memo, useEffect, useState } from 'react';
+import { memo } from 'react';
+import { MINUTE_MS } from '../../../../../shared/time';
 import type { ActivityWindowKey, Channel, ChannelActivity } from '../../../../../shared/types';
 import { useChannelActivity } from '../../../../hooks/useChannelActivity';
+import { useNowTick } from '../../../../hooks/useNowTick';
 import type { ApiClient } from '../../../../lib/api';
 import { useStore } from '../../../../lib/store';
 import { Placeholder } from '../../atoms';
@@ -10,17 +12,6 @@ import { RhythmFooter } from './RhythmFooter';
 import { TrendChip } from './TrendChip';
 import { VolumeChart } from './VolumeChart';
 import { WindowTabs } from './WindowTabs';
-
-/** The "3m ago" label would otherwise only refresh on the hook's 5-minute poll,
- *  which is long enough to be visibly wrong. Same cadence as RelativeTime. */
-function useMinuteTick(): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(t);
-  }, []);
-  return now;
-}
 
 export function ActivityBody({
   activity,
@@ -42,7 +33,9 @@ export function ActivityBody({
 }) {
   // Must run unconditionally, before any early return below — React forbids
   // conditional hook calls and the loading→loaded transition would crash otherwise.
-  const tick = useMinuteTick();
+  // The "3m ago" label would otherwise only refresh on the hook's 5-minute poll,
+  // which is long enough to be visibly wrong. Same cadence as RelativeTime.
+  const tick = useNowTick(MINUTE_MS);
   const at = now ?? tick;
 
   if (!activity) {
