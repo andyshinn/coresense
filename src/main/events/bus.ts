@@ -35,14 +35,6 @@ import type {
   UpdateState,
 } from '../../shared/types';
 
-/** Contact-sync coordination signal emitted by the contacts feature while a
- *  GET_CONTACTS iteration streams in. The ProtocolSession forwards it to the
- *  handshake's progress bar + start/done waiters (see onContactsSync). */
-export type ContactsSyncSignal =
-  | { phase: 'start'; total: number | null }
-  | { phase: 'progress'; done: number; total: number }
-  | { phase: 'done'; done: number };
-
 /** Outcome of one GET_CONTACTS iteration: what the radio said it delivered vs
  *  what we actually persisted. The contact broadcasts are coalesced, so their
  *  count no longer tracks the number of contacts — this is the signal that
@@ -68,93 +60,101 @@ export function summarizeContactSync(delivered: number, stored: number, onRadio:
   return { delivered, stored, onRadio, complete: stored >= delivered };
 }
 
-export const bus = new EventEmitter();
+/** Every bus event and its listener arguments. `bus.on`/`off`/`emit` are
+ *  checked against it, so a listener can't drift from what the emitter sends. */
+export type BusEventMap = {
+  packet: [p: RawPacket];
+  transportState: [state: TransportState, deviceId?: string];
+  scanResults: [devices: BleDevice[]];
+  errorMessage: [message: string];
+  menuAction: [action: MenuAction];
+  theme: [push: ThemePush];
+  channels: [channels: Channel[]];
+  channelPresence: [keys: string[]];
+  syncProgress: [progress: SyncProgress];
+  contacts: [contacts: Contact[]];
+  discovered: [rows: DiscoveredContact[]];
+  contactEvicted: [name: string];
+  contactSyncSummary: [summary: ContactSyncSummary];
+  contactDiscovered: [contact: { key: string; name: string; kind: ContactKind }];
+  messages: [key: string, messages: Message[]];
+  messageState: [id: string, state: MessageState];
+  messagePathHeard: [payload: { id: string; path: MessagePath; state: MessageState }];
+  messagesDeleted: [payload: { key: string; ids: string[] }];
+  owner: [owner: Owner | null];
+  appSettings: [settings: AppSettings];
+  radioSettings: [settings: RadioSettings];
+  mapSettings: [settings: MapSettings];
+  mapManifest: [manifest: TileManifest];
+  mapTileStatus: [status: MapTileStatus];
+  repeaterStatus: [snap: RepeaterStatusSnapshot];
+  repeaterTelemetry: [snap: RepeaterTelemetrySnapshot];
+  pathLearned: [event: PathLearnedEvent];
+  uiState: [state: UiState];
+  windowFocus: [focused: boolean];
+  deviceIdentity: [identity: DeviceIdentity];
+  autoAddConfig: [cfg: AutoAddConfig];
+  telemetryPolicy: [policy: TelemetryPolicy];
+  gpsConfig: [cfg: GpsConfig];
+  deviceInfo: [info: DeviceInfo];
+  deviceCapabilities: [caps: DeviceCapabilities];
+  blockRules: [rules: BlockRule[]];
+  macros: [macros: MacroTemplate[]];
+  'log:entry': [entry: LogEntry];
+  updateState: [state: UpdateState];
+};
+
+export const bus = new EventEmitter<BusEventMap>();
+
+/** A named emitter for one bus event, typed by the map. It emits through an
+ *  unparameterised view of `bus` only because @types/node's conditional Args<>
+ *  can't resolve an unbound K; the returned function's own signature is what
+ *  every caller is checked against. */
+const emitter = <K extends keyof BusEventMap>(event: K) => {
+  const emitRaw: (event: string, ...args: unknown[]) => boolean = bus.emit.bind(bus);
+  return (...args: BusEventMap[K]): boolean => emitRaw(event, ...args);
+};
 
 // Note: avoid Node EventEmitter's reserved 'error' event — it throws when
 // emitted with no listeners, and listeners can come and go across shutdown.
 export const emit = {
-  packet: (p: RawPacket) => bus.emit('packet', p),
-  transportState: (s: TransportState, id?: string) => bus.emit('transportState', s, id),
-  scanResults: (devices: BleDevice[]) => bus.emit('scanResults', devices),
-  error: (message: string) => bus.emit('errorMessage', message),
-  menuAction: (action: MenuAction) => bus.emit('menuAction', action),
-  theme: (push: ThemePush) => bus.emit('theme', push),
-  channels: (channels: Channel[]) => bus.emit('channels', channels),
-  channelPresence: (keys: string[]) => bus.emit('channelPresence', keys),
-  syncProgress: (progress: SyncProgress) => bus.emit('syncProgress', progress),
-  contactsSync: (s: ContactsSyncSignal) => bus.emit('contactsSync', s),
-  contacts: (contacts: Contact[]) => bus.emit('contacts', contacts),
-  discovered: (rows: DiscoveredContact[]) => bus.emit('discovered', rows),
-  contactEvicted: (name: string) => bus.emit('contactEvicted', name),
-  contactSyncSummary: (s: ContactSyncSummary) => bus.emit('contactSyncSummary', s),
-  contactDiscovered: (c: { key: string; name: string; kind: ContactKind }) => bus.emit('contactDiscovered', c),
-  messages: (key: string, messages: Message[]) => bus.emit('messages', key, messages),
-  messageState: (id: string, state: MessageState) => bus.emit('messageState', id, state),
-  messagePathHeard: (payload: { id: string; path: MessagePath; state: MessageState }) =>
-    bus.emit('messagePathHeard', payload),
-  messagesDeleted: (payload: { key: string; ids: string[] }) => bus.emit('messagesDeleted', payload),
-  owner: (owner: Owner | null) => bus.emit('owner', owner),
-  appSettings: (settings: AppSettings) => bus.emit('appSettings', settings),
-  radioSettings: (settings: RadioSettings) => bus.emit('radioSettings', settings),
-  mapSettings: (settings: MapSettings) => bus.emit('mapSettings', settings),
-  mapManifest: (manifest: TileManifest) => bus.emit('mapManifest', manifest),
-  mapTileStatus: (status: MapTileStatus) => bus.emit('mapTileStatus', status),
-  repeaterStatus: (snap: RepeaterStatusSnapshot) => bus.emit('repeaterStatus', snap),
-  repeaterTelemetry: (snap: RepeaterTelemetrySnapshot) => bus.emit('repeaterTelemetry', snap),
-  pathLearned: (event: PathLearnedEvent) => bus.emit('pathLearned', event),
-  uiState: (state: UiState) => bus.emit('uiState', state),
-  windowFocus: (focused: boolean) => bus.emit('windowFocus', focused),
-  deviceIdentity: (identity: DeviceIdentity) => bus.emit('deviceIdentity', identity),
-  autoAddConfig: (cfg: AutoAddConfig) => bus.emit('autoAddConfig', cfg),
-  telemetryPolicy: (policy: TelemetryPolicy) => bus.emit('telemetryPolicy', policy),
-  gpsConfig: (cfg: GpsConfig) => bus.emit('gpsConfig', cfg),
-  deviceInfo: (info: DeviceInfo) => bus.emit('deviceInfo', info),
-  deviceCapabilities: (caps: DeviceCapabilities) => bus.emit('deviceCapabilities', caps),
-  blockRules: (rules: BlockRule[]) => bus.emit('blockRules', rules),
-  macros: (macros: MacroTemplate[]) => bus.emit('macros', macros),
-  logEntry: (entry: LogEntry) => bus.emit('log:entry', entry),
-  updateState: (state: UpdateState) => bus.emit('updateState', state),
-};
-
-export type BusEvents = {
-  packet: (p: RawPacket) => void;
-  transportState: (s: TransportState, id?: string) => void;
-  scanResults: (devices: BleDevice[]) => void;
-  errorMessage: (message: string) => void;
-  menuAction: (action: MenuAction) => void;
-  theme: (push: ThemePush) => void;
-  channels: (channels: Channel[]) => void;
-  channelPresence: (keys: string[]) => void;
-  syncProgress: (progress: SyncProgress) => void;
-  contactsSync: (s: ContactsSyncSignal) => void;
-  contacts: (contacts: Contact[]) => void;
-  discovered: (rows: DiscoveredContact[]) => void;
-  contactEvicted: (name: string) => void;
-  contactSyncSummary: (s: ContactSyncSummary) => void;
-  contactDiscovered: (c: { key: string; name: string; kind: ContactKind }) => void;
-  messages: (key: string, messages: Message[]) => void;
-  messageState: (id: string, state: MessageState) => void;
-  messagePathHeard: (payload: { id: string; path: MessagePath; state: MessageState }) => void;
-  messagesDeleted: (payload: { key: string; ids: string[] }) => void;
-  owner: (owner: Owner | null) => void;
-  appSettings: (settings: AppSettings) => void;
-  radioSettings: (settings: RadioSettings) => void;
-  mapSettings: (settings: MapSettings) => void;
-  mapManifest: (manifest: TileManifest) => void;
-  mapTileStatus: (status: MapTileStatus) => void;
-  repeaterStatus: (snap: RepeaterStatusSnapshot) => void;
-  repeaterTelemetry: (snap: RepeaterTelemetrySnapshot) => void;
-  pathLearned: (event: PathLearnedEvent) => void;
-  uiState: (state: UiState) => void;
-  windowFocus: (focused: boolean) => void;
-  deviceIdentity: (identity: DeviceIdentity) => void;
-  autoAddConfig: (cfg: AutoAddConfig) => void;
-  telemetryPolicy: (policy: TelemetryPolicy) => void;
-  gpsConfig: (cfg: GpsConfig) => void;
-  deviceInfo: (info: DeviceInfo) => void;
-  deviceCapabilities: (caps: DeviceCapabilities) => void;
-  blockRules: (rules: BlockRule[]) => void;
-  macros: (macros: MacroTemplate[]) => void;
-  'log:entry': (entry: LogEntry) => void;
-  updateState: (state: UpdateState) => void;
+  packet: emitter('packet'),
+  transportState: emitter('transportState'),
+  scanResults: emitter('scanResults'),
+  error: emitter('errorMessage'),
+  menuAction: emitter('menuAction'),
+  theme: emitter('theme'),
+  channels: emitter('channels'),
+  channelPresence: emitter('channelPresence'),
+  syncProgress: emitter('syncProgress'),
+  contacts: emitter('contacts'),
+  discovered: emitter('discovered'),
+  contactEvicted: emitter('contactEvicted'),
+  contactSyncSummary: emitter('contactSyncSummary'),
+  contactDiscovered: emitter('contactDiscovered'),
+  messages: emitter('messages'),
+  messageState: emitter('messageState'),
+  messagePathHeard: emitter('messagePathHeard'),
+  messagesDeleted: emitter('messagesDeleted'),
+  owner: emitter('owner'),
+  appSettings: emitter('appSettings'),
+  radioSettings: emitter('radioSettings'),
+  mapSettings: emitter('mapSettings'),
+  mapManifest: emitter('mapManifest'),
+  mapTileStatus: emitter('mapTileStatus'),
+  repeaterStatus: emitter('repeaterStatus'),
+  repeaterTelemetry: emitter('repeaterTelemetry'),
+  pathLearned: emitter('pathLearned'),
+  uiState: emitter('uiState'),
+  windowFocus: emitter('windowFocus'),
+  deviceIdentity: emitter('deviceIdentity'),
+  autoAddConfig: emitter('autoAddConfig'),
+  telemetryPolicy: emitter('telemetryPolicy'),
+  gpsConfig: emitter('gpsConfig'),
+  deviceInfo: emitter('deviceInfo'),
+  deviceCapabilities: emitter('deviceCapabilities'),
+  blockRules: emitter('blockRules'),
+  macros: emitter('macros'),
+  logEntry: emitter('log:entry'),
+  updateState: emitter('updateState'),
 };

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bus } from '../../../src/main/events/bus';
 import { stateHolder } from '../../../src/main/state/holder';
+import type { Owner } from '../../../src/shared/types';
 import { frameBuf } from '../../support/frames';
 import { makeTestSession } from '../../support/session-harness';
 
@@ -8,8 +9,8 @@ describe('RESP_SELF_INFO handled via the feature registry', () => {
   it('surfaces the radio identity as the app Owner and emits owner', async () => {
     const { receive } = makeTestSession();
 
-    const owners: { name?: string; publicKeyHex?: string; publicKeyShort?: string }[] = [];
-    const onOwner = (o: { name?: string; publicKeyHex?: string; publicKeyShort?: string }) => owners.push(o);
+    const owners: (Owner | null)[] = [];
+    const onOwner = (o: Owner | null) => owners.push(o);
     bus.on('owner', onOwner);
 
     receive(frameBuf('selfInfo'));
