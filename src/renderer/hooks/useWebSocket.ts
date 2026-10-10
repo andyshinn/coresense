@@ -48,7 +48,9 @@ export function useWebSocket({ url, onMessage, onOpen, onClose }: UseWebSocketAr
         try {
           onMessageRef.current(parsed);
         } catch (err) {
-          log.error('ws: handler failed', parsed.type, err);
+          // `parsed` is only asserted to be a WsMessage: a `null` frame would
+          // make `parsed.type` throw here and escape the listener.
+          log.error('ws: handler failed', (parsed as { type?: unknown } | null)?.type, err);
         }
       });
       socket.addEventListener('close', () => {

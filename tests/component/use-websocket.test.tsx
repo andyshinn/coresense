@@ -55,4 +55,15 @@ describe('useWebSocket message dispatch', () => {
     FakeSocket.last?.emit('message', { data: frame });
     expect(onMessage).toHaveBeenCalledTimes(2);
   });
+
+  it('logs a handler failure on a non-object frame without throwing from the listener', () => {
+    const error = vi.spyOn(log, 'error').mockImplementation(() => undefined);
+    const boom = new Error('boom');
+    const onMessage = vi.fn(() => {
+      throw boom;
+    });
+    renderHook(() => useWebSocket({ url: 'ws://x/ws', onMessage }));
+    expect(() => FakeSocket.last?.emit('message', { data: 'null' })).not.toThrow();
+    expect(error).toHaveBeenCalledWith('ws: handler failed', undefined, boom);
+  });
 });
