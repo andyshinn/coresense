@@ -1,26 +1,9 @@
-import './storage/paths'; // must precede any module that touches app.getPath()
+// Side-effect imports first, in this order. ES modules evaluate in import
+// order, so these two run before any module imported below is evaluated.
+import './runtime/devUserDataRedirect'; // must precede any module that touches app.getPath()
+import './bootstrap/seams'; // wires userDataDir() / appLifecycle() / secretStore() etc.
 import { hostname } from 'node:os';
 import path from 'node:path';
-
-// Wire production implementations of the injectable seams. This must run after
-// './storage/paths' (so the dev userData redirect has applied) and before any
-// module calls userDataDir() / appLifecycle() / secretStore().
-setAppInfo({ isPackaged: app.isPackaged, appPath: app.getAppPath() });
-setUserDataDir(app.getPath('userData'));
-setAppLifecycle({
-  quit: () => app.quit(),
-  relaunch: () => app.relaunch(),
-  exit: (code) => app.exit(code),
-});
-setSecretStore({
-  available: () => safeStorage.isEncryptionAvailable(),
-  encryptString: (s) => safeStorage.encryptString(s),
-  decryptString: (b) => safeStorage.decryptString(b),
-});
-setTileCacheOpener((dir) => {
-  void shell.openPath(dir).catch((err) => console.error('openPath failed', err));
-});
-
 import { getCanonicalHostName } from '@andyshinn/hostname-sources';
 import {
   app,
@@ -31,11 +14,12 @@ import {
   Menu,
   type MenuItemConstructorOptions,
   nativeTheme,
-  safeStorage,
   session,
-  shell,
+  type WebContents,
 } from 'electron';
 import started from 'electron-squirrel-startup';
+import { errorMessage } from '../shared/errors';
+import { IPC, type IpcSyncReplies } from '../shared/ipc';
 import { planBridgeBinding } from '../shared/ports';
 import { applyAboutPanel } from './about';
 import { getApiKey } from './api/middleware/auth';
@@ -46,15 +30,12 @@ import { emit } from './events/bus';
 import { resolveHttpPort } from './http-port';
 import { child, log } from './log';
 import { applyLoggingSettings } from './logging/apply';
-import { folderPath } from './logging/fileSink';
-import { setTileCacheOpener } from './map/tile-cache';
+import { flushLogFile, folderPath } from './logging/fileSink';
 import { buildMenu } from './menu';
 import { startNotifications } from './notifications';
 import { protocolSession } from './protocol';
-import { setAppInfo } from './runtime/appInfo';
-import { setAppLifecycle } from './runtime/appLifecycle';
-import { setSecretStore } from './runtime/secretStore';
-import { setUserDataDir } from './runtime/userData';
+import { openExternal, openExternalIfWeb, revealPath } from './runtime/shell';
+import { buildCsp } from './security/csp';
 import { startServer } from './server';
 import { flushHolderPersistence, stateHolder } from './state/holder';
 import { closeDb } from './storage/db';
@@ -70,6 +51,13 @@ import { flushWindowState, loadWindowState, trackWindow } from './window/state';
 const SHUTDOWN_BLE_TIMEOUT_MS = 5000;
 
 const rendererLog = child('renderer');
+
+// Safety net for promises nobody handled: route them through tslog so they
+// reach the Logs panel and the file sink, not just stderr. Deliberately no
+// uncaughtException handler — see events/coalesce.ts.
+process.on('unhandledRejection', (reason) => {
+  log.error('unhandled rejection', reason);
+});
 
 if (started) {
   app.quit();
@@ -89,10 +77,10 @@ declare const MAIN_WINDOW_VITE_NAME: string;
 const viteDevServerUrl = MAIN_WINDOW_VITE_DEV_SERVER_URL;
 // "Is this a dev instance?" — runtime identity. Decides which ports and which
 // mDNS namespace this process claims, so it must agree with the predicates
-// that already redirect userData (storage/paths.ts) and seed the dev proxy
-// port (storage/settings.ts). Read app.isPackaged directly rather than
-// isPackaged() from runtime/appInfo so this does not depend on setAppInfo()
-// having run first.
+// that already redirect userData (runtime/devUserDataRedirect.ts) and seed the
+// dev proxy port (storage/settings.ts). Read app.isPackaged directly rather
+// than isPackaged() from runtime/appInfo so this does not depend on
+// setAppInfo() having run first.
 const isDevInstance = !app.isPackaged;
 
 let serverHandle: Awaited<ReturnType<typeof startServer>> | null = null;
@@ -109,15 +97,15 @@ async function bootstrap() {
   // synchronously at window load so the first-party renderer can skip the
   // paste gate AND avoid guessing the dev/prod port. Register before
   // createWindow() so the handlers exist when the preload runs.
-  ipcMain.on('coresense:get-api-key', (event) => {
-    event.returnValue = getApiKey();
+  ipcMain.on(IPC.getApiKey, (event) => {
+    event.returnValue = getApiKey() satisfies IpcSyncReplies[typeof IPC.getApiKey];
   });
-  ipcMain.on('coresense:get-http-port', (event) => {
-    event.returnValue = serverHandle?.port ?? null;
+  ipcMain.on(IPC.getHttpPort, (event) => {
+    event.returnValue = (serverHandle?.port ?? null) satisfies IpcSyncReplies[typeof IPC.getHttpPort];
   });
 
-  ipcMain.on('coresense:logs:reveal', () => {
-    shell.openPath(folderPath()).catch((err) => console.error('openPath failed', err));
+  ipcMain.on(IPC.revealLogs, () => {
+    void revealPath(folderPath());
   });
 
   // Apply logging settings from persisted app settings on boot.
@@ -187,7 +175,7 @@ async function bootstrap() {
     try {
       mdnsHandle = startMdns(mdnsPlan);
     } catch (err) {
-      emit.error(`Bridge: mDNS publish failed: ${(err as Error).message}`);
+      emit.error(`Bridge: mDNS publish failed: ${errorMessage(err)}`);
     }
   }
   bridgeHandle.setMdnsServiceName(mdnsHandle?.serviceName ?? null);
@@ -204,7 +192,10 @@ async function bootstrap() {
   // listeners. (Firing it at install time, before these subscriptions, drops
   // the replay entirely.)
   if (process.env.CORESENSE_FAKE_TRANSPORT) {
-    void transportManager.getTransport()?.connect('replay');
+    transportManager
+      .getTransport()
+      ?.connect('replay')
+      .catch((err) => log.warn(`replay transport connect failed: ${errorMessage(err)}`));
   }
   startNotifications();
   startUpdates();
@@ -223,35 +214,9 @@ function hardenSession() {
     callback(permission === 'clipboard-sanitized-write'),
   );
 
-  // Strict-ish CSP. The renderer is served by our own Hono server in prod (so
-  // it shares an origin with the API and the /ws endpoint), and by Vite in dev.
-  // Allow ws: for WebSocket connections and the dev server's HMR. worker-src is
-  // 'self' only: MapLibre 6 loads its worker as a same-origin module URL and
-  // only launders it through a blob: when it's cross-origin.
+  // See security/csp.ts for the policy and why each source is allowed.
+  const csp = buildCsp({ dev: Boolean(viteDevServerUrl) });
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    // Protomaps glyph PBFs and sprite JSON/PNG live on protomaps.github.io.
-    // MapLibre fetch()es all of them (connect-src) and decodes the sprite with
-    // createImageBitmap. TODO: bundle these into resources/ for a fully
-    // offline build.
-    const MAP_ASSETS = 'https://protomaps.github.io';
-    const csp = viteDevServerUrl
-      ? "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; " +
-        "style-src 'self' 'unsafe-inline'; " +
-        'connect-src * ws: wss: http: https: data: blob:; ' +
-        `img-src 'self' data: blob: ${MAP_ASSETS}; ` +
-        "font-src 'self' data:; " +
-        "worker-src 'self';"
-      : "default-src 'self'; " +
-        "script-src 'self'; " +
-        "style-src 'self' 'unsafe-inline'; " +
-        `connect-src 'self' ws: wss: ${MAP_ASSETS}; ` +
-        `img-src 'self' data: blob: ${MAP_ASSETS}; ` +
-        "font-src 'self' data:; " +
-        "worker-src 'self'; " +
-        "object-src 'none'; " +
-        "base-uri 'none'; " +
-        "frame-ancestors 'none';";
     callback({
       responseHeaders: {
         ...details.responseHeaders,
@@ -275,17 +240,27 @@ function wireTheme() {
   });
 }
 
+/** Where the main window loads the renderer from, or null with no server up. */
+function resolveAppUrl(): string | null {
+  if (viteDevServerUrl) return viteDevServerUrl;
+  return serverHandle ? `http://127.0.0.1:${serverHandle.port}` : null;
+}
+
+/** Refuse to attach <webview> tags and deny popup windows, opening http(s)
+ *  links in the user's default browser instead. */
+function applyWebContentsGuards(contents: WebContents): void {
+  contents.setWindowOpenHandler(({ url }) => {
+    openExternalIfWeb(url);
+    return { action: 'deny' };
+  });
+  contents.on('will-attach-webview', (e) => e.preventDefault());
+}
+
 // Belt-and-suspenders against any future code path that opens a BrowserView,
 // webview, or popup. Catches them all at the app level even if a specific
 // window forgets its own guards.
 app.on('web-contents-created', (_event, contents) => {
-  contents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      void shell.openExternal(url);
-    }
-    return { action: 'deny' };
-  });
-  contents.on('will-attach-webview', (e) => e.preventDefault());
+  applyWebContentsGuards(contents);
 
   // Native OS context menu. Selection-aware: only shows entries that make
   // sense for what was clicked (link, editable field, plain text with
@@ -297,15 +272,13 @@ app.on('web-contents-created', (_event, contents) => {
       template.push(
         {
           label: 'Open Link in Browser',
-          click: () => {
-            void shell.openExternal(params.linkURL);
-          },
+          click: () => openExternal(params.linkURL),
         },
         {
           label: 'Copy Link',
           click: () => {
             // Electron 44 made clipboard.writeText async; don't leave a rejection unhandled.
-            clipboard.writeText(params.linkURL).catch((err) => log.warn(`copy link failed: ${(err as Error).message}`));
+            clipboard.writeText(params.linkURL).catch((err) => log.warn(`copy link failed: ${errorMessage(err)}`));
           },
         },
         { type: 'separator' },
@@ -324,7 +297,7 @@ app.on('web-contents-created', (_event, contents) => {
       template.push({ role: 'copy' }, { type: 'separator' }, { role: 'selectAll' });
     }
 
-    if (!app.isPackaged) {
+    if (isDevInstance) {
       if (template.length > 0) template.push({ type: 'separator' });
       template.push({
         label: 'Inspect Element',
@@ -425,33 +398,20 @@ function createWindow() {
     });
   }
 
-  // Defense in depth on top of the deny-by-default permission handler:
-  // refuse to attach <webview> tags and disable popup window creation.
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // Open http(s):// links in the user's default browser; deny everything else.
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      void shell.openExternal(url);
-    }
-    return { action: 'deny' };
-  });
+  const appUrl = resolveAppUrl();
+  // Compare full origins, not string prefixes — `startsWith` would let
+  // `http://127.0.0.1:7654.evil.com/` pass the allowlist.
+  const allowedOrigin = appUrl ? safeOrigin(appUrl) : null;
+
+  // Defense in depth on top of the deny-by-default permission handler and the
+  // app-level web-contents-created guards: refuse to attach <webview> tags and
+  // disable popup window creation.
+  applyWebContentsGuards(mainWindow.webContents);
   mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
-    // Compare full origins, not string prefixes — `startsWith` would let
-    // `http://127.0.0.1:7654.evil.com/` pass the allowlist.
-    const allowedOrigin = MAIN_WINDOW_VITE_DEV_SERVER_URL
-      ? safeOrigin(MAIN_WINDOW_VITE_DEV_SERVER_URL)
-      : serverHandle
-        ? `http://127.0.0.1:${serverHandle.port}`
-        : null;
-    const targetOrigin = safeOrigin(targetUrl);
-    if (!allowedOrigin || targetOrigin !== allowedOrigin) {
+    if (!allowedOrigin || safeOrigin(targetUrl) !== allowedOrigin) {
       event.preventDefault();
-      if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
-        void shell.openExternal(targetUrl);
-      }
+      openExternalIfWeb(targetUrl);
     }
-  });
-  mainWindow.webContents.on('will-attach-webview', (event) => {
-    event.preventDefault();
   });
 
   // NOTE: renderer and main logging are intentionally kept separate. The
@@ -462,11 +422,6 @@ function createWindow() {
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
     rendererLog.error(`gone: ${details.reason} (exit=${details.exitCode})`);
   });
-  const appUrl = MAIN_WINDOW_VITE_DEV_SERVER_URL
-    ? MAIN_WINDOW_VITE_DEV_SERVER_URL
-    : serverHandle
-      ? `http://127.0.0.1:${serverHandle.port}`
-      : null;
 
   // The Vite dev server (and, marginally, our own Hono server) can still be
   // settling when we first call loadURL — the initial connection is refused
@@ -481,16 +436,20 @@ function createWindow() {
     if (isMainFrame && appUrl && code === -102 && loadRetries < MAX_LOAD_RETRIES) {
       loadRetries += 1;
       setTimeout(() => {
-        if (!mainWindow.isDestroyed()) void mainWindow.loadURL(appUrl);
+        if (!mainWindow.isDestroyed()) loadApp();
       }, LOAD_RETRY_DELAY_MS);
       return;
     }
     rendererLog.error(`did-fail-load: ${code} ${desc} ${url}`);
   });
 
-  if (appUrl) {
-    void mainWindow.loadURL(appUrl);
+  // loadURL also rejects on every did-fail-load, which the handler above
+  // already retries or reports; don't leave that rejection unhandled.
+  function loadApp(): void {
+    if (!appUrl) return;
+    mainWindow.loadURL(appUrl).catch((err) => rendererLog.debug(`loadURL rejected: ${errorMessage(err)}`));
   }
+  loadApp();
 
   if (viteDevServerUrl) mainWindow.webContents.openDevTools({ mode: 'detach' });
 }
@@ -560,63 +519,80 @@ app.on('before-quit', (event) => {
   }
   isShuttingDown = true;
   event.preventDefault();
-  beginShutdown().finally(() => app.exit(0));
+  beginShutdown()
+    .catch((err) => log.error(`shutdown failed: ${errorMessage(err)}`))
+    // Last, so the shutdown's own warnings (e.g. a transport timeout) reach the
+    // log file before the process goes away. flushLogFile never rejects.
+    .then(flushLogFile)
+    .finally(() => app.exit(0));
 });
 
+/** Await `p`, logging `${label} failed: …` instead of rejecting. */
+function settle(label: string, p: Promise<unknown>): Promise<void> {
+  return p.then(
+    () => undefined,
+    (err) => {
+      log.warn(`${label} failed: ${errorMessage(err)}`);
+    },
+  );
+}
+
+/** Race `p` against a timer; a rejection from `p` still propagates. */
+function withTimeout(p: Promise<unknown>, ms: number): Promise<'ok' | 'timeout'> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), ms);
+  });
+  return Promise.race([p.then(() => 'ok' as const), timeout]).finally(() => clearTimeout(timer));
+}
+
+/** Hand back every open server handle, nulling each so shutdown closes it once. */
+function takeClosables(): Array<[label: string, handle: { close(): Promise<unknown> }]> {
+  const closables: Array<[string, { close(): Promise<unknown> } | null]> = [
+    ['mdns', mdnsHandle],
+    ['server', serverHandle],
+    ['bridge', bridgeHandle],
+  ];
+  mdnsHandle = null;
+  serverHandle = null;
+  bridgeHandle = null;
+  return closables.filter((c): c is [string, { close(): Promise<unknown> }] => c[1] !== null);
+}
+
 async function shutdown() {
-  const tasks: Promise<unknown>[] = [];
-  if (mdnsHandle) {
-    const handle = mdnsHandle;
-    mdnsHandle = null;
-    tasks.push(handle.close().catch((err) => log.warn(`mdns close failed: ${(err as Error).message}`)));
-  }
-  if (serverHandle) {
-    const handle = serverHandle;
-    serverHandle = null;
-    tasks.push(handle.close().catch((err) => log.warn(`server close failed: ${(err as Error).message}`)));
-  }
-  if (bridgeHandle) {
-    const handle = bridgeHandle;
-    bridgeHandle = null;
-    tasks.push(handle.close().catch((err) => log.warn(`bridge close failed: ${(err as Error).message}`)));
-  }
+  const tasks = takeClosables().map(([label, handle]) => settle(`${label} close`, handle.close()));
 
   // Transport shutdown releases noble's native CBCentralManager so the
   // Electron process can terminate on macOS. Race against a timeout in case
   // a flaky peripheral makes disconnect hang.
   tasks.push(
-    Promise.race([
-      transportManager.shutdown().then(() => 'ok' as const),
-      new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), SHUTDOWN_BLE_TIMEOUT_MS)),
-    ])
-      .then((result) => {
+    settle(
+      'transport shutdown',
+      withTimeout(transportManager.shutdown(), SHUTDOWN_BLE_TIMEOUT_MS).then((result) => {
         if (result === 'timeout') {
           log.warn(`transport shutdown did not finish within ${SHUTDOWN_BLE_TIMEOUT_MS}ms`);
         }
-      })
-      .catch((err) => log.warn(`transport shutdown threw: ${(err as Error).message}`)),
+      }),
+    ),
   );
 
-  await Promise.allSettled(tasks);
+  await Promise.all(tasks);
   // Contacts/channels persistence and the search-index rebuild are coalesced,
   // so a quit landing inside a coalesce window would drop the last change.
   // Settle it before the settings queue is drained below.
-  await flushHolderPersistence().catch((err) => log.warn(`holder flush failed: ${(err as Error).message}`));
+  await settle('holder flush', flushHolderPersistence());
   // Drain any pending block-rule counter increments into the settings
   // write queue so flushSettings() below can await them.
   blockingStore().flushNow();
   // Drain any in-flight settings / window-state writes before exit so the
   // user's last UI tweaks survive a quit.
-  await Promise.allSettled([
-    flushSettings().catch((err) => log.warn(`settings flush failed: ${(err as Error).message}`)),
-    flushWindowState().catch((err) => log.warn(`window state flush failed: ${(err as Error).message}`)),
-  ]);
+  await Promise.all([settle('settings flush', flushSettings()), settle('window state flush', flushWindowState())]);
   // Compact the FTS5 index before closing the DB. Cheap on small indexes,
   // worth doing periodically on larger ones to keep query latency low.
   try {
     optimizeFts();
   } catch (err) {
-    log.warn(`fts optimize failed: ${(err as Error).message}`);
+    log.warn(`fts optimize failed: ${errorMessage(err)}`);
   }
   closeDb();
 }
