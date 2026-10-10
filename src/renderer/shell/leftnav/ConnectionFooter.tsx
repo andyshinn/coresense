@@ -1,6 +1,5 @@
 import { ArrowUpCircle, Bluetooth, RotateCw } from 'lucide-react';
 import { type MouseEvent, useEffect, useState } from 'react';
-import { errorMessage } from '../../../shared/errors';
 import type { SyncProgress, TransportState } from '../../../shared/types';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Progress } from '../../components/ui/progress';
@@ -53,7 +52,7 @@ export function ConnectionFooter({
     if (!client || !updateState) return;
     // On the silent path quitAndInstall quits the app, so the promise may never
     // settle — that's fine. A real failure (route/network) must not be silent.
-    void api.installUpdate(client).catch((err) => notify.error(`Update action failed: ${errorMessage(err)}`, err));
+    void api.installUpdate(client).catch((err) => notify.failure('Update action', err));
   };
 
   const syncing = state === 'connected' && sync.phase === 'syncing';
@@ -72,7 +71,7 @@ export function ConnectionFooter({
     try {
       await api.connect(client, lastDevice.id);
     } catch (err) {
-      notify.error(`Reconnect failed: ${errorMessage(err)}`, err);
+      notify.failure('Reconnect', err);
     } finally {
       setReconnecting(false);
     }

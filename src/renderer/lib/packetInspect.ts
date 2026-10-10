@@ -14,6 +14,7 @@ import {
   type RouteType,
   Utils,
 } from '@michaelhart/meshcore-decoder';
+import { errorMessage } from '../../shared/errors';
 import { bytesToHex, hexToBytes } from '../../shared/hex';
 
 export interface BitRow {
@@ -293,7 +294,7 @@ export function inspectPacket(hex: string, opts?: { keyStore?: CryptoKeyStore })
       sender: null,
       fields: [],
       payload: null,
-      error: (err as Error).message,
+      error: errorMessage(err),
     };
   }
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { errorMessage } from '../../../shared/errors';
 import { parseSender } from '../../../shared/sender';
 import type { ConversationHit, MessageHit, SearchResults as SearchResultsPayload, SearchSort } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
@@ -139,7 +140,7 @@ export function SearchResults({ client }: Props) {
         setConversations(r.conversations);
         setTotalMessages(r.total.messages);
       } catch (err) {
-        if (!cancelled) setError((err as Error).message);
+        if (!cancelled) setError(errorMessage(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -170,7 +171,7 @@ export function SearchResults({ client }: Props) {
       setMessages((prev) => [...prev, ...r.messages]);
       setTotalMessages(r.total.messages);
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setLoadingMore(false);
     }

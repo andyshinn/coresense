@@ -1,5 +1,4 @@
 import { BellOff, Copy, Megaphone, PinIcon, PinOff, Trash2 } from 'lucide-react';
-import { errorMessage } from '../../../shared/errors';
 import type { Contact } from '../../../shared/types';
 import { ContextMenu, type ContextMenuEntry, copyToClipboard, menuItem, menuSeparator } from '../../components/ContextMenu';
 import { type ApiClient, api } from '../../lib/api';
@@ -44,7 +43,7 @@ export function ContactContextMenu({
         try {
           await api.putContact(client, { ...contact, muted: !contact.muted });
         } catch (err) {
-          notify.error(`Mute toggle failed: ${errorMessage(err)}`, err);
+          notify.failure('Mute toggle', err);
         }
       },
       { icon: BellOff, disabled: !client },
@@ -61,7 +60,7 @@ export function ContactContextMenu({
           await api.sendAdvert(client);
           notify.success('Self-advert sent');
         } catch (err) {
-          notify.error(`Advert failed: ${errorMessage(err)}`, err);
+          notify.failure('Advert', err);
         }
       },
       { icon: Megaphone, disabled: !connected || !client },
@@ -75,7 +74,7 @@ export function ContactContextMenu({
           await api.deleteContact(client, contact.key);
           notify.success(`Removed "${contact.name}"`);
         } catch (err) {
-          notify.error(`Remove failed: ${errorMessage(err)}`, err);
+          notify.failure('Remove', err);
         }
       },
       { icon: Trash2, danger: true, disabled: !client },

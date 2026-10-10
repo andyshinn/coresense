@@ -142,7 +142,7 @@ export function SetPathEditor({ contact, client }: Props) {
       });
       notify.success(currentHex ? `Path saved (${hops.length} hops)` : 'Path cleared');
     } catch (err) {
-      notify.error(`Save failed: ${(err as Error).message}`, err);
+      notify.failure('Save', err);
     } finally {
       setBusy(false);
     }
@@ -156,7 +156,7 @@ export function SetPathEditor({ contact, client }: Props) {
       setHops([]);
       notify.success('Reset to flood');
     } catch (err) {
-      notify.error(`Reset failed: ${(err as Error).message}`, err);
+      notify.failure('Reset', err);
     } finally {
       setBusy(false);
     }

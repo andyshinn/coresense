@@ -64,7 +64,10 @@ describe('ContactManager refresh button', () => {
     fireEvent.click(button());
 
     await waitFor(() =>
-      expect(notify.error).toHaveBeenCalledWith('Contact refresh failed: no radio attached', expect.anything()),
+      expect(notify.failure).toHaveBeenCalledWith(
+        'Contact refresh',
+        expect.objectContaining({ message: 'no radio attached' }),
+      ),
     );
     expect(notify.success).not.toHaveBeenCalled();
   });

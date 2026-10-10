@@ -1,6 +1,5 @@
 import { Hash, Plus } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
-import { errorMessage } from '../../../shared/errors';
 import { AddChannelPopover } from '../../components/AddChannelPopover';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { SidebarMenuAction } from '../../components/ui/sidebar';
@@ -64,7 +63,7 @@ export function ChannelsBranch({
       try {
         await api.reorderChannels(client, orderedKeys);
       } catch (err) {
-        notify.error(`Reorder failed: ${errorMessage(err)}`, err);
+        notify.failure('Reorder', err);
       }
     },
     [client],

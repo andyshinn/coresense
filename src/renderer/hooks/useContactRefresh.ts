@@ -27,7 +27,7 @@ export function useContactRefresh(client: ApiClient | null): { refreshing: boole
       if (res.skipped) notify.info('Radio is already syncing contacts');
       else notify.success(`Re-read ${res.count ?? 0} contact${res.count === 1 ? '' : 's'} from the radio`);
     } catch (err) {
-      notify.error(`Contact refresh failed: ${(err as Error).message}`, err);
+      notify.failure('Contact refresh', err);
     } finally {
       setRefreshing(false);
     }

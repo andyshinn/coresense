@@ -1,4 +1,5 @@
 import { ArrowRight } from 'lucide-react';
+import { errorMessage } from '../../../shared/errors';
 import type { Contact, PathHashSize, PathLearnedEvent } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
@@ -41,7 +42,7 @@ export function PathLearnedDialog({ event, contact, client, onClose }: Props) {
         }
         notify.success('Kept your manual path');
       } catch (err) {
-        notify.error(`Failed to restore path: ${(err as Error).message}`, err);
+        notify.error(`Failed to restore path: ${errorMessage(err)}`, err);
       }
     })();
     onClose();

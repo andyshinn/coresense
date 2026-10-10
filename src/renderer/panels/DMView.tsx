@@ -69,7 +69,7 @@ export function DMView({ contact, client }: Props) {
       try {
         await api.sendMessage(client, contact.key, body);
       } catch (err) {
-        notify.error(`Send failed: ${(err as Error).message}`, err);
+        notify.failure('Send', err);
       }
     },
     [client, contact.key],

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createMacroEngine } from '../../../../src/shared/macros/engine';
 import { buildSampleContext } from '../../../../src/shared/macros/manifest';
-import { renderTemplate } from '../../../../src/shared/macros/render';
+import { classifyParseError, classifyRenderError, renderTemplate } from '../../../../src/shared/macros/render';
 
 const engine = createMacroEngine({ defaultDistanceUnit: 'metric' });
 const ctx = () => buildSampleContext();
@@ -62,5 +62,19 @@ describe('renderTemplate', () => {
     const c = { ...ctx(), sender_pos: null };
     expect(renderTemplate(engine, '{{ sender_pos }}', c, { placeholder: '?' })).toEqual({ ok: true, text: '?' });
     expect(renderTemplate(engine, '{{ sender_pos.lat }}', c, { placeholder: '?' })).toEqual({ ok: true, text: '?' });
+  });
+});
+
+// A thrown null/undefined used to raise a TypeError inside the classifier
+// (`(e as Error).message` and lineCol's unguarded `.token`).
+describe('error classification of non-Error throws', () => {
+  it('classifies a thrown null or undefined instead of throwing', () => {
+    expect(classifyParseError(null)).toEqual({ kind: 'parse', message: 'null' });
+    expect(classifyParseError(undefined)).toEqual({ kind: 'parse', message: 'undefined' });
+    expect(classifyRenderError(null, 0, 1000)).toEqual({ kind: 'render', message: 'null' });
+  });
+
+  it('keeps a thrown string as the message', () => {
+    expect(classifyRenderError('boom', 0, 1000)).toEqual({ kind: 'render', message: 'boom' });
   });
 });

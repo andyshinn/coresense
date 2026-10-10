@@ -1,5 +1,4 @@
 import { memo, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { errorMessage } from '../../../../shared/errors';
 import type { Channel, ChannelStats, PeopleFilter, PeopleSort } from '../../../../shared/types';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { useChannelStats } from '../../../hooks/useChannelStats';
@@ -290,7 +289,7 @@ export const ChannelPeopleSection = memo(function ChannelPeopleSection({
         await api.addToRadio(client, row.pubkey);
         notify.success(`Added ${row.name} to radio`);
       } catch (err) {
-        notify.error(`Add failed: ${errorMessage(err)}`, err);
+        notify.failure('Add', err);
       }
     },
     [client],

@@ -73,7 +73,7 @@ export function ChannelView({ channel, client }: Props) {
       try {
         await api.sendMessage(client, channel.key, body);
       } catch (err) {
-        notify.error(`Send failed: ${(err as Error).message}`, err);
+        notify.failure('Send', err);
       }
     },
     [client, channel.key],
@@ -103,7 +103,7 @@ export function ChannelView({ channel, client }: Props) {
       const res = await api.pushChannelToDevice(client, channel.key);
       notify.success(`Added "${channel.name}" to device (slot ${res.idx})`);
     } catch (err) {
-      notify.error(`Add failed: ${(err as Error).message}`, err);
+      notify.failure('Add', err);
     } finally {
       setPushing(false);
     }

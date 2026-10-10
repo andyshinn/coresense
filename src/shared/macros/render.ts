@@ -1,4 +1,5 @@
 import type { Liquid } from 'liquidjs';
+import { errorMessage } from '../errors';
 import { DEFAULT_RENDER_LIMIT } from './engine';
 import { PlaceholderDrop } from './placeholder';
 import type { MacroError, RenderOptions, RenderResult } from './types';
@@ -18,7 +19,7 @@ function filterNameFromMessage(msg: string): string | undefined {
 }
 
 function lineCol(e: unknown): { line?: number; col?: number } {
-  const t = (e as { token?: { line?: number; col?: number } }).token;
+  const t = (e as { token?: { line?: number; col?: number } } | null | undefined)?.token;
   const out: { line?: number; col?: number } = {};
   if (typeof t?.line === 'number') out.line = t.line;
   if (typeof t?.col === 'number') out.col = t.col;
@@ -26,14 +27,14 @@ function lineCol(e: unknown): { line?: number; col?: number } {
 }
 
 export function classifyParseError(e: unknown): MacroError {
-  const message = (e as Error).message ?? String(e);
+  const message = errorMessage(e);
   const low = message.toLowerCase();
   if (low.includes('undefined filter')) return { kind: 'unknown-filter', message, name: filterNameFromMessage(message) };
   return { kind: 'parse', message, ...lineCol(e) };
 }
 
 export function classifyRenderError(e: unknown, elapsedMs: number, limit: number): MacroError {
-  const message = (e as Error).message ?? String(e);
+  const message = errorMessage(e);
   const low = message.toLowerCase();
   if (low.includes('undefined filter')) return { kind: 'unknown-filter', message, name: filterNameFromMessage(message) };
   if (low.includes('undefined variable'))

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { errorMessage } from '../../../shared/errors';
 import { Button } from '../../components/ui/button';
 import { Popover, PopoverAnchor, PopoverContent } from '../../components/ui/popover';
 import { type ApiClient, api } from '../../lib/api';
@@ -55,7 +56,7 @@ export function DeleteConfirmPopover({ messageId, conversationKey, preview, clie
       notify.success('Message deleted');
       onDeleted?.();
     } catch (err) {
-      notify.error(`Couldn’t delete message: ${(err as Error).message}`, err);
+      notify.error(`Couldn’t delete message: ${errorMessage(err)}`, err);
     }
   };
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { errorMessage } from '../../shared/errors';
 import type { ChannelStats, Message } from '../../shared/types';
 import { type ApiClient, api } from '../lib/api';
 import { useStore } from '../lib/store';
@@ -106,7 +107,7 @@ export function useChannelStats(
       },
       (e) => {
         if (!cancelled) {
-          setError((e as Error).message);
+          setError(errorMessage(e));
           setLoading(false);
         }
       },

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { contactKey } from '../../shared/conversationKey';
+import { errorMessage } from '../../shared/errors';
 import { type ApiClient, ApiError, api } from '../lib/api';
 import { notify } from '../lib/notify';
 
@@ -123,7 +124,7 @@ export function useAdvertPath(
           if (!silent) notify.info('Add this contact to the radio before measuring its advert path');
           return 'retryable';
         }
-        if (!silent) notify.error(`Could not measure heard hops: ${(err as Error).message}`, err);
+        if (!silent) notify.error(`Could not measure heard hops: ${errorMessage(err)}`, err);
         return 'retryable';
       } finally {
         busy.current.delete(pubkey);

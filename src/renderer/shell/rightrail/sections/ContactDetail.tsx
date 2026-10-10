@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { formatHops, formatLastHeard, formatObservedHops } from '../../../../shared/contacts/discovered';
-import { errorMessage } from '../../../../shared/errors';
 import { hasValidFix } from '../../../../shared/types';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
@@ -81,7 +80,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
       await fn(client);
       notify.success(ok);
     } catch (err) {
-      notify.error(`Action failed: ${errorMessage(err)}`, err);
+      notify.failure('Action', err);
     }
   }
 

@@ -154,7 +154,7 @@ export function App() {
           setHydrated(true);
         }
       } catch (err) {
-        if (!cancelled) notify.error(`Snapshot fetch failed: ${errorMessage(err)}`, err);
+        if (!cancelled) notify.failure('Snapshot fetch', err);
       }
     })();
     return () => {

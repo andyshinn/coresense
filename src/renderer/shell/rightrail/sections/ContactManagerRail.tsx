@@ -12,7 +12,6 @@ import {
   Upload,
 } from 'lucide-react';
 import { useState } from 'react';
-import { errorMessage } from '../../../../shared/errors';
 import type { ContactKind } from '../../../../shared/types';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
@@ -75,7 +74,7 @@ function BulkActions({ client }: { client: ApiClient | null }) {
       clearCmSelected();
       notify.success(successMsg);
     } catch (err) {
-      notify.error(`Action failed: ${errorMessage(err)}`, err);
+      notify.failure('Action', err);
     }
   }
 
@@ -187,7 +186,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
       await Promise.all(discoveredOnly.map((c) => api.addToRadio(client, c.publicKeyHex)));
       notify.success(`Added ${discoveredOnly.length} contact${discoveredOnly.length === 1 ? '' : 's'} to radio`);
     } catch (err) {
-      notify.error(`Action failed: ${errorMessage(err)}`, err);
+      notify.failure('Action', err);
     }
   }
 
@@ -197,7 +196,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
       await Promise.all(onRadioRows.map((c) => api.removeFromRadio(client, c.publicKeyHex)));
       notify.success(`Removed ${onRadioRows.length} contact${onRadioRows.length === 1 ? '' : 's'} from radio`);
     } catch (err) {
-      notify.error(`Action failed: ${errorMessage(err)}`, err);
+      notify.failure('Action', err);
     }
   }
 
@@ -215,7 +214,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
       await Promise.all(stale.map((d) => api.removeFromRadio(client, d.publicKeyHex)));
       notify.success(`Pruned ${stale.length} contact${stale.length === 1 ? '' : 's'} older than ${label}`);
     } catch (err) {
-      notify.error(`Prune failed: ${errorMessage(err)}`, err);
+      notify.failure('Prune', err);
     }
   }
 
@@ -225,7 +224,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
       await api.clearDiscovered(client);
       notify.success(`Cleared ${clearCount} discovered contact${clearCount === 1 ? '' : 's'}`);
     } catch (err) {
-      notify.error(`Clear failed: ${errorMessage(err)}`, err);
+      notify.failure('Clear', err);
     } finally {
       setShowClear(false);
     }

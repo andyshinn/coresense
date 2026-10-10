@@ -2,6 +2,7 @@ import { Hash, Key, Plus, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { channelKey } from '../../shared/conversationKey';
+import { errorMessage } from '../../shared/errors';
 import type { Channel } from '../../shared/types';
 import { type ApiClient, api } from '../lib/api';
 import { notify } from '../lib/notify';
@@ -113,7 +114,7 @@ export function AddChannelPopover({ client, onClose }: Props) {
     try {
       await api.putChannel(client, channel);
     } catch (err) {
-      throw new Error(`Couldn't save channel: ${(err as Error).message}`);
+      throw new Error(`Couldn't save channel: ${errorMessage(err)}`, { cause: err });
     }
     try {
       const res = await api.pushChannelToDevice(client, channel.key);
@@ -127,7 +128,7 @@ export function AddChannelPopover({ client, onClose }: Props) {
         // Rollback itself failing is non-fatal — the next radio enumeration
         // will reconcile.
       }
-      throw new Error(`Couldn't push to device: ${(pushErr as Error).message}`);
+      throw new Error(`Couldn't push to device: ${errorMessage(pushErr)}`, { cause: pushErr });
     }
   }
 
@@ -166,7 +167,7 @@ export function AddChannelPopover({ client, onClose }: Props) {
               const channel: Channel = { key: 'ch:Public', name: 'Public', kind: 'public', createdAt: Date.now() };
               await submit(channel, 'Public');
             } catch (err) {
-              setView({ ...next, submitting: false, error: (err as Error).message });
+              setView({ ...next, submitting: false, error: errorMessage(err) });
             }
           }}
         />
@@ -225,7 +226,7 @@ export function AddChannelPopover({ client, onClose }: Props) {
     try {
       await submit(channel, name);
     } catch (err) {
-      setView({ ...formView, submitting: false, error: (err as Error).message });
+      setView({ ...formView, submitting: false, error: errorMessage(err) });
     }
   }
 
