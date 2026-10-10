@@ -3,7 +3,8 @@ import { contactKey } from '../../../shared/conversationKey';
 import { parseSender } from '../../../shared/sender';
 import type { Message } from '../../../shared/types';
 import type { BlockSenderDialogPrefill } from '../../components/BlockSenderDialog';
-import { type ContextMenuEntry, copyToClipboard, menuItem, menuSeparator } from '../../components/ContextMenu';
+import { type ContextMenuEntry, menuItem, menuSeparator } from '../../components/ContextMenu';
+import { copyToClipboard } from '../../lib/clipboard';
 import { notify } from '../../lib/notify';
 import { formatAllPathsHeard, formatFirstPathHeard } from './paths';
 

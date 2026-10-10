@@ -23,9 +23,9 @@ const CUSTOM_RAILS: Readonly<Record<string, (client: ApiClient | null) => ReactN
   // Same rationale as the map bypass above: the packet log's right
   // pane is a fully custom byte-level breakdown, not a stack of
   // collapsible label/value sections.
-  'tool:packetlog': (client) => (
+  'tool:packetlog': () => (
     <div className="h-full overflow-y-auto">
-      <PacketDetailsRail client={client} />
+      <PacketDetailsRail />
     </div>
   ),
   // The Macros tool's right pane is the authoring Reference (variables

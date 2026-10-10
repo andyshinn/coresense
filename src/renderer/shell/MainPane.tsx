@@ -87,7 +87,7 @@ function MainPaneInner({ client, onScan, onConnect, onDisconnect, renderPacketLo
     return <SearchResults client={client} />;
   }
   if (activeKey === 'tool:unreads') {
-    return <Unreads client={client} />;
+    return <Unreads />;
   }
   if (activeKey === 'tool:contacts') {
     return <ContactManager client={client} />;

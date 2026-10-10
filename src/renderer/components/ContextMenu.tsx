@@ -159,6 +159,3 @@ export function menuItem(
 }
 
 export const menuSeparator: ContextMenuSeparator = { kind: 'separator' };
-
-// Moved to lib/clipboard.ts; re-exported so menu builders keep one import.
-export { copyToClipboard } from '../lib/clipboard';

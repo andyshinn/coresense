@@ -49,7 +49,7 @@ describe('breakdown hover reset', () => {
     const a = pkt('pkt-a', '1501782abbcc00112233');
     const b = pkt('pkt-b', ADVERT_HEX);
     useStore.setState({ packets: [a, b], selectedPacketId: 'pkt-a' });
-    render(<PacketDetailsRail client={null} />);
+    render(<PacketDetailsRail />);
 
     fireEvent.mouseEnter(fieldCards()[0]);
     expect(dimmedCount()).toBeGreaterThan(0);

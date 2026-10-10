@@ -6,7 +6,6 @@ import { CountTab } from '../components/CountTab';
 import { MessageItem } from '../components/MessageItem';
 import { RelativeTime } from '../components/RelativeTime';
 import { type UnreadConversation, useUnreadConversations } from '../hooks/useUnreads';
-import type { ApiClient } from '../lib/api';
 import { CHANNEL_ICON, CONTACT_ICON } from '../lib/conversationIcons';
 import { useStore } from '../lib/store';
 
@@ -28,9 +27,9 @@ const CONTACT_KIND_LABEL: Record<ContactKind, string> = {
 // The Unreads panel aggregates every conversation with unread messages into a
 // single triage list. Marking is immediate and permanent — `markAllRead`
 // advances the per-conversation last-read marker, so a marked card simply drops
-// off the reactively-computed list. `client` is unused (marking is store-only)
-// but kept for the panel-prop contract.
-export function Unreads({ client: _client }: { client: ApiClient | null }) {
+// off the reactively-computed list. Marking is store-only, so the panel takes no
+// api client.
+export function Unreads() {
   const conversations = useUnreadConversations();
   const markAllRead = useStore((s) => s.markAllRead);
   const markAllReadGlobal = useStore((s) => s.markAllReadGlobal);

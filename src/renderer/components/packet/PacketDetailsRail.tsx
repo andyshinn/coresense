@@ -1,6 +1,5 @@
 import { Binary, Copy, Route } from 'lucide-react';
 import { type ReactNode, useMemo } from 'react';
-import type { ApiClient } from '../../lib/api';
 import { bleFramePurpose, inspectBleFrame, summarizeBleFrame } from '../../lib/bleFrameLayouts';
 import { inspectPacket } from '../../lib/packetInspect';
 import { useStore } from '../../lib/store';
@@ -28,7 +27,7 @@ function WarnNotice({ className, children }: { className?: string; children: Rea
   );
 }
 
-export function PacketDetailsRail({ client: _client }: { client: ApiClient | null }) {
+export function PacketDetailsRail() {
   const selectedId = useStore((s) => s.selectedPacketId);
   const packet = useStore((s) => s.packets.find((p) => p.id === s.selectedPacketId) ?? null);
   const radio = useStore((s) => s.radioSettings);

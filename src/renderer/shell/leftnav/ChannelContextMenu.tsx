@@ -1,7 +1,8 @@
 import { BellOff, Copy, Minus, PinIcon, PinOff, Plus, Trash2 } from 'lucide-react';
 import type { Channel } from '../../../shared/types';
-import { ContextMenu, type ContextMenuEntry, copyToClipboard, menuItem, menuSeparator } from '../../components/ContextMenu';
+import { ContextMenu, type ContextMenuEntry, menuItem, menuSeparator } from '../../components/ContextMenu';
 import { type ApiClient, api } from '../../lib/api';
+import { copyToClipboard } from '../../lib/clipboard';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 
