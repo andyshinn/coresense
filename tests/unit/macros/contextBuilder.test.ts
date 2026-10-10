@@ -231,7 +231,7 @@ describe('buildReplyContext', () => {
 // the `{{ rssi }}` one in #33 both survived their own tests.
 describe('peer_rssi / peer_snr (dead — no frame carries a contact link metric)', () => {
   const engine = createMacroEngine({ defaultDistanceUnit: 'metric' });
-  const render = (t: string, ctx: object) => renderTemplate(engine, t, ctx as Record<string, unknown>);
+  const render = (t: string, ctx: object) => renderTemplate(engine, t, ctx);
 
   const message: Message = {
     id: 'm1',

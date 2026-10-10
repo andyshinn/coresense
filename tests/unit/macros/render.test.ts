@@ -4,7 +4,7 @@ import { buildSampleContext } from '../../../src/shared/macros/manifest';
 import { renderTemplate } from '../../../src/shared/macros/render';
 
 const engine = createMacroEngine({ defaultDistanceUnit: 'metric' });
-const ctx = () => buildSampleContext() as unknown as Record<string, unknown>;
+const ctx = () => buildSampleContext();
 
 describe('renderTemplate', () => {
   it('interpolates scalars', () => {

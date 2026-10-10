@@ -28,7 +28,7 @@ export interface PreviewResult {
 
 /** Render a template against a sample context using the real shared engine. */
 export function renderPreview(engine: Liquid, template: string, context: MacroContext): PreviewResult {
-  const res = renderTemplate(engine, template, context as unknown as Record<string, unknown>, { placeholder: '?' });
+  const res = renderTemplate(engine, template, context, { placeholder: '?' });
   if (res.ok) return { text: res.text, length: res.text.length, error: null };
   return { text: null, length: null, error: res.error.message };
 }

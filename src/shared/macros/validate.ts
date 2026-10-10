@@ -13,7 +13,7 @@ export function validateTemplate(template: string): ValidateResult {
     return { ok: false, errors: [classifyParseError(e)] };
   }
   try {
-    eng.renderSync(templates, buildSampleContext() as unknown as Record<string, unknown>);
+    eng.renderSync(templates, buildSampleContext());
     return { ok: true };
   } catch (e) {
     return { ok: false, errors: [classifyRenderError(e, 0, DEFAULT_RENDER_LIMIT)] };

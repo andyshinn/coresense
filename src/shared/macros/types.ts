@@ -82,7 +82,8 @@ export interface MacroTemplate {
 export type MacroVarAvailability = 'always' | 'reply';
 
 export interface MacroVariable {
-  name: string;
+  /** A MacroContext key, so a typo in the manifest fails to compile. */
+  name: keyof MacroContext;
   description: string;
   type: 'string' | 'number' | 'position' | 'array' | 'boolean';
   example: string;

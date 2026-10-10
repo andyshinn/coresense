@@ -7,5 +7,5 @@ export function renderMacro(idOrTemplate: string, context: MacroContext, opts?: 
   const macro = macrosStore.list().find((m) => m.id === idOrTemplate);
   const template = macro ? macro.template : idOrTemplate;
   const engine = getMacroEngine(settingsStore.loadAppSettings().distanceUnit);
-  return renderTemplate(engine, template, context as unknown as Record<string, unknown>, opts);
+  return renderTemplate(engine, template, context, opts);
 }

@@ -27,7 +27,7 @@ describe('macro manifest', () => {
   // the sample and raised `undefined variable: paths.first` on every DM.
   describe('examples render against a context with no path observations', () => {
     const engine = createMacroEngine({ defaultDistanceUnit: 'metric' });
-    const pathless = () => ({ ...buildSampleContext(), paths: [] }) as unknown as Record<string, unknown>;
+    const pathless = () => ({ ...buildSampleContext(), paths: [] });
 
     for (const v of MACRO_VARIABLES.filter((x) => x.example.includes('{{'))) {
       it(`${v.name}: ${v.example}`, () => {
@@ -55,7 +55,7 @@ describe('macro manifest', () => {
     // Including the `populated: false` ones: this is the fixture the lint root
     // and validateTemplate's trial render are built from, and both need a
     // complete shape. The preview blanks them instead — see sampleContext.ts.
-    const ctx = buildSampleContext() as unknown as Record<string, unknown>;
+    const ctx = buildSampleContext();
     for (const v of MACRO_VARIABLES) {
       expect(ctx[v.name], `${v.name} should be populated`).not.toBeNull();
       expect(ctx[v.name], `${v.name} should be defined`).not.toBeUndefined();

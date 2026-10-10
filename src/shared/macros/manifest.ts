@@ -165,6 +165,11 @@ export const MACRO_FILTERS: MacroFilterDoc[] = [
   },
 ];
 
+/** Names of the variables that only resolve when replying to a message. */
+export function replyOnlyVariableNames(variables: readonly MacroVariable[]): (keyof MacroContext)[] {
+  return variables.filter((v) => v.available === 'reply').map((v) => v.name);
+}
+
 export function getManifest(): MacroManifest {
   return { variables: MACRO_VARIABLES, filters: MACRO_FILTERS };
 }
