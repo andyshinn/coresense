@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bus } from '../../../src/main/events/bus';
+import { describe, expect, it } from 'vitest';
 import { messagesStore } from '../../../src/main/storage/messages';
 import type { Message } from '../../../src/shared/types';
 import { testRoutes } from '../../support/api';
+import { captureBus } from '../../support/bus';
 
 const msg = (over: Partial<Message> = {}): Message => ({
   id: 'm1',
@@ -11,11 +11,6 @@ const msg = (over: Partial<Message> = {}): Message => ({
   body: 'hello world',
   state: 'received',
   ...over,
-});
-
-afterEach(() => {
-  bus.removeAllListeners('messagesDeleted');
-  bus.removeAllListeners('messages');
 });
 
 describe('DELETE /api/messages/:key/:id', () => {
@@ -29,19 +24,17 @@ describe('DELETE /api/messages/:key/:id', () => {
 
   it('emits messagesDeleted with the key and ids', async () => {
     messagesStore.insert(msg());
-    const seen: { key: string; ids: string[] }[] = [];
-    bus.on('messagesDeleted', (payload: { key: string; ids: string[] }) => seen.push(payload));
+    const deleted = captureBus('messagesDeleted');
     await testRoutes().request('/api/messages/ch%3AGeneral/m1', { method: 'DELETE' });
-    expect(seen).toEqual([{ key: 'ch:General', ids: ['m1'] }]);
+    expect(deleted.values).toEqual([{ key: 'ch:General', ids: ['m1'] }]);
   });
 
   it('does not emit the full messages re-push', async () => {
     messagesStore.insert(msg());
-    const onMessages = vi.fn();
-    bus.on('messages', onMessages);
+    const messages = captureBus('messages');
     const res = await testRoutes().request('/api/messages/ch%3AGeneral/m1', { method: 'DELETE' });
     expect(res.status).toBe(200);
-    expect(onMessages).not.toHaveBeenCalled();
+    expect(messages.calls).toEqual([]);
   });
 
   it('404s an unknown id', async () => {
@@ -85,9 +78,8 @@ describe('DELETE /api/messages/:key/:id', () => {
 
   it('emits the percent-bearing key unmangled', async () => {
     messagesStore.insert(msg({ id: 'p2', key: 'ch:50%off' }));
-    const seen: { key: string; ids: string[] }[] = [];
-    bus.on('messagesDeleted', (payload: { key: string; ids: string[] }) => seen.push(payload));
+    const deleted = captureBus('messagesDeleted');
     await testRoutes().request(`/api/messages/${encodeURIComponent('ch:50%off')}/p2`, { method: 'DELETE' });
-    expect(seen).toEqual([{ key: 'ch:50%off', ids: ['p2'] }]);
+    expect(deleted.values).toEqual([{ key: 'ch:50%off', ids: ['p2'] }]);
   });
 });

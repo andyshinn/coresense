@@ -8,7 +8,7 @@ import { ContactDetail } from '@/shell/rightrail/sections/ContactDetail';
 import { VersionSection } from '@/shell/rightrail/sections/VersionSection';
 import type { DiscoveredContact } from '../../src/shared/contacts/discovered';
 import type { Capabilities } from '../../src/shared/types';
-import { notify } from '../support/notifyMock';
+import { notify, resetNotifyMock } from '../support/notifyMock';
 
 // The rail's copy affordances confirm with CopyButton's anchored "Copied!"
 // popover, like every other inline copyable value, rather than a toast
@@ -35,7 +35,7 @@ let writeText: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   writeText = vi.fn().mockResolvedValue(undefined);
   Object.assign(navigator, { clipboard: { writeText } });
-  notify.success.mockReset();
+  resetNotifyMock();
 });
 
 afterEach(() => {

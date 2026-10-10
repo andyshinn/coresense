@@ -9,8 +9,6 @@ import { bootTestServer } from '../../support/server';
 
 let socket: WebSocket | null = null;
 
-const boot = () => bootTestServer();
-
 function connect(port: number): Promise<WebSocket> {
   const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?key=${getApiKey()}`);
   socket = ws;
@@ -27,12 +25,12 @@ afterEach(() => {
 
 describe('startServer().hasOpenClients', () => {
   it('is false before any client connects', async () => {
-    const server = await boot();
+    const server = await bootTestServer();
     expect(server.hasOpenClients()).toBe(false);
   });
 
   it('is true while a client is connected and false after it leaves', async () => {
-    const server = await boot();
+    const server = await bootTestServer();
     const ws = await connect(server.port);
     await vi.waitFor(() => expect(server.hasOpenClients()).toBe(true));
 
@@ -41,7 +39,7 @@ describe('startServer().hasOpenClients', () => {
   });
 
   it('does not count a client the key check rejected', async () => {
-    const server = await boot();
+    const server = await bootTestServer();
     const rejected = new WebSocket(`ws://127.0.0.1:${server.port}/ws?key=wrong`);
     socket = rejected;
     await new Promise<void>((resolve) => {

@@ -1,13 +1,12 @@
 import type { Models } from '@andyshinn/meshcore-ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bus } from '../../../src/main/events/bus';
 import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
 import { ADVERT_PATH_COOLDOWN_MS } from '../../../src/main/state/advertPath';
 import { flushContactSyncEmits } from '../../../src/main/state/contactSync';
 import { discoveredStore } from '../../../src/main/storage/discoveredContacts';
 import { transportManager } from '../../../src/main/transport/manager';
-import type { DiscoveredContact } from '../../../src/shared/contacts/discovered';
 import { installSessionStub, testRoutes } from '../../support/api';
+import { captureBus } from '../../support/bus';
 
 // #45 item 7 — POST /api/contacts/:key/advert-path asks the radio for its cached
 // INBOUND advert path for one contact. Every way that round trip can fail to
@@ -81,15 +80,14 @@ describe('POST /api/contacts/:key/advert-path', () => {
     transportManager.setState('connected');
     seed();
     spySession();
-    const onDiscovered = vi.fn();
-    bus.on('discovered', onDiscovered);
+    const discovered = captureBus('discovered');
 
     await post();
     await flushContactSyncEmits();
 
-    expect(onDiscovered).toHaveBeenCalled();
-    const pool = onDiscovered.mock.calls.at(-1)?.[0] as DiscoveredContact[];
-    expect(pool.find((d) => d.publicKeyHex === PK)?.observedHops).toBe(2);
+    expect(discovered.calls).not.toHaveLength(0);
+    const pool = discovered.last();
+    expect(pool?.find((d) => d.publicKeyHex === PK)?.observedHops).toBe(2);
   });
 
   // "Heard direct" is the best possible answer and the one most likely to be
