@@ -1,5 +1,6 @@
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, type SQLInputValue, type StatementSync } from 'node:sqlite';
+import { errorMessage } from '../../shared/errors';
 import { child } from '../log';
 import { userDataDir } from '../runtime/userData';
 
@@ -10,7 +11,20 @@ let db: DatabaseSync | null = null;
 export function openDb(): DatabaseSync {
   if (db) return db;
   const path = join(userDataDir(), 'messages.db');
-  db = new DatabaseSync(path);
+  const conn = new DatabaseSync(path);
+  try {
+    initSchema(conn);
+  } catch (err) {
+    // Don't cache a half-migrated connection: the next openDb() retries.
+    conn.close();
+    throw err;
+  }
+  db = conn;
+  log.info(`opened ${path}`);
+  return conn;
+}
+
+function initSchema(db: DatabaseSync): void {
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA synchronous = NORMAL');
   db.exec('PRAGMA foreign_keys = ON');
@@ -26,11 +40,13 @@ export function openDb(): DatabaseSync {
       ts      INTEGER NOT NULL,
       from_pk TEXT,                        -- hex; NULL when sent by self
       body    TEXT NOT NULL,
-      state   TEXT NOT NULL,               -- 'sending' | 'sent' | 'ack' | 'failed' | 'received'
+      state   TEXT NOT NULL,               -- MessageState: 'sending' | 'sent' | 'heard' | 'ack' | 'failed' | 'received'
       meta    TEXT                         -- JSON-encoded MessageMeta
     );
     CREATE INDEX IF NOT EXISTS messages_by_key_ts  ON messages (key, ts DESC);
-    CREATE INDEX IF NOT EXISTS messages_by_state   ON messages (state);
+    -- messages_by_state was never read by any query (state is only ever
+    -- written, by mid), so it was pure write cost. Dropped on existing installs.
+    DROP INDEX IF EXISTS messages_by_state;
     CREATE INDEX IF NOT EXISTS messages_by_from_pk ON messages (from_pk);
 
     -- Full-text index over message bodies. External-content keeps the body
@@ -143,7 +159,8 @@ export function openDb(): DatabaseSync {
   // then read `undefined` for the new columns on every SELECT *. There is no
   // migration framework here by design (see the DDL above): the house pattern is
   // a guarded ADD COLUMN, which throws "duplicate column name" once the column
-  // is present, making the failure the success signal on every later boot.
+  // is present, making that one failure the success signal on every later boot
+  // (see addColumnIfMissing).
   //
   // Do NOT delete these once the columns are in the DDL. That was done to the
   // last_heard_ms migration on the grounds that "dev wipes the DB", which stops
@@ -153,15 +170,64 @@ export function openDb(): DatabaseSync {
     "ALTER TABLE discovered_contacts ADD COLUMN observed_path_hex TEXT NOT NULL DEFAULT ''",
     'ALTER TABLE discovered_contacts ADD COLUMN observed_at_unix INTEGER NOT NULL DEFAULT 0',
   ]) {
-    try {
-      db.exec(ddl);
-    } catch {
-      // column already exists — nothing to do
-    }
+    addColumnIfMissing(db, ddl);
   }
+}
 
-  log.info(`opened ${path}`);
-  return db;
+/** Run one guarded `ALTER TABLE … ADD COLUMN`. Only "duplicate column name"
+ *  means the column already exists; anything else (SQLITE_BUSY, a read-only or
+ *  full disk, a typo in the DDL) is a real failure and is rethrown, rather than
+ *  being read as "already migrated" and surfacing later as `undefined` columns
+ *  on every SELECT *. Exported for tests. */
+export function addColumnIfMissing(db: DatabaseSync, ddl: string): void {
+  try {
+    db.exec(ddl);
+  } catch (err) {
+    if (/duplicate column name/i.test(errorMessage(err))) return; // column already exists — nothing to do
+    log.error(`migration failed (${ddl}): ${errorMessage(err)}`);
+    throw err;
+  }
+}
+
+/** Run `fn` between BEGIN and COMMIT, rolling back if it throws. Always rethrows
+ *  `fn`'s own error: a ROLLBACK that fails too is logged rather than allowed to
+ *  replace the error that explains what went wrong. */
+export function withTransaction<T>(db: DatabaseSync, fn: () => T): T {
+  db.exec('BEGIN');
+  try {
+    const result = fn();
+    db.exec('COMMIT');
+    return result;
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch (rollbackErr) {
+      log.warn(`rollback failed: ${errorMessage(rollbackErr)}`);
+    }
+    throw err;
+  }
+}
+
+/** `stmt.all(...)` typed as rows of `T`. This (with `get`) is the ONE unchecked
+ *  boundary between SQLite and our row interfaces: nothing verifies that the
+ *  SELECT list matches `T`, so each Row interface must be kept in step with its
+ *  query by hand. Keep loosely-typed columns loose (`state: string`) and narrow
+ *  them visibly where they are read. */
+export function all<T>(stmt: StatementSync, ...params: SQLInputValue[]): T[] {
+  return stmt.all(...params) as T[];
+}
+
+/** `stmt.get(...)` typed as a row of `T`; see `all` for the caveat. */
+export function get<T>(stmt: StatementSync, ...params: SQLInputValue[]): T | undefined {
+  return stmt.get(...params) as T | undefined;
+}
+
+/** An untrusted LIMIT as a positive integer no greater than `max`. SQLite reads
+ *  a negative LIMIT as "no limit", so a negative, zero, fractional-below-one or
+ *  non-numeric value must never reach the statement: it becomes `fallback`. */
+export function clampLimit(value: unknown, fallback: number, max = Number.POSITIVE_INFINITY): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 1) return fallback;
+  return Math.min(Math.floor(value), max);
 }
 
 export function closeDb(): void {
@@ -169,7 +235,7 @@ export function closeDb(): void {
     try {
       db.close();
     } catch (err) {
-      log.warn(`close failed: ${(err as Error).message}`);
+      log.warn(`close failed: ${errorMessage(err)}`);
     }
     db = null;
   }
