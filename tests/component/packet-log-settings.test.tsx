@@ -52,6 +52,18 @@ describe('PacketLogSection', () => {
     expect(useStore.getState().ui.packetLog).toEqual({ liveBufferSize: 500, storedHistorySize: 5000 });
   });
 
+  it('floors fractional values on Save, the same way main normalises them', () => {
+    render(<PacketLogSection />);
+    fireEvent.change(liveInput(), { target: { value: '500.7' } });
+    fireEvent.change(storedInput(), { target: { value: '5000.9' } });
+    fireEvent.click(saveButton());
+
+    // clampRetention floors. This section used to Math.round (501 / 5001), a
+    // different rule from the one main applies to persisted retention values.
+    expect(useStore.getState().ui.packetLog).toEqual({ liveBufferSize: 500, storedHistorySize: 5000 });
+    expect((liveInput() as HTMLInputElement).value).toBe('500');
+  });
+
   it('clamps out-of-bounds values on Save', async () => {
     render(<PacketLogSection />);
     fireEvent.change(liveInput(), { target: { value: '5' } });

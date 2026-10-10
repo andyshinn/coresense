@@ -1,4 +1,5 @@
 import { ScrollText } from 'lucide-react';
+import { clampRetention } from '../../../shared/packetLog';
 import { PACKET_LOG_BOUNDS, type UiState } from '../../../shared/types';
 import { NumberInput, Row } from '../../components/settings/Field';
 import { SettingsSection } from '../../components/settings/SettingsSection';
@@ -6,8 +7,6 @@ import { useStore } from '../../lib/store';
 import { useSettingsSection } from './useSectionDraft';
 
 type PacketLogSettings = UiState['packetLog'];
-
-const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(v)));
 
 const eqPacketLog = (a: PacketLogSettings, b: PacketLogSettings) =>
   a.liveBufferSize === b.liveBufferSize && a.storedHistorySize === b.storedHistorySize;
@@ -26,14 +25,9 @@ export function PacketLogSection() {
     saved,
     eq: eqPacketLog,
     onSave: async (d) => {
-      const next = {
-        liveBufferSize: clamp(d.liveBufferSize, PACKET_LOG_BOUNDS.liveBufferSize.min, PACKET_LOG_BOUNDS.liveBufferSize.max),
-        storedHistorySize: clamp(
-          d.storedHistorySize,
-          PACKET_LOG_BOUNDS.storedHistorySize.min,
-          PACKET_LOG_BOUNDS.storedHistorySize.max,
-        ),
-      };
+      // The same normalisation main applies where UiState enters (floor, then
+      // clamp into PACKET_LOG_BOUNDS), so what the draft shows is what main keeps.
+      const next = clampRetention(d);
       setPacketLogSettings(next);
       // Show what was actually applied. useSectionDraft only adopts a new saved
       // value while the draft is clean, and a clamped save leaves the draft
