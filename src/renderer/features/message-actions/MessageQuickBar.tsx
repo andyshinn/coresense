@@ -18,6 +18,17 @@ import { ReactionRow } from './ReactionRow';
 
 type PopKey = 'emoji' | 'macro' | 'info' | 'more' | null;
 
+// Icon-only triggers (h-6 inline with the emoji row, h-8 elsewhere) and the
+// bordered text pill. The popover triggers stay plain buttons rather than
+// IconBtn: PopoverTrigger asChild needs a ref-forwarding child, and IconBtn
+// would add a tooltip.
+const ICON_BTN_SM =
+  'flex h-6 w-6 items-center justify-center rounded-md text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text';
+const ICON_BTN =
+  'flex h-8 w-8 items-center justify-center rounded-md text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text';
+const PILL_BTN =
+  'flex h-7 items-center gap-1.5 rounded-md border border-cs-border bg-cs-bg-2 px-2.5 text-[12px] text-cs-text-muted hover:text-cs-text';
+
 interface Props {
   message: Message;
   isSelf: boolean;
@@ -53,7 +64,10 @@ export function MessageQuickBar({
   // Recomputed per render like ReactionRow's emoji row — both lists are tiny.
   const conversationMacros = applicableMacros(macros, message.key);
   const chipMacros = topMacros(conversationMacros, macroUsage, Date.now(), 2);
-  const P = (key: Exclude<PopKey, null>) => ({ open: open === key, onOpenChange: (o: boolean) => setOpen(o ? key : null) });
+  const popoverProps = (key: Exclude<PopKey, null>) => ({
+    open: open === key,
+    onOpenChange: (o: boolean) => setOpen(o ? key : null),
+  });
 
   // An unresolved sender (e.g. a channel message whose origin name wasn't
   // decoded) yields senderName === ''. Reacting/replying would otherwise
@@ -103,22 +117,13 @@ export function MessageQuickBar({
         {!isSelf ? (
           <>
             <ReactionRow onPick={pick} />
-            <EmojiPickerPopover {...P('emoji')} onPick={pick}>
-              <button
-                type="button"
-                aria-label="More emoji"
-                className="flex h-6 w-6 items-center justify-center rounded-md text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text"
-              >
+            <EmojiPickerPopover {...popoverProps('emoji')} onPick={pick}>
+              <button type="button" aria-label="More emoji" className={ICON_BTN_SM}>
                 <Plus size={14} aria-hidden="true" />
               </button>
             </EmojiPickerPopover>
             <span className="mx-1 h-6 w-px bg-cs-border" />
-            <button
-              type="button"
-              aria-label="Reply"
-              onClick={reply}
-              className="flex h-7 items-center gap-1.5 rounded-md border border-cs-border bg-cs-bg-2 px-2.5 text-[12px] text-cs-text-muted hover:text-cs-text"
-            >
+            <button type="button" aria-label="Reply" onClick={reply} className={PILL_BTN}>
               <Reply size={14} aria-hidden="true" />
             </button>
             {client != null && (
@@ -127,17 +132,13 @@ export function MessageQuickBar({
                   <MacroChip key={m.id} macro={m} onPick={(macro) => void pickMacro(macro)} />
                 ))}
                 <MacroPanel
-                  {...P('macro')}
+                  {...popoverProps('macro')}
                   macros={conversationMacros}
                   client={client}
                   message={message}
                   onPick={(macro, text) => void pickMacro(macro, text)}
                 >
-                  <button
-                    type="button"
-                    aria-label="All macros"
-                    className="flex h-6 w-6 items-center justify-center rounded-md text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text"
-                  >
+                  <button type="button" aria-label="All macros" className={ICON_BTN_SM}>
                     <MoreHorizontal size={14} aria-hidden="true" />
                   </button>
                 </MacroPanel>
@@ -147,92 +148,41 @@ export function MessageQuickBar({
             <IconBtn label="Copy text" onClick={copyText}>
               <Copy size={16} aria-hidden="true" />
             </IconBtn>
-            <OverflowMenu
-              message={message}
-              isSelf={isSelf}
-              senderName={senderName}
-              onBlock={onBlock}
-              onResend={onResend}
-              {...P('more')}
-            >
-              <button
-                type="button"
-                aria-label="More"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text"
-              >
-                <MoreHorizontal size={16} aria-hidden="true" />
-              </button>
-            </OverflowMenu>
           </>
         ) : (
           <>
-            <button
-              type="button"
-              aria-label="Copy"
-              onClick={copyText}
-              className="flex h-7 items-center gap-1.5 rounded-md border border-cs-border bg-cs-bg-2 px-2.5 text-[12px] text-cs-text-muted hover:text-cs-text"
-            >
+            <button type="button" aria-label="Copy" onClick={copyText} className={PILL_BTN}>
               <Copy size={14} aria-hidden="true" /> Copy
             </button>
-            <MessageInfoPopover message={message} senderName={senderName} {...P('info')}>
-              <button
-                type="button"
-                aria-label="Info"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text"
-              >
+            <MessageInfoPopover message={message} senderName={senderName} {...popoverProps('info')}>
+              <button type="button" aria-label="Info" className={ICON_BTN}>
                 <Info size={16} aria-hidden="true" />
               </button>
             </MessageInfoPopover>
-            <OverflowMenu
-              message={message}
-              isSelf={isSelf}
-              senderName={senderName}
-              onBlock={onBlock}
-              onResend={onResend}
-              {...P('more')}
-            >
-              <button
-                type="button"
-                aria-label="More"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text"
-              >
-                <MoreHorizontal size={16} aria-hidden="true" />
-              </button>
-            </OverflowMenu>
           </>
         )}
+        <OverflowMenu
+          message={message}
+          isSelf={isSelf}
+          senderName={senderName}
+          onBlock={onBlock}
+          onResend={onResend}
+          {...popoverProps('more')}
+        >
+          <button type="button" aria-label="More" className={ICON_BTN}>
+            <MoreHorizontal size={16} aria-hidden="true" />
+          </button>
+        </OverflowMenu>
       </div>
     </div>
   );
 }
 
-function IconBtn({
-  label,
-  onClick,
-  soon,
-  className,
-  children,
-}: {
-  label: string;
-  onClick?: () => void;
-  soon?: boolean;
-  className?: string;
-  children: React.ReactNode;
-}) {
+function IconBtn({ label, onClick, children }: { label: string; onClick?: () => void; children: React.ReactNode }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          disabled={soon}
-          onClick={onClick}
-          className={[
-            'flex h-8 w-8 items-center justify-center rounded-md text-cs-text-muted hover:bg-cs-bg-2 hover:text-cs-text',
-            soon ? 'opacity-45' : '',
-            className ?? '',
-          ].join(' ')}
-        >
+        <button type="button" aria-label={label} onClick={onClick} className={ICON_BTN}>
           {children}
         </button>
       </TooltipTrigger>
