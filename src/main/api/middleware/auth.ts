@@ -34,7 +34,8 @@ export function getApiKey(): string {
     // ignore on platforms that don't support chmod
   }
   cachedKey = apiKey;
-  // eslint-disable-next-line no-console
+  // A direct write, deliberately not the tslog logger: its file sink would
+  // persist the secret (docs/SECURITY_HARDENING_PLAN.md §5).
   console.log(
     [
       '',
@@ -48,7 +49,15 @@ export function getApiKey(): string {
   return apiKey;
 }
 
-const PUBLIC_PATHS = new Set(['/', '/api/capabilities']);
+// Only consulted under '/api/*', where this middleware is mounted.
+const PUBLIC_PATHS = new Set(['/api/capabilities']);
+
+/** Constant-time comparison of a presented key against the stored one. */
+function keyMatches(providedKey: string): boolean {
+  const provided = Buffer.from(providedKey);
+  const expected = Buffer.from(getApiKey());
+  return provided.length === expected.length && timingSafeEqual(provided, expected);
+}
 
 export const apiKeyAuth: MiddlewareHandler = async (c, next) => {
   if (PUBLIC_PATHS.has(c.req.path)) return next();
@@ -57,18 +66,11 @@ export const apiKeyAuth: MiddlewareHandler = async (c, next) => {
   const match = /^Bearer\s+(.+)$/i.exec(header);
   if (!match) return c.json({ error: 'Missing Authorization' }, 401);
 
-  const provided = Buffer.from(match[1].trim());
-  const expected = Buffer.from(getApiKey());
-  if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
-    return c.json({ error: 'Invalid API key' }, 401);
-  }
+  if (!keyMatches(match[1].trim())) return c.json({ error: 'Invalid API key' }, 401);
   return next();
 };
 
 export function checkWsKey(providedKey: string | undefined | null): boolean {
   if (!providedKey) return false;
-  const provided = Buffer.from(providedKey);
-  const expected = Buffer.from(getApiKey());
-  if (provided.length !== expected.length) return false;
-  return timingSafeEqual(provided, expected);
+  return keyMatches(providedKey);
 }
