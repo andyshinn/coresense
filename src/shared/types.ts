@@ -101,9 +101,17 @@ export interface Channel {
   createdAt?: number;
 }
 
-export type ContactKind = 'chat' | 'repeater' | 'sensor' | 'room';
+/** Every contact kind, in the app's display order. */
+export const CONTACT_KINDS = ['chat', 'repeater', 'room', 'sensor'] as const;
+
+export type ContactKind = (typeof CONTACT_KINDS)[number];
 
 export type PathHashSize = 1 | 2 | 3;
+
+/** True iff `n` is a real per-hop path hash size (1, 2 or 3 bytes). */
+export function isPathHashSize(n: unknown): n is PathHashSize {
+  return n === 1 || n === 2 || n === 3;
+}
 
 export interface Contact {
   key: string; // 'c:<publicKeyHex>'
@@ -134,7 +142,7 @@ export interface Contact {
    *  advert.out_path. Empty / undefined means "flood" (no source-route). The
    *  byte length must be a multiple of `outPathHashSize`. */
   outPathHex?: string;
-  /** Bytes per hop prefix (1, 2 or 4). Snapshot of the radio's `path.hash.mode`
+  /** Bytes per hop prefix (1, 2 or 3). Snapshot of the radio's `path.hash.mode`
    *  at the time the path was captured / written. Needed to split `outPathHex`
    *  into the per-hop chips the UI renders. */
   outPathHashSize?: PathHashSize;
@@ -157,8 +165,11 @@ export interface Contact {
 /** True iff the contact carries a usable WGS84 fix: both coords present, not
  *  the 0/0 "no GPS" sentinel, and within valid lat/lon ranges. Corrupt adverts
  *  can yield out-of-range coords — treat those as no fix rather than letting
- *  them reach MapLibre, which throws on an invalid LngLat. */
-export function hasValidFix(c: Contact): c is Contact & { gpsLat: number; gpsLon: number } {
+ *  them reach MapLibre, which throws on an invalid LngLat. Structural, so it
+ *  narrows any `{ gpsLat, gpsLon }` shape (Contact, DiscoveredContact, …). */
+export function hasValidFix<T extends { gpsLat?: number | null; gpsLon?: number | null }>(
+  c: T,
+): c is T & { gpsLat: number; gpsLon: number } {
   return (
     typeof c.gpsLat === 'number' &&
     typeof c.gpsLon === 'number' &&
@@ -628,7 +639,7 @@ export interface MapSettings {
    *  they're hidden entirely. */
   staleFadeEnabled: boolean;
   /** Per-kind filter — when `false`, that kind's markers are hidden from the map. */
-  kindFilters: { chat: boolean; repeater: boolean; room: boolean; sensor: boolean };
+  kindFilters: Record<ContactKind, boolean>;
   /** Only show contacts with `pinned = true`. */
   favouritesOnly: boolean;
   /** Combine nearby markers into a type-breakdown donut when zoomed out. */
@@ -735,12 +746,11 @@ export const DEFAULT_DEVICE_IDENTITY: DeviceIdentity = {
  *  radio honour them. Writing `mode` without writing the bit is what made those
  *  four toggles decorative. */
 export type AutoAddMode = 'all' | 'selected';
-export interface AutoAddConfig {
+/** The per-kind auto-add flags stay flat (persisted and round-tripped to the
+ *  radio as-is) but are keyed by ContactKind, so a new kind fails to compile
+ *  here until it is mapped. */
+export interface AutoAddConfig extends Record<ContactKind, boolean> {
   mode: AutoAddMode;
-  chat: boolean;
-  repeater: boolean;
-  room: boolean;
-  sensor: boolean;
   overwriteOldest: boolean;
   /** Firmware `_prefs.autoadd_max_hops` — the radio drops adverts heard over
    *  more hops than this before auto-adding. 0 = no limit. Byte 2 of
@@ -782,13 +792,16 @@ export const DEFAULT_AUTO_ADD_CONFIG: AutoAddConfig = {
   showPublicKeys: true,
 };
 
-/** Telemetry/messaging knobs from CMD_SET_OTHER_PARAMS. Each telemetry mode is
- *  0=deny, 1=allow-per-contact-flag, 2=allow-all. `multiAcks` is 0..2 typical;
- *  more ACKs increase reliability at the cost of airtime. */
+/** A telemetry permission mode: 0 = deny, 1 = allow per contact flag, 2 = allow all. */
+export type TelemetryMode = 0 | 1 | 2;
+
+/** Telemetry/messaging knobs from CMD_SET_OTHER_PARAMS. Each telemetry field is
+ *  a TelemetryMode. `multiAcks` is 0..2 typical; more ACKs increase reliability
+ *  at the cost of airtime. */
 export interface TelemetryPolicy {
-  base: 0 | 1 | 2;
-  loc: 0 | 1 | 2;
-  env: 0 | 1 | 2;
+  base: TelemetryMode;
+  loc: TelemetryMode;
+  env: TelemetryMode;
   multiAcks: number;
 }
 export const DEFAULT_TELEMETRY_POLICY: TelemetryPolicy = {
@@ -857,7 +870,7 @@ export const DEFAULT_DEVICE_CAPABILITIES: DeviceCapabilities = {
 // LeftNav branch open/closed state. Keys cover the three Collapsible
 // containers in LeftNav (Channels parent, Contacts wrapper in nested mode,
 // and each ContactKind group).
-export type LeftNavGroupId = 'channels' | 'contacts' | 'chat' | 'repeater' | 'room' | 'sensor';
+export type LeftNavGroupId = 'channels' | 'contacts' | ContactKind;
 
 export type ThemePref = 'auto' | 'dark' | 'light';
 

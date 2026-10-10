@@ -1,4 +1,4 @@
-import type { BlockRule, ContactKind, PathHashSize } from '../types';
+import { type BlockRule, type ContactKind, isPathHashSize, type PathHashSize } from '../types';
 
 /** A node we've heard an advert from. Superset of the on-radio contact list:
  *  `onRadio` marks whether it is currently committed to the radio's store. */
@@ -97,7 +97,7 @@ export function hopsFromOutPathLen(outPathLen: number): number | undefined {
 export function hashSizeFromOutPathLen(outPathLen: number): PathHashSize | undefined {
   if (outPathLen === 0xff) return undefined;
   const size = (outPathLen >> 6) + 1;
-  return size === 1 || size === 2 || size === 3 ? (size as PathHashSize) : undefined;
+  return isPathHashSize(size) ? size : undefined;
 }
 
 /** The one rendering of a contact's hop state, shared by every surface so the
