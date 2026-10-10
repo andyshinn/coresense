@@ -8,7 +8,14 @@ import { CliReverseSearch } from './CliReverseSearch';
 import { cliRoundTrip } from './lib/airtime';
 import { resolveCommand } from './lib/parse';
 import type { CliHistoryEntry } from './lib/persistence';
-import { type CliPromptState, cliPromptReducer, ghostSuffix, isPaletteOpen, rsearchMatches } from './lib/promptReducer';
+import {
+  type CliPromptState,
+  cliPromptReducer,
+  ghostSuffix,
+  initialPromptState,
+  isPaletteOpen,
+  rsearchView,
+} from './lib/promptReducer';
 import { type CliSuggestCtx, suggest } from './lib/suggest';
 
 export type CliGuest = 'checking' | 'guest' | 'admin';
@@ -26,23 +33,6 @@ export interface CliPromptProps {
   lineToSet?: { text: string; nonce: number } | null;
 }
 
-function initialState(history: CliHistoryEntry[], ctx: CliSuggestCtx): CliPromptState {
-  return {
-    value: '',
-    caret: 0,
-    history,
-    histIndex: -1,
-    draft: '',
-    manualOpen: false,
-    dismissed: false,
-    navigated: false,
-    activeId: '',
-    rsearch: null,
-    confirmPending: null,
-    ctx,
-  };
-}
-
 export function CliPrompt({
   history,
   ctx,
@@ -56,7 +46,7 @@ export function CliPrompt({
   lineToSet,
 }: CliPromptProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [state, setState] = useState<CliPromptState>(() => initialState(history, ctx));
+  const [state, setState] = useState<CliPromptState>(() => initialPromptState(ctx, history));
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -123,9 +113,10 @@ export function CliPrompt({
 
   const canSubmit = guest === 'admin' && state.value.trim() !== '';
 
-  // The reducer's own filtered, newest-first match list — reused so the index
-  // rsearch.index points into stays in the same space the reducer navigates.
-  const rmatches = state.rsearch ? rsearchMatches(state.history, state.rsearch.query) : [];
+  // The reducer's own view of the filtered, newest-first match list — reused so
+  // the index rsearch.index points into stays in the same space the reducer
+  // navigates.
+  const rsearch = rsearchView(state);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Map each key to a granular reducer action (§3.1). Reverse-search typing
@@ -203,12 +194,7 @@ export function CliPrompt({
         />
       ) : null}
       {state.rsearch ? (
-        <CliReverseSearch
-          query={state.rsearch.query}
-          match={rmatches[state.rsearch.index] ?? null}
-          index={state.rsearch.index}
-          total={rmatches.length}
-        />
+        <CliReverseSearch query={state.rsearch.query} match={rsearch.match} index={rsearch.index} total={rsearch.total} />
       ) : null}
 
       <div className="relative flex items-center gap-2 px-3 py-2">
