@@ -6,7 +6,8 @@ export const TOOL_KEYS = [
   'tool:settings:app',
   'tool:settings:radio',
   // Legacy deep link: lands on the same tab as Radio Settings (see
-  // panels/settings/routing.ts), kept so recent/pinned keys still resolve.
+  // panels/settings/routing.ts). Kept so recent/pinned keys still resolve,
+  // and so it also stays listed as a palette alias ("Identity").
   'tool:settings:identity',
   'tool:search',
   'tool:unreads',
@@ -28,7 +29,10 @@ export interface ToolDef {
   icon: LucideIcon;
 }
 
-/** The single registry the command palette and the left nav derive from. */
+/**
+ * Labels, hints and icons the command palette and the left nav both derive
+ * from. Routing (MainPane, settings/routing.ts) still matches on the keys.
+ */
 export const TOOL_DEFS: Record<ToolKey, ToolDef> = {
   'tool:settings:app': { label: 'App Settings', navLabel: 'Settings', hint: 'Theme, notifications, proxy', icon: Cog },
   'tool:settings:radio': { label: 'Radio Settings', hint: 'Frequency, SF, TX power', icon: Radio },

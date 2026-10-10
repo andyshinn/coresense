@@ -94,7 +94,7 @@ function PaletteBody({ client, cycleThemePref, close }: Props & { close: () => v
   const clearPackets = useStore((s) => s.clearPackets);
   const setAddChannelOpen = useStore((s) => s.setAddChannelOpen);
 
-  // Read once per open: the body remounts each time the palette opens.
+  // Read on mount: the body mounts when the palette opens.
   const lastDevice = useMemo(() => loadLastDevice(), []);
 
   const items = useMemo<PaletteItem[]>(() => {
