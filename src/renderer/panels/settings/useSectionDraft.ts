@@ -25,6 +25,9 @@ export function useSectionDraft<T>(saved: T, eq: (a: T, b: T) => boolean) {
   return { draft, setDraft, dirty, reset };
 }
 
+/** Keys of T whose values are objects (the fields setGroup can patch). */
+type ObjectKeys<T> = { [P in keyof T]-?: T[P] extends object ? P : never }[keyof T];
+
 interface SectionOptions<T> {
   /** Stable section id — must match the SettingsSectionMeta registered by the panel. */
   id: string;
@@ -69,7 +72,8 @@ export function useSettingsSection<T>({ id, saved, eq, onSave }: SectionOptions<
 
   // Merges a patch into one object-valued field of the draft, e.g.
   // setGroup('proxy', { port }) — saves spelling out the nested spread per row.
-  const setGroup = <K extends keyof T>(key: K, patch: Partial<T[K]>) =>
+  // Keys are limited to object-valued fields: spreading a primitive yields {}.
+  const setGroup = <K extends ObjectKeys<T>>(key: K, patch: Partial<T[K]>) =>
     setDraft((s) => ({ ...s, [key]: { ...s[key], ...patch } }));
 
   useEffect(() => {

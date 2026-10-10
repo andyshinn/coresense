@@ -82,6 +82,9 @@ describe('useSettingsSection', () => {
     );
     act(() => result.current.setGroup('g', { x: 9 }));
     expect(result.current.draft).toEqual({ g: { x: 9, y: 2 }, z: 3 });
+    // Primitive-valued keys are rejected at compile time: spreading 3 gives {}.
+    // @ts-expect-error z is a number, not an object-valued group
+    void (() => result.current.setGroup('z', 5));
   });
 
   it('section Save toasts a failure and swallows it', async () => {
