@@ -28,7 +28,6 @@ export function buildPinnedItems({
       ...item,
       id: `pinned:${key}`,
       group: 'pinned',
-      groupLabel: 'Pinned',
       run: () => {
         setActiveKey(key);
         close();

@@ -48,7 +48,6 @@ export function buildGotoItems({
       label: `Jump to unread (${unreadCount})`,
       hint: target,
       group: 'goto',
-      groupLabel: 'Go to',
       icon: Inbox,
       keywords: 'unread jump inbox',
       run: () => {
@@ -65,7 +64,6 @@ export function buildGotoItems({
       label: ch.name,
       hint: ch.key,
       group: 'goto',
-      groupLabel: 'Go to',
       icon: Hash,
       keywords: ch.key,
       run: () => {
@@ -82,7 +80,6 @@ export function buildGotoItems({
       hint:
         c.kind === 'repeater' ? 'Repeater' : c.kind === 'room' ? 'Room' : c.kind === 'sensor' ? 'Sensor' : 'Direct message',
       group: 'goto',
-      groupLabel: 'Go to',
       icon: c.kind === 'repeater' ? Radio : MessageCircle,
       keywords: c.publicKeyHex,
       run: () => {
@@ -98,7 +95,6 @@ export function buildGotoItems({
       label: tool.label,
       hint: tool.hint,
       group: 'goto',
-      groupLabel: 'Go to',
       icon: tool.icon,
       run: () => {
         setActiveKey(tool.key);
