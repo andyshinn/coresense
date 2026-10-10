@@ -1,3 +1,5 @@
+import { isChannelKey } from '../conversationKey';
+import { parseSender } from '../sender';
 import type { BlockRule, Message } from '../types';
 
 /** Resolved sender info that the bare Message struct doesn't carry. The caller
@@ -18,10 +20,9 @@ function isSelfSent(msg: Message): boolean {
   return msg.fromPublicKeyHex == null;
 }
 
-/** Returns true if the message is a channel message. Channel keys begin with
- *  `ch:`; DM/contact keys begin with `c:`. */
+/** Returns true if the message is a channel message (as opposed to a DM). */
 function isChannelMessage(msg: Message): boolean {
-  return msg.key.startsWith('ch:');
+  return isChannelKey(msg.key);
 }
 
 /** Sender display name for matching purposes.
@@ -32,9 +33,8 @@ function isChannelMessage(msg: Message): boolean {
  *  - DMs: resolved through the caller-provided contactNameByPk lookup. */
 function senderNameOf(msg: Message, hints: BlockMatchHints): string | undefined {
   if (isChannelMessage(msg)) {
-    const pk = msg.fromPublicKeyHex;
-    if (pk?.startsWith('name:')) return pk.slice(5);
-    return undefined;
+    const sender = parseSender(msg.fromPublicKeyHex);
+    return sender.kind === 'name' ? sender.name : undefined;
   }
   return msg.fromPublicKeyHex != null ? hints.contactNameByPk?.(msg.fromPublicKeyHex) : undefined;
 }
