@@ -85,8 +85,6 @@ export type {
   CmStateTab,
   ContactManagerState,
   LivePacket,
-  MacroPreviewMode,
-  MacroStudioBridge,
   NeighboursViewState,
   PacketLogView,
   RepeaterAdminTab,

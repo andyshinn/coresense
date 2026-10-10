@@ -1,7 +1,8 @@
 // Feature state shapes held by the store. Kept apart from store.ts so panels can
 // import their own types without reading past the store's actions, and so the
-// store itself never has to import a panel module. store.ts re-exports all of
-// these, so existing `from '../lib/store'` imports keep working.
+// store itself never has to import a panel module. store.ts re-exports the
+// types it exported before the move, so existing `from '../lib/store'` imports
+// keep working.
 import type { ContactKind, RawPacket, RepeaterNeighboursPage, SearchCategory } from '../../shared/types';
 import type { NeighbourSortKey } from './neighbours';
 
