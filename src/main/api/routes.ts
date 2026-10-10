@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { conversationKind, isChannelKey, pubkeyFromKey } from '../../shared/conversationKey';
 import { errorMessage } from '../../shared/errors';
 import { getManifest, validateTemplate } from '../../shared/macros';
-import type { MacroContext, MacroScope } from '../../shared/macros/types';
+import type { MacroContext, MacroRenderMode, MacroScope } from '../../shared/macros/types';
 import { clampRetention } from '../../shared/packetLog';
 import { checkProxyPort } from '../../shared/ports';
 import {
@@ -1256,7 +1256,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const body = (await c.req.json().catch(() => null)) as {
       macroId?: string;
       template?: string;
-      mode?: 'reply' | 'send';
+      mode?: MacroRenderMode;
       messageId?: string;
       contactKey?: string;
       channelKey?: string;

@@ -4,9 +4,6 @@ import { MACRO_CATALOG } from '../lib/catalog';
 import { focusCaret, spliceAtCaret, varTag } from '../lib/insertAtCaret';
 import { deriveMacroMode } from '../lib/macroMode';
 
-/** @deprecated Use MacroRenderMode; kept only for studio/bridge.ts's import. */
-export type PreviewMode = MacroRenderMode;
-
 export interface StudioState {
   taRef: RefObject<HTMLTextAreaElement | null>;
   value: string;

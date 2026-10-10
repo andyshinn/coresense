@@ -68,10 +68,6 @@ export interface NeighboursViewState {
 }
 
 // ---- Macro studio ----------------------------------------------------------
-/** Which context the studio previews a macro against: replying to a message, or
- *  a fresh send. */
-export type MacroPreviewMode = 'reply' | 'send';
-
 /** A live handle the open Macro studio publishes to the store so the Reference
  *  panel — rendered in the right rail, a sibling of the center pane — can insert
  *  variables/filters into the studio's editor. Only the stable insert callbacks

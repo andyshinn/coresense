@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
-import type { MacroTemplate } from '../../shared/macros/types';
+import type { MacroRenderMode, MacroTemplate } from '../../shared/macros/types';
 import {
   type ActivityWindowKey,
   type AppSettings,
@@ -65,7 +65,6 @@ import type {
   CmSortField,
   ContactManagerState,
   LivePacket,
-  MacroPreviewMode,
   MacroStudioBridge,
   NeighboursViewState,
   PacketLogView,
@@ -316,12 +315,13 @@ interface CoreState {
   // panel can insert into its editor. Null when no studio is open. Not persisted.
   macroStudioBridge: MacroStudioBridge | null;
   setMacroStudioBridge: (bridge: MacroStudioBridge | null) => void;
-  /** The open studio's preview mode, for the Reference panel's sample context.
-   *  Only meaningful while `macroStudioBridge` is set. Deliberately its own
-   *  field: setting it never touches `ui`, so toggling the mode can't re-open
-   *  a rail the user collapsed. */
-  macroStudioPreviewMode: MacroPreviewMode;
-  setMacroStudioPreviewMode: (mode: MacroPreviewMode) => void;
+  /** The open studio's preview mode, for the Reference panel's sample context:
+   *  which context the studio previews a macro against, replying to a message
+   *  or a fresh send. Only meaningful while `macroStudioBridge` is set.
+   *  Deliberately its own field: setting it never touches `ui`, so toggling the
+   *  mode can't re-open a rail the user collapsed. */
+  macroStudioPreviewMode: MacroRenderMode;
+  setMacroStudioPreviewMode: (mode: MacroRenderMode) => void;
 
   // Repeater Neighbours view (map + rail list) — see NeighboursViewState.
   neighbours: NeighboursViewState;

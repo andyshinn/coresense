@@ -7,14 +7,7 @@ import { notify } from '@/lib/notify';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { errorMessage } from '../../../shared/errors';
-import {
-  buildSampleContext,
-  lintTemplate,
-  MACRO_VARIABLES,
-  resolvePath,
-  structureOf,
-  validateTemplate,
-} from '../../../shared/macros';
+import { lintTemplate, MACRO_VARIABLES, resolvePath, sampleStructure, validateTemplate } from '../../../shared/macros';
 import type { MacroScope, MacroTemplate } from '../../../shared/macros/types';
 import { ModeChip } from './components/chips';
 import { MacroEditor } from './studio/MacroEditor';
@@ -62,7 +55,7 @@ export function MacroStudio({ client, macro, onClose }: MacroStudioProps) {
   const validation = useMemo(() => validateTemplate(st.value), [st.value]);
   // Non-blocking: warnings never gate canSave, unlike `validation`.
   const warnings = useMemo(() => lintTemplate(st.value), [st.value]);
-  const structureRoot = useMemo(() => structureOf(buildSampleContext()), []);
+  const structureRoot = sampleStructure();
   const canSave = !!client && !saving && st.name.trim() !== '' && st.value.trim() !== '' && validation.ok;
 
   const save = async () => {

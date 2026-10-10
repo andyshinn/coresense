@@ -1,5 +1,5 @@
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
-import type { MacroManifest, MacroTemplate, RenderResult, ValidateResult } from '../../shared/macros/types';
+import type { MacroManifest, MacroRenderMode, MacroTemplate, RenderResult, ValidateResult } from '../../shared/macros/types';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -386,7 +386,7 @@ export const api = {
     body: {
       macroId?: string;
       template?: string;
-      mode: 'reply' | 'send';
+      mode: MacroRenderMode;
       messageId?: string;
       contactKey?: string;
       channelKey?: string;
