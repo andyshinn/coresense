@@ -5,6 +5,7 @@ const { putDraft } = vi.hoisted(() => ({ putDraft: vi.fn(async () => {}) }));
 vi.mock('@/lib/api', () => ({ api: { putDraft } }));
 
 import { flushDrafts, useDraftsPersistence } from '@/app/useDraftsPersistence';
+import { log } from '@/lib/logger';
 import { useStore } from '@/lib/store';
 
 const CLIENT = { baseUrl: 'http://127.0.0.1:7654', apiKey: 'k' };
@@ -145,5 +146,25 @@ describe('useDraftsPersistence', () => {
     await settle();
 
     expect(calls()).toEqual([['ch:one', 'hello']]);
+  });
+
+  test('a failed write is logged and does not stop later keys', async () => {
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => undefined);
+    const err = new Error('offline');
+    putDraft.mockRejectedValueOnce(err);
+    render(<Host />);
+    act(() => {
+      useStore.getState().setDraft('ch:one', 'a');
+      useStore.getState().setDraft('ch:two', 'b');
+    });
+    await act(async () => {
+      await flushDrafts();
+    });
+    expect(warn).toHaveBeenCalledWith('drafts: write failed', 'ch:one', err);
+    expect(calls()).toEqual([
+      ['ch:one', 'a'],
+      ['ch:two', 'b'],
+    ]);
+    warn.mockRestore();
   });
 });
