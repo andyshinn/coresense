@@ -1,5 +1,5 @@
 import { PanelRightClose } from 'lucide-react';
-import { useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
 import { isChannelKey, isContactKey, pubkeyFromKey } from '../../../shared/conversationKey';
 import { Collapsible } from '../../components/Collapsible';
 import { PacketDetailsRail } from '../../components/packet/PacketDetailsRail';
@@ -13,8 +13,25 @@ import { ResizeHandle } from './ResizeHandle';
 import { type RailData, sectionsFor } from './sectionsFor';
 
 /** Views whose rail is a fully custom pane rather than the Collapsible section
- *  stack; see the bypass in the render below. */
-const CUSTOM_RAIL_VIEWS: ReadonlySet<string> = new Set(['tool:map', 'tool:packetlog', 'tool:macros']);
+ *  stack. One lookup both renders the pane and skips building the sections. */
+const CUSTOM_RAILS: Readonly<Record<string, (client: ApiClient | null) => ReactNode>> = {
+  // The Map view's right pane is a fully custom layout (search,
+  // filters, last-heard slider, layer toggles, legend, or a node /
+  // site card on selection) — bypass the standard Collapsible
+  // sections so it matches the design's spec sheet.
+  'tool:map': (client) => <MapDetailsRail client={client} />,
+  // Same rationale as the map bypass above: the packet log's right
+  // pane is a fully custom byte-level breakdown, not a stack of
+  // collapsible label/value sections.
+  'tool:packetlog': (client) => (
+    <div className="h-full overflow-y-auto">
+      <PacketDetailsRail client={client} />
+    </div>
+  ),
+  // The Macros tool's right pane is the authoring Reference (variables
+  // & filters) for the open studio — a full-height panel, not sections.
+  'tool:macros': () => <MacroReferenceRail />,
+};
 
 interface RightRailProps {
   client: ApiClient | null;
@@ -86,16 +103,18 @@ export function RightRail({ client }: RightRailProps) {
     repeaterAdminActiveTab,
   ]);
 
+  const customRail = Object.hasOwn(CUSTOM_RAILS, activeKey) ? CUSTOM_RAILS[activeKey] : undefined;
+
   const sections = useMemo(
     () =>
       // Custom-pane views never render the section stack, so don't build one.
-      CUSTOM_RAIL_VIEWS.has(activeKey)
+      customRail
         ? []
         : sectionsFor(activeKey, data, {
             clearMentionedContact: () => setSelectedContact(null),
             client,
           }),
-    [activeKey, data, setSelectedContact, client],
+    [activeKey, customRail, data, setSelectedContact, client],
   );
 
   return (
@@ -120,23 +139,8 @@ export function RightRail({ client }: RightRailProps) {
       </header>
 
       <div className="flex-1 overflow-hidden">
-        {activeKey === 'tool:map' ? (
-          // The Map view's right pane is a fully custom layout (search,
-          // filters, last-heard slider, layer toggles, legend, or a node /
-          // site card on selection) — bypass the standard Collapsible
-          // sections so it matches the design's spec sheet.
-          <MapDetailsRail client={client} />
-        ) : activeKey === 'tool:packetlog' ? (
-          // Same rationale as the map bypass above: the packet log's right
-          // pane is a fully custom byte-level breakdown, not a stack of
-          // collapsible label/value sections.
-          <div className="h-full overflow-y-auto">
-            <PacketDetailsRail client={client} />
-          </div>
-        ) : activeKey === 'tool:macros' ? (
-          // The Macros tool's right pane is the authoring Reference (variables
-          // & filters) for the open studio — a full-height panel, not sections.
-          <MacroReferenceRail />
+        {customRail ? (
+          customRail(client)
         ) : (
           <div className="h-full overflow-y-auto py-1">
             {sections.map((section) => {
