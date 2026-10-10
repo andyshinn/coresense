@@ -1,5 +1,6 @@
 import { PanelRightClose } from 'lucide-react';
 import { useMemo } from 'react';
+import { isChannelKey, isContactKey, pubkeyFromKey } from '../../../shared/conversationKey';
 import { Collapsible } from '../../components/Collapsible';
 import { PacketDetailsRail } from '../../components/packet/PacketDetailsRail';
 import type { ApiClient } from '../../lib/api';
@@ -10,6 +11,10 @@ import { railTitle } from './helpers';
 import { MacroReferenceRail } from './MacroReferenceRail';
 import { ResizeHandle } from './ResizeHandle';
 import { type RailData, sectionsFor } from './sectionsFor';
+
+/** Views whose rail is a fully custom pane rather than the Collapsible section
+ *  stack; see the bypass in the render below. */
+const CUSTOM_RAIL_VIEWS: ReadonlySet<string> = new Set(['tool:map', 'tool:packetlog', 'tool:macros']);
 
 interface RightRailProps {
   client: ApiClient | null;
@@ -25,34 +30,40 @@ export function RightRail({ client }: RightRailProps) {
   const setRailSection = useStore((s) => s.setRailSection);
 
   // Each selector returns a primitive or a stable reference, so React's
-  // snapshot equality check doesn't trip the infinite-update guard.
+  // snapshot equality check doesn't trip the infinite-update guard. None select
+  // a whole map or slice the rail only partly reads: `messagesByKey` changes on
+  // every message anywhere and `neighbours` on every row hover, and most section
+  // bodies have no memo boundary, so either would re-render all of them.
   const channels = useStore((s) => s.channels);
   const contacts = useStore((s) => s.contacts);
-  const messagesByKey = useStore((s) => s.messagesByKey);
-  const selectedMessageId = useStore((s) => s.selectedMessageId);
+  const selectedMessage = useStore((s) =>
+    s.selectedMessageId == null
+      ? null
+      : (s.messagesByKey[s.ui.activeKey]?.find((m) => m.id === s.selectedMessageId) ?? null),
+  );
   const selectedContactKey = useStore((s) => s.ui.selectedContactKey);
   const setSelectedContact = useStore((s) => s.setSelectedContact);
   const repeaterAdminActiveTab = useStore((s) => s.repeaterAdminActiveTab);
   const discovered = useStore((s) => s.discovered);
-  const neighbours = useStore((s) => s.neighbours);
+  const neighboursForKey = useStore((s) => s.neighbours.forKey);
+  const neighbourSelectedId = useStore((s) => s.neighbours.selectedId);
+
+  const repeaters = useMemo(() => contacts.filter((c) => c.kind === 'repeater'), [contacts]);
 
   const data: RailData = useMemo(() => {
-    const channel = activeKey.startsWith('ch:') ? (channels.find((c) => c.key === activeKey) ?? null) : null;
-    const contact = activeKey.startsWith('c:') ? (contacts.find((c) => c.key === activeKey) ?? null) : null;
-    const selectedMessage =
-      selectedMessageId != null ? ((messagesByKey[activeKey] ?? []).find((m) => m.id === selectedMessageId) ?? null) : null;
+    const channel = isChannelKey(activeKey) ? (channels.find((c) => c.key === activeKey) ?? null) : null;
+    const contact = isContactKey(activeKey) ? (contacts.find((c) => c.key === activeKey) ?? null) : null;
     const mentionedContact = selectedContactKey ? (contacts.find((c) => c.key === selectedContactKey) ?? null) : null;
-    const repeaters = contacts.filter((c) => c.kind === 'repeater');
     // On a repeater's Neighbours tab with a neighbour selected, the contact card
     // targets that neighbour's resolved contact; otherwise the focal contact.
     const selectedNeighbourPk =
       contact?.kind === 'repeater' &&
       repeaterAdminActiveTab === 'neighbours' &&
-      neighbours.forKey === activeKey &&
-      neighbours.selectedId
-        ? resolveNeighbourPublicKey(neighbours.selectedId, contacts, discovered)
+      neighboursForKey === activeKey &&
+      neighbourSelectedId
+        ? resolveNeighbourPublicKey(neighbourSelectedId, contacts, discovered)
         : null;
-    const cardPublicKeyHex = selectedNeighbourPk ?? (activeKey.startsWith('c:') ? activeKey.slice(2) : null);
+    const cardPublicKeyHex = selectedNeighbourPk ?? (isContactKey(activeKey) ? pubkeyFromKey(activeKey) : null);
     return {
       channel,
       contact,
@@ -67,19 +78,23 @@ export function RightRail({ client }: RightRailProps) {
     channels,
     contacts,
     discovered,
-    neighbours,
-    messagesByKey,
-    selectedMessageId,
+    neighboursForKey,
+    neighbourSelectedId,
+    repeaters,
+    selectedMessage,
     selectedContactKey,
     repeaterAdminActiveTab,
   ]);
 
   const sections = useMemo(
     () =>
-      sectionsFor(activeKey, data, {
-        clearMentionedContact: () => setSelectedContact(null),
-        client,
-      }),
+      // Custom-pane views never render the section stack, so don't build one.
+      CUSTOM_RAIL_VIEWS.has(activeKey)
+        ? []
+        : sectionsFor(activeKey, data, {
+            clearMentionedContact: () => setSelectedContact(null),
+            client,
+          }),
     [activeKey, data, setSelectedContact, client],
   );
 
