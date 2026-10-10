@@ -146,7 +146,7 @@ export function MapClusters({ map }: Props) {
       const marker = new Marker({ element: el, anchor: 'bottom' })
         .setLngLat([site.site.centroid.lng, site.site.centroid.lat])
         .addTo(map);
-      cache.set(site.site.key, { marker, signature, kind: null });
+      cache.set(site.site.key, { marker, signature });
     };
 
     // One spiderfied member marker. Custom cache key so multiple members of
@@ -262,7 +262,7 @@ export function MapClusters({ map }: Props) {
             });
           });
           const marker = new Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).addTo(map);
-          cache.set(key, { marker, signature, kind: null });
+          cache.set(key, { marker, signature });
         } else {
           const item = props.item;
           if (item.kind === 'single') upsertContactMarker(item);

@@ -27,5 +27,5 @@ export function upsertDomMarker(opts: UpsertDomMarkerOpts): void {
   }
   const el = build();
   const marker = new Marker({ element: el, anchor: 'center' }).setLngLat(position).addTo(map);
-  cache.set(cacheKey, { marker, signature, kind: null });
+  cache.set(cacheKey, { marker, signature });
 }

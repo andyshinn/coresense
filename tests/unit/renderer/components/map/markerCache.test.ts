@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { markerSignature } from '../../../../../src/renderer/components/map/cluster/markerCache';
-import type { Contact } from '../../../../../src/shared/types';
 
-const subject = { key: 'c:ab', name: 'Alpha', kind: 'chat' } as Contact;
+const subject = { key: 'c:ab', name: 'Alpha', kind: 'chat' as const };
 const state = { selected: false, faded: false, stale: false, showLabel: false };
 
 describe('markerSignature', () => {
