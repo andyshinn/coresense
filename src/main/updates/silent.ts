@@ -1,4 +1,7 @@
+import type { IUpdateElectronAppOptions } from 'update-electron-app';
+import { errorMessage } from '../../shared/errors';
 import type { UpdateState } from '../../shared/types';
+import type { UpdatesLogger } from './controller';
 
 export interface AutoUpdaterLike {
   on(event: string, listener: (...args: unknown[]) => void): void;
@@ -8,10 +11,10 @@ export interface AutoUpdaterLike {
 
 export interface SilentDeps {
   autoUpdater: AutoUpdaterLike;
-  updateElectronApp: (opts: { updateInterval?: string; notifyUser?: boolean; logger?: unknown }) => void;
+  updateElectronApp: (opts: IUpdateElectronAppOptions) => unknown;
   isPackaged: () => boolean;
   isMas: () => boolean;
-  logger: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
+  logger: UpdatesLogger;
   onState: (partial: Partial<UpdateState>) => void;
 }
 
@@ -22,8 +25,16 @@ export interface SilentDeps {
  */
 export function createSilentUpdater(deps: SilentDeps) {
   let started = false;
+  let listenersAttached = false;
 
+  // Attached before updateElectronApp() runs: its init dispatches the first
+  // checkForUpdates synchronously, so listeners added afterwards would miss
+  // that check's 'checking-for-update'. The flag keeps a failed init (which
+  // leaves `started` false, so the next ensureStarted() retries) from stacking
+  // a duplicate set of listeners on every retry.
   function attachListeners(): void {
+    if (listenersAttached) return;
+    listenersAttached = true;
     deps.autoUpdater.on('checking-for-update', () => {
       deps.logger.info('silent: checking-for-update');
       deps.onState({ status: 'checking' });
@@ -41,8 +52,7 @@ export function createSilentUpdater(deps: SilentDeps) {
       deps.onState({ status: 'downloaded' });
     });
     deps.autoUpdater.on('error', (...args: unknown[]) => {
-      const err = args[0];
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(args[0]);
       deps.logger.error(`silent: autoUpdater error: ${message}`);
       deps.onState({ status: 'error', error: message });
     });
@@ -62,7 +72,7 @@ export function createSilentUpdater(deps: SilentDeps) {
       started = true;
       deps.logger.info('silent: update-electron-app started (1h interval, native restart prompt)');
     } catch (err) {
-      deps.logger.warn(`silent: update-electron-app init failed: ${(err as Error).message}`);
+      deps.logger.warn(`silent: update-electron-app init failed: ${errorMessage(err)}`);
       return false;
     }
     return true;
@@ -87,6 +97,5 @@ export function createSilentUpdater(deps: SilentDeps) {
       deps.logger.info('silent: quitAndInstall');
       deps.autoUpdater.quitAndInstall();
     },
-    isStarted: (): boolean => started,
   };
 }

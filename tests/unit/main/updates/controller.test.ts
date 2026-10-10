@@ -16,7 +16,7 @@ function harness(over: Partial<Parameters<typeof createUpdateController>[0]> = {
   const silent = { ensureStarted: vi.fn(() => true), check: vi.fn(() => true), installAndRestart: vi.fn() };
   const emitState = vi.fn();
   const openExternal = vi.fn();
-  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+  const logger = { log: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const checkNotify = vi.fn(
     async (channel, current): Promise<UpdateState> => ({
       status: 'available',

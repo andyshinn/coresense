@@ -1303,8 +1303,9 @@ export interface CoreSenseBridge {
    *  manual paste gate. */
   apiKey: string;
   /** The port the local Hono server bound to. Lets the renderer skip the
-   *  capabilities probe and avoid the dev/prod port-default mismatch. */
-  httpPort: number;
+   *  capabilities probe and avoid the dev/prod port-default mismatch. null when
+   *  main had no server to report (e.g. mid-shutdown). */
+  httpPort: number | null;
   /** Open the logs folder in the OS file manager. */
   revealLogs: () => void;
 }
