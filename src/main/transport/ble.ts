@@ -4,6 +4,7 @@ import noble, { type Characteristic, type Peripheral } from '@stoprocent/noble';
 import type { BleDevice } from '../../shared/types';
 import { emit } from '../events/bus';
 import { child } from '../log';
+import { withTimeout } from '../util/async';
 import { parseCompanionFrame } from './companionFrame';
 import type { ITransport } from './types';
 
@@ -497,22 +498,4 @@ export class BleTransport implements ITransport {
 function normalizeUuid(uuid: string): string {
   // noble normalises UUIDs to lowercase no-dashes.
   return uuid.toLowerCase().replace(/-/g, '');
-}
-
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(`${label} timed out after ${ms}ms`));
-    }, ms);
-    p.then(
-      (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      (err) => {
-        clearTimeout(timer);
-        reject(err);
-      },
-    );
-  });
 }
