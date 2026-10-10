@@ -7,7 +7,7 @@ import { type ApiClient, api } from '../../lib/api';
 import { log } from '../../lib/logger';
 import { subscribe as subscribeMapBus } from '../../lib/map/bus';
 import { ensurePmtilesProtocol } from '../../lib/map/pmtiles-protocol';
-import { buildStyle, maxZoomForSettings } from '../../lib/map/style-builder';
+import { buildStyle, maxZoomFor } from '../../lib/map/style-builder';
 import { useStore } from '../../lib/store';
 import { resolveTheme } from '../../lib/theme';
 import { MapClusters } from './MapClusters';
@@ -64,6 +64,7 @@ export function MapCanvas({
   // theme-derived flavor — useful when reading the map outdoors with a dark
   // app theme.
   const theme: 'light' | 'dark' = settings.lightBasemap ? 'light' : resolveTheme(themePref, systemDark);
+  const onlineTiles = settings.hasProtomapsApiKey;
 
   // Mount-once on purpose. Style/source/layer updates in later phases will
   // happen via map.setStyle / map.addSource on the existing instance rather
@@ -82,12 +83,12 @@ export function MapCanvas({
     // around every MapCanvas mount renders MapErrorFallback for it.
     const map = new MapLibreMap({
       container,
-      style: buildStyle({ baseUrl: client.baseUrl, manifest, settings, theme }),
+      style: buildStyle({ baseUrl: client.baseUrl, manifest, theme, onlineTiles }),
       center: initial.center,
       zoom: initial.zoom,
       bearing: initial.bearing,
       pitch: initial.pitch,
-      maxZoom: maxZoomForSettings(manifest, settings),
+      maxZoom: maxZoomFor(manifest, onlineTiles),
       // Attach the API-key Bearer header to every request hitting our own
       // server. PMTiles uses its own protocol with its own Headers; this
       // catches the online tile proxy and any future locally-served URL.
@@ -143,7 +144,6 @@ export function MapCanvas({
   // so on quick back-to-back theme flips an uncached dark sprite could land
   // after the cached light one: dark icons on a light map, until the next flip.
   const spriteRequestRef = useRef<AbortController | null>(null);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: rebuild only on fallback/theme flips, not on every settings tick
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -152,7 +152,7 @@ export function MapCanvas({
       return;
     }
     const apply = () => {
-      const next = buildStyle({ baseUrl: client.baseUrl, manifest, settings, theme });
+      const next = buildStyle({ baseUrl: client.baseUrl, manifest, theme, onlineTiles });
       // `_spriteRequest` is private; if it disappears this degrades to the
       // upstream race rather than breaking the restyle.
       const liveSpriteRequest = () =>
@@ -188,7 +188,7 @@ export function MapCanvas({
     return () => {
       map.off('style.load', apply);
     };
-  }, [settings.hasProtomapsApiKey, theme, manifest, client.baseUrl]);
+  }, [onlineTiles, theme, manifest, client.baseUrl]);
 
   // Keep the map's max-zoom in sync with whether the online fallback can
   // extend coverage past the bundled extract. Decoupled from the setStyle
@@ -197,29 +197,29 @@ export function MapCanvas({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const cap = maxZoomForSettings(manifest, settings);
+    const cap = maxZoomFor(manifest, onlineTiles);
     if (map.getMaxZoom() !== cap) map.setMaxZoom(cap);
-  }, [manifest, settings.hasProtomapsApiKey, settings]);
+  }, [manifest, onlineTiles]);
 
   // Listen for imperative commands from other parts of the UI (RightRail's
   // "Center on map" button publishes flyTo events on the bus). Decoupled from
   // the store so the global state doesn't have to carry transient camera commands.
   useEffect(() => {
-    const map = mapRef.current;
+    const map = mapInstance;
     if (!map) return;
     return subscribeMapBus((e) => {
       if (e.kind === 'flyTo') {
         map.flyTo({ center: [e.lng, e.lat], zoom: e.zoom ?? map.getZoom() });
       }
     });
-  }, []);
+  }, [mapInstance]);
 
   // Persist the viewport after the user stops interacting. Debounced so a
   // drag that fires hundreds of move events doesn't beat the IPC into the
   // ground — we only care about the resting position. Compare to the last
   // persisted values to skip no-op writes (e.g. clicks that don't move the map).
   useEffect(() => {
-    const map = mapRef.current;
+    const map = mapInstance;
     if (!map) return;
     if (!persistViewport) return;
 
@@ -265,7 +265,7 @@ export function MapCanvas({
       map.off('rotateend', schedule);
       map.off('pitchend', schedule);
     };
-  }, [client, persistViewport]);
+  }, [mapInstance, client, persistViewport]);
 
   const overlays = renderOverlays ?? defaultOverlays;
 
