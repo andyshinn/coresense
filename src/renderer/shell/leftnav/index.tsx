@@ -98,8 +98,7 @@ export function LeftNav({ client }: LeftNavProps) {
               pinned={pinned}
               pinSet={pinSet}
               unreadByKey={unreadByKey}
-              limit={collapseListsEnabled ? collapseListsLimit : null}
-              revealed={!!revealed.channels}
+              cap={capFor('channels')}
               onShowMore={() => revealList('channels')}
               onChannelMenu={openChannelMenu}
               onBranchMenu={openChannelsRowMenu}

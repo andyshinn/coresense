@@ -15,8 +15,7 @@ export function ChannelSubList({
   pinSet,
   presence,
   unreadByKey,
-  limit,
-  revealed,
+  cap,
   onShowMore,
   onSelect,
   onReorder,
@@ -27,9 +26,8 @@ export function ChannelSubList({
   pinSet: Set<string>;
   presence: Set<string>;
   unreadByKey: Record<string, number>;
-  /** Max rows to render before the Show-more affordance; `null` disables capping. */
-  limit: number | null;
-  revealed: boolean;
+  /** Max rows to render before the Show-more affordance; `null` when uncapped or revealed. */
+  cap: number | null;
   onShowMore: () => void;
   onSelect: (key: string) => void;
   onReorder: (orderedKeys: string[]) => void;
@@ -64,7 +62,7 @@ export function ChannelSubList({
     onReorder(keys);
   };
 
-  const { rows: shown, hidden } = capList(channels, revealed ? null : limit);
+  const { rows: shown, hidden } = capList(channels, cap);
   const windowFocused = useStore((s) => s.windowFocused);
   return (
     <SidebarMenuSub>

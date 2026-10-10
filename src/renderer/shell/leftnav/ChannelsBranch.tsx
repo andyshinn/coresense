@@ -22,8 +22,7 @@ export function ChannelsBranch({
   pinned,
   pinSet,
   unreadByKey,
-  limit,
-  revealed,
+  cap,
   onShowMore,
   onChannelMenu,
   onBranchMenu,
@@ -34,9 +33,8 @@ export function ChannelsBranch({
   pinned: string[];
   pinSet: Set<string>;
   unreadByKey: Record<string, number>;
-  /** Max rows before the Show-more affordance; `null` disables capping. */
-  limit: number | null;
-  revealed: boolean;
+  /** Max rows before the Show-more affordance; `null` when uncapped or revealed. */
+  cap: number | null;
   onShowMore: () => void;
   onChannelMenu: (state: ChannelMenuState) => void;
   /** Right-click on the branch row itself (only offered while connected). */
@@ -113,8 +111,7 @@ export function ChannelsBranch({
             pinSet={pinSet}
             presence={channelPresence}
             unreadByKey={unreadByKey}
-            limit={limit}
-            revealed={revealed}
+            cap={cap}
             onShowMore={onShowMore}
             onSelect={setActiveKey}
             onReorder={onReorder}
