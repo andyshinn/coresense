@@ -126,9 +126,21 @@ export function NeighbourList({
   onHover,
   onSelect,
 }: NeighbourListProps) {
-  const located = mapShown ? neighbours.filter((n) => n.located) : [];
-  const locatedIds = new Set(located.map((n) => n.pubKeyPrefixHex));
-  const offMap = neighbours.filter((n) => !locatedIds.has(n.pubKeyPrefixHex));
+  // On-map rows first, then the off-map group; with no map, every row is off it.
+  const located: ResolvedNeighbour[] = [];
+  const offMap: ResolvedNeighbour[] = [];
+  for (const n of neighbours) (mapShown && n.located ? located : offMap).push(n);
+
+  const renderRow = (n: ResolvedNeighbour) => (
+    <NeighbourRow
+      key={n.pubKeyPrefixHex}
+      n={n}
+      selected={selectedId === n.pubKeyPrefixHex}
+      hovered={hoveredId === n.pubKeyPrefixHex}
+      onHover={onHover}
+      onSelect={onSelect}
+    />
+  );
 
   const fieldCls =
     'h-8 w-full rounded-md border border-cs-border bg-cs-bg-2 px-2.5 font-mono text-[12px] text-cs-text outline-none';
@@ -196,16 +208,7 @@ export function NeighbourList({
         <p className="py-3 text-center text-[11px] text-cs-text-dim">No neighbours reported.</p>
       ) : (
         <div className="-mx-3">
-          {located.map((n) => (
-            <NeighbourRow
-              key={n.pubKeyPrefixHex}
-              n={n}
-              selected={selectedId === n.pubKeyPrefixHex}
-              hovered={hoveredId === n.pubKeyPrefixHex}
-              onHover={onHover}
-              onSelect={onSelect}
-            />
-          ))}
+          {located.map(renderRow)}
           {offMap.length > 0 && (
             <>
               <div className="flex items-center gap-2 px-3 pb-1 pt-2.5 font-mono text-[9.5px] uppercase tracking-wider text-cs-text-dim">
@@ -213,16 +216,7 @@ export function NeighbourList({
                 <span className="flex-1">No location advert</span>
                 <span>{offMap.length}</span>
               </div>
-              {offMap.map((n) => (
-                <NeighbourRow
-                  key={n.pubKeyPrefixHex}
-                  n={n}
-                  selected={selectedId === n.pubKeyPrefixHex}
-                  hovered={hoveredId === n.pubKeyPrefixHex}
-                  onHover={onHover}
-                  onSelect={onSelect}
-                />
-              ))}
+              {offMap.map(renderRow)}
             </>
           )}
         </div>
