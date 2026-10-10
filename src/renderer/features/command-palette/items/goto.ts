@@ -1,5 +1,6 @@
 import { Hash, Inbox, MessageCircle, Radio } from 'lucide-react';
 import type { Channel, Contact, Message } from '../../../../shared/types';
+import { computeUnreadConversations } from '../../../hooks/useUnreads';
 import type { PaletteItem } from '../types';
 import { TOOL_ITEMS } from './tools';
 
@@ -24,28 +25,15 @@ export function buildGotoItems({
 }: BuildGotoArgs): PaletteItem[] {
   const list: PaletteItem[] = [];
 
-  let unreadKey: string | null = null;
-  let unreadCount = 0;
-  // Muted conversations are excluded from the unread tally so this matches
-  // the LeftNav badge and the Unreads panel.
-  const allConvs = [...channels, ...contacts];
-  for (const conv of allConvs) {
-    if (conv.muted) continue;
-    const key = conv.key;
-    const msgs = messagesByKey[key];
-    if (!msgs || msgs.length === 0) continue;
-    const lastRead = lastReadByKey[key] ?? 0;
-    const unread = msgs.filter((m) => m.ts > lastRead).length;
-    if (unread > 0) {
-      unreadCount += unread;
-      if (!unreadKey && key !== activeKey) unreadKey = key;
-    }
-  }
-  if (unreadKey && unreadCount > 0) {
-    const target = unreadKey;
+  // Same unread rules and newest-first order as the LeftNav badges, the
+  // Unreads panel and keyboard next-unread.
+  const unread = computeUnreadConversations(messagesByKey, lastReadByKey, channels, contacts);
+  const target = unread.find((u) => u.key !== activeKey)?.key;
+  if (target) {
+    const total = unread.reduce((n, u) => n + u.count, 0);
     list.push({
       id: 'goto:unread',
-      label: `Jump to unread (${unreadCount})`,
+      label: `Jump to unread (${total})`,
       hint: target,
       group: 'goto',
       icon: Inbox,
