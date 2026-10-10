@@ -2,7 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { createSender } from '../../../src/main/messaging/sendMessage';
 import type { Message } from '../../../src/shared/types';
 
-function harness(over: { channelOk?: boolean; channelHash?: number; timestampUnix?: number } = {}) {
+function harness(
+  over: {
+    channelOk?: boolean;
+    channelHash?: number;
+    timestampUnix?: number;
+    dmResult?: { ok: boolean; error?: string };
+  } = {},
+) {
   const inserted: Message[] = [];
   const states: Array<{ id: string; state: string }> = [];
   const registered: unknown[] = [];
@@ -12,7 +19,7 @@ function harness(over: { channelOk?: boolean; channelHash?: number; timestampUni
       channelHash: over.channelHash,
       timestampUnix: over.timestampUnix,
     })),
-    sendDmTextWithRetry: vi.fn(async () => ({ ok: true })),
+    sendDmTextWithRetry: vi.fn(async () => over.dmResult ?? { ok: true }),
     registerChannelSend: vi.fn((p: unknown) => registered.push(p)),
   };
   const holder = {
@@ -20,15 +27,18 @@ function harness(over: { channelOk?: boolean; channelHash?: number; timestampUni
     setMessageState: (id: string, state: string) => states.push({ id, state }),
     getMessagesForKey: () => inserted,
   };
+  const emitMessageState = vi.fn();
+  const logError = vi.fn();
   const send = createSender({
     getSession: () => session,
     getHolder: () => holder,
     emitMessages: vi.fn(),
-    emitMessageState: vi.fn(),
+    emitMessageState,
     now: () => 1000,
     genId: () => 'local-test',
+    logError,
   });
-  return { send, session, inserted, states, registered };
+  return { send, session, inserted, states, registered, emitMessageState, logError };
 }
 
 describe('createSender', () => {
@@ -94,32 +104,13 @@ describe('createSender', () => {
     // The lib resolves (rather than rejects) for an unknown contact or one
     // without a full 32B key, and emits no messageState of its own — so the
     // row would sit in 'sending' forever unless the sender fails it.
-    const logError = vi.fn();
-    const states: Array<{ id: string; state: string }> = [];
-    const emitMessageState = vi.fn();
-    const send = createSender({
-      getSession: () => ({
-        sendChannelText: vi.fn(async () => ({ ok: true })),
-        sendDmTextWithRetry: vi.fn(async () => ({ ok: false, error: 'unknown contact c:abcd' })),
-        registerChannelSend: vi.fn(),
-      }),
-      getHolder: () => ({
-        insertMessage: () => {},
-        setMessageState: (id: string, state: string) => states.push({ id, state }),
-        getMessagesForKey: () => [],
-      }),
-      emitMessages: vi.fn(),
-      emitMessageState,
-      now: () => 1000,
-      genId: () => 'local-test',
-      logError,
-    });
-    await send('c:abcd', 'yo');
+    const h = harness({ dmResult: { ok: false, error: 'unknown contact c:abcd' } });
+    await h.send('c:abcd', 'yo');
     await Promise.resolve();
     await Promise.resolve();
-    expect(states).toEqual([{ id: 'local-test', state: 'failed' }]);
-    expect(emitMessageState).toHaveBeenCalledWith('local-test', 'failed');
-    expect(logError).toHaveBeenCalledWith(expect.stringContaining('unknown contact c:abcd'));
+    expect(h.states).toEqual([{ id: 'local-test', state: 'failed' }]);
+    expect(h.emitMessageState).toHaveBeenCalledWith('local-test', 'failed');
+    expect(h.logError).toHaveBeenCalledWith(expect.stringContaining('unknown contact c:abcd'));
   });
 
   it('DM: leaves the row alone when the retry send resolves ok', async () => {

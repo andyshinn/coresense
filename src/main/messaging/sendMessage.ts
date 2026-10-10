@@ -58,7 +58,9 @@ export function createSender(deps: SenderDeps): (key: string, body: string) => P
     // DM: return after the first write; the retry loop runs in the background.
     // The lib can also RESOLVE {ok:false} without emitting messageState (unknown
     // contact, no full 32B public key), so a resolved failure fails the row the
-    // same way a rejection does — otherwise it sits in 'sending' forever.
+    // same way a rejection does — otherwise it sits in 'sending' forever. On
+    // exhausted retries the lib has already emitted 'failed'; the second
+    // (idempotent) emit is accepted rather than matching on the lib's error text.
     const markFailed = (error: string): void => {
       holder.setMessageState(id, 'failed');
       deps.emitMessageState(id, 'failed');

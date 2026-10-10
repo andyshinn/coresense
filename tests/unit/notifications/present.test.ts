@@ -95,8 +95,9 @@ describe('electronPresenter', () => {
     const onReply = vi.fn();
     const onAction = vi.fn();
     p.show({ id: 'msg:2', title: 'T', body: 'b', silent: true, reply: true, actions: ['A', 'B'], onReply, onAction });
-    handlers.reply[0]({ reply: 'hello' }, 'hello');
-    handlers.action[0]({ actionIndex: 1 }, 1);
+    // Positional values that disagree with details prove details wins.
+    handlers.reply[0]({ reply: 'hello' }, 'stale');
+    handlers.action[0]({ actionIndex: 1 }, 0);
     expect(onReply).toHaveBeenCalledWith('hello');
     expect(onAction).toHaveBeenCalledWith(1);
   });
