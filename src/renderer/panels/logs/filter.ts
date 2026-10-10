@@ -1,21 +1,12 @@
-import type { LogEntry, LogLevel, LogsFilter, LogsSearch } from '../../../shared/types';
-
-const LEVEL_ORDER: Record<LogLevel, number> = {
-  silly: 0,
-  trace: 1,
-  debug: 2,
-  info: 3,
-  warn: 4,
-  error: 5,
-  fatal: 6,
-};
+import { logLevelId } from '../../../shared/logLevels';
+import type { LogEntry, LogsFilter, LogsSearch } from '../../../shared/types';
 
 export function filterLogs(entries: LogEntry[], filter: LogsFilter & LogsSearch): LogEntry[] {
-  const minLevelId = LEVEL_ORDER[filter.minLevel];
+  const minLevelId = logLevelId(filter.minLevel);
   const loggerNeedle = filter.loggerSubstring.toLowerCase().trim();
   const textNeedle = filter.textSubstring.toLowerCase().trim();
   return entries.filter((e) => {
-    if (LEVEL_ORDER[e.level] < minLevelId) return false;
+    if (logLevelId(e.level) < minLevelId) return false;
     if (e.source === 'main' && !filter.showMain) return false;
     if (e.source === 'renderer' && !filter.showRenderer) return false;
     if (loggerNeedle && !e.logger.toLowerCase().includes(loggerNeedle)) return false;

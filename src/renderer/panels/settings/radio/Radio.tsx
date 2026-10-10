@@ -1,13 +1,19 @@
 import { Radio as RadioIcon } from 'lucide-react';
 import type { RadioSettings } from '../../../../shared/types';
-import { NumberInput, Row, Select, Toggle } from '../../../components/settings/Field';
+import { NumberInput, NumberSelect, Row, Select, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
-import { findMatchingPreset, RADIO_PRESETS } from '../presets';
+import {
+  BANDWIDTH_OPTIONS,
+  CODING_RATE_OPTIONS,
+  findMatchingPreset,
+  RADIO_PRESETS,
+  SPREADING_FACTOR_OPTIONS,
+} from '../presets';
+import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
-import type { SectionProps } from './shared';
 
 // pathHashMode is owned by the Experimental section — exclude it here so a
 // concurrent edit there isn't reverted when this panel saves.
@@ -19,12 +25,17 @@ const eqRadio = (a: RadioSettings, b: RadioSettings) =>
   a.txPowerDbm === b.txPowerDbm &&
   a.repeatMode === b.repeatMode;
 
+const PRESET_OPTIONS = [
+  { value: 'custom', label: 'Custom' },
+  ...RADIO_PRESETS.map((p) => ({ value: p.id, label: p.label })),
+];
+
 export function RadioSection({ client }: SectionProps) {
   const saved = useStore((s) => s.radioSettings);
   const connected = useStore((s) => s.transportState === 'connected');
   const caps = useStore((s) => s.deviceCapabilities);
 
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'radio-radio',
     saved,
     eq: eqRadio,
@@ -58,26 +69,17 @@ export function RadioSection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="radio-radio"
+      {...sectionProps}
       icon={RadioIcon}
       title="Radio"
       description="LoRa modulation parameters, TX power, and repeat mode. Must match peers on the same mesh."
       footnote="Changing modulation re-keys the radio; reachable peers may need to refresh."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client}
-      onSave={save}
     >
       <Row
         label="Preset"
         description={matchedPreset ? matchedPreset.label : 'Custom (no matching preset)'}
-        control={
-          <Select<string>
-            value={matchedPreset?.id ?? 'custom'}
-            options={[{ value: 'custom', label: 'Custom' }, ...RADIO_PRESETS.map((p) => ({ value: p.id, label: p.label }))]}
-            onChange={choosePreset}
-          />
-        }
+        control={<Select<string> value={matchedPreset?.id ?? 'custom'} options={PRESET_OPTIONS} onChange={choosePreset} />}
       />
       <Row
         label="Frequency"
@@ -98,21 +100,10 @@ export function RadioSection({ client }: SectionProps) {
         label="Bandwidth"
         changed={draft.bandwidthHz !== saved.bandwidthHz}
         control={
-          <Select<string>
-            value={String(draft.bandwidthHz)}
-            options={[
-              { value: '7800', label: '7.8 kHz' },
-              { value: '10400', label: '10.4 kHz' },
-              { value: '15600', label: '15.6 kHz' },
-              { value: '20800', label: '20.8 kHz' },
-              { value: '31250', label: '31.25 kHz' },
-              { value: '41700', label: '41.7 kHz' },
-              { value: '62500', label: '62.5 kHz' },
-              { value: '125000', label: '125 kHz' },
-              { value: '250000', label: '250 kHz' },
-              { value: '500000', label: '500 kHz' },
-            ]}
-            onChange={(v) => setDraft((d) => ({ ...d, bandwidthHz: Number(v) }))}
+          <NumberSelect
+            value={draft.bandwidthHz}
+            options={BANDWIDTH_OPTIONS}
+            onChange={(bandwidthHz) => setDraft((d) => ({ ...d, bandwidthHz }))}
           />
         }
       />
@@ -120,17 +111,10 @@ export function RadioSection({ client }: SectionProps) {
         label="Spreading Factor"
         changed={draft.spreadingFactor !== saved.spreadingFactor}
         control={
-          <Select<string>
-            value={String(draft.spreadingFactor)}
-            options={[
-              { value: '7', label: 'SF7 (fastest)' },
-              { value: '8', label: 'SF8' },
-              { value: '9', label: 'SF9' },
-              { value: '10', label: 'SF10' },
-              { value: '11', label: 'SF11' },
-              { value: '12', label: 'SF12 (longest range)' },
-            ]}
-            onChange={(v) => setDraft((d) => ({ ...d, spreadingFactor: Number(v) }))}
+          <NumberSelect
+            value={draft.spreadingFactor}
+            options={SPREADING_FACTOR_OPTIONS}
+            onChange={(spreadingFactor) => setDraft((d) => ({ ...d, spreadingFactor }))}
           />
         }
       />
@@ -138,15 +122,10 @@ export function RadioSection({ client }: SectionProps) {
         label="Coding Rate"
         changed={draft.codingRate !== saved.codingRate}
         control={
-          <Select<string>
-            value={String(draft.codingRate)}
-            options={[
-              { value: '5', label: '4/5' },
-              { value: '6', label: '4/6' },
-              { value: '7', label: '4/7' },
-              { value: '8', label: '4/8' },
-            ]}
-            onChange={(v) => setDraft((d) => ({ ...d, codingRate: Number(v) }))}
+          <NumberSelect
+            value={draft.codingRate}
+            options={CODING_RATE_OPTIONS}
+            onChange={(codingRate) => setDraft((d) => ({ ...d, codingRate }))}
           />
         }
       />

@@ -31,7 +31,7 @@ export function SearchMessageRow({
       >
         <div className="flex items-center gap-2 font-mono text-[10px] text-cs-text-dim">
           {isChannel ? <Hash size={11} aria-hidden="true" /> : <User size={11} aria-hidden="true" />}
-          <span>{isChannel ? (channelName ?? hit.key) : (senderName ?? hit.key)}</span>
+          <span>{isChannel ? (channelName ?? hit.key) : senderName}</span>
           <span>·</span>
           <RelativeTime ts={hit.ts} />
           {isChannel && (

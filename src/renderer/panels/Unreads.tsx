@@ -1,13 +1,14 @@
 import { Check, ChevronDown, ChevronUp, Inbox } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { ChannelKind, ContactKind } from '../../shared/types';
+import { CountTab } from '../components/CountTab';
 import { MessageItem } from '../components/MessageItem';
 import { RelativeTime } from '../components/RelativeTime';
 import { type UnreadConversation, useUnreadConversations } from '../hooks/useUnreads';
 import type { ApiClient } from '../lib/api';
 import { CHANNEL_ICON, CONTACT_ICON } from '../lib/conversationIcons';
 import { useStore } from '../lib/store';
-import { cn, deriveSenderName } from '../lib/utils';
+import { deriveSenderName } from '../lib/utils';
 
 type Filter = 'all' | 'channels' | 'direct';
 
@@ -109,14 +110,14 @@ export function Unreads({ client: _client }: { client: ApiClient | null }) {
           air
         </p>
         <div className="mt-3 flex items-center gap-1 text-xs">
-          <FilterTab label="All" count={conversations.length} active={filter === 'all'} onClick={() => setFilter('all')} />
-          <FilterTab
+          <CountTab label="All" count={conversations.length} active={filter === 'all'} onClick={() => setFilter('all')} />
+          <CountTab
             label="Channels"
             count={channelsAll.length}
             active={filter === 'channels'}
             onClick={() => setFilter('channels')}
           />
-          <FilterTab
+          <CountTab
             label="Direct & Rooms"
             count={directAll.length}
             active={filter === 'direct'}
@@ -150,39 +151,6 @@ export function Unreads({ client: _client }: { client: ApiClient | null }) {
         )}
       </div>
     </div>
-  );
-}
-
-function FilterTab({
-  label,
-  count,
-  active,
-  onClick,
-}: {
-  label: string;
-  count: number;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex items-center gap-1.5 border-b-2 px-2 py-1 transition-colors',
-        active ? 'border-cs-accent text-cs-text' : 'border-transparent text-cs-text-muted hover:text-cs-text',
-      )}
-    >
-      {label}
-      <span
-        className={cn(
-          'rounded-full px-1.5 py-px font-mono text-[9px] tabular-nums',
-          active ? 'bg-cs-accent-soft/30 text-cs-text' : 'bg-cs-bg-3 text-cs-text-dim',
-        )}
-      >
-        {count}
-      </span>
-    </button>
   );
 }
 

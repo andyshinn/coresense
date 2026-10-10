@@ -5,15 +5,15 @@ import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
+import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
-import type { SectionProps } from './shared';
 
 const eqGps = (a: GpsConfig, b: GpsConfig) => a.enabled === b.enabled && a.intervalSec === b.intervalSec;
 
 export function PositionSection({ client }: SectionProps) {
   const saved = useStore((s) => s.gpsConfig);
   const connected = useStore((s) => s.transportState === 'connected');
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'radio-position',
     saved,
     eq: eqGps,
@@ -26,14 +26,11 @@ export function PositionSection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="radio-position"
+      {...sectionProps}
       icon={MapPin}
       title="Position"
       description="On-device GPS module configuration."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client && connected}
-      onSave={save}
     >
       <Row
         label="GPS enabled"

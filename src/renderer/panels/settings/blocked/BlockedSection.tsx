@@ -53,7 +53,7 @@ export function BlockedSection({ client }: Props) {
     try {
       await api.updateBlockRule(client, r.id, { enabled: !r.enabled });
     } catch (err) {
-      notify.error(`Toggle failed: ${(err as Error).message}`, err);
+      notify.failure('Toggle', err);
     }
   }
   async function remove(r: BlockRule) {
@@ -62,7 +62,7 @@ export function BlockedSection({ client }: Props) {
       await api.removeBlockRule(client, r.id);
       notify.success('Unblocked');
     } catch (err) {
-      notify.error(`Remove failed: ${(err as Error).message}`, err);
+      notify.failure('Remove', err);
     }
   }
 

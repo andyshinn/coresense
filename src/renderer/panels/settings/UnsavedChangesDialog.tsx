@@ -56,7 +56,7 @@ export function UnsavedChangesDialog({ client }: { client: ApiClient | null }) {
       finish();
     } catch (err) {
       // Leave the dialog open so the user can retry or cancel.
-      notify.error(`Save failed: ${(err as Error).message}`, err);
+      notify.failure('Save', err);
     } finally {
       setBusy(false);
     }

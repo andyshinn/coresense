@@ -1,28 +1,17 @@
 import { Info } from 'lucide-react';
 import { Row } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
-import { api } from '../../../lib/api';
-import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from './shared';
+import type { SectionProps } from '../types';
+import { useDeviceRefresh } from '../useDeviceRefresh';
 
 export function DeviceInfoSection({ client }: SectionProps) {
   const info = useStore((s) => s.deviceInfo);
   const channels = useStore((s) => s.channels.length);
   const contacts = useStore((s) => s.contacts.length);
-  const connected = useStore((s) => s.transportState === 'connected');
+  const { refresh, canRefresh } = useDeviceRefresh(client);
 
   const storagePct = info.storageTotalKb > 0 ? Math.round((info.storageUsedKb / info.storageTotalKb) * 100) : 0;
-
-  const refresh = async () => {
-    if (!client) return;
-    try {
-      await api.refreshDevice(client);
-      notify.success('Device refresh requested');
-    } catch (err) {
-      notify.error(`Refresh failed: ${(err as Error).message}`, err);
-    }
-  };
 
   return (
     <SettingsSection
@@ -80,7 +69,7 @@ export function DeviceInfoSection({ client }: SectionProps) {
           <button
             type="button"
             onClick={refresh}
-            disabled={!client || !connected}
+            disabled={!canRefresh}
             className="rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text hover:bg-cs-bg-3 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Refresh

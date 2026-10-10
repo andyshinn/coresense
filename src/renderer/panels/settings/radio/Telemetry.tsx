@@ -1,24 +1,24 @@
 import { SlidersHorizontal } from 'lucide-react';
-import type { TelemetryPolicy } from '../../../../shared/types';
-import { Row, Select } from '../../../components/settings/Field';
+import type { TelemetryMode, TelemetryPolicy } from '../../../../shared/types';
+import { NumberSelect, Row } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
+import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
-import type { SectionProps } from './shared';
 
 const TELEMETRY_MODE_OPTIONS = [
-  { value: '0', label: 'Deny all' },
-  { value: '1', label: 'Allow opt-in contacts' },
-  { value: '2', label: 'Allow all' },
-] as const;
+  { value: 0, label: 'Deny all' },
+  { value: 1, label: 'Allow opt-in contacts' },
+  { value: 2, label: 'Allow all' },
+] satisfies { value: TelemetryMode; label: string }[];
 
 const eqTelemetry = (a: TelemetryPolicy, b: TelemetryPolicy) => a.base === b.base && a.loc === b.loc && a.env === b.env;
 
 export function TelemetrySection({ client }: SectionProps) {
   const saved = useStore((s) => s.telemetryPolicy);
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'radio-telemetry',
     saved,
     eq: eqTelemetry,
@@ -36,23 +36,20 @@ export function TelemetrySection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="radio-telemetry"
+      {...sectionProps}
       icon={SlidersHorizontal}
       title="Telemetry"
       description="Who can query telemetry from this radio."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client}
-      onSave={save}
     >
       <Row
         label="Base telemetry (battery, uptime)"
         changed={draft.base !== saved.base}
         control={
-          <Select<string>
-            value={String(draft.base)}
+          <NumberSelect
+            value={draft.base}
             options={TELEMETRY_MODE_OPTIONS}
-            onChange={(v) => setDraft((s) => ({ ...s, base: Number(v) as TelemetryPolicy['base'] }))}
+            onChange={(base) => setDraft((s) => ({ ...s, base }))}
           />
         }
       />
@@ -60,10 +57,10 @@ export function TelemetrySection({ client }: SectionProps) {
         label="Location telemetry"
         changed={draft.loc !== saved.loc}
         control={
-          <Select<string>
-            value={String(draft.loc)}
+          <NumberSelect
+            value={draft.loc}
             options={TELEMETRY_MODE_OPTIONS}
-            onChange={(v) => setDraft((s) => ({ ...s, loc: Number(v) as TelemetryPolicy['loc'] }))}
+            onChange={(loc) => setDraft((s) => ({ ...s, loc }))}
           />
         }
       />
@@ -71,10 +68,10 @@ export function TelemetrySection({ client }: SectionProps) {
         label="Environmental sensors"
         changed={draft.env !== saved.env}
         control={
-          <Select<string>
-            value={String(draft.env)}
+          <NumberSelect
+            value={draft.env}
             options={TELEMETRY_MODE_OPTIONS}
-            onChange={(v) => setDraft((s) => ({ ...s, env: Number(v) as TelemetryPolicy['env'] }))}
+            onChange={(env) => setDraft((s) => ({ ...s, env }))}
           />
         }
       />

@@ -2,16 +2,16 @@ import { AlertTriangle, FolderInput, Wrench } from 'lucide-react';
 import { useState } from 'react';
 import { Row } from '../../components/settings/Field';
 import { SettingsSection } from '../../components/settings/SettingsSection';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
+import type { SectionProps } from './types';
+import { useDeviceRefresh } from './useDeviceRefresh';
 
-// The Extra Tools tab — device-level maintenance actions. Everything here is an
-// action button, so there is no dirty state and no per-section Save.
-
-interface SectionProps {
-  client: ApiClient | null;
-}
+// The Extra Tools tab's action sections — device-level maintenance actions.
+// Everything here is an action button, so these sections have no dirty state and
+// no Save. (The tab's one editable section, Packet Log, lives in
+// PacketLogSection.)
 
 const disabledBtn =
   'cursor-not-allowed rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text-dim opacity-60';
@@ -21,16 +21,7 @@ const dangerBtn =
 export function MaintenanceSection({ client }: SectionProps) {
   const connected = useStore((s) => s.transportState === 'connected');
   const [rebootBusy, setRebootBusy] = useState(false);
-
-  const refresh = async () => {
-    if (!client) return;
-    try {
-      await api.refreshDevice(client);
-      notify.success('Device refresh requested');
-    } catch (err) {
-      notify.error(`Refresh failed: ${(err as Error).message}`, err);
-    }
-  };
+  const { refresh, canRefresh } = useDeviceRefresh(client);
 
   const reboot = async () => {
     if (!client) return;
@@ -39,7 +30,7 @@ export function MaintenanceSection({ client }: SectionProps) {
       await api.rebootDevice(client);
       notify.success('Reboot command sent — link will drop momentarily');
     } catch (err) {
-      notify.error(`Reboot failed: ${(err as Error).message}`, err);
+      notify.failure('Reboot', err);
     } finally {
       setRebootBusy(false);
     }
@@ -59,7 +50,7 @@ export function MaintenanceSection({ client }: SectionProps) {
         control={
           <button
             type="button"
-            disabled={!client || !connected}
+            disabled={!canRefresh}
             onClick={refresh}
             className="rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text hover:bg-cs-bg-3 disabled:cursor-not-allowed disabled:opacity-50"
           >

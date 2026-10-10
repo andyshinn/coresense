@@ -3,16 +3,16 @@ import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { NumberInput, Row, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../radio/shared';
+import { saveApp } from '../save';
+import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
-import { saveApp } from './shared';
 
 const eqToasts = (a: AppSettingsType, b: AppSettingsType) =>
   a.toasts.enabled === b.toasts.enabled && a.toasts.durationSec === b.toasts.durationSec;
 
 export function ToastsSection({ client }: SectionProps) {
   const saved = useStore((s) => s.appSettings);
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setGroup, sectionProps } = useSettingsSection({
     id: 'app-toasts',
     saved,
     eq: eqToasts,
@@ -21,24 +21,16 @@ export function ToastsSection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="app-toasts"
+      {...sectionProps}
       icon={Bell}
       title="Toasts"
       description="In-app status messages shown in the bottom-right."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client}
-      onSave={save}
     >
       <Row
         label="Enabled"
         changed={draft.toasts.enabled !== saved.toasts.enabled}
-        control={
-          <Toggle
-            checked={draft.toasts.enabled}
-            onChange={(v) => setDraft((s) => ({ ...s, toasts: { ...s.toasts, enabled: v } }))}
-          />
-        }
+        control={<Toggle checked={draft.toasts.enabled} onChange={(v) => setGroup('toasts', { enabled: v })} />}
       />
       <Row
         label="Duration (seconds)"
@@ -50,7 +42,7 @@ export function ToastsSection({ client }: SectionProps) {
             min={1}
             max={60}
             disabled={!draft.toasts.enabled}
-            onChange={(v) => setDraft((s) => ({ ...s, toasts: { ...s.toasts, durationSec: v } }))}
+            onChange={(v) => setGroup('toasts', { durationSec: v })}
           />
         }
       />

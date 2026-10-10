@@ -1,11 +1,11 @@
 import { SlidersHorizontal } from 'lucide-react';
-import type { AppSettings as AppSettingsType, ContactGrouping } from '../../../../shared/types';
+import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { NumberInput, Row, Select, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../radio/shared';
+import { saveApp } from '../save';
+import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
-import { saveApp } from './shared';
 
 const CONTACT_GROUPING_OPTIONS = [
   { value: 'nested', label: 'Nested (under Contacts)' },
@@ -33,7 +33,7 @@ const eqBehavior = (a: AppSettingsType, b: AppSettingsType) =>
 
 export function BehaviorSection({ client }: SectionProps) {
   const saved = useStore((s) => s.appSettings);
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, setGroup, sectionProps } = useSettingsSection({
     id: 'app-behavior',
     saved,
     eq: eqBehavior,
@@ -57,15 +57,7 @@ export function BehaviorSection({ client }: SectionProps) {
   });
 
   return (
-    <SettingsSection
-      id="app-behavior"
-      icon={SlidersHorizontal}
-      title="Behavior"
-      dirty={dirty}
-      saving={saving}
-      canSave={!!client}
-      onSave={save}
-    >
+    <SettingsSection {...sectionProps} icon={SlidersHorizontal} title="Behavior" canSave={!!client}>
       <Row
         label="Pin unread to top"
         description="Sort unread channels and contacts above pinned items in the left nav."
@@ -86,7 +78,7 @@ export function BehaviorSection({ client }: SectionProps) {
           <Select
             value={draft.contactGrouping}
             options={CONTACT_GROUPING_OPTIONS}
-            onChange={(grouping) => setDraft((s) => ({ ...s, contactGrouping: grouping as ContactGrouping }))}
+            onChange={(contactGrouping) => setDraft((s) => ({ ...s, contactGrouping }))}
           />
         }
       />
@@ -109,12 +101,7 @@ export function BehaviorSection({ client }: SectionProps) {
           <Select
             value={draft.search.defaultSort}
             options={SEARCH_SORT_OPTIONS}
-            onChange={(sort) =>
-              setDraft((s) => ({
-                ...s,
-                search: { ...s.search, defaultSort: sort as 'recency' | 'relevance' },
-              }))
-            }
+            onChange={(defaultSort) => setGroup('search', { defaultSort })}
           />
         }
       />
@@ -141,12 +128,7 @@ export function BehaviorSection({ client }: SectionProps) {
         control={
           <Toggle
             checked={draft.leftNavCollapseLists.enabled}
-            onChange={(v) =>
-              setDraft((s) => ({
-                ...s,
-                leftNavCollapseLists: { ...s.leftNavCollapseLists, enabled: v },
-              }))
-            }
+            onChange={(v) => setGroup('leftNavCollapseLists', { enabled: v })}
           />
         }
       />
@@ -160,12 +142,7 @@ export function BehaviorSection({ client }: SectionProps) {
             min={1}
             max={500}
             disabled={!draft.leftNavCollapseLists.enabled}
-            onChange={(v) =>
-              setDraft((s) => ({
-                ...s,
-                leftNavCollapseLists: { ...s.leftNavCollapseLists, limit: v },
-              }))
-            }
+            onChange={(v) => setGroup('leftNavCollapseLists', { limit: v })}
           />
         }
       />
@@ -174,15 +151,7 @@ export function BehaviorSection({ client }: SectionProps) {
         description="Cap how many unread messages each conversation card shows in the Unreads panel; the rest collapse behind a + N earlier line."
         changed={draft.unreadsPreview.enabled !== saved.unreadsPreview.enabled}
         control={
-          <Toggle
-            checked={draft.unreadsPreview.enabled}
-            onChange={(v) =>
-              setDraft((s) => ({
-                ...s,
-                unreadsPreview: { ...s.unreadsPreview, enabled: v },
-              }))
-            }
-          />
+          <Toggle checked={draft.unreadsPreview.enabled} onChange={(v) => setGroup('unreadsPreview', { enabled: v })} />
         }
       />
       <Row
@@ -195,12 +164,7 @@ export function BehaviorSection({ client }: SectionProps) {
             min={1}
             max={1000}
             disabled={!draft.unreadsPreview.enabled}
-            onChange={(v) =>
-              setDraft((s) => ({
-                ...s,
-                unreadsPreview: { ...s.unreadsPreview, limit: v },
-              }))
-            }
+            onChange={(v) => setGroup('unreadsPreview', { limit: v })}
           />
         }
       />
@@ -215,12 +179,7 @@ export function BehaviorSection({ client }: SectionProps) {
             max={100}
             step={5}
             suffix="%"
-            onChange={(v) =>
-              setDraft((s) => ({
-                ...s,
-                commandPalette: { ...s.commandPalette, hintWeightPct: v },
-              }))
-            }
+            onChange={(v) => setGroup('commandPalette', { hintWeightPct: v })}
           />
         }
       />

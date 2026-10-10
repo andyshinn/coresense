@@ -43,7 +43,7 @@ const TAB_SECTIONS: Record<SettingsTab, SettingsSectionMeta[]> = {
     { id: 'app-composer', title: 'Composer', tab: 'app' },
     { id: 'app-notifications', title: 'Notifications', tab: 'app' },
     { id: 'app-toasts', title: 'Toasts', tab: 'app' },
-    { id: 'app-proxy', title: 'TCP / WS Proxy', tab: 'app' },
+    { id: 'app-proxy', title: 'TCP Proxy', tab: 'app' },
     { id: 'app-api-key', title: 'API Access', tab: 'app' },
     { id: 'app-behavior', title: 'Behavior', tab: 'app' },
     { id: 'app-logs', title: 'Logs', tab: 'app' },
@@ -136,14 +136,14 @@ export function SettingsPanel({ client, initialTab, initialSection }: Props) {
     clearScrollRequest();
   }, [pendingScrollSectionId, clearScrollRequest]);
 
-  const tabDirty = (tab: SettingsTab) => Object.entries(dirtyById).some(([id, v]) => v && id.startsWith(`${tab}-`));
+  const tabDirty = (tab: SettingsTab) => TAB_SECTIONS[tab].some((s) => dirtyById[s.id]);
 
   const pillTabs: PillTab<SettingsTab>[] = [
     { id: 'app', label: 'Application Settings', icon: Cog, dirty: tabDirty('app') },
     { id: 'quickActions', label: 'Quick Actions', icon: Zap, dirty: tabDirty('quickActions') },
     { id: 'radio', label: 'Radio Settings', icon: Radio, dirty: tabDirty('radio') },
     { id: 'blocked', label: 'Blocked', icon: ShieldOff, dirty: tabDirty('blocked') },
-    { id: 'extra', label: 'Extra Tools', icon: Wrench },
+    { id: 'extra', label: 'Extra Tools', icon: Wrench, dirty: tabDirty('extra') },
   ];
 
   return (

@@ -1,10 +1,5 @@
-import {
-  VirtuosoMessageList,
-  VirtuosoMessageListLicense,
-  type VirtuosoMessageListMethods,
-  type VirtuosoMessageListProps,
-} from '@virtuoso.dev/message-list';
-import { useMemo, useRef } from 'react';
+import { VirtuosoMessageList, VirtuosoMessageListLicense, type VirtuosoMessageListProps } from '@virtuoso.dev/message-list';
+import { useMemo } from 'react';
 import type { LogEntry } from '../../../shared/types';
 import { useStore } from '../../lib/store';
 import { VIRTUOSO_LICENSE_KEY } from '../../lib/virtuosoLicense';
@@ -22,7 +17,6 @@ export function LogsPanel() {
   // Array.sort is stable, so equal-ts entries keep insertion order.
   const merged = useMemo(() => [...logs, ...rendererLogs].sort((a, b) => a.ts - b.ts), [logs, rendererLogs]);
   const visible = useMemo(() => filterLogs(merged, { ...filter, ...search }), [merged, filter, search]);
-  const ref = useRef<VirtuosoMessageListMethods<LogEntry>>(null);
 
   const data = useMemo<VirtuosoMessageListProps<LogEntry, null>['data']>(
     () => ({
@@ -49,7 +43,6 @@ export function LogsPanel() {
       <div className="min-h-0 flex-1">
         <VirtuosoMessageListLicense licenseKey={VIRTUOSO_LICENSE_KEY}>
           <VirtuosoMessageList<LogEntry, null>
-            ref={ref}
             data={data}
             computeItemKey={({ data: entry }) => entry.id}
             ItemContent={LogRow}
