@@ -24,6 +24,7 @@ import { planBridgeBinding } from '../shared/ports';
 import { applyAboutPanel } from './about';
 import { getApiKey } from './api/middleware/auth';
 import { blockingStore } from './blocking/store';
+import { finishQuit } from './bootstrap/finishQuit';
 import { type BridgeHandle, startBridge } from './bridge';
 import { buildMdnsServices, type MdnsHandle, startMdns } from './bridge/mdns';
 import { emit } from './events/bus';
@@ -49,6 +50,7 @@ import { getMainWindow, setMainWindow } from './window/registry';
 import { flushWindowState, loadWindowState, trackWindow } from './window/state';
 
 const SHUTDOWN_BLE_TIMEOUT_MS = 5000;
+const SHUTDOWN_LOG_FLUSH_TIMEOUT_MS = 1000;
 
 const rendererLog = child('renderer');
 
@@ -519,12 +521,13 @@ app.on('before-quit', (event) => {
   }
   isShuttingDown = true;
   event.preventDefault();
-  beginShutdown()
-    .catch((err) => log.error(`shutdown failed: ${errorMessage(err)}`))
-    // Last, so the shutdown's own warnings (e.g. a transport timeout) reach the
-    // log file before the process goes away. flushLogFile never rejects.
-    .then(flushLogFile)
-    .finally(() => app.exit(0));
+  void finishQuit({
+    shutdown: beginShutdown,
+    onShutdownError: (err) => log.error(`shutdown failed: ${errorMessage(err)}`),
+    flushLog: flushLogFile,
+    flushTimeoutMs: SHUTDOWN_LOG_FLUSH_TIMEOUT_MS,
+    exit: () => app.exit(0),
+  });
 });
 
 /** Await `p`, logging `${label} failed: …` instead of rejecting. */
