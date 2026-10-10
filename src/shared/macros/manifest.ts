@@ -1,3 +1,4 @@
+import { type StructureNode, structureOf } from './structure';
 import type { MacroContext, MacroFilterDoc, MacroManifest, MacroVariable } from './types';
 
 export const MACRO_VARIABLES: MacroVariable[] = [
@@ -280,4 +281,14 @@ export function buildSampleContext(): MacroContext {
       },
     ],
   };
+}
+
+let sampleStructureCache: StructureNode | null = null;
+
+/** structureOf(buildSampleContext()), built once: the sample is constant, and
+ *  lintTemplate asks for it on every keystroke. Callers must treat it as
+ *  read-only. */
+export function sampleStructure(): StructureNode {
+  if (!sampleStructureCache) sampleStructureCache = structureOf(buildSampleContext());
+  return sampleStructureCache;
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildSampleContext } from '../../../src/shared/macros/manifest';
+import { buildSampleContext, sampleStructure } from '../../../src/shared/macros/manifest';
 import { PlaceholderDrop } from '../../../src/shared/macros/placeholder';
-import { fieldsAt, resolvePath, structureOf } from '../../../src/shared/macros/structure';
+import { fieldsAt, hasBrowsableChildren, resolvePath, structureOf } from '../../../src/shared/macros/structure';
 
 const root = () => structureOf(buildSampleContext());
 
@@ -123,5 +123,25 @@ describe('fieldsAt', () => {
   it('returns null for a scalar or an unresolvable path', () => {
     expect(fieldsAt(root(), ['my_name'])).toBeNull();
     expect(fieldsAt(root(), ['nope'])).toBeNull();
+  });
+});
+
+describe('hasBrowsableChildren', () => {
+  it('is true for a non-empty object and an array with a known element', () => {
+    expect(hasBrowsableChildren(structureOf({ lat: 1 }))).toBe(true);
+    expect(hasBrowsableChildren(structureOf([{ a: 1 }]))).toBe(true);
+  });
+
+  it('is false for a scalar, an empty object and an empty array', () => {
+    expect(hasBrowsableChildren(structureOf('x'))).toBe(false);
+    expect(hasBrowsableChildren(structureOf({}))).toBe(false);
+    expect(hasBrowsableChildren(structureOf([]))).toBe(false);
+  });
+});
+
+describe('sampleStructure', () => {
+  it('is the sample context structure, built once', () => {
+    expect(sampleStructure()).toEqual(root());
+    expect(sampleStructure()).toBe(sampleStructure());
   });
 });

@@ -1,7 +1,7 @@
 import { type Liquid, type Token, TypeGuards } from 'liquidjs';
 import { getMacroEngine } from './engine';
-import { buildSampleContext } from './manifest';
-import { fieldsAt, type PathSegment, resolvePath, type StructureNode, structureOf } from './structure';
+import { sampleStructure } from './manifest';
+import { fieldsAt, type PathSegment, resolvePath, type StructureNode } from './structure';
 
 export interface MacroWarning {
   kind: 'unknown-property';
@@ -296,6 +296,6 @@ export function lintTemplate(template: string): MacroWarning[] {
   // The same shared engine validateTemplate uses. It must be a macro engine, not
   // a bare Liquid: strictFilters makes `parse` throw on distance/bearing/unit.
   const eng = getMacroEngine('metric');
-  const root = structureOf(buildSampleContext());
+  const root = sampleStructure();
   return [...checkVariablePaths(eng, template, root), ...checkFilterKeys(eng, template, root)];
 }

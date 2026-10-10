@@ -3,11 +3,11 @@ import { useMemo, useState } from 'react';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { cn } from '@/lib/utils';
 import {
-  buildSampleContext,
   MACRO_FILTERS,
   MACRO_VARIABLES,
   resolvePath,
   STANDARD_FILTER_DOCS,
+  sampleStructure,
   structureOf,
 } from '../../../../shared/macros';
 import type { MacroFilterDoc, MacroRenderMode, MacroVariable } from '../../../../shared/macros/types';
@@ -107,7 +107,7 @@ export function ReferencePanel({ mode, onInsertVar, onInsertFilter }: ReferenceP
     [q],
   );
 
-  const structureRoot = useMemo(() => structureOf(buildSampleContext()), []);
+  const structureRoot = sampleStructure();
 
   // Unlike the lint, the tab follows the preview toggle — its job is to show
   // what the author will actually get in each mode.

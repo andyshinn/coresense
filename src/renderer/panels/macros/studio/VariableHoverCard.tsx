@@ -1,4 +1,4 @@
-import type { StructureNode } from '../../../../shared/macros/structure';
+import { hasBrowsableChildren, type StructureNode } from '../../../../shared/macros/structure';
 import type { MacroVariable } from '../../../../shared/macros/types';
 import { Head, typeLabel } from './hoverAtoms';
 
@@ -11,7 +11,7 @@ function Fields({ node, depth = 0 }: { node: StructureNode; depth?: number }) {
   return (
     <div className="flex flex-col gap-0.5">
       {target.fields.map((f) => {
-        const nested = depth < 1 && (f.node.kind === 'object' || (f.node.kind === 'array' && f.node.element !== null));
+        const nested = depth < 1 && hasBrowsableChildren(f.node);
         return (
           <div key={f.name} className="flex flex-col" style={{ paddingLeft: depth * 10 }}>
             <div className="flex items-baseline gap-3">
@@ -27,8 +27,7 @@ function Fields({ node, depth = 0 }: { node: StructureNode; depth?: number }) {
 }
 
 export function VariableHoverCard({ variable, structure }: { variable: MacroVariable; structure: StructureNode | null }) {
-  const showStructure =
-    structure !== null && (structure.kind === 'object' || (structure.kind === 'array' && structure.element !== null));
+  const showStructure = structure !== null && hasBrowsableChildren(structure);
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
