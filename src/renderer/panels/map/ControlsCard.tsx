@@ -42,7 +42,8 @@ export function ControlsCard({ client }: Props) {
   }
 
   function setKindFilter(kind: ContactKind, on: boolean) {
-    update({ kindFilters: { ...settings.kindFilters, [kind]: on } });
+    // The helper's merge is shallow, so build the nested map from live state too.
+    update({ kindFilters: { ...useStore.getState().mapSettings.kindFilters, [kind]: on } });
   }
 
   return (
