@@ -13,9 +13,6 @@ const COUNTER_FLUSH_DEBOUNCE_MS = 30_000;
 class BlockingStore {
   private rules: BlockRule[] = [];
   private regexCache = new Map<string, RegExp>();
-  /** Rule ids whose regex source failed to compile. The matcher treats them
-   *  as disabled; the UI surfaces them as "invalid". */
-  private invalidRegexIds = new Set<string>();
   private counterDirty = false;
   private flushTimer: NodeJS.Timeout | null = null;
 
@@ -31,14 +28,13 @@ class BlockingStore {
 
   private rebuildRegexCache(): void {
     this.regexCache.clear();
-    this.invalidRegexIds.clear();
     for (const r of this.rules) {
       if (r.type !== 'nameRegex') continue;
       const compiled = compileRuleRegex(r.pattern);
       if (compiled) {
         this.regexCache.set(r.id, compiled);
       } else {
-        this.invalidRegexIds.add(r.id);
+        // No cache entry means the matcher treats the rule as disabled.
         log.warn(`block rule ${r.id} has invalid regex source; treating as disabled`);
       }
     }
@@ -50,16 +46,8 @@ class BlockingStore {
     return this.rules.slice();
   }
 
-  regexFor(ruleId: string): RegExp | undefined {
-    return this.regexCache.get(ruleId);
-  }
-
   regexCacheRef(): Map<string, RegExp> {
     return this.regexCache;
-  }
-
-  isInvalidRegex(ruleId: string): boolean {
-    return this.invalidRegexIds.has(ruleId);
   }
 
   /** Append the given rules with fresh ids + createdAt. Persists immediately.
