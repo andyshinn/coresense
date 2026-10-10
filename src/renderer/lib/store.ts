@@ -577,6 +577,15 @@ function anyDirty(dirtyById: Record<string, boolean>): boolean {
   return Object.values(dirtyById).some(Boolean);
 }
 
+// Guard for setActiveKey, goBack and goForward: if the user is leaving the
+// Settings panel with unsaved section changes, stash the target and let the
+// panel raise the prompt instead of navigating. Null when the move may proceed.
+function guardLeaveSettings(s: CoreState, target: string): Partial<CoreState> | null {
+  const leavingSettings = s.ui.activeKey.startsWith('tool:settings') && !target.startsWith('tool:settings');
+  if (!leavingSettings || !anyDirty(s.settingsUi.dirtyById)) return null;
+  return { settingsUi: { ...s.settingsUi, pendingTarget: { kind: 'nav', key: target } } };
+}
+
 const RECENT_KEYS_MAX = 10;
 
 export const useStore = create<CoreState>((set) => ({
@@ -929,14 +938,10 @@ export const useStore = create<CoreState>((set) => ({
       // history with a dedupe-able entry, and short-circuits the unsaved-guard
       // check that would otherwise trigger on Settings → Settings.
       if (key === s.ui.activeKey) return {};
-      // Guard: if the user is leaving the Settings panel with unsaved section
-      // changes, stash the target and let the panel raise the prompt instead
-      // of navigating. recentKeys + nav stacks stay untouched until the move
-      // commits via commitPendingTarget.
-      const leavingSettings = s.ui.activeKey.startsWith('tool:settings') && !key.startsWith('tool:settings');
-      if (leavingSettings && anyDirty(s.settingsUi.dirtyById)) {
-        return { settingsUi: { ...s.settingsUi, pendingTarget: { kind: 'nav', key } } };
-      }
+      // recentKeys + nav stacks stay untouched until a blocked move commits
+      // via commitPendingTarget.
+      const blocked = guardLeaveSettings(s, key);
+      if (blocked) return blocked;
       // Forward navigation: push current onto past, clear future. Restore-from-
       // search-Esc and goBack/goForward itself opt out via skipHistory.
       if (opts?.skipHistory) return navStateUpdate(s, key);
@@ -952,10 +957,8 @@ export const useStore = create<CoreState>((set) => ({
       // Same Settings unsaved-guard as forward nav — back through a dirty
       // Settings panel still needs the prompt. The deferred commit replays
       // the goBack by routing through navStateUpdate with swapped stacks.
-      const leavingSettings = s.ui.activeKey.startsWith('tool:settings') && !target.startsWith('tool:settings');
-      if (leavingSettings && anyDirty(s.settingsUi.dirtyById)) {
-        return { settingsUi: { ...s.settingsUi, pendingTarget: { kind: 'nav', key: target } } };
-      }
+      const blocked = guardLeaveSettings(s, target);
+      if (blocked) return blocked;
       return navStateUpdate(s, target, {
         navPast: s.navPast.slice(0, -1),
         navFuture: [...s.navFuture, s.ui.activeKey],
@@ -965,10 +968,8 @@ export const useStore = create<CoreState>((set) => ({
     set((s) => {
       if (s.navFuture.length === 0) return {};
       const target = s.navFuture[s.navFuture.length - 1];
-      const leavingSettings = s.ui.activeKey.startsWith('tool:settings') && !target.startsWith('tool:settings');
-      if (leavingSettings && anyDirty(s.settingsUi.dirtyById)) {
-        return { settingsUi: { ...s.settingsUi, pendingTarget: { kind: 'nav', key: target } } };
-      }
+      const blocked = guardLeaveSettings(s, target);
+      if (blocked) return blocked;
       return navStateUpdate(s, target, {
         navPast: pushPast(s.navPast, s.ui.activeKey),
         navFuture: s.navFuture.slice(0, -1),
@@ -1054,15 +1055,10 @@ export const useStore = create<CoreState>((set) => ({
       for (let i = s.logs.length - 1; i >= Math.max(0, s.logs.length - 10); i--) {
         if (s.logs[i].id === entry.id) return s;
       }
-      const next = s.logs.length >= MAX_LOGS ? s.logs.slice(-(MAX_LOGS - 1)) : s.logs;
-      return { logs: [...next, entry] };
+      return { logs: keepLast([...s.logs, entry], MAX_LOGS) };
     }),
-  appendRendererLog: (entry) =>
-    set((s) => {
-      const next = s.rendererLogs.length >= MAX_LOGS ? s.rendererLogs.slice(-(MAX_LOGS - 1)) : s.rendererLogs;
-      return { rendererLogs: [...next, entry] };
-    }),
-  replaceLogs: (entries) => set(() => ({ logs: entries.slice(-MAX_LOGS) })),
+  appendRendererLog: (entry) => set((s) => ({ rendererLogs: keepLast([...s.rendererLogs, entry], MAX_LOGS) })),
+  replaceLogs: (entries) => set(() => ({ logs: keepLast(entries, MAX_LOGS) })),
   setLogsFilter: (patch) => set((s) => ({ ui: { ...s.ui, logsFilter: { ...s.ui.logsFilter, ...patch } } })),
   setLogsSearch: (patch) => set((s) => ({ logsSearch: { ...s.logsSearch, ...patch } })),
   clearLogs: () => set(() => ({ logs: [], rendererLogs: [] })),
@@ -1081,7 +1077,7 @@ export const useStore = create<CoreState>((set) => ({
   closePalette: () => set(() => ({ paletteOpen: false })),
   openHelp: () => set(() => ({ helpOpen: true })),
   closeHelp: () => set(() => ({ helpOpen: false })),
-  setAddChannelOpen: (open) => set({ addChannelOpen: open }),
+  setAddChannelOpen: (open) => set(() => ({ addChannelOpen: open })),
 
   setSearchQuery: (query) => set(() => ({ searchQuery: query })),
   setSearchFilters: (patch) => set((s) => ({ searchFilters: { ...s.searchFilters, ...patch } })),
