@@ -1,3 +1,4 @@
+import { bytesToHex, hexToBytes } from '../../shared/hex';
 import { fieldColorIdx, type InspectField } from './packetInspect';
 
 interface Seg {
@@ -128,22 +129,16 @@ const FRAME_PURPOSE: Record<string, string> = {
 /** Human-readable purpose of a companion frame, or '' if we have no note for it. */
 export const bleFramePurpose = (codeName?: string): string => (codeName ? (FRAME_PURPOSE[codeName] ?? '') : '');
 
-const hexToBytes = (hex: string): number[] => {
-  const clean = hex.replace(/[^0-9a-fA-F]/g, '');
-  const out: number[] = [];
-  for (let i = 0; i + 1 < clean.length; i += 2) out.push(parseInt(clean.slice(i, i + 2), 16));
-  return out;
-};
-const hx = (b: number[], a: number, z: number) => {
-  let s = '';
-  for (let i = a; i <= z && i < b.length; i++) s += b[i].toString(16).padStart(2, '0');
-  return s.toUpperCase();
-};
+/** Uppercase hex for the INCLUSIVE byte range [a, z]. */
+const hx = (b: number[], a: number, z: number) => bytesToHex(b, a, z + 1).toUpperCase();
 
-export function inspectBleFrame(
-  payloadHex: string,
-  codeName?: string,
-): { codeName: string; fields: InspectField[]; bytes: number[] } {
+export interface BleFrameInspection {
+  codeName: string;
+  fields: InspectField[];
+  bytes: number[];
+}
+
+export function inspectBleFrame(payloadHex: string, codeName?: string): BleFrameInspection {
   const bytes = hexToBytes(payloadHex);
   const last = bytes.length - 1;
   const layout = codeName ? LAYOUTS[codeName] : undefined;

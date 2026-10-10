@@ -7,7 +7,7 @@ import {
   type VirtuosoMessageListMethods,
 } from '@virtuoso.dev/message-list';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Contact, Message, MessageStyle, Owner } from '../../shared/types';
+import type { Contact, Message, MessageStyle, TimeFormatPref } from '../../shared/types';
 import { buildMessageMenuItems } from '../features/message-actions/menuItems';
 import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
@@ -17,7 +17,7 @@ import { VIRTUOSO_LICENSE_KEY } from '../lib/virtuosoLicense';
 import { BlockSenderDialog, type BlockSenderDialogPrefill } from './BlockSenderDialog';
 import { ContextMenu } from './ContextMenu';
 import { MessageDivider } from './MessageDivider';
-import { MessageRow } from './MessageRow';
+import { MessageItem } from './MessageItem';
 import {
   buildItems,
   computeDividerInsertIdx,
@@ -31,7 +31,6 @@ import { locationFor, planSync } from './messageListSync';
 interface Props {
   conversationKey: string;
   messages: Message[];
-  owner: Owner | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
   style: MessageStyle;
@@ -50,9 +49,9 @@ interface Props {
 }
 
 interface RowContext {
-  ownerPk: string | undefined;
   contactByPk: Map<string, Contact>;
   style: MessageStyle;
+  timeFormat: TimeFormatPref;
   selectedId: string | null;
   flashId: string | null;
   onSelect: (id: string) => void;
@@ -104,27 +103,28 @@ const ItemRow: ItemContent<Item, RowContext> = ({ data, context }) => {
   const m = data.m;
   const isSelf = m.fromPublicKeyHex === undefined;
   // Resolve the display name here (the row context already holds contactByPk)
-  // and pass it down — MessageRow/MessageItem are name-only, not Contact-aware.
+  // and pass it down — MessageItem is name-only, not Contact-aware.
   const senderName =
     (m.fromPublicKeyHex ? context.contactByPk.get(m.fromPublicKeyHex)?.name : undefined) ??
     deriveSenderName(m.fromPublicKeyHex);
   return (
-    <MessageRow
+    <MessageItem
       message={m}
       isSelf={isSelf}
-      selected={context.selectedId === m.id}
-      flash={context.flashId === m.id}
-      onSelect={() => context.onSelect(m.id)}
-      onContextMenu={(e) => context.onContextMenu(m, e)}
       style={context.style}
       senderName={senderName}
+      timeFormat={context.timeFormat}
+      selected={context.selectedId === m.id}
+      flash={context.flashId === m.id}
+      client={context.client}
+      onSelect={() => context.onSelect(m.id)}
+      onContextMenu={(e) => context.onContextMenu(m, e)}
       onReply={context.onReply}
       onReact={context.onReact}
       onBlock={context.onBlock}
       contextMenuOpen={context.contextMenuOpen}
-      onResend={context.onResend}
-      client={context.client}
       onMacro={context.onMacro}
+      onResend={context.onResend}
     />
   );
 };
@@ -138,7 +138,6 @@ const EmptyState = () => (
 export function MessageList({
   conversationKey,
   messages,
-  owner,
   selectedId,
   onSelect,
   style,
@@ -155,6 +154,7 @@ export function MessageList({
 }: Props) {
   const setActiveKey = useStore((s) => s.setActiveKey);
   const windowFocused = useStore((s) => s.windowFocused);
+  const timeFormat = useStore((s) => s.appSettings.timeFormat);
   const listRef = useRef<VirtuosoMessageListMethods<Item, RowContext>>(null);
   const [menu, setMenu] = useState<MessageMenuState | null>(null);
   const [flashId, setFlashId] = useState<string | null>(null);
@@ -460,9 +460,9 @@ export function MessageList({
   };
 
   const context: RowContext = {
-    ownerPk: owner?.publicKeyHex,
     contactByPk,
     style,
+    timeFormat,
     selectedId,
     flashId,
     onSelect,

@@ -28,7 +28,6 @@ interface Props {
 }
 
 export function DMView({ contact, client }: Props) {
-  const owner = useStore((s) => s.owner);
   const contacts = useStore((s) => s.contacts);
   const messages = useStore((s) => s.messagesByKey[contact.key]) ?? EMPTY_MESSAGES;
   const selectedId = useStore((s) => s.selectedMessageId);
@@ -112,7 +111,6 @@ export function DMView({ contact, client }: Props) {
         <MessageList
           conversationKey={contact.key}
           messages={messages}
-          owner={owner}
           contacts={contacts}
           selectedId={selectedId}
           onSelect={onSelectMessage}

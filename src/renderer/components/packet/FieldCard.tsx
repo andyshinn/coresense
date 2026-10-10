@@ -1,11 +1,11 @@
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
-import { fieldColorVar, type InspectField } from '../../lib/packetInspect';
+import { type BreakdownScope, fieldColorVar, type InspectField } from '../../lib/packetInspect';
 import { BitTable } from './BitTable';
 
 interface Props {
   field: InspectField;
-  scope: string;
+  scope: BreakdownScope;
   hovered: string | null;
   setHovered: (id: string | null) => void;
 }

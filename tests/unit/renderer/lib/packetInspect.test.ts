@@ -139,8 +139,10 @@ describe('inspectPacket secondary sections', () => {
   });
 
   it('builds a plaintext strip: timestamp(4) · flags(1) · message', () => {
-    const { bytes, fields } = buildPlaintextFields(0x01020304, 0x00, 'hi');
-    expect(bytes.slice(0, 4)).toEqual([0x04, 0x03, 0x02, 0x01]); // little-endian
+    const { bytes, fields } = buildPlaintextFields(0x0a0b0c0d, 0x0f, 'hi');
+    expect(bytes.slice(0, 4)).toEqual([0x0d, 0x0c, 0x0b, 0x0a]); // little-endian
+    // Uppercase dumps covering every byte of each field.
+    expect(fields.slice(0, 2).map((f) => f.value)).toEqual(['0D0C0B0A', '0F']);
     expect(fields.map((f) => [f.start, f.end])).toEqual([
       [0, 3],
       [4, 4],

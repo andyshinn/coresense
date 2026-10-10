@@ -1,4 +1,4 @@
-import type { InspectField } from '../../lib/packetInspect';
+import type { BreakdownScope, InspectField } from '../../lib/packetInspect';
 import { ByteStrip } from './ByteStrip';
 import { FieldCard } from './FieldCard';
 
@@ -7,7 +7,7 @@ interface Props {
   count?: number;
   bytes: number[];
   fields: InspectField[];
-  scope: string;
+  scope: BreakdownScope;
   hovered: string | null;
   setHovered: (id: string | null) => void;
 }

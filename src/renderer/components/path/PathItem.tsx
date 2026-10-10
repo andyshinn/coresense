@@ -1,42 +1,34 @@
 import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { useMemo } from 'react';
-import type { Contact, MessageHop, MessagePath } from '../../../shared/types';
+import type { Contact, MessagePath } from '../../../shared/types';
 import { isKnownHashMode } from '../../lib/hopWarmth';
+import { fmtSnr, snrTokenVar } from '../../lib/signal';
 import { cn } from '../../lib/utils';
 import { HopBadge } from '../HopBadge';
 import { PathHashBadge } from '../PathHashBadge';
 import { HopAvatar } from './HopAvatar';
 import { PathTimeline } from './PathTimeline';
-import { candidatesFor } from './resolveRepeater';
-import { fmtSnr, SignalBars, snrTokenVar } from './SignalBars';
+import { resolveHop } from './resolveRepeater';
+import { SignalBars } from './SignalBars';
 
 export function PathItem({
   path,
   knownRepeaters,
   open,
   onToggle,
-  onHopClick,
-  onSelectCandidate,
   subject = 'message',
 }: {
   path: MessagePath;
   knownRepeaters: Contact[];
   open: boolean;
   onToggle: () => void;
-  onHopClick?: (hop: MessageHop) => void;
-  onSelectCandidate?: (hop: MessageHop, contact: Contact) => void;
   subject?: 'message' | 'packet';
 }) {
   const lastRepeater = path.hops[path.hops.length - 2] ?? path.hops[path.hops.length - 1];
-  const lastRepeaterMatch = lastRepeater.kind === 'hop' ? candidatesFor(lastRepeater, knownRepeaters)[0] : null;
-  const lastRepeaterLabel = lastRepeaterMatch?.name ?? (lastRepeater.unnamed ? null : (lastRepeater.name ?? null));
+  const lastRepeaterLabel = resolveHop(lastRepeater, knownRepeaters).label;
   const hopCount = path.hops.filter((h) => h.kind === 'hop').length;
   const conflictCount = useMemo(() => {
-    return path.hops.reduce((n, h) => {
-      if (h.kind !== 'hop') return n;
-      const cands = candidatesFor(h, knownRepeaters);
-      return cands.length > 1 ? n + 1 : n;
-    }, 0);
+    return path.hops.reduce((n, h) => (resolveHop(h, knownRepeaters).hasConflict ? n + 1 : n), 0);
   }, [path.hops, knownRepeaters]);
 
   return (
@@ -55,9 +47,7 @@ export function PathItem({
         </span>
         <HopAvatar hop={lastRepeater} size={24} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[12.5px] font-medium text-cs-text">
-            {lastRepeaterLabel ?? (lastRepeater.kind === 'origin' ? 'Unknown sender' : 'Unknown repeater')}
-          </div>
+          <div className="truncate text-[12.5px] font-medium text-cs-text">{lastRepeaterLabel}</div>
           <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-cs-text-dim">
             <HopBadge hops={hopCount} hashMode={path.hashMode} />
             {isKnownHashMode(path.hashMode) && (
@@ -85,15 +75,7 @@ export function PathItem({
           </span>
         </div>
       </button>
-      {open && (
-        <PathTimeline
-          hops={path.hops}
-          knownRepeaters={knownRepeaters}
-          onHopClick={onHopClick}
-          onSelectCandidate={onSelectCandidate}
-          subject={subject}
-        />
-      )}
+      {open && <PathTimeline hops={path.hops} knownRepeaters={knownRepeaters} subject={subject} />}
     </div>
   );
 }

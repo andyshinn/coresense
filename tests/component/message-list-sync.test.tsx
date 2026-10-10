@@ -137,7 +137,6 @@ function view(over: Partial<React.ComponentProps<typeof MessageList>> = {}) {
     <MessageList
       conversationKey="ch:x"
       messages={[from('m1')]}
-      owner={null}
       contacts={[]}
       selectedId={null}
       onSelect={() => {}}

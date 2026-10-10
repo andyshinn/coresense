@@ -1,7 +1,8 @@
 import { ArrowRight } from 'lucide-react';
-import type { Contact, PathLearnedEvent } from '../../../shared/types';
+import type { Contact, PathHashSize, PathLearnedEvent } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
+import { splitHopsHex } from '../../lib/packetPath';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Separator } from '../ui/separator';
@@ -13,13 +14,8 @@ interface Props {
   onClose: () => void;
 }
 
-function formatHops(hex: string, hashSize: number): string {
-  if (!hex) return 'Flood';
-  const chunkLen = hashSize * 2;
-  const hops: string[] = [];
-  for (let i = 0; i + chunkLen <= hex.length; i += chunkLen) {
-    hops.push(hex.slice(i, i + chunkLen));
-  }
+function formatHops(hex: string, hashSize: PathHashSize): string {
+  const hops = splitHopsHex(hex, hashSize);
   return hops.length === 0 ? 'Flood' : hops.join(' → ');
 }
 

@@ -1,8 +1,9 @@
 import { MapPinOff } from 'lucide-react';
 import { MarkerShape } from '../../../components/map/markers/MarkerShape';
-import { fmtSnr, SignalBars, snrTokenVar } from '../../../components/path/SignalBars';
+import { SignalBars } from '../../../components/path/SignalBars';
 import { Switch } from '../../../components/ui/switch';
 import { NEIGHBOUR_SORTS, type NeighbourSortKey, type ResolvedNeighbour } from '../../../lib/neighbours';
+import { fmtSnr, snrTokenVar } from '../../../lib/signal';
 
 interface NeighbourListProps {
   neighbours: ResolvedNeighbour[]; // already resolved, sorted, and count-sliced

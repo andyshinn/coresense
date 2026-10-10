@@ -14,6 +14,7 @@ import {
   type RouteType,
   Utils,
 } from '@michaelhart/meshcore-decoder';
+import { bytesToHex, hexToBytes } from '../../shared/hex';
 
 export interface BitRow {
   range: string;
@@ -32,6 +33,11 @@ export interface InspectField {
   desc?: string;
   bits?: BitRow[];
 }
+
+/** Which breakdown strip a byte or field card belongs to. It prefixes the hover
+ *  ids (`${scope}:${field.key}`), so strips that reuse field keys on one surface
+ *  never cross-highlight. */
+export type BreakdownScope = 'packet' | 'payload' | 'plain' | 'appdata' | 'ble';
 
 export type Secondary =
   | { kind: 'decrypted'; available: true; bytes: number[]; fields: InspectField[] }
@@ -120,12 +126,6 @@ const hashColor = (name: string): number => {
  *  same kind of section always renders in the same color. */
 export const sectionColor = (name: string): number => SECTION_COLORS[name] ?? hashColor(name);
 
-const hexToBytes = (hex: string): number[] => {
-  const clean = hex.replace(/[^0-9a-fA-F]/g, '');
-  const out: number[] = [];
-  for (let i = 0; i + 1 < clean.length; i += 2) out.push(parseInt(clean.slice(i, i + 2), 16));
-  return out;
-};
 const bin = (v: number, w: number) => (v >>> 0).toString(2).padStart(w, '0');
 
 // Utils.getPayloadTypeName returns compact PascalCase ("GroupText", "TextMessage",
@@ -174,7 +174,7 @@ export function buildPlaintextFields(
       start: 0,
       end: 3,
       colorIdx: sectionColor('Timestamp'),
-      value: bytesHex(ts, 0, 3),
+      value: bytesToHex(ts).toUpperCase(),
       desc: 'Sender clock (unix, little-endian).',
     },
     {
@@ -183,7 +183,7 @@ export function buildPlaintextFields(
       start: 4,
       end: 4,
       colorIdx: sectionColor('Flags'),
-      value: bytesHex([flags & 0xff], 0, 0),
+      value: bytesToHex([flags & 0xff]).toUpperCase(),
       desc: `0x${(flags & 0xff).toString(16).padStart(2, '0')}`,
     },
   ];
@@ -199,12 +199,6 @@ export function buildPlaintextFields(
     });
   return { bytes, fields };
 }
-
-const bytesHex = (b: number[], a: number, z: number) => {
-  let s = '';
-  for (let i = a; i <= z && i < b.length; i++) s += b[i].toString(16).padStart(2, '0');
-  return s.toUpperCase();
-};
 
 // Payload segment offsets from analyzeStructure() are payload-relative in every
 // @michaelhart/meshcore-decoder payload branch (each calls its sub-decoder with

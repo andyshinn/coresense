@@ -26,7 +26,6 @@ interface Props {
 }
 
 export function ChannelView({ channel, client }: Props) {
-  const owner = useStore((s) => s.owner);
   const contacts = useStore((s) => s.contacts);
   const messages = useStore((s) => s.messagesByKey[channel.key]) ?? EMPTY_MESSAGES;
   const selectedId = useStore((s) => s.selectedMessageId);
@@ -142,7 +141,6 @@ export function ChannelView({ channel, client }: Props) {
         <MessageList
           conversationKey={channel.key}
           messages={messages}
-          owner={owner}
           contacts={contacts}
           selectedId={selectedId}
           onSelect={onSelectMessage}
