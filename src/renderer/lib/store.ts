@@ -65,6 +65,7 @@ import type {
   CmSortField,
   ContactManagerState,
   LivePacket,
+  MacroPreviewMode,
   MacroStudioBridge,
   NeighboursViewState,
   PacketLogView,
@@ -317,6 +318,12 @@ interface CoreState {
   // panel can insert into its editor. Null when no studio is open. Not persisted.
   macroStudioBridge: MacroStudioBridge | null;
   setMacroStudioBridge: (bridge: MacroStudioBridge | null) => void;
+  /** The open studio's preview mode, for the Reference panel's sample context.
+   *  Only meaningful while `macroStudioBridge` is set. Deliberately its own
+   *  field: setting it never touches `ui`, so toggling the mode can't re-open
+   *  a rail the user collapsed. */
+  macroStudioPreviewMode: MacroPreviewMode;
+  setMacroStudioPreviewMode: (mode: MacroPreviewMode) => void;
 
   // Repeater Neighbours view (map + rail list) — see NeighboursViewState.
   neighbours: NeighboursViewState;
@@ -638,6 +645,7 @@ export const useStore = create<CoreState>((set) => ({
   repeaterAdminTab: null,
   repeaterAdminActiveTab: null,
   macroStudioBridge: null,
+  macroStudioPreviewMode: 'send',
   neighbours: NB_DEFAULTS,
 
   ui: DEFAULT_UI_STATE,
@@ -791,6 +799,7 @@ export const useStore = create<CoreState>((set) => ({
       // rail is open (open-only — never auto-collapses).
       ui: bridge ? { ...s.ui, rightOpen: true } : s.ui,
     })),
+  setMacroStudioPreviewMode: (mode) => set(() => ({ macroStudioPreviewMode: mode })),
   setNeighboursFor: (key) =>
     set((s) =>
       s.neighbours.forKey === key

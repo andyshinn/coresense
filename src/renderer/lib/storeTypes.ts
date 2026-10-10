@@ -73,9 +73,11 @@ export type MacroPreviewMode = 'reply' | 'send';
 
 /** A live handle the open Macro studio publishes to the store so the Reference
  *  panel — rendered in the right rail, a sibling of the center pane — can insert
- *  variables/filters into the studio's editor and track its preview mode. */
+ *  variables/filters into the studio's editor. Only the stable insert callbacks
+ *  belong here. The preview mode changes while the studio is open, so it is
+ *  published separately (`macroStudioPreviewMode`); bundling it in here meant
+ *  every Reply/New send toggle re-published the bridge and re-opened the rail. */
 export interface MacroStudioBridge {
-  previewMode: MacroPreviewMode;
   insertVar: (name: string) => void;
   insertText: (text: string) => void;
 }
