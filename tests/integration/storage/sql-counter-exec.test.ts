@@ -29,7 +29,8 @@ describe('countWritesTo — db.exec coverage', () => {
     discoveredStore.upsert(record(0), { onRadio: true, nowMs: 1_750_000_000_000, heardLive: false });
 
     const counter = countDiscoveredWrites();
-    // reconcileOnRadio issues `db.exec('UPDATE discovered_contacts SET on_radio = 0')`.
+    // reconcileOnRadio issues `db.exec('UPDATE discovered_contacts SET on_radio = 0')`
+    // inside a transaction; the BEGIN/COMMIT around it are not counted.
     discoveredStore.reconcileOnRadio([]);
     counter.restore();
 

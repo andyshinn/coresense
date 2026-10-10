@@ -14,7 +14,10 @@ export interface SqlCounter {
  *  DatabaseSync's `prepare` (decorating matching statements' `run`) and its
  *  `exec` — whole-table writes like reconcileOnRadio/clearDiscoveredOnly go
  *  through `db.exec`, so counting only prepared statements would report an
- *  exec-based quadratic pattern as zero. */
+ *  exec-based quadratic pattern as zero. Transaction control (the BEGIN /
+ *  COMMIT / ROLLBACK that withTransaction issues through `db.exec`) is not a
+ *  write to `table` and is never counted, so wrapping a write path in a
+ *  transaction leaves its expected count unchanged. */
 export function countWritesTo(table: string): SqlCounter {
   const pattern = new RegExp(String.raw`^\s*(insert|update|delete)\b[\s\S]*\b${table}\b`, 'i');
   const db = openDb();

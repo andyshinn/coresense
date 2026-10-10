@@ -7,7 +7,7 @@ import {
   hopsFromOutPathLen,
 } from '../../shared/contacts/discovered';
 import type { BlockRule } from '../../shared/types';
-import { openDb } from './db';
+import { all, get, openDb, withTransaction } from './db';
 
 interface Row {
   pubkey: string;
@@ -111,8 +111,7 @@ export const discoveredStore = {
        WHERE pubkey = ?`,
     );
     const written: typeof changed = [];
-    db.exec('BEGIN');
-    try {
+    withTransaction(db, () => {
       for (const r of changed) {
         const fav = r.favourite ? 1 : 0;
         // UPDATE-only: the lib can report a contact before we've inserted its
@@ -122,11 +121,7 @@ export const discoveredStore = {
         // leave the row permanently stale, so only remember what actually hit.
         if (stmt.run(r.onRadio ? 1 : 0, fav, fav, r.publicKeyHex).changes > 0) written.push(r);
       }
-      db.exec('COMMIT');
-    } catch (err) {
-      db.exec('ROLLBACK');
-      throw err;
-    }
+    });
     // Only record after a successful commit, so a rolled-back batch re-writes.
     for (const r of written) lastWrittenFlags.set(r.publicKeyHex, packFlags(r.onRadio, r.favourite));
   },
@@ -193,14 +188,38 @@ export const discoveredStore = {
 
   list(blockRules: BlockRule[]): DiscoveredContact[] {
     const db = openDb();
-    const rows = db.prepare(`SELECT * FROM discovered_contacts ORDER BY last_advert_unix DESC`).all() as unknown as Row[];
+    const rows = all<Row>(db.prepare(`SELECT * FROM discovered_contacts ORDER BY last_advert_unix DESC`));
     return rows.map((r) => rowToDiscovered(r, blockRules));
   },
 
+  /** The raw row, column names and all. Production code outside this module
+   *  should use a purpose-built accessor (isOnRadio, getObservedPath) instead,
+   *  so the column layout stays private to the store. */
   get(pubkey: string): Row | null {
     const db = openDb();
-    const row = db.prepare(`SELECT * FROM discovered_contacts WHERE pubkey = ?`).get(pubkey) as Row | undefined;
-    return row ?? null;
+    return get<Row>(db.prepare(`SELECT * FROM discovered_contacts WHERE pubkey = ?`), pubkey) ?? null;
+  },
+
+  /** The stored on_radio flag, or null when we have no row for this pubkey —
+   *  which callers read as "never discovered", so the two must not collapse
+   *  into one `false`. */
+  isOnRadio(pubkey: string): boolean | null {
+    const db = openDb();
+    const row = get<{ on_radio: number }>(db.prepare(`SELECT on_radio FROM discovered_contacts WHERE pubkey = ?`), pubkey);
+    return row ? row.on_radio !== 0 : null;
+  },
+
+  /** The stored INBOUND advert-path measurement (see setObservedPath), or null
+   *  when there is no row or it was never measured. */
+  getObservedPath(pubkey: string): { hops: number; pathHex: string; recvUnix: number } | null {
+    const db = openDb();
+    const row = get<Pick<Row, 'observed_hops' | 'observed_path_hex' | 'observed_at_unix'>>(
+      db.prepare(`SELECT observed_hops, observed_path_hex, observed_at_unix FROM discovered_contacts WHERE pubkey = ?`),
+      pubkey,
+    );
+    // >= 0, not truthiness: 0 hops is a measurement, not a miss.
+    if (!row || row.observed_hops < 0) return null;
+    return { hops: row.observed_hops, pathHex: row.observed_path_hex, recvUnix: row.observed_at_unix };
   },
 
   /** Advance last_heard_ms for a pubkey we just received something from — a DM,
@@ -312,12 +331,17 @@ export const discoveredStore = {
    *
    *  Clears the whole flag cache by design: the blanket UPDATE invalidates what
    *  applyRadioFlags last wrote for every row, so the next `discovered` frame
-   *  re-writes the lib's pool once. That is once per sync, not per frame. */
+   *  re-writes the lib's pool once. That is once per sync, not per frame.
+   *
+   *  One transaction, so a failure part-way through can't leave the whole pool
+   *  cleared to off-radio with only some rows set back. */
   reconcileOnRadio(onRadioPubkeys: string[]): void {
     const db = openDb();
-    db.exec('UPDATE discovered_contacts SET on_radio = 0');
-    const stmt = db.prepare('UPDATE discovered_contacts SET on_radio = 1 WHERE pubkey = ?');
-    for (const pk of onRadioPubkeys) stmt.run(pk);
+    withTransaction(db, () => {
+      db.exec('UPDATE discovered_contacts SET on_radio = 0');
+      const stmt = db.prepare('UPDATE discovered_contacts SET on_radio = 1 WHERE pubkey = ?');
+      for (const pk of onRadioPubkeys) stmt.run(pk);
+    });
     invalidateFlagCache();
   },
 
