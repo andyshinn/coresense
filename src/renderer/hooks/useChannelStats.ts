@@ -8,12 +8,13 @@ import { useStore } from '../lib/store';
 // pass; without sharing, expanding the section would double every fetch.
 //
 // The cache is keyed on a cheap scalar "version" of the message list rather
-// than the array's identity, because `store.ts`'s `applyMessageState` rebuilds
-// EVERY key's array (new identity, same contents) on any message's state
-// transition. Keying on identity meant an unrelated DM's pending → sent →
-// delivered churn replaced this channel's array too, re-running the effect and
-// re-hitting the server for data that provably hasn't changed. See
-// `statsVersion` for the two properties that scalar has to keep.
+// than the array's identity. `store.ts`'s `updateMessageById` now rebuilds only
+// the list holding the updated id, but that list is often this channel's own:
+// `appendMessagePath` replaces it (new identity, same timestamps) on every ✓×N
+// heard-chip update, and `applyMessageState` does the same when one of its
+// messages changes state. Keying on identity would re-run the effect and
+// re-hit the server for data that provably hasn't changed. See `statsVersion`
+// for the two properties that scalar has to keep.
 const inflight = new Map<string, { version: string; promise: Promise<ChannelStats> }>();
 
 /** Distinguishes requests against different servers/credentials so a stale
@@ -33,9 +34,9 @@ function clientId(client: ApiClient): string {
  *     `length:lastTs` version missed that entirely (issue #23): the version
  *     stayed put, the in-flight cache replayed the previous promise, and the
  *     section kept rendering stale figures.
- *  2. It STAYS PUT when the array is rebuilt with the same contents, per the
- *     `applyMessageState` note on `inflight` above. This is the constraint
- *     that rules out simply keying on the array identity.
+ *  2. It STAYS PUT when the array is rebuilt with the same timestamps, per the
+ *     heard-chip / state-change note on `inflight` above. This is the
+ *     constraint that rules out simply keying on the array identity.
  *
  *  The `ts` term is a positional 32-bit fold (the classic `h * 31 + x` string
  *  hash shape). It is O(n) in the message count, so it runs behind a `useMemo`
