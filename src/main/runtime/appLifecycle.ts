@@ -3,6 +3,8 @@
 export interface AppLifecycle {
   quit(): void;
   relaunch(): void;
+  /** app.exit(): skips before-quit/will-quit and so the whole shutdown
+   *  pipeline. Not for routes — to restart, relaunch() then quit(). */
   exit(code?: number): void;
 }
 
