@@ -19,10 +19,3 @@ export interface PaletteItem {
   keywords?: string;
   run: () => void;
 }
-
-export interface ToolItem {
-  key: string;
-  label: string;
-  hint: string;
-  icon: LucideIcon;
-}
