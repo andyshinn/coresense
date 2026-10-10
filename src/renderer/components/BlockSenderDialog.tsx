@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { BlockRule } from '../../shared/types';
+import type { BlockRule, BlockRuleType } from '../../shared/types';
 import { type ApiClient, api } from '../lib/api';
 import { notify } from '../lib/notify';
 import { Button } from './ui/button';
@@ -32,14 +32,27 @@ interface Props {
   onClose: () => void;
 }
 
+type IdentifierType = Exclude<BlockRuleType, 'nameRegex'>;
+
+/** The exact-match identifiers a prefill can carry, in rule order. Each type
+ *  doubles as its prefill field. The regex row has its own shape (an editable
+ *  pattern), so it stays separate. */
+const IDENTIFIERS: Array<{ type: IdentifierType; label: string }> = [
+  { type: 'pubkey', label: 'Public key' },
+  { type: 'pubkeyPrefix', label: 'Key prefix' },
+  { type: 'name', label: 'Name' },
+];
+
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export function BlockSenderDialog({ client, open, prefill, onClose }: Props) {
-  const [pubkeyChecked, setPubkeyChecked] = useState(prefill.pubkey != null);
-  const [prefixChecked, setPrefixChecked] = useState(prefill.pubkeyPrefix != null);
-  const [nameChecked, setNameChecked] = useState(prefill.name != null);
+  const [checked, setChecked] = useState<Record<IdentifierType, boolean>>(() => ({
+    pubkey: prefill.pubkey != null,
+    pubkeyPrefix: prefill.pubkeyPrefix != null,
+    name: prefill.name != null,
+  }));
   const [regexChecked, setRegexChecked] = useState(false);
   const [regexSource, setRegexSource] = useState(prefill.name ? `^${escapeRegex(prefill.name)}$` : '');
   const [retroChecked, setRetroChecked] = useState(true);
@@ -56,7 +69,7 @@ export function BlockSenderDialog({ client, open, prefill, onClose }: Props) {
       return false;
     }
   })();
-  const anyChecked = pubkeyChecked || prefixChecked || nameChecked || regexChecked;
+  const anyChecked = IDENTIFIERS.some(({ type }) => checked[type]) || regexChecked;
   const submitDisabled = !anyChecked || !regexValid || submitting || client == null;
 
   async function submit() {
@@ -65,49 +78,25 @@ export function BlockSenderDialog({ client, open, prefill, onClose }: Props) {
     const now = Date.now();
     const tsFrom = retroChecked ? (windowMs === 0 ? 0 : now - windowMs) : now;
 
-    const rules: Array<Omit<BlockRule, 'id' | 'createdAt' | 'matchCount'>> = [];
-    if (pubkeyChecked && prefill.pubkey) {
-      rules.push({
-        type: 'pubkey',
-        pattern: prefill.pubkey,
-        tsFrom,
-        enabled: true,
-        note: note || undefined,
-      });
-    }
-    if (prefixChecked && prefill.pubkeyPrefix) {
-      rules.push({
-        type: 'pubkeyPrefix',
-        pattern: prefill.pubkeyPrefix,
-        tsFrom,
-        enabled: true,
-        note: note || undefined,
-      });
-    }
-    if (nameChecked && prefill.name) {
-      rules.push({
-        type: 'name',
-        pattern: prefill.name,
-        tsFrom,
-        enabled: true,
-        note: note || undefined,
-      });
-    }
-    if (regexChecked && regexSource.length > 0) {
-      rules.push({
-        type: 'nameRegex',
-        pattern: regexSource,
-        tsFrom,
-        enabled: true,
-        note: note || undefined,
-      });
-    }
+    const rule = (type: BlockRuleType, pattern: string): Omit<BlockRule, 'id' | 'createdAt' | 'matchCount'> => ({
+      type,
+      pattern,
+      tsFrom,
+      enabled: true,
+      note: note || undefined,
+    });
+    const rules = IDENTIFIERS.flatMap(({ type }) => {
+      const pattern = prefill[type];
+      return checked[type] && pattern ? [rule(type, pattern)] : [];
+    });
+    if (regexChecked && regexSource.length > 0) rules.push(rule('nameRegex', regexSource));
+
     try {
       await api.addBlockRules(client, rules);
       notify.success(`Added ${rules.length} block rule${rules.length === 1 ? '' : 's'}`);
       onClose();
     } catch (err) {
-      notify.error(`Block failed: ${(err as Error).message}`, err);
+      notify.failure('Block', err);
     } finally {
       setSubmitting(false);
     }
@@ -129,33 +118,17 @@ export function BlockSenderDialog({ client, open, prefill, onClose }: Props) {
         <div className="space-y-3 text-sm">
           <div className="space-y-2">
             <Label className="text-xs uppercase text-cs-text-dim">Identifiers from this message</Label>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={pubkeyChecked}
-                disabled={prefill.pubkey == null}
-                onCheckedChange={(v) => setPubkeyChecked(v === true)}
-              />
-              <span className="flex-1">Public key</span>
-              <code className="text-xs">{prefill.pubkey ?? '—'}</code>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={prefixChecked}
-                disabled={prefill.pubkeyPrefix == null}
-                onCheckedChange={(v) => setPrefixChecked(v === true)}
-              />
-              <span className="flex-1">Key prefix</span>
-              <code className="text-xs">{prefill.pubkeyPrefix ?? '—'}</code>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={nameChecked}
-                disabled={prefill.name == null}
-                onCheckedChange={(v) => setNameChecked(v === true)}
-              />
-              <span className="flex-1">Name</span>
-              <code className="text-xs">{prefill.name ?? '—'}</code>
-            </div>
+            {IDENTIFIERS.map(({ type, label }) => (
+              <div key={type} className="flex items-center gap-2">
+                <Checkbox
+                  checked={checked[type]}
+                  disabled={prefill[type] == null}
+                  onCheckedChange={(v) => setChecked((c) => ({ ...c, [type]: v === true }))}
+                />
+                <span className="flex-1">{label}</span>
+                <code className="text-xs">{prefill[type] ?? '—'}</code>
+              </div>
+            ))}
             <div className="flex items-center gap-2">
               <Checkbox checked={regexChecked} onCheckedChange={(v) => setRegexChecked(v === true)} />
               <span className="w-24">Name regex</span>
@@ -166,7 +139,7 @@ export function BlockSenderDialog({ client, open, prefill, onClose }: Props) {
                 placeholder="^Bob.*$"
               />
             </div>
-            {regexChecked && !regexValid && <p className="text-xs text-red-500">Invalid regex</p>}
+            {regexChecked && !regexValid && <p className="text-xs text-cs-danger">Invalid regex</p>}
           </div>
 
           <div className="space-y-2 border-t pt-2">
