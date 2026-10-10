@@ -44,6 +44,16 @@ if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
 
+// jsdom implements neither pointer-capture method on Element. ResizeHandle and
+// the Packet Log's column handles call them to keep receiving moves once the
+// pointer leaves their few-pixel hit area.
+if (typeof Element !== 'undefined' && !Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = () => {};
+}
+if (typeof Element !== 'undefined' && !Element.prototype.releasePointerCapture) {
+  Element.prototype.releasePointerCapture = () => {};
+}
+
 // Vitest 4's built-in jsdom environment deliberately does not copy
 // localStorage/sessionStorage onto globalThis (Node 22+ ships its own gated
 // globals under those names, and vitest leaves them alone rather than

@@ -3,15 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../../../../src/renderer/lib/api', () => ({
   api: { checkForUpdates: vi.fn(async () => ({ ok: true, updateState: null })) },
 }));
-vi.mock('../../../../../src/renderer/lib/notify', () => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
+vi.mock('../../../../../src/renderer/lib/notify', () => import('../../../../support/notifyMock'));
 
 import { buildActionItems } from '../../../../../src/renderer/features/command-palette/items/actions';
 import { api } from '../../../../../src/renderer/lib/api';
-import { notify } from '../../../../../src/renderer/lib/notify';
-
-const client = { baseUrl: 'http://x', apiKey: 'k' };
+import { TEST_CLIENT as client } from '../../../../support/apiClient';
+import { notify } from '../../../../support/notifyMock';
 
 function checkForUpdatesAction() {
   const items = buildActionItems({

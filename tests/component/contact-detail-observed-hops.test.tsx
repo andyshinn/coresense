@@ -3,12 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // vi.mock factories are hoisted above the file body, so the doubles they close
 // over have to be hoisted with them.
-const { getAdvertPath, notify } = vi.hoisted(() => ({
-  getAdvertPath: vi.fn(),
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
+const { getAdvertPath } = vi.hoisted(() => ({ getAdvertPath: vi.fn() }));
 
-vi.mock('@/lib/notify', () => ({ notify }));
+vi.mock('@/lib/notify', () => import('../support/notifyMock'));
 vi.mock('@/lib/api', async () => {
   // ApiError is a real class the hook instanceof-checks; only the calls are doubled.
   const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
@@ -23,6 +20,8 @@ import { useStore } from '@/lib/store';
 import { ContactDetail } from '@/shell/rightrail/sections/ContactDetail';
 import { resetAdvertPathMemo } from '../../src/renderer/hooks/useAdvertPath';
 import type { DiscoveredContact } from '../../src/shared/contacts/discovered';
+import { TEST_CLIENT as client } from '../support/apiClient';
+import { notify, resetNotifyMock } from '../support/notifyMock';
 
 // #45 item 7: the rail shows two hop counts. `hops` is the LEARNED OUTBOUND
 // route (out_path_len) and the new one is what the radio counted on the last
@@ -30,7 +29,6 @@ import type { DiscoveredContact } from '../../src/shared/contacts/discovered';
 // questions, so the rail has to say which is which.
 
 const PK = 'd4'.repeat(32);
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 
 function makeRow(publicKeyHex: string, over: Partial<DiscoveredContact> = {}): DiscoveredContact {
   return {
@@ -65,9 +63,7 @@ const button = () => screen.getByRole('button', { name: 'Measure heard hops' }) 
 
 beforeEach(() => {
   getAdvertPath.mockReset();
-  notify.success.mockReset();
-  notify.info.mockReset();
-  notify.error.mockReset();
+  resetNotifyMock();
   // One automatic measurement per pubkey per session is module state.
   resetAdvertPathMemo();
   vi.useFakeTimers({ shouldAdvanceTime: true });

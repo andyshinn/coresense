@@ -301,10 +301,6 @@ describe('ResizeHandle coalesces pointermoves into one frame', () => {
     cancelSpy = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation((id: number) => {
       frames[id - 1] = () => {};
     });
-    // jsdom implements neither of these on Element; the handle uses them to keep
-    // receiving moves once the pointer leaves the 2px hit area.
-    if (!Element.prototype.setPointerCapture) Element.prototype.setPointerCapture = () => {};
-    if (!Element.prototype.releasePointerCapture) Element.prototype.releasePointerCapture = () => {};
   });
 
   afterEach(() => {

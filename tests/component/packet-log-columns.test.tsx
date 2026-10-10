@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PacketLog } from '@/components/PacketLog';
 import type { LivePacket } from '@/lib/store';
 import { useStore } from '@/lib/store';
@@ -23,11 +23,6 @@ const pkt = (i: number): LivePacket => ({
 const template = (container: HTMLElement) =>
   (container.querySelector('section') as HTMLElement).style.getPropertyValue('--packet-log-cols');
 const handle = (name: string) => screen.getByRole('separator', { name: `Resize ${name} column` });
-
-beforeAll(() => {
-  if (!Element.prototype.setPointerCapture) Element.prototype.setPointerCapture = () => {};
-  if (!Element.prototype.releasePointerCapture) Element.prototype.releasePointerCapture = () => {};
-});
 
 beforeEach(() => {
   useStore.setState({ packetLogColumns: {}, selectedPacketId: null, packetLogView: null });

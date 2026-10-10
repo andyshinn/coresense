@@ -3,28 +3,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // vi.mock factories are hoisted above the file body, so the doubles they close
 // over have to be hoisted with them.
-const { refreshContacts, notify } = vi.hoisted(() => ({
-  refreshContacts: vi.fn(),
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
+const { refreshContacts } = vi.hoisted(() => ({ refreshContacts: vi.fn() }));
 
 // The panel tree (ContactManager → Toolbar/ContactRows) touches the api client
 // and notify at module scope; stub both so only the refresh path is live.
-vi.mock('@/lib/notify', () => ({ notify }));
+vi.mock('@/lib/notify', () => import('../support/notifyMock'));
 vi.mock('@/lib/api', () => ({
   api: { refreshContacts, addToRadio: vi.fn(), removeFromRadio: vi.fn(), clearDiscovered: vi.fn() },
 }));
 
 import { ContactManager } from '@/panels/contacts/ContactManager';
+import { TEST_CLIENT as client } from '../support/apiClient';
+import { notify, resetNotifyMock } from '../support/notifyMock';
 
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 const button = () => screen.getByRole('button', { name: 'Refresh contacts from radio' }) as HTMLButtonElement;
 
 beforeEach(() => {
   refreshContacts.mockReset();
-  notify.success.mockReset();
-  notify.info.mockReset();
-  notify.error.mockReset();
+  resetNotifyMock();
 });
 
 // #45 item 6: before this the only way to re-read the radio's contact store was

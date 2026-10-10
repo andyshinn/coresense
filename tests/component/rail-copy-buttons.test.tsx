@@ -1,17 +1,14 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { notify } = vi.hoisted(() => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
-
-vi.mock('@/lib/notify', () => ({ notify }));
+vi.mock('@/lib/notify', () => import('../support/notifyMock'));
 
 import { useStore } from '@/lib/store';
 import { ContactDetail } from '@/shell/rightrail/sections/ContactDetail';
 import { VersionSection } from '@/shell/rightrail/sections/VersionSection';
 import type { DiscoveredContact } from '../../src/shared/contacts/discovered';
 import type { Capabilities } from '../../src/shared/types';
+import { notify } from '../support/notifyMock';
 
 // The rail's copy affordances confirm with CopyButton's anchored "Copied!"
 // popover, like every other inline copyable value, rather than a toast
