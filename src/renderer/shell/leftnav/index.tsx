@@ -18,7 +18,7 @@ import {
   SidebarMenuSub,
   SidebarRail,
 } from '../../components/ui/sidebar';
-import { useUnreadByKey } from '../../hooks/useUnreads';
+import { shouldShowUnread, useUnreadByKey } from '../../hooks/useUnreads';
 import { type ApiClient, api } from '../../lib/api';
 import { capList } from '../../lib/capList';
 import { notify } from '../../lib/notify';
@@ -170,22 +170,28 @@ export function LeftNav({ client }: LeftNavProps) {
   // Single combined open flag for the wrapping "Contacts" branch in nested mode.
   const openContacts = leftNavOpen.contacts;
 
+  const windowFocused = useStore((s) => s.windowFocused);
   const renderContactSubItem = useCallback(
-    (c: Contact) => (
-      <ContactSubItem
-        key={c.key}
-        contact={c}
-        active={activeKey === c.key}
-        pinned={pinSet.has(c.key)}
-        unread={unreadByKey[c.key] ?? 0}
-        onSelect={() => setActiveKey(c.key)}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          setContactMenu({ contact: c, x: e.clientX, y: e.clientY });
-        }}
-      />
-    ),
-    [activeKey, pinSet, unreadByKey, setActiveKey],
+    (c: Contact) => {
+      const active = activeKey === c.key;
+      const unread = unreadByKey[c.key] ?? 0;
+      return (
+        <ContactSubItem
+          key={c.key}
+          contact={c}
+          active={active}
+          pinned={pinSet.has(c.key)}
+          unread={unread}
+          showUnread={shouldShowUnread(unread, active, windowFocused)}
+          onSelect={() => setActiveKey(c.key)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setContactMenu({ contact: c, x: e.clientX, y: e.clientY });
+          }}
+        />
+      );
+    },
+    [activeKey, pinSet, unreadByKey, windowFocused, setActiveKey],
   );
 
   const renderContactKindSub = useCallback(

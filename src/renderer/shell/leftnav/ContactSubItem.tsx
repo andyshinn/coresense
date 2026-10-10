@@ -1,11 +1,8 @@
-import { BellOff, Star } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import type { Contact } from '../../../shared/types';
 import { SidebarMenuSubButton, SidebarMenuSubItem } from '../../components/ui/sidebar';
-import { shouldShowUnread } from '../../hooks/useUnreads';
 import { CONTACT_ICON } from '../../lib/conversationIcons';
-import { useStore } from '../../lib/store';
-import { ACTIVE_BUTTON_CLASS, UnreadChip } from './atoms';
+import { ACTIVE_BUTTON_CLASS, NavRowTrailing } from './atoms';
 
 /** Single contact row in a sub-list with unread/mute/pin badges. */
 export function ContactSubItem({
@@ -13,6 +10,7 @@ export function ContactSubItem({
   active,
   pinned,
   unread,
+  showUnread,
   onSelect,
   onContextMenu,
 }: {
@@ -20,12 +18,13 @@ export function ContactSubItem({
   active: boolean;
   pinned: boolean;
   unread: number;
+  /** From shouldShowUnread, computed by the list so the window-focus
+   *  subscription is one per list rather than one per row. */
+  showUnread: boolean;
   onSelect: () => void;
   onContextMenu: (e: MouseEvent) => void;
 }) {
   const Icon = CONTACT_ICON[contact.kind];
-  const windowFocused = useStore((s) => s.windowFocused);
-  const showUnread = shouldShowUnread(unread, active, windowFocused);
   return (
     <SidebarMenuSubItem>
       <SidebarMenuSubButton
@@ -38,9 +37,7 @@ export function ContactSubItem({
         <button type="button">
           <Icon />
           <span className="flex-1 truncate">{contact.name}</span>
-          {showUnread && <UnreadChip count={unread} />}
-          {contact.muted && <BellOff aria-label="muted" className="size-3 text-cs-text-dim/60" />}
-          {pinned && <Star aria-hidden="true" className="size-3 text-cs-accent" fill="currentColor" />}
+          <NavRowTrailing unread={unread} showUnread={showUnread} muted={contact.muted} pinned={pinned} />
         </button>
       </SidebarMenuSubButton>
     </SidebarMenuSubItem>
