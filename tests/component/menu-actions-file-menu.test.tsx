@@ -36,9 +36,10 @@ describe('File menu actions', () => {
     expect(useStore.getState().addChannelOpen).toBe(true);
   });
 
-  it('newChannel does nothing without a connected radio', () => {
+  it('newChannel asks for a radio instead of opening without one', () => {
     createMenuActionHandler(deps())({ kind: 'newChannel' });
     expect(useStore.getState().addChannelOpen).toBe(false);
+    expect(notify.info).toHaveBeenCalledWith('Connect a radio first');
   });
 
   it('addContact opens the contact management tool', () => {

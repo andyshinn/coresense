@@ -129,8 +129,10 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
       }
       case 'newChannel': {
         // Same gate as the palette's "Add channel…": joining needs a radio.
+        // Say so rather than swallow the click.
         const st = useStore.getState();
         if (selectIsConnected(st)) st.setAddChannelOpen(true);
+        else notify.info('Connect a radio first');
         break;
       }
       case 'addContact':
