@@ -1,8 +1,8 @@
 // Wire production implementations of the injectable seams. index.ts imports
 // this as its second side-effect import, right after
-// '../runtime/devUserDataRedirect', and ES modules evaluate in import order: the
-// dev userData redirect has applied before this runs, and this runs before any
-// module index.ts imports after it is evaluated. Modules this file itself
+// src/main/runtime/devUserDataRedirect.ts, and ES modules evaluate in import
+// order: the dev userData redirect has applied before this runs, and this runs
+// before any module index.ts imports after it is evaluated. Modules this file itself
 // imports are evaluated earlier, so they must still read the seams lazily.
 import { app, safeStorage } from 'electron';
 import { setTileCacheOpener } from '../map/tile-cache';
