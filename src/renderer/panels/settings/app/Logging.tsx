@@ -28,7 +28,7 @@ export function LoggingSection({ client }: SectionProps) {
   const saved = useStore((s) => s.appSettings.logging);
   const capabilities = useStore((s) => s.capabilities);
 
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'app-logs',
     saved,
     eq,
@@ -36,15 +36,7 @@ export function LoggingSection({ client }: SectionProps) {
   });
 
   return (
-    <SettingsSection
-      id="app-logs"
-      icon={FileText}
-      title="Logs"
-      dirty={dirty}
-      saving={saving}
-      canSave={!!client}
-      onSave={save}
-    >
+    <SettingsSection {...sectionProps} icon={FileText} title="Logs" canSave={!!client}>
       <Row
         label="Minimum level"
         description="Filter how verbose logs are. `debug` is useful while developing; `info` is fine for everyday use."

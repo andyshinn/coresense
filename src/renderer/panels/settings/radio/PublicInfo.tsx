@@ -33,7 +33,7 @@ export function PublicInfoSection({ client }: SectionProps) {
     [identity.name, identity.lat, identity.lon, identity.sharePositionInAdvert, owner?.name],
   );
 
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'radio-public-info',
     saved,
     eq: eqPublicInfo,
@@ -58,14 +58,11 @@ export function PublicInfoSection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="radio-public-info"
+      {...sectionProps}
       icon={UserCircle}
       title="Public Info"
       description="What the radio advertises about itself — name and position."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client}
-      onSave={save}
     >
       <Row
         label="Name"

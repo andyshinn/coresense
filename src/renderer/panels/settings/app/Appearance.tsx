@@ -1,5 +1,5 @@
 import { Sun } from 'lucide-react';
-import type { AppSettings as AppSettingsType, IdentityColorMode } from '../../../../shared/types';
+import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { Row, Select } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { useStore } from '../../../lib/store';
@@ -44,7 +44,7 @@ export function AppearanceSection({ client }: SectionProps) {
   // when the theme is changed from outside this panel. See issue #22.
   const themePref = useStore((s) => s.ui.themePref);
   const setThemePref = useStore((s) => s.setThemePref);
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'app-appearance',
     saved,
     eq: eqAppearance,
@@ -63,14 +63,11 @@ export function AppearanceSection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="app-appearance"
+      {...sectionProps}
       icon={Sun}
       title="Appearance"
       description="Visual preferences for the app window."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client}
-      onSave={save}
     >
       <Row
         label="Theme"
@@ -90,7 +87,7 @@ export function AppearanceSection({ client }: SectionProps) {
           <Select
             value={draft.identityColorMode}
             options={IDENTITY_COLOR_OPTIONS}
-            onChange={(mode) => setDraft((s) => ({ ...s, identityColorMode: mode as IdentityColorMode }))}
+            onChange={(identityColorMode) => setDraft((s) => ({ ...s, identityColorMode }))}
           />
         }
       />

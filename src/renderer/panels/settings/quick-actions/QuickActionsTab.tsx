@@ -64,7 +64,7 @@ function ActionPicker({
 export function QuickActionsTab({ client }: SectionProps) {
   const saved = useStore((s) => s.appSettings);
   const owner = useStore((s) => s.owner);
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'quickActions-actions',
     saved,
     eq: eqQuickActions,
@@ -77,14 +77,11 @@ export function QuickActionsTab({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="quickActions-actions"
+      {...sectionProps}
       icon={Zap}
       title="Owner Card Quick Actions"
       description="Choose up to 4 actions for the owner card. The first is the large primary button."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client}
-      onSave={save}
     >
       <div className="flex flex-col gap-1.5">
         {slots.map((id, i) => {

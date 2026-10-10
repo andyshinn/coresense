@@ -21,7 +21,7 @@ const eqPacketLog = (a: PacketLogSettings, b: PacketLogSettings) =>
 export function PacketLogSection() {
   const saved = useStore((s) => s.ui.packetLog);
   const setPacketLogSettings = useStore((s) => s.setPacketLogSettings);
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'extra-packetlog',
     saved,
     eq: eqPacketLog,
@@ -45,13 +45,10 @@ export function PacketLogSection() {
 
   return (
     <SettingsSection
-      id="extra-packetlog"
+      {...sectionProps}
       icon={ScrollText}
       title="Packet Log"
       description="How many packets the Packet Log keeps in memory and on disk."
-      dirty={dirty}
-      saving={saving}
-      onSave={save}
     >
       <Row
         label="Live buffer"

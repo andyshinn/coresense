@@ -20,7 +20,7 @@ export function ExperimentalSection({ client }: SectionProps) {
   const saved = useStore((s) => s.radioSettings);
   const connected = useStore((s) => s.transportState === 'connected');
 
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'radio-experimental',
     saved,
     eq,
@@ -41,15 +41,12 @@ export function ExperimentalSection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="radio-experimental"
+      {...sectionProps}
       icon={FlaskConical}
       title="Experimental"
       description="These settings are experimental and could cause issues. Only repeaters and companion devices in the path must be updated to use the multi-byte path hash feature."
       footnote="MeshCore firmware v1.14.0+ supports multi-byte path hashes. Older nodes only support 1-byte and will not receive messages if this is changed."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client}
-      onSave={save}
     >
       <Row
         label="Path Hash Size"

@@ -24,7 +24,7 @@ export function RadioSection({ client }: SectionProps) {
   const connected = useStore((s) => s.transportState === 'connected');
   const caps = useStore((s) => s.deviceCapabilities);
 
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'radio-radio',
     saved,
     eq: eqRadio,
@@ -58,15 +58,12 @@ export function RadioSection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="radio-radio"
+      {...sectionProps}
       icon={RadioIcon}
       title="Radio"
       description="LoRa modulation parameters, TX power, and repeat mode. Must match peers on the same mesh."
       footnote="Changing modulation re-keys the radio; reachable peers may need to refresh."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client}
-      onSave={save}
     >
       <Row
         label="Preset"

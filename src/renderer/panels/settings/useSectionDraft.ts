@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { notify } from '../../lib/notify';
 import { registerSectionHandle, unregisterSectionHandle, useStore } from '../../lib/store';
 
@@ -51,17 +51,26 @@ export function useSettingsSection<T>({ id, saved, eq, onSave }: SectionOptions<
   const resetRef = useRef(reset);
   resetRef.current = reset;
 
-  // For the section's own Save button: surface failures as a toast and swallow.
-  const save = async () => {
+  // The one save body both callers share. Rethrows: "Save all" in the dialog
+  // needs the failure so it can abort the navigation/quit and surface a single
+  // error. Reads the draft and onSave through refs, so the handle registered
+  // once below always saves the latest values.
+  const run = useCallback(async () => {
     setSaving(true);
     try {
       await onSaveRef.current(draftRef.current);
-    } catch (err) {
-      notify.error(`Save failed: ${(err as Error).message}`, err);
     } finally {
       setSaving(false);
     }
-  };
+  }, []);
+
+  // For the section's own Save button: surface failures as a toast and swallow.
+  const save = () => run().catch((err) => notify.failure('Save', err));
+
+  // Merges a patch into one object-valued field of the draft, e.g.
+  // setGroup('proxy', { port }) — saves spelling out the nested spread per row.
+  const setGroup = <K extends keyof T>(key: K, patch: Partial<T[K]>) =>
+    setDraft((s) => ({ ...s, [key]: { ...s[key], ...patch } }));
 
   useEffect(() => {
     setSectionDirty(id, dirty);
@@ -69,23 +78,18 @@ export function useSettingsSection<T>({ id, saved, eq, onSave }: SectionOptions<
 
   useEffect(() => {
     registerSectionHandle(id, {
-      // For "Save all" in the dialog: rethrow so the caller can abort the
-      // navigation/quit and surface a single error.
-      save: async () => {
-        setSaving(true);
-        try {
-          await onSaveRef.current(draftRef.current);
-        } finally {
-          setSaving(false);
-        }
-      },
+      // For "Save all" in the dialog: run() rethrows, see above.
+      save: run,
       reset: () => resetRef.current(),
     });
     return () => {
       unregisterSectionHandle(id);
       setSectionDirty(id, false);
     };
-  }, [id, setSectionDirty]);
+  }, [id, run, setSectionDirty]);
 
-  return { draft, setDraft, dirty, saving, save, reset };
+  // The props every section passes to <SettingsSection>; callers add canSave.
+  const sectionProps = { id, dirty, saving, onSave: save };
+
+  return { draft, setDraft, setGroup, dirty, saving, save, reset, sectionProps };
 }

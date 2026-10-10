@@ -21,7 +21,7 @@ const eqAutoAdd = (a: AutoAddConfig, b: AutoAddConfig) =>
 
 export function ContactSettingsSection({ client }: SectionProps) {
   const saved = useStore((s) => s.autoAddConfig);
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'radio-contacts',
     saved,
     eq: eqAutoAdd,
@@ -34,14 +34,11 @@ export function ContactSettingsSection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="radio-contacts"
+      {...sectionProps}
       icon={ContactIcon}
       title="Contacts · Auto-add"
       description="Auto-add behaviour for incoming adverts."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client}
-      onSave={save}
     >
       <Row
         label="Mode"

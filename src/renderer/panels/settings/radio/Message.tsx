@@ -12,7 +12,7 @@ const eqMessages = (a: TelemetryPolicy, b: TelemetryPolicy) => a.multiAcks === b
 
 export function MessageSection({ client }: SectionProps) {
   const saved = useStore((s) => s.telemetryPolicy);
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'radio-messages',
     saved,
     eq: eqMessages,
@@ -28,14 +28,11 @@ export function MessageSection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="radio-messages"
+      {...sectionProps}
       icon={Send}
       title="Messages"
       description="Send/receive reliability behaviour."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client}
-      onSave={save}
     >
       <Row
         label="Direct Message Acks"

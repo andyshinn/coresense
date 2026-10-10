@@ -18,7 +18,7 @@ const eqTelemetry = (a: TelemetryPolicy, b: TelemetryPolicy) => a.base === b.bas
 
 export function TelemetrySection({ client }: SectionProps) {
   const saved = useStore((s) => s.telemetryPolicy);
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'radio-telemetry',
     saved,
     eq: eqTelemetry,
@@ -36,14 +36,11 @@ export function TelemetrySection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="radio-telemetry"
+      {...sectionProps}
       icon={SlidersHorizontal}
       title="Telemetry"
       description="Who can query telemetry from this radio."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client}
-      onSave={save}
     >
       <Row
         label="Base telemetry (battery, uptime)"
