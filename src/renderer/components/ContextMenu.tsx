@@ -1,8 +1,10 @@
 import type { LucideIcon } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { log } from '../lib/logger';
 import { cn } from '../lib/utils';
+
+// Moved to lib/clipboard.ts; re-exported so menu builders keep one import.
+export { copyToClipboard } from '../lib/clipboard';
 
 // Reusable right-click context menu. Renders a fixed-position popover at
 // (x, y), flipped and clamped to stay inside the window, closes on outside
@@ -160,18 +162,3 @@ export function menuItem(
 }
 
 export const menuSeparator: ContextMenuSeparator = { kind: 'separator' };
-
-// Convenience for clipboard copies — used by Copy items across menus.
-// `onDone` fires only on a confirmed write, so callers can key success UI
-// (toast / "Copied!" popover) off it. Failures are logged rather than swallowed
-// so a broken clipboard is debuggable from the DevTools console.
-export function copyToClipboard(text: string, onDone?: () => void): void {
-  if (!navigator.clipboard) {
-    log.error('Clipboard write failed: navigator.clipboard is unavailable (insecure context?)');
-    return;
-  }
-  navigator.clipboard.writeText(text).then(
-    () => onDone?.(),
-    (err) => log.error('Clipboard write failed', err),
-  );
-}
