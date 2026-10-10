@@ -35,6 +35,12 @@ export function pubkeyFromKey(key: string): string {
   return isContactKey(key) ? key.slice(CONTACT_PREFIX.length) : key;
 }
 
+/** The channel name inside a channel key. Anything without the `ch:` prefix is
+ *  returned unchanged. */
+export function channelNameFromKey(key: string): string {
+  return isChannelKey(key) ? key.slice(CHANNEL_PREFIX.length) : key;
+}
+
 /** Which kind of conversation a key addresses; null for non-conversation keys
  *  (e.g. `tool:*` routes). */
 export function conversationKind(key: string): 'channel' | 'dm' | null {

@@ -168,7 +168,7 @@ async function ask(pubkey: string, key: string): Promise<AdvertPathResult> {
     // advert sampler, the rail) wait out the cooldown; the button forces past
     // it.
     if (!p) {
-      if (transportManager.getState().state !== 'connected') {
+      if (!transportManager.isConnected()) {
         return { status: 'failed', message: 'radio link dropped before it answered' };
       }
       return { status: 'notCached', fromCache: false };
@@ -218,7 +218,7 @@ export async function fetchAdvertPath(keyOrPubkey: string, opts: { force?: boole
   const pubkey = pubkeyFromKey(keyOrPubkey);
   const key = contactKey(pubkey);
 
-  if (transportManager.getState().state !== 'connected') return { status: 'offline' };
+  if (!transportManager.isConnected()) return { status: 'offline' };
 
   const running = inFlight.get(pubkey);
   if (running) return running;

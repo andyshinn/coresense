@@ -14,14 +14,14 @@ export interface FinishQuitDeps {
  * The tail of the before-quit handler: run the shutdown, log its failure, flush
  * the log file, then exit. The flush comes last so the shutdown's own warnings
  * (e.g. a transport timeout) reach the log file before the process goes away,
- * and it is time-bounded because exit used to never depend on log I/O. Exit
+ * and it is time-bounded because exit used to never depend on log I/O. flushLog
+ * never rejects, so the only rejection swallowed after it is the timeout. Exit
  * always runs, whatever the shutdown did.
  */
 export function finishQuit(deps: FinishQuitDeps): Promise<void> {
   return deps
     .shutdown()
     .catch(deps.onShutdownError)
-    // flushLog never rejects, so the only rejection swallowed here is the timeout.
     .then(() => withTimeout(deps.flushLog(), deps.flushTimeoutMs, 'log flush').catch(() => {}))
     .finally(deps.exit);
 }

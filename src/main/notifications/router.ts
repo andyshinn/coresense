@@ -1,11 +1,12 @@
-import { isChannelKey } from '../../shared/conversationKey';
+import { channelNameFromKey, isChannelKey } from '../../shared/conversationKey';
 import { errorMessage } from '../../shared/errors';
+import { senderDisplayName } from '../../shared/sender';
 import type { AppSettings, Channel, Contact, ContactKind, MenuAction, Message, Owner, UiState } from '../../shared/types';
 import type { NotificationActions } from './actions';
 import { type AggregatorConfig, createAggregator, type StaleDescriptor } from './aggregator';
 import type { Capabilities } from './capabilities';
 import { MAX_NOTIFIED_IDS } from './config';
-import { buildContent, channelSenderName, formatSummaryBody } from './format';
+import { buildContent, formatSummaryBody } from './format';
 import { classify, passesPolicy } from './policy';
 import type { NotificationPresenter, NotificationSpec } from './present';
 
@@ -62,7 +63,7 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
   });
 
   function channelName(key: string): string {
-    return deps.getChannels().find((c) => c.key === key)?.name ?? key.slice(3);
+    return deps.getChannels().find((c) => c.key === key)?.name ?? channelNameFromKey(key);
   }
   function contactName(key: string): string {
     return deps.getContacts().find((c) => c.key === key)?.name ?? key;
@@ -109,7 +110,7 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
     const content = buildContent({
       isChannel,
       displayName: isChannel ? channelName(m.key) : contactName(m.key),
-      senderName: isChannel ? channelSenderName(m.fromPublicKeyHex) : '',
+      senderName: isChannel ? senderDisplayName(m.fromPublicKeyHex) : '',
       mention: kind === 'channelMention',
       body: m.body,
       caps: deps.caps,
@@ -197,7 +198,7 @@ export function createNotificationRouter(deps: RouterDeps): NotificationRouter {
     if (!show) return;
     if (!deps.presenter.isSupported()) return;
     if (notifications.summarizeBacklog) {
-      aggregator.ingest(m, isChannelKey(m.key) ? channelSenderName(m.fromPublicKeyHex) : '');
+      aggregator.ingest(m, isChannelKey(m.key) ? senderDisplayName(m.fromPublicKeyHex) : '');
     } else {
       presentIndividual(m);
     }

@@ -1,10 +1,6 @@
 import type { Capabilities } from './capabilities';
 import { DELIMITER, MAX_BODY, MENTION_SUFFIX } from './config';
 
-// Channel messages carry no pubkey, so the origin node's display name is
-// encoded as fromPublicKeyHex = "name:<name>"; the shared decoder owns that.
-export { senderDisplayName as channelSenderName } from '../../shared/sender';
-
 export function truncateBody(body: string): string {
   return body.length > MAX_BODY ? `${body.slice(0, MAX_BODY - 3)}…` : body;
 }

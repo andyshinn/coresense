@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   channelKey,
+  channelNameFromKey,
   contactKey,
   conversationKind,
   isChannelKey,
@@ -21,6 +22,12 @@ describe('conversation keys', () => {
     expect(isChannelKey('c:ab12')).toBe(false);
     expect(isChannelKey('tool:map')).toBe(false);
     expect(isContactKey('tool:map')).toBe(false);
+  });
+
+  it('channelNameFromKey strips only the channel prefix', () => {
+    expect(channelNameFromKey('ch:Public')).toBe('Public');
+    expect(channelNameFromKey('ch:')).toBe('');
+    expect(channelNameFromKey('Public')).toBe('Public');
   });
 
   it('conversationKind maps each key family', () => {
