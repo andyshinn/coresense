@@ -1,13 +1,13 @@
-import { Buffer } from 'node:buffer';
+import { Protocol } from '@andyshinn/meshcore-ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { bus } from '../../../src/main/events/bus';
-import { setProtocolSession } from '../../../src/main/protocol';
-import { startServer } from '../../../src/main/server';
 import { fetchAdvertPath, resetAdvertPathState } from '../../../src/main/state/advertPath';
 import { isContactAutoRefreshRunning } from '../../../src/main/state/contactRefresh';
 import { beginContactWalk, isContactWalkInFlight, noteContactWalkStreaming } from '../../../src/main/state/contactWalk';
 import { transportManager } from '../../../src/main/transport/manager';
 import type { TransportState } from '../../../src/shared/types';
+import { contactSyncFrame } from '../../support/companionFrames';
+import { bootTestServer } from '../../support/server';
 import { makeTestSession, type TestSession } from '../../support/session-harness';
 
 // meshcore-ts 0.8.1's session-lifecycle rewrite (#27 + #29), seen from
@@ -32,42 +32,16 @@ import { makeTestSession, type TestSession } from '../../support/session-harness
 // transport, and where the assertion is about the bus, the real HTTP server's
 // subscriber rather than a stand-in for it.
 
-const CMD_GET_AUTO_ADD_CONFIG = 0x3b;
-const CMD_GET_ADVERT_PATH = 0x2a;
-
 const PK = 'a3'.repeat(32);
 
-/** RESP_CONTACT (0x03): seeds the library's contact map so hasRadioContact passes. */
-function contactSyncFrame(pubkeyHex: string, name: string): Buffer {
-  const frame = Buffer.alloc(148);
-  frame[0] = 0x03;
-  Buffer.from(pubkeyHex, 'hex').copy(frame, 1);
-  frame[33] = 1; // type = chat
-  frame[35] = 0xff; // out_path_len = OUT_PATH_UNKNOWN
-  Buffer.from(name, 'utf8').copy(frame, 100);
-  return frame;
-}
-
-let live: TestSession | null = null;
-let closeServer: (() => Promise<void>) | null = null;
-
-/** The real HTTP server, on an ephemeral port with a stub bridge. It is the
- *  thing that owns coresense's transportState subscriber (src/main/server.ts's
- *  `onTransportState`), and that subscriber is what arms/disarms the contact
- *  auto-refresh, releases the walk guard and writes transportManager. Booting it
- *  is the only way to assert on that handler — it is a closure, not an export. */
-async function bootServer(): Promise<void> {
-  const bridge = { getStatus: () => ({ running: false, clients: 0 }), on: () => {}, off: () => {} };
-  const handle = await startServer(null, bridge as never, { port: 0, bindAddress: '127.0.0.1' });
-  closeServer = handle.close;
-}
+// bootTestServer() is the real HTTP server, and it is what owns coresense's
+// transportState subscriber (src/main/server.ts's `onTransportState`): that
+// subscriber arms/disarms the contact auto-refresh, releases the walk guard
+// and writes transportManager.
 
 /** A started session, not yet connected. */
 function session(): TestSession {
-  const s = makeTestSession();
-  live = s;
-  setProtocolSession(s.adapter);
-  return s;
+  return makeTestSession({ installAsProtocolSession: true });
 }
 
 /** coresense's BleTransport.connect() tail, verbatim: the bus is told first
@@ -79,14 +53,8 @@ function driveTransport(s: TestSession, state: TransportState, deviceId?: string
   s.transport.setState(state === 'connected' ? 'connected' : 'idle');
 }
 
-afterEach(async () => {
-  live?.adapter.stop();
-  live = null;
-  setProtocolSession(null);
-  await closeServer?.();
-  closeServer = null;
+afterEach(() => {
   resetAdvertPathState();
-  transportManager.setState('idle');
   vi.useRealTimers();
 });
 
@@ -98,7 +66,7 @@ afterEach(async () => {
 // it.
 describe('a reconnect on the same session object', () => {
   it('releases the contact-walk guard and re-arms the auto-refresh timer', async () => {
-    await bootServer();
+    await bootTestServer();
     const s = session();
 
     driveTransport(s, 'connected', 'dev-1');
@@ -134,7 +102,7 @@ describe('a reconnect on the same session object', () => {
     vi.useFakeTimers();
     const s = session();
     transportManager.setState('connected');
-    const queries = () => s.transport.sent.filter((f) => f[0] === CMD_GET_AUTO_ADD_CONFIG).length;
+    const queries = () => s.sentWithCode(Protocol.CMD.GET_AUTO_ADD_CONFIG).length;
 
     s.transport.setState('connected');
     // The handshake's two contact waiters resolve on their own watchdogs when
@@ -162,7 +130,7 @@ describe('a reconnect on the same session object', () => {
     transportManager.setState('connected');
     s.transport.setState('connected');
     s.receive(contactSyncFrame(PK, 'Erin'));
-    const asks = () => s.transport.sent.filter((f) => f[0] === CMD_GET_ADVERT_PATH).length;
+    const asks = () => s.sentWithCode(Protocol.CMD.GET_ADVERT_PATH).length;
 
     const abandoned = fetchAdvertPath(PK, { force: true });
     await vi.waitFor(() => expect(asks()).toBe(1));
