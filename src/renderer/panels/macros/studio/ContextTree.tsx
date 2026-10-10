@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import type { StructureField, StructureNode } from '../../../../shared/macros/structure';
+import { varTag } from '../lib/insertAtCaret';
 import { typeLabel } from './hoverAtoms';
 
 function isExpandable(node: StructureNode): boolean {
@@ -60,7 +61,7 @@ function Row({
         <button
           type="button"
           aria-label={`Insert ${path}`}
-          onClick={() => onInsertPath(`{{ ${path} }}`)}
+          onClick={() => onInsertPath(varTag(path))}
           className="flex min-w-0 flex-1 items-center gap-2 text-left hover:bg-cs-bg-3"
         >
           <span className="font-mono text-[11px] text-cs-accent">{field.name}</span>

@@ -1,7 +1,7 @@
 import { type RefObject, useCallback, useRef, useState } from 'react';
 import type { MacroRenderMode, MacroScope, MacroTemplate } from '../../../../shared/macros/types';
 import { MACRO_CATALOG } from '../lib/catalog';
-import { spliceAtCaret } from '../lib/insertAtCaret';
+import { focusCaret, spliceAtCaret, varTag } from '../lib/insertAtCaret';
 import { deriveMacroMode } from '../lib/macroMode';
 
 /** @deprecated Use MacroRenderMode; kept only for studio/bridge.ts's import. */
@@ -53,14 +53,10 @@ export function useStudio(macro: MacroTemplate | null): StudioState {
     const end = ta?.selectionEnd ?? current.length;
     const res = spliceAtCaret(current, start, end, text);
     setValue(res.value);
-    requestAnimationFrame(() => {
-      if (!ta) return;
-      ta.focus();
-      ta.setSelectionRange(res.caret, res.caret);
-    });
+    focusCaret(taRef, res.caret);
   }, []);
 
-  const insertVar = useCallback((n: string) => insertText(`{{ ${n} }}`), [insertText]);
+  const insertVar = useCallback((n: string) => insertText(varTag(n)), [insertText]);
 
   const isNew = macro === null;
   const dirty = isNew

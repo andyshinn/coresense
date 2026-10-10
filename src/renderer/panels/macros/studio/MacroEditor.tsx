@@ -4,8 +4,9 @@ import { cn } from '@/lib/utils';
 import type { MacroRenderMode, MacroVariable } from '../../../../shared/macros/types';
 import { detectOpenVarTag } from '../lib/autocomplete';
 import { MACRO_CATALOG } from '../lib/catalog';
+import { focusCaret, spliceAtCaret, varTag } from '../lib/insertAtCaret';
 import { TOKEN_COLORS } from '../lib/tokenColors';
-import { keyedRuns, tokenize } from '../lib/tokenize';
+import { keyedRuns, type MacroCatalog, tokenize } from '../lib/tokenize';
 
 // Shared metrics so the painted <pre> and the real <textarea> register glyph
 // for glyph — the textarea is transparent and layered exactly over the colours.
@@ -35,16 +36,28 @@ interface MacroEditorProps {
   onChange: (v: string) => void;
   taRef: RefObject<HTMLTextAreaElement | null>;
   mode: MacroRenderMode;
+  /** Autocomplete candidates. */
   variables: MacroVariable[];
+  /** Drives the syntax colouring; the static manifest's catalog by default. */
+  catalog?: MacroCatalog;
   placeholder?: string;
   minHeight?: number;
 }
 
-export function MacroEditor({ value, onChange, taRef, mode, variables, placeholder, minHeight = 120 }: MacroEditorProps) {
+export function MacroEditor({
+  value,
+  onChange,
+  taRef,
+  mode,
+  variables,
+  catalog = MACRO_CATALOG,
+  placeholder,
+  minHeight = 120,
+}: MacroEditorProps) {
   const preRef = useRef<HTMLPreElement | null>(null);
   const [ac, setAc] = useState<AcState | null>(null);
 
-  const runs = useMemo(() => keyedRuns(tokenize(value, mode, MACRO_CATALOG).runs), [value, mode]);
+  const runs = useMemo(() => keyedRuns(tokenize(value, mode, catalog).runs), [value, mode, catalog]);
 
   const refreshAutocomplete = (text: string, caret: number) => {
     const open = detectOpenVarTag(text.slice(0, caret));
@@ -75,16 +88,10 @@ export function MacroEditor({ value, onChange, taRef, mode, variables, placehold
 
   const complete = (variable: MacroVariable) => {
     if (!ac) return;
-    const next = `${value.slice(0, ac.start)}{{ ${variable.name} }}${value.slice(ac.end)}`;
-    onChange(next);
+    const res = spliceAtCaret(value, ac.start, ac.end, varTag(variable.name));
+    onChange(res.value);
     setAc(null);
-    const caret = ac.start + `{{ ${variable.name} }}`.length;
-    requestAnimationFrame(() => {
-      const ta = taRef.current;
-      if (!ta) return;
-      ta.focus();
-      ta.setSelectionRange(caret, caret);
-    });
+    focusCaret(taRef, res.caret);
   };
 
   return (
