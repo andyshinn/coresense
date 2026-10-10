@@ -9,8 +9,7 @@ interface Props {
 }
 
 /** Renders a payload's "secondary" view (decrypted plaintext / advert app-data /
- *  the locked note) below the payload byte breakdown. Shared by PacketDetailsRail
- *  and PacketDecoderDialog so both surfaces stay in sync. */
+ *  the locked note) below the payload byte breakdown in PacketInspectionView. */
 export function PacketSecondary({ secondary, hovered, setHovered }: Props) {
   if (!secondary) return null;
 

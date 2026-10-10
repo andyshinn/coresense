@@ -1,16 +1,17 @@
 import { Binary } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { companionFrameName } from '../../../shared/companionFrames';
-import { inspectBleFrame } from '../../lib/bleFrameLayouts';
+import { type BleFrameInspection, inspectBleFrame } from '../../lib/bleFrameLayouts';
 import { normalizeToHex } from '../../lib/packetInput';
 import { inspectPacket, type PacketInspection } from '../../lib/packetInspect';
 import { useStore } from '../../lib/store';
 import { useChannelKeyStore } from '../../lib/useChannelKeyStore';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../ui/dialog';
-import { PacketBreakdown } from './PacketBreakdown';
-import { PacketSecondary } from './PacketSecondary';
+import { BleFrameView } from './BleFrameView';
+import { PacketInspectionView } from './PacketInspectionView';
 
-type DecodeResult = { kind: 'rf'; d: PacketInspection } | { kind: 'ble'; b: ReturnType<typeof inspectBleFrame> };
+/** `seq` keys the breakdown view, so every decode starts with a clear hover. */
+type DecodeResult = { seq: number } & ({ kind: 'rf'; d: PacketInspection } | { kind: 'ble'; b: BleFrameInspection });
 
 export function PacketDecoderDialog() {
   const open = useStore((s) => s.decoderOpen);
@@ -19,7 +20,7 @@ export function PacketDecoderDialog() {
   const [raw, setRaw] = useState('');
   const [kind, setKind] = useState<'rf' | 'ble'>('rf');
   const [result, setResult] = useState<DecodeResult | null>(null);
-  const [hovered, setHovered] = useState<string | null>(null);
+  const decodeSeq = useRef(0);
   const [error, setError] = useState<string | null>(null);
 
   // Only re-parse the textarea contents when they actually change, not on
@@ -31,8 +32,8 @@ export function PacketDecoderDialog() {
     setError(null);
     // Field keys (pk0, pl0, …) repeat across unrelated decodes, so a stale
     // hover from a previous result could otherwise "stick" and highlight the
-    // wrong field in the new breakdown.
-    setHovered(null);
+    // wrong field in the new breakdown. A fresh seq remounts the view.
+    const seq = ++decodeSeq.current;
     if (!norm) {
       setError('Could not read that as hex, base64, or a meshcore:// link.');
       setResult(null);
@@ -42,7 +43,7 @@ export function PacketDecoderDialog() {
       // A pasted frame starts with its 1-byte type code. The companion layouts describe
       // the body after it, the same split main makes, so name the frame and strip it.
       const code = Number.parseInt(norm.hex.slice(0, 2), 16);
-      setResult({ kind: 'ble', b: inspectBleFrame(norm.hex.slice(2), companionFrameName(code)) });
+      setResult({ seq, kind: 'ble', b: inspectBleFrame(norm.hex.slice(2), companionFrameName(code)) });
       return;
     }
     const d = inspectPacket(norm.hex, keyStore ? { keyStore } : undefined);
@@ -51,7 +52,7 @@ export function PacketDecoderDialog() {
       setResult(null);
       return;
     }
-    setResult({ kind: 'rf', d });
+    setResult({ seq, kind: 'rf', d });
   };
 
   return (
@@ -102,44 +103,8 @@ export function PacketDecoderDialog() {
               {error}
             </div>
           )}
-          {result?.kind === 'ble' && (
-            <PacketBreakdown
-              title="BLE Frame Breakdown"
-              count={result.b.bytes.length}
-              bytes={result.b.bytes}
-              fields={result.b.fields}
-              scope="ble"
-              hovered={hovered}
-              setHovered={setHovered}
-            />
-          )}
-          {result?.kind === 'rf' && (
-            <>
-              <PacketBreakdown
-                title="Packet Byte Breakdown"
-                count={result.d.size}
-                bytes={result.d.bytes}
-                fields={result.d.fields}
-                scope="packet"
-                hovered={hovered}
-                setHovered={setHovered}
-              />
-              {result.d.payload && (
-                <>
-                  <PacketBreakdown
-                    title={`${result.d.payload.typeName} Payload Byte Breakdown`}
-                    count={result.d.payload.bytes.length}
-                    bytes={result.d.payload.bytes}
-                    fields={result.d.payload.fields}
-                    scope="payload"
-                    hovered={hovered}
-                    setHovered={setHovered}
-                  />
-                  <PacketSecondary secondary={result.d.payload.secondary} hovered={hovered} setHovered={setHovered} />
-                </>
-              )}
-            </>
-          )}
+          {result?.kind === 'ble' && <BleFrameView key={result.seq} frame={result.b} />}
+          {result?.kind === 'rf' && <PacketInspectionView key={result.seq} inspection={result.d} />}
         </div>
       </DialogContent>
     </Dialog>

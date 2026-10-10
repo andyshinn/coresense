@@ -140,10 +140,13 @@ const hx = (b: number[], a: number, z: number) => {
   return s.toUpperCase();
 };
 
-export function inspectBleFrame(
-  payloadHex: string,
-  codeName?: string,
-): { codeName: string; fields: InspectField[]; bytes: number[] } {
+export interface BleFrameInspection {
+  codeName: string;
+  fields: InspectField[];
+  bytes: number[];
+}
+
+export function inspectBleFrame(payloadHex: string, codeName?: string): BleFrameInspection {
   const bytes = hexToBytes(payloadHex);
   const last = bytes.length - 1;
   const layout = codeName ? LAYOUTS[codeName] : undefined;

@@ -14,7 +14,7 @@ function Harness() {
   return (
     <div>
       <span data-testid="hovered">{hovered ?? 'none'}</span>
-      <ByteStrip bytes={[0x15, 0x01, 0x2a]} fields={fields} scope="pk" hovered={hovered} setHovered={setHovered} />
+      <ByteStrip bytes={[0x15, 0x01, 0x2a]} fields={fields} scope="packet" hovered={hovered} setHovered={setHovered} />
     </div>
   );
 }
@@ -29,16 +29,16 @@ describe('ByteStrip', () => {
   it('sets scoped hovered id on mouse enter', () => {
     render(<Harness />);
     fireEvent.mouseEnter(screen.getByText('15'));
-    expect(screen.getByTestId('hovered').textContent).toBe('pk:header');
+    expect(screen.getByTestId('hovered').textContent).toBe('packet:header');
   });
 
   it('updates the hovered id as the pointer moves between cells (no null in between)', () => {
     render(<Harness />);
     fireEvent.mouseEnter(screen.getByText('15')); // byte 0 → header
-    expect(screen.getByTestId('hovered').textContent).toBe('pk:header');
+    expect(screen.getByTestId('hovered').textContent).toBe('packet:header');
     fireEvent.mouseEnter(screen.getByText('2A')); // byte 2 → payload
     // Moving straight to another cell swaps the id; it never blinks to 'none'.
-    expect(screen.getByTestId('hovered').textContent).toBe('pk:payload');
+    expect(screen.getByTestId('hovered').textContent).toBe('packet:payload');
   });
 
   it('clears the hovered id only when the pointer leaves the whole strip', () => {

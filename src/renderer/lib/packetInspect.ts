@@ -33,6 +33,11 @@ export interface InspectField {
   bits?: BitRow[];
 }
 
+/** Which breakdown strip a byte or field card belongs to. It prefixes the hover
+ *  ids (`${scope}:${field.key}`), so strips that reuse field keys on one surface
+ *  never cross-highlight. */
+export type BreakdownScope = 'packet' | 'payload' | 'plain' | 'appdata' | 'ble';
+
 export type Secondary =
   | { kind: 'decrypted'; available: true; bytes: number[]; fields: InspectField[] }
   | { kind: 'appdata'; available: true; title: string; bytes: number[]; fields: InspectField[] }
