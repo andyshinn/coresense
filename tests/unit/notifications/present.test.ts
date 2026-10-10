@@ -89,4 +89,27 @@ describe('electronPresenter', () => {
     electronPresenter({ caps: notificationCapabilities('linux'), focusWindow: vi.fn() }).clearGroup('ch:a');
     expect(removedGroups).toEqual([]);
   });
+
+  it('reads the reply text and action index off the event details', () => {
+    const p = electronPresenter({ caps: notificationCapabilities('darwin'), focusWindow: vi.fn() });
+    const onReply = vi.fn();
+    const onAction = vi.fn();
+    p.show({ id: 'msg:2', title: 'T', body: 'b', silent: true, reply: true, actions: ['A', 'B'], onReply, onAction });
+    // Positional values that disagree with details prove details wins.
+    handlers.reply[0]({ reply: 'hello' }, 'stale');
+    handlers.action[0]({ actionIndex: 1 }, 0);
+    expect(onReply).toHaveBeenCalledWith('hello');
+    expect(onAction).toHaveBeenCalledWith(1);
+  });
+
+  it('falls back to the deprecated positional reply/index args', () => {
+    const p = electronPresenter({ caps: notificationCapabilities('darwin'), focusWindow: vi.fn() });
+    const onReply = vi.fn();
+    const onAction = vi.fn();
+    p.show({ id: 'msg:3', title: 'T', body: 'b', silent: true, reply: true, actions: ['A', 'B'], onReply, onAction });
+    handlers.reply[0](undefined, 'legacy');
+    handlers.action[0](undefined, 1);
+    expect(onReply).toHaveBeenCalledWith('legacy');
+    expect(onAction).toHaveBeenCalledWith(1);
+  });
 });

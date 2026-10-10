@@ -167,7 +167,7 @@ function pendingCliMap(adapter: SessionAdapter): Map<string, unknown> {
 
 describe('repeater administration', () => {
   afterEach(() => {
-    adminSessions.reset('test cleanup');
+    adminSessions.clearSession(`c:${PK}`);
   });
 
   it('logs in (mesh mode) and records the admin session on PUSH_LOGIN_SUCCESS', async () => {

@@ -38,6 +38,12 @@ import { flushSettings, settingsStore } from '../storage/settings';
  *  flushHolderPersistence in the before-quit path). */
 const HOLDER_PERSIST_INTERVAL_MS = 1000;
 
+/** Replace the entry sharing `item.key`, or append it when there is none. */
+function upsertByKey<T extends { key: string }>(items: T[], item: T): T[] {
+  const idx = items.findIndex((x) => x.key === item.key);
+  return idx === -1 ? [...items, item] : items.map((x, i) => (i === idx ? item : x));
+}
+
 // Persistent state holder. Settings/channels/contacts/ui live in JSON files;
 // messages live in node:sqlite. The holder caches in memory and writes through
 // on mutation so the renderer doesn't pay an I/O round-trip per push.
@@ -149,9 +155,7 @@ class StateHolder {
     this.persist.schedule();
   }
   upsertChannel(channel: Channel): void {
-    const idx = this.channels.findIndex((c) => c.key === channel.key);
-    const next = idx === -1 ? [...this.channels, channel] : this.channels.map((c, i) => (i === idx ? channel : c));
-    this.setChannels(next);
+    this.setChannels(upsertByKey(this.channels, channel));
   }
   removeChannel(key: string): void {
     this.setChannels(this.channels.filter((c) => c.key !== key));
@@ -167,9 +171,7 @@ class StateHolder {
     this.persist.schedule();
   }
   upsertContact(contact: Contact): void {
-    const idx = this.contacts.findIndex((c) => c.key === contact.key);
-    const next = idx === -1 ? [...this.contacts, contact] : this.contacts.map((c, i) => (i === idx ? contact : c));
-    this.setContacts(next);
+    this.setContacts(upsertByKey(this.contacts, contact));
   }
   removeContact(key: string): void {
     this.setContacts(this.contacts.filter((c) => c.key !== key));
@@ -301,8 +303,8 @@ class StateHolder {
     });
   }
   /** Build the BlockMatchHints for a single message based on current
-   *  contacts + origin hop. Used by both annotateBlocked (read path) and
-   *  upsertMessage (write path). */
+   *  contacts + origin hop. Used by annotateBlocked (read path),
+   *  recordLibMessage (write path) and the addBlockRules backfill. */
   private buildBlockHints(msg: Message): BlockMatchHints {
     const originHop = msg.meta?.paths?.[0]?.hops.find((h) => h.kind === 'origin');
     return {
@@ -313,77 +315,9 @@ class StateHolder {
   insertMessage(message: Message): void {
     messagesStore.insert(message);
   }
-  /** Insert a new Message, or merge into the existing row when the id collides
-   *  (channel-msg ids are deterministic by ts + body so multi-path receipts
-   *  hit the same row). Merge rules:
-   *    - paths are unioned by MessagePath.id (keep all distinct routes)
-   *    - timesHeard increments by 1
-   *    - ts keeps the earliest receipt
-   *    - state only moves forward (received → ack), never backward */
-  upsertMessage(message: Message): void {
-    // Mirrors the guard in recordLibMessage: this is the other insert path, and
-    // the multi-path merge it exists for is exactly what the tombstone protects
-    // against. Currently unreferenced — the guard is here so rewiring it can't
-    // silently resurrect a deleted id.
-    if (messagesStore.isDeleted(message.id)) return;
-    // First-match: only count when this id is new. Backfill (re-evaluation on
-    // rule creation) is handled by a separate pass; per-render reads never
-    // bump the counter.
-    const isNew = !messagesStore.findById(message.id);
-    if (isNew) {
-      const rules = blockingStore().list();
-      if (rules.length > 0) {
-        const { blocked, ruleId } = isMessageBlocked(
-          message,
-          this.buildBlockHints(message),
-          rules,
-          blockingStore().regexCacheRef(),
-        );
-        if (blocked && ruleId) blockingStore().bumpMatchCount(ruleId);
-      }
-    }
-    const existing = messagesStore.findById(message.id);
-    if (!existing) {
-      const meta = message.meta ? { ...message.meta } : undefined;
-      if (meta?.paths && meta.paths.length > 0 && meta.timesHeard == null) {
-        meta.timesHeard = 1;
-      }
-      messagesStore.insert({ ...message, meta });
-      return;
-    }
-    const existingPaths = existing.meta?.paths ?? [];
-    const incomingPaths = message.meta?.paths ?? [];
-    const byId = new Map<string, (typeof existingPaths)[number]>();
-    for (const p of existingPaths) byId.set(p.id, p);
-    for (const p of incomingPaths) if (!byId.has(p.id)) byId.set(p.id, p);
-    const mergedPaths = [...byId.values()];
-
-    const stateRank: Record<Message['state'], number> = {
-      sending: 0,
-      sent: 1,
-      received: 1,
-      heard: 2,
-      ack: 3,
-      failed: 0,
-    };
-    const nextState = stateRank[message.state] > stateRank[existing.state] ? message.state : existing.state;
-
-    const merged: Message = {
-      ...existing,
-      ts: Math.min(existing.ts, message.ts),
-      state: nextState,
-      meta: {
-        ...existing.meta,
-        ...message.meta,
-        paths: mergedPaths.length > 0 ? mergedPaths : undefined,
-        timesHeard: (existing.meta?.timesHeard ?? 1) + 1,
-      },
-    };
-    messagesStore.insert(merged);
-  }
   /** Persist a message the library already merged (idempotent by id). Bumps a
-   *  block-rule match counter on genuinely-new ids, but does NOT re-run the
-   *  path/timesHeard merge that upsertMessage does (the lib owns that). */
+   *  block-rule match counter on genuinely-new ids, but does NOT merge
+   *  paths/timesHeard itself (the lib owns that). */
   recordLibMessage(message: Message): void {
     // The user deleted this id — do not let a re-heard packet re-create it.
     // Channel-message ids are deterministic, and messagesStore.insert upserts
@@ -491,10 +425,9 @@ class StateHolder {
     if (ok) emit.blockRules(this.getBlockRules());
     return ok;
   }
-  flushBlockCounters(): void {
-    blockingStore().flushNow();
-  }
 }
+
+export type { StateHolder };
 
 // Constructed lazily so we don't touch electron.app.getPath() until ready.
 let _instance: StateHolder | null = null;

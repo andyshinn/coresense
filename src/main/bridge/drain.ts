@@ -9,35 +9,31 @@
 // without racing each other.
 
 import { Buffer } from 'node:buffer';
+import { Protocol } from '@andyshinn/meshcore-ts';
+import { DAY_MS } from '../../shared/time';
 import { emit } from '../events/bus';
 import { stateHolder } from '../state/holder';
 import type { BridgeClient } from './hub';
 import { inboxKeyFor, parseAppStartName, parseNodeNameFromSelfInfo } from './identity';
 import { InboxCache } from './inboxCache';
 
-const CMD_APP_START = 0x01;
-const CMD_SEND_CHAN_TXT_MSG = 0x03;
-const CMD_GET_NEXT_MSG = 0x0a;
-const RESP_SELF_INFO = 0x05;
-const RESP_NO_MORE_MESSAGES = 0x0a;
-const RESP_CHANNEL_MSG_RECV_V3 = 0x11;
-const PUSH_MSG_WAITING = 0x83;
+const { CMD, RESP, PUSH } = Protocol;
 
 // Companion-frame codes that carry a popped message and therefore mutate the
 // device's inbox queue. Each one needs to land in the cache.
 const MSG_RECV_CODES: ReadonlySet<number> = new Set([
-  0x07, // RESP_CONTACT_MSG_RECV
-  0x08, // RESP_CHANNEL_MSG_RECV
-  0x10, // RESP_CONTACT_MSG_RECV_V3
-  0x11, // RESP_CHANNEL_MSG_RECV_V3
-  0x1b, // RESP_CHANNEL_DATA_RECV
+  RESP.CONTACT_MSG_RECV,
+  RESP.CHANNEL_MSG_RECV,
+  RESP.CONTACT_MSG_RECV_V3,
+  RESP.CHANNEL_MSG_RECV_V3,
+  RESP.CHANNEL_DATA_RECV,
 ]);
 
-const KNOWN_CLIENT_TTL_MS = 24 * 60 * 60 * 1000;
+const KNOWN_CLIENT_TTL_MS = DAY_MS;
 
-const GET_NEXT_FRAME = Buffer.from([CMD_GET_NEXT_MSG]);
-const NO_MORE_FRAME = Buffer.from([RESP_NO_MORE_MESSAGES]);
-const PUSH_MSG_WAITING_FRAME = Buffer.from([PUSH_MSG_WAITING]);
+const GET_NEXT_FRAME = Buffer.from([CMD.GET_NEXT_MSG]);
+const NO_MORE_FRAME = Buffer.from([RESP.NO_MORE_MESSAGES]);
+const PUSH_MSG_WAITING_FRAME = Buffer.from([PUSH.MSG_WAITING]);
 
 interface DrainLogger {
   trace: (msg: string) => void;
@@ -116,18 +112,18 @@ export class InboxRouter {
     if (payload.length === 0) return 'forward';
     const code = payload[0];
 
-    if (code === CMD_APP_START) {
+    if (code === CMD.APP_START) {
       const name = parseAppStartName(payload);
       if (name) this.rebindIdentity(client, name);
       return 'forward';
     }
 
-    if (code === CMD_GET_NEXT_MSG && payload.length === 1) {
+    if (code === CMD.GET_NEXT_MSG && payload.length === 1) {
       this.handleGetNext(client);
       return 'handled';
     }
 
-    if (code === CMD_SEND_CHAN_TXT_MSG && payload.length >= 8) {
+    if (code === CMD.SEND_CHAN_TXT_MSG && payload.length >= 8) {
       this.synthesizeChannelSend(client, payload);
       return 'forward';
     }
@@ -136,7 +132,7 @@ export class InboxRouter {
   }
 
   handleDeviceFrame(code: number, bytes: Buffer): 'consumed' | 'fanout' {
-    if (code === RESP_SELF_INFO) {
+    if (code === RESP.SELF_INFO) {
       const name = parseNodeNameFromSelfInfo(bytes);
       if (name && name !== this.nodeName) {
         this.nodeName = name;
@@ -163,7 +159,7 @@ export class InboxRouter {
       return 'consumed';
     }
 
-    if (code === RESP_NO_MORE_MESSAGES && bytes.length === 1) {
+    if (code === RESP.NO_MORE_MESSAGES && bytes.length === 1) {
       this.deviceQueueDrained = true;
       const target = this.inFlight;
       this.inFlight = null;
@@ -185,7 +181,7 @@ export class InboxRouter {
       return 'consumed';
     }
 
-    if (code === PUSH_MSG_WAITING) {
+    if (code === PUSH.MSG_WAITING) {
       this.deviceQueueDrained = false;
       // Fall through: hub still fans this out so every client knows to drain.
       return 'fanout';
@@ -215,7 +211,7 @@ export class InboxRouter {
     const prefixedText = Buffer.concat([Buffer.from(`${senderName}: `, 'utf8'), textBytes]);
 
     const synth = Buffer.concat([
-      Buffer.from([RESP_CHANNEL_MSG_RECV_V3, 0x00, 0x00, 0x00, channelIdx, 0xff, 0x00]),
+      Buffer.from([RESP.CHANNEL_MSG_RECV_V3, 0x00, 0x00, 0x00, channelIdx, 0xff, 0x00]),
       tsBytes,
       prefixedText,
     ]);

@@ -43,14 +43,4 @@ describe('deleted messages do not come back', () => {
   it('removeMessages returns [] for an unknown id', () => {
     expect(stateHolder().removeMessages('ch:General', ['ghost'])).toEqual([]);
   });
-
-  // upsertMessage is the other insert path — currently unreferenced, but it
-  // exists to merge the multi-path receipts the tombstone protects.
-  it('upsertMessage also refuses to resurrect a deleted id', () => {
-    const holder = stateHolder();
-    holder.recordLibMessage(channelMsg());
-    holder.removeMessages('ch:General', [CHANNEL_MID]);
-    holder.upsertMessage(channelMsg());
-    expect(messagesStore.findById(CHANNEL_MID)).toBeNull();
-  });
 });

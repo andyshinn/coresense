@@ -1,9 +1,10 @@
 import { Buffer } from 'node:buffer';
 import { readFileSync } from 'node:fs';
-import { type Ports, Transports } from '@andyshinn/meshcore-ts';
+import { type Ports, Protocol, Transports } from '@andyshinn/meshcore-ts';
+import { errorMessage } from '../../shared/errors';
 import { emit } from '../events/bus';
 import { child } from '../log';
-import { parseCompanionFrame } from './companionFrame';
+import { toRawPacket } from './rawPacket';
 import type { ITransport } from './types';
 
 const log = child('replay');
@@ -41,6 +42,9 @@ function loadFrames(path: string): Buffer[] {
  * asserts UI behavior rather than wire bytes.
  */
 export class FileReplayTransport implements ITransport {
+  // Deliberately impersonates BLE (and stamps packets transportType 'ble'): a
+  // 'replay' member would leak this test double into the renderer-facing
+  // RawPacket.transportType union.
   readonly type = 'ble' as const;
   readonly sent: Buffer[] = [];
   // The lib Transport the SessionAdapter's MeshCoreSession ingests. A
@@ -66,7 +70,7 @@ export class FileReplayTransport implements ITransport {
     try {
       frames = loadFrames(this.fixturePath);
     } catch (err) {
-      log.error(`failed to load replay fixture: ${(err as Error).message}`);
+      log.error(`failed to load replay fixture: ${errorMessage(err)}`);
       return;
     }
     for (const frame of frames) {
@@ -91,34 +95,8 @@ export class FileReplayTransport implements ITransport {
    *  The mesh-observation side-channel (path attribution) is intentionally
    *  omitted — it does not affect the E2E flows. */
   private dispatch(frame: Buffer): void {
-    const parsed = parseCompanionFrame(frame);
+    const parsed = Protocol.parseCompanionFrame(frame);
     if (!parsed) return;
-    const hex = frame.toString('hex');
-    const bytes = [...frame];
-    if (parsed.kind === 'mesh') {
-      emit.packet({
-        timestamp: 0,
-        transportType: 'ble',
-        kind: 'mesh',
-        hex,
-        bytes,
-        payloadHex: parsed.meshHex,
-        payloadBytes: [...parsed.meshBytes],
-        snr: parsed.snr,
-        rssi: parsed.rssi,
-      });
-    } else {
-      emit.packet({
-        timestamp: 0,
-        transportType: 'ble',
-        kind: 'companion',
-        hex,
-        bytes,
-        payloadHex: parsed.payloadHex,
-        payloadBytes: [...parsed.payloadBytes],
-        code: parsed.code,
-        codeName: parsed.codeName,
-      });
-    }
+    emit.packet(toRawPacket(frame, parsed, { timestamp: 0, transportType: 'ble' }));
   }
 }

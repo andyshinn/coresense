@@ -1,4 +1,5 @@
 import { networkInterfaces } from 'node:os';
+import { errorMessage } from '../../shared/errors';
 import { BRIDGE_DEFAULT_TCP_PORT, BRIDGE_DEFAULT_TCP_PORT_DEV, type BridgeStatus } from '../../shared/types';
 import { emit } from '../events/bus';
 import { BridgeHub } from './hub';
@@ -39,7 +40,7 @@ export async function startBridge(opts: BridgeOptions = {}): Promise<BridgeHandl
     try {
       tcp = await startTcpListener(hub, bindAddress, tcpPort);
     } catch (err) {
-      emit.error(`Bridge: TCP listener failed: ${(err as Error).message}`);
+      emit.error(`Bridge: TCP listener failed: ${errorMessage(err)}`);
     }
   }
 
