@@ -21,6 +21,9 @@ describe('bytesToHex', () => {
     expect(bytesToHex(b, 2, 99)).toBe('0304');
     expect(bytesToHex(b, 3, 3)).toBe('');
   });
+  it('covers an inclusive [a, z] range via end = z + 1', () => {
+    expect(bytesToHex([0xde, 0xad, 0xbe, 0xef], 1, 2 + 1).toUpperCase()).toBe('ADBE');
+  });
   it('round-trips with hexToBytes', () => expect(bytesToHex(hexToBytes('a1b2c3'))).toBe('a1b2c3'));
 });
 

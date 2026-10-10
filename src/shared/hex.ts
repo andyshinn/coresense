@@ -7,7 +7,9 @@ export function hexToBytes(hex: string): number[] {
   return out;
 }
 
-/** Lowercase hex for `bytes[start, end)` (slice semantics; `end` is clamped to the length). */
+/** Lowercase hex for `bytes[start, end)` (slice semantics; `end` is EXCLUSIVE and
+ *  clamped to the length). An inclusive `[a, z]` range is `bytesToHex(b, a, z + 1)`;
+ *  add `.toUpperCase()` for the inspector-style uppercase dumps. */
 export function bytesToHex(bytes: ArrayLike<number>, start = 0, end = bytes.length): string {
   let s = '';
   for (let i = start; i < end && i < bytes.length; i++) s += bytes[i].toString(16).padStart(2, '0');
