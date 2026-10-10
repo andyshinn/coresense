@@ -1,7 +1,7 @@
 import { errorMessage } from '../../shared/errors';
 import type { AppSettings, Channel, Contact, ContactKind, MenuAction, Message, Owner, UiState } from '../../shared/types';
 import type { NotificationActions } from './actions';
-import { createAggregator, type StaleDescriptor } from './aggregator';
+import { type AggregatorConfig, createAggregator, type StaleDescriptor } from './aggregator';
 import type { Capabilities } from './capabilities';
 import { MAX_NOTIFIED_IDS } from './config';
 import { buildContent, channelSenderName, formatSummaryBody } from './format';
@@ -18,7 +18,7 @@ export interface RouterDeps {
   emitMenuAction(a: MenuAction): void;
   actions: NotificationActions;
   setBadge(n: number): void;
-  config: { staleThresholdMs: number; flushDelayMs: number; rollupCap: number };
+  config: AggregatorConfig;
   getAppSettings(): AppSettings;
   getOwner(): Owner | null;
   getUiState(): UiState;
