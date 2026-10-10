@@ -52,8 +52,7 @@ export function createSilentUpdater(deps: SilentDeps) {
       deps.onState({ status: 'downloaded' });
     });
     deps.autoUpdater.on('error', (...args: unknown[]) => {
-      const err = args[0];
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(args[0]);
       deps.logger.error(`silent: autoUpdater error: ${message}`);
       deps.onState({ status: 'error', error: message });
     });

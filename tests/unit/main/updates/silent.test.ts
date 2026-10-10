@@ -88,6 +88,14 @@ describe('createSilentUpdater', () => {
     expect(onState).toHaveBeenCalledWith({ status: 'error', error: 'boom' });
   });
 
+  it('reports the message of a non-Error object the autoUpdater emits', () => {
+    const { silent, onState, listeners } = harness();
+    silent.ensureStarted();
+    // String() of this used to give "[object Object]".
+    listeners.error({ message: 'feed unreachable' });
+    expect(onState).toHaveBeenCalledWith({ status: 'error', error: 'feed unreachable' });
+  });
+
   it('check() starts, returns true, and calls checkForUpdates; install calls quitAndInstall', () => {
     const { silent, autoUpdater } = harness();
     expect(silent.check()).toBe(true);
