@@ -403,7 +403,10 @@ export function MapClusters({ map }: Props) {
   // members stay anchored relative to the centroid throughout a zoom animation
   // — otherwise the spread visibly drifts until the gesture settles. The live
   // handler reads `selectedSiteKey` from the store on each tick so it stays
-  // current without rebinding listeners.
+  // current without rebinding listeners. maplibre fires `move` for every
+  // camera change (zoom/rotate/pitch included) and `moveend` after each one
+  // settles, so those two cover it; also binding `zoom` ran the full render
+  // twice per frame.
   useEffect(() => {
     if (!map) return;
     const schedule = () => {
@@ -419,15 +422,11 @@ export function MapClusters({ map }: Props) {
       if (useStore.getState().ui.selectedSiteKey) renderRef.current();
     };
     map.on('moveend', schedule);
-    map.on('zoomend', schedule);
     map.on('move', live);
-    map.on('zoom', live);
     return () => {
       if (recomputeTimer.current) clearTimeout(recomputeTimer.current);
       map.off('moveend', schedule);
-      map.off('zoomend', schedule);
       map.off('move', live);
-      map.off('zoom', live);
     };
   }, [map]);
 

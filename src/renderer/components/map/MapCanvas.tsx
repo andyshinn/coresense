@@ -36,7 +36,7 @@ interface MapCanvasProps {
   // Optional overlay renderer — defaults to the standard clusters/local/info
   // stack. A focused view (e.g. repeater neighbours) passes its own layer.
   renderOverlays?: (map: MapLibreMap | null) => ReactNode;
-  // When false, the moveend/zoom persistence effect is skipped (transient
+  // When false, the moveend persistence effect is skipped (transient
   // sub-maps must not overwrite the Map View's saved viewport).
   persistViewport?: boolean;
   // Initial camera. Defaults to pickInitialView (persisted viewport / freshest
@@ -219,6 +219,7 @@ export function MapCanvas({
   // drag that fires hundreds of move events doesn't beat the IPC into the
   // ground — we only care about the resting position. Compare to the last
   // persisted values to skip no-op writes (e.g. clicks that don't move the map).
+  // `moveend` also ends every zoom, rotate and pitch.
   useEffect(() => {
     const map = mapInstance;
     if (!map) return;
@@ -253,15 +254,9 @@ export function MapCanvas({
       timer = setTimeout(flush, VIEWPORT_PERSIST_DEBOUNCE_MS);
     };
     map.on('moveend', schedule);
-    map.on('zoomend', schedule);
-    map.on('rotateend', schedule);
-    map.on('pitchend', schedule);
     return () => {
       if (timer) clearTimeout(timer);
       map.off('moveend', schedule);
-      map.off('zoomend', schedule);
-      map.off('rotateend', schedule);
-      map.off('pitchend', schedule);
     };
   }, [mapInstance, client, persistViewport]);
 
