@@ -1,14 +1,6 @@
-import type { StructureNode } from '../../../../shared/macros/structure';
+import { hasBrowsableChildren, type StructureNode } from '../../../../shared/macros/structure';
 import type { MacroVariable } from '../../../../shared/macros/types';
 import { Head, typeLabel } from './hoverAtoms';
-
-const TYPE_LABEL: Record<MacroVariable['type'], string> = {
-  string: 'string',
-  number: 'number',
-  position: 'position',
-  array: 'array',
-  boolean: 'boolean',
-};
 
 /** Field names + types, two levels deep. Arrays show their element's fields —
  *  one level of `paths` would only say `hops: array`, which is exactly the dead
@@ -19,7 +11,7 @@ function Fields({ node, depth = 0 }: { node: StructureNode; depth?: number }) {
   return (
     <div className="flex flex-col gap-0.5">
       {target.fields.map((f) => {
-        const nested = depth < 1 && (f.node.kind === 'object' || (f.node.kind === 'array' && f.node.element !== null));
+        const nested = depth < 1 && hasBrowsableChildren(f.node);
         return (
           <div key={f.name} className="flex flex-col" style={{ paddingLeft: depth * 10 }}>
             <div className="flex items-baseline gap-3">
@@ -35,16 +27,13 @@ function Fields({ node, depth = 0 }: { node: StructureNode; depth?: number }) {
 }
 
 export function VariableHoverCard({ variable, structure }: { variable: MacroVariable; structure: StructureNode | null }) {
-  const showStructure =
-    structure !== null && (structure.kind === 'object' || (structure.kind === 'array' && structure.element !== null));
+  const showStructure = structure !== null && hasBrowsableChildren(structure);
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <span className="font-mono text-[12px] text-cs-accent">{variable.name}</span>
-          <span className="rounded bg-cs-bg-3 px-1 font-mono text-[9px] text-cs-text-muted">
-            {TYPE_LABEL[variable.type]}
-          </span>
+          <span className="rounded bg-cs-bg-3 px-1 font-mono text-[9px] text-cs-text-muted">{variable.type}</span>
           {variable.available === 'reply' && (
             <span className="rounded bg-cs-bg-3 px-1 font-mono text-[9px] text-cs-warn">reply only</span>
           )}

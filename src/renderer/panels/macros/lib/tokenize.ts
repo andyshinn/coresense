@@ -6,8 +6,8 @@
 // (`{% assign X = … %}`, `{% for X in … %}`, `{% capture X %}`) are treated as
 // locals: collected up front into one flat `Set` across the whole template
 // (not block-scoped — macros are capped at 132 characters, so a scope stack
-// buys nothing real here), then excluded from both `varRoots` and
-// unknown-variable errors when painting.
+// buys nothing real here), then excluded from both `varRoots` and the
+// unknown-variable error paint.
 //
 // Why a bespoke tokenizer when the app already has a real LiquidJS engine:
 // LiquidJS renders and validates, but it cannot hand back per-character token
@@ -16,9 +16,12 @@
 // used to derive a macro's reply/send applicability).
 //
 // Authoritative validation (unknown filters, parse limits) stays with the
-// shared `validateTemplate`; this tokenizer is deliberately lenient about
-// filter names it doesn't recognise (it assumes a standard LiquidJS filter and
-// colours it as such rather than erroring).
+// shared `validateTemplate`, which is also where error messages come from: this
+// tokenizer only paints `error` / `unavail` runs. It is deliberately lenient
+// about filter names it doesn't recognise (it assumes a standard LiquidJS
+// filter and colours it as such rather than erroring).
+
+import type { MacroRenderMode } from '../../../../shared/macros/types';
 
 export type TokenType =
   | 'text'
@@ -37,16 +40,6 @@ export interface TokenRun {
   type: TokenType;
 }
 
-export type LintSeverity = 'error' | 'warn';
-export type LintKind = 'syntax' | 'unknown-var' | 'unavailable';
-
-export interface LintError {
-  severity: LintSeverity;
-  kind: LintKind;
-  message: string;
-  name?: string;
-}
-
 export interface MacroCatalog {
   /** Every known variable root (the segment before any dot). */
   variableNames: ReadonlySet<string>;
@@ -56,13 +49,9 @@ export interface MacroCatalog {
   customFilterNames: ReadonlySet<string>;
 }
 
-export type PreviewMode = 'reply' | 'send';
-
 export interface TokenizeResult {
   /** Runs tile the entire source string exactly, in order. */
   runs: TokenRun[];
-  /** Deduplicated lint findings. */
-  errors: LintError[];
   /** Distinct known-variable roots referenced, in first-seen order. */
   varRoots: string[];
 }
@@ -133,28 +122,28 @@ function lex(inner: string, base: number): LexTok[] {
 }
 
 type TagFilter = { name: LexTok; args: LexTok[] };
-type TagAst = { error: { start: number; end: number; message: string } } | { primary: LexTok; filters: TagFilter[] };
+type TagAst = { error: { start: number; end: number } } | { primary: LexTok; filters: TagFilter[] };
 
 /** Parse one tag's inner text. `innerStart` is the absolute index of the first
  *  character after `{{`. */
 function parseTag(inner: string, innerStart: number, rawStart: number, rawEnd: number): TagAst {
   const toks = lex(inner, innerStart);
-  if (!toks.length) return { error: { start: rawStart, end: rawEnd, message: 'Empty tag' } };
+  if (!toks.length) return { error: { start: rawStart, end: rawEnd } }; // empty tag
   let p = 0;
   const peek = () => toks[p];
   const primary = toks[p++];
   if (primary.t !== 'ident' && primary.t !== 'string' && primary.t !== 'number') {
-    return { error: { start: primary.start, end: primary.end, message: `Unexpected “${primary.v}”` } };
+    return { error: { start: primary.start, end: primary.end } };
   }
   const filters: TagFilter[] = [];
   while (p < toks.length) {
     const pipe = toks[p++];
     if (pipe.t !== 'pipe') {
-      return { error: { start: pipe.start, end: pipe.end, message: `Expected “|” before “${pipe.v}”` } };
+      return { error: { start: pipe.start, end: pipe.end } }; // expected `|`
     }
     const name = toks[p++];
     if (name?.t !== 'ident') {
-      return { error: { start: pipe.start, end: pipe.end, message: 'Filter name expected after “|”' } };
+      return { error: { start: pipe.start, end: pipe.end } }; // filter name expected after `|`
     }
     const args: LexTok[] = [];
     if (peek()?.t === 'colon') {
@@ -162,7 +151,7 @@ function parseTag(inner: string, innerStart: number, rawStart: number, rawEnd: n
       while (true) {
         const a = toks[p++];
         if (!a || (a.t !== 'ident' && a.t !== 'string' && a.t !== 'number')) {
-          return { error: { start: name.start, end: name.end, message: `Argument expected for “${name.v}”` } };
+          return { error: { start: name.start, end: name.end } }; // argument expected
         }
         args.push(a);
         if (peek()?.t === 'comma') {
@@ -292,9 +281,8 @@ function collectLocals(nodes: Node[]): Set<string> {
   return locals;
 }
 
-export function tokenize(src: string, mode: PreviewMode, catalog: MacroCatalog): TokenizeResult {
+export function tokenize(src: string, mode: MacroRenderMode, catalog: MacroCatalog): TokenizeResult {
   const type: TokenType[] = new Array(src.length).fill('text');
-  const errors: LintError[] = [];
   const varRoots: string[] = [];
   const seenRoots = new Set<string>();
   const nodes = scan(src);
@@ -320,18 +308,11 @@ export function tokenize(src: string, mode: PreviewMode, catalog: MacroCatalog):
     }
     if (!catalog.variableNames.has(root)) {
       paint(tok.start, tok.end, 'error');
-      errors.push({ severity: 'error', kind: 'unknown-var', message: `Unknown variable “${root}”`, name: tok.v });
       return;
     }
     recordRoot(tok.v);
     if (mode === 'send' && catalog.replyOnlyNames.has(root)) {
       paint(tok.start, tok.end, 'unavail');
-      errors.push({
-        severity: 'warn',
-        kind: 'unavailable',
-        message: `“${tok.v}” isn’t available when composing a new message`,
-        name: tok.v,
-      });
       return;
     }
     paint(tok.start, tok.end, 'variable');
@@ -345,9 +326,6 @@ export function tokenize(src: string, mode: PreviewMode, catalog: MacroCatalog):
   for (const node of nodes) {
     if (node.kind === 'unclosed') {
       paint(node.start, node.end, 'error');
-      const opener = src.slice(node.start, node.start + 2);
-      const closer = opener === '{%' ? '%}' : '}}';
-      errors.push({ severity: 'error', kind: 'syntax', message: `Unclosed “${opener}” — expected “${closer}”` });
       continue;
     }
     if (node.kind === 'block') {
@@ -368,7 +346,6 @@ export function tokenize(src: string, mode: PreviewMode, catalog: MacroCatalog):
     const ast = node.ast;
     if ('error' in ast) {
       paint(ast.error.start, ast.error.end, 'error');
-      errors.push({ severity: 'error', kind: 'syntax', message: ast.error.message });
       continue;
     }
     const pr = ast.primary;
@@ -392,16 +369,7 @@ export function tokenize(src: string, mode: PreviewMode, catalog: MacroCatalog):
     }
   }
 
-  // Dedupe errors by kind + message.
-  const seen = new Set<string>();
-  const uniq = errors.filter((e) => {
-    const key = `${e.kind}${e.message}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  return { runs, errors: uniq, varRoots };
+  return { runs, varRoots };
 }
 
 export interface KeyedRun extends TokenRun {

@@ -1,12 +1,8 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
-import type { StructureField, StructureNode } from '../../../../shared/macros/structure';
+import { hasBrowsableChildren, type StructureField, type StructureNode } from '../../../../shared/macros/structure';
+import { varTag } from '../lib/insertAtCaret';
 import { typeLabel } from './hoverAtoms';
-
-function isExpandable(node: StructureNode): boolean {
-  if (node.kind === 'object') return node.fields.length > 0;
-  return node.kind === 'array' && node.element !== null;
-}
 
 /** The fields shown when a node is expanded. An array shows its element's
  *  fields — the shape a `map:` or a `.first.` reaches. */
@@ -33,7 +29,7 @@ function Row({
   onInsertPath: (p: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const expandable = isExpandable(field.node);
+  const expandable = hasBrowsableChildren(field.node);
   return (
     <>
       <div
@@ -60,7 +56,7 @@ function Row({
         <button
           type="button"
           aria-label={`Insert ${path}`}
-          onClick={() => onInsertPath(`{{ ${path} }}`)}
+          onClick={() => onInsertPath(varTag(path))}
           className="flex min-w-0 flex-1 items-center gap-2 text-left hover:bg-cs-bg-3"
         >
           <span className="font-mono text-[11px] text-cs-accent">{field.name}</span>

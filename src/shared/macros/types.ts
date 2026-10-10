@@ -68,6 +68,10 @@ export interface MacroContext {
 
 export type MacroScope = 'global' | 'channel' | 'contact';
 
+/** The context a macro renders against: replying to a received message, or
+ *  composing a new send (where reply-only variables are null). */
+export type MacroRenderMode = 'reply' | 'send';
+
 export interface MacroTemplate {
   id: string;
   name: string;
@@ -82,7 +86,8 @@ export interface MacroTemplate {
 export type MacroVarAvailability = 'always' | 'reply';
 
 export interface MacroVariable {
-  name: string;
+  /** A MacroContext key, so a typo in the manifest fails to compile. */
+  name: keyof MacroContext;
   description: string;
   type: 'string' | 'number' | 'position' | 'array' | 'boolean';
   example: string;
@@ -99,7 +104,10 @@ export interface MacroFilterDoc {
   name: string;
   description: string;
   signature: string;
-  example: string;
+  example?: string;
+  /** Ready-to-edit text the Studio reference inserts: a realistic argument
+   *  stub the author can tweak. Defaults to a bare ` | name`. */
+  insert?: string;
 }
 
 export interface MacroManifest {

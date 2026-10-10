@@ -1,4 +1,4 @@
-import { getManifest } from '../../../../shared/macros';
+import { getManifest, replyOnlyVariableNames } from '../../../../shared/macros';
 import type { MacroManifest } from '../../../../shared/macros/types';
 import type { MacroCatalog } from './tokenize';
 
@@ -7,7 +7,7 @@ import type { MacroCatalog } from './tokenize';
 export function buildCatalog(manifest: MacroManifest): MacroCatalog {
   return {
     variableNames: new Set(manifest.variables.map((v) => v.name)),
-    replyOnlyNames: new Set(manifest.variables.filter((v) => v.available === 'reply').map((v) => v.name)),
+    replyOnlyNames: new Set(replyOnlyVariableNames(manifest.variables)),
     customFilterNames: new Set(manifest.filters.map((f) => f.name)),
   };
 }

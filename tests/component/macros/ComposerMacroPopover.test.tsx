@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 import { type ApiClient, api } from '@/lib/api';
+import { notify } from '@/lib/notify';
 import { useStore } from '@/lib/store';
 import { ComposerMacroPopover } from '@/panels/macros/inchat/ComposerMacroPopover';
 import type { MacroTemplate } from '../../../src/shared/macros/types';
@@ -27,6 +28,19 @@ describe('ComposerMacroPopover', () => {
     fireEvent.click(screen.getByRole('button', { name: /signal report/i }));
     await waitFor(() => expect(onExpand).toHaveBeenCalledWith('expanded text'));
     expect(renderSpy.mock.calls[0][1]).toMatchObject({ macroId: 'a', mode: 'send', contactKey: 'c:abc' });
+  });
+
+  // Regression: a transport failure used to reject out of `void choose(...)`,
+  // skipping both the toast and onClose, so the popover stayed open.
+  it('toasts and still closes when the render request fails', async () => {
+    vi.spyOn(api, 'renderMacro').mockRejectedValue(new Error('network down'));
+    const onExpand = vi.fn();
+    const onClose = vi.fn();
+    render(<ComposerMacroPopover query="" client={client} targetKey="c:abc" onExpand={onExpand} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: /signal report/i }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(onExpand).not.toHaveBeenCalled();
+    expect(notify.error).toHaveBeenCalledWith('Couldn’t expand “Signal report”: network down', expect.any(Error));
   });
 
   it('filters macros by the slash query', () => {

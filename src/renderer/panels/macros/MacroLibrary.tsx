@@ -5,6 +5,7 @@ import { type ApiClient, api } from '@/lib/api';
 import { notify } from '@/lib/notify';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
+import { errorMessage } from '../../../shared/errors';
 import type { MacroTemplate } from '../../../shared/macros/types';
 import type { Channel, Contact } from '../../../shared/types';
 import { filterMacros, type ScopeFilter, scopeCounts } from './lib/filterMacros';
@@ -57,7 +58,7 @@ export function MacroLibrary({ client, onNew, onEdit }: MacroLibraryProps) {
       });
       notify.success('Macro duplicated');
     } catch (err) {
-      notify.error(`Couldn’t duplicate macro: ${(err as Error).message}`, err);
+      notify.error(`Couldn’t duplicate macro: ${errorMessage(err)}`, err);
     }
   };
 
@@ -67,7 +68,7 @@ export function MacroLibrary({ client, onNew, onEdit }: MacroLibraryProps) {
       await api.deleteMacro(client, m.id);
       notify.success('Macro deleted');
     } catch (err) {
-      notify.error(`Couldn’t delete macro: ${(err as Error).message}`, err);
+      notify.error(`Couldn’t delete macro: ${errorMessage(err)}`, err);
     }
   };
 

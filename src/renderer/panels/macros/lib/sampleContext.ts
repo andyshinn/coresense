@@ -1,7 +1,7 @@
-import { buildSampleContext, MACRO_VARIABLES } from '../../../../shared/macros';
+import { buildSampleContext, MACRO_VARIABLES, replyOnlyVariableNames } from '../../../../shared/macros';
 import type { MacroContext, MacroPath } from '../../../../shared/macros/types';
 
-const REPLY_ONLY_NAMES = MACRO_VARIABLES.filter((v) => v.available === 'reply').map((v) => v.name);
+const REPLY_ONLY_NAMES = replyOnlyVariableNames(MACRO_VARIABLES);
 
 /** Variables the manifest documents but nothing ever populates — see their
  *  entries for why. buildSampleContext() gives them plausible numbers because
@@ -13,12 +13,21 @@ const REPLY_ONLY_NAMES = MACRO_VARIABLES.filter((v) => v.available === 'reply').
  *  for a null, so the previewed text and its budget length are both honest. */
 const NEVER_POPULATED_NAMES = MACRO_VARIABLES.filter((v) => v.populated === false).map((v) => v.name);
 
+/** A copy of `ctx` with `names` blanked: null, or [] for `paths`, the one
+ *  variable that is a list rather than a nullable value. */
+function blanked(ctx: MacroContext, names: readonly (keyof MacroContext)[]): MacroContext {
+  const out = { ...ctx };
+  for (const name of names) {
+    if (name === 'paths') out.paths = [];
+    else out[name] = null;
+  }
+  return out;
+}
+
 /** Null out the never-populated variables. Applied LAST, after any overrides, so
  *  a hand-written sample below cannot quietly re-introduce one. */
 function blankNeverPopulated(ctx: MacroContext): MacroContext {
-  const out = ctx as unknown as Record<string, unknown>;
-  for (const name of NEVER_POPULATED_NAMES) out[name] = null;
-  return out as unknown as MacroContext;
+  return blanked(ctx, NEVER_POPULATED_NAMES);
 }
 
 /** Reply preview — a received message is selected, so every variable that can
@@ -31,9 +40,7 @@ export function replyContext(): MacroContext {
  *  unavailable (null / empty), matching what the real send-context builder
  *  produces. */
 export function sendContext(): MacroContext {
-  const ctx = buildSampleContext() as unknown as Record<string, unknown>;
-  for (const name of REPLY_ONLY_NAMES) ctx[name] = name === 'paths' ? [] : null;
-  return blankNeverPopulated(ctx as unknown as MacroContext);
+  return blankNeverPopulated(blanked(buildSampleContext(), REPLY_ONLY_NAMES));
 }
 
 const WORST_CASE_HOPS = [

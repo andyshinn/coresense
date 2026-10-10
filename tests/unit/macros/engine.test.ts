@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMacroEngine } from '../../../src/shared/macros/engine';
+import { createMacroEngine, getMacroEngine } from '../../../src/shared/macros/engine';
 
 describe('createMacroEngine', () => {
   it('renders a simple variable', () => {
@@ -19,5 +19,17 @@ describe('createMacroEngine', () => {
     const engine = createMacroEngine({ defaultDistanceUnit: 'imperial' });
     const out = engine.parseAndRenderSync('{{ 1609.344 | unit }}', {});
     expect(out).toBe('1.0 mi');
+  });
+});
+
+describe('getMacroEngine', () => {
+  it('returns one shared engine per distance unit', () => {
+    expect(getMacroEngine('metric')).toBe(getMacroEngine('metric'));
+    expect(getMacroEngine('imperial')).toBe(getMacroEngine('imperial'));
+    expect(getMacroEngine('metric')).not.toBe(getMacroEngine('imperial'));
+  });
+  it("honours each engine's default unit", () => {
+    expect(getMacroEngine('metric').parseAndRenderSync('{{ 1000 | unit }}', {})).toBe('1.0 km');
+    expect(getMacroEngine('imperial').parseAndRenderSync('{{ 1609.344 | unit }}', {})).toBe('1.0 mi');
   });
 });

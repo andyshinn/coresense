@@ -25,3 +25,17 @@ export function createMacroEngine(opts: MacroEngineOptions): Liquid {
   registerMacroFilters(engine, { defaultDistanceUnit: opts.defaultDistanceUnit });
   return engine;
 }
+
+const engines = new Map<DistanceUnit, Liquid>();
+
+/** The shared engine for a distance unit, built on first use. An engine keeps no
+ *  per-render state, so validation, lint, the Studio preview and the main-process
+ *  render all reuse one per unit instead of each caching its own. */
+export function getMacroEngine(unit: DistanceUnit): Liquid {
+  let engine = engines.get(unit);
+  if (!engine) {
+    engine = createMacroEngine({ defaultDistanceUnit: unit });
+    engines.set(unit, engine);
+  }
+  return engine;
+}

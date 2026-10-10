@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { previewEngine, renderPreview } from '@/panels/macros/lib/preview';
+import { renderPreview } from '@/panels/macros/lib/preview';
 import { replyContext, sendContext, worstCaseContext } from '@/panels/macros/lib/sampleContext';
-import { MACRO_VARIABLES } from '../../../../../src/shared/macros';
+import { getMacroEngine, MACRO_VARIABLES, replyOnlyVariableNames } from '../../../../../src/shared/macros';
 
 const NEVER_POPULATED = MACRO_VARIABLES.filter((v) => v.populated === false).map((v) => v.name);
-const REPLY_ONLY = MACRO_VARIABLES.filter((v) => v.available === 'reply').map((v) => v.name);
+const REPLY_ONLY = replyOnlyVariableNames(MACRO_VARIABLES);
 // The always-available variables that a real context can actually fill. The
 // never-populated ones are nominally 'always' too, which is exactly what let
 // {{ peer_rssi }} preview as -80 in both modes.
@@ -12,13 +12,13 @@ const ALWAYS = MACRO_VARIABLES.filter((v) => v.available === 'always' && v.popul
 
 describe('sample contexts', () => {
   it('reply context populates the reply-only variables', () => {
-    const ctx = replyContext() as unknown as Record<string, unknown>;
+    const ctx = replyContext();
     expect(ctx.sender_name).toBeTruthy();
     expect(ctx.snr).not.toBeNull();
   });
 
   it('send context nulls every reply-only variable but keeps the always ones', () => {
-    const ctx = sendContext() as unknown as Record<string, unknown>;
+    const ctx = sendContext();
     for (const name of REPLY_ONLY) {
       if (name === 'paths') expect(ctx[name]).toEqual([]);
       else expect(ctx[name]).toBeNull();
@@ -27,8 +27,8 @@ describe('sample contexts', () => {
   });
 
   it('worst-case context is fully populated and longer than the reply sample', () => {
-    const worst = worstCaseContext() as unknown as Record<string, unknown>;
-    const reply = replyContext() as unknown as Record<string, unknown>;
+    const worst = worstCaseContext();
+    const reply = replyContext();
     for (const name of [...ALWAYS, ...REPLY_ONLY]) expect(worst[name]).not.toBeUndefined();
     expect(String(worst.peer_name).length).toBeGreaterThan(String(reply.peer_name).length);
   });
@@ -49,12 +49,12 @@ describe('sample contexts', () => {
       ['send', sendContext],
       ['worst case', worstCaseContext],
     ])('%s context nulls them', (_label, build) => {
-      const ctx = build() as unknown as Record<string, unknown>;
+      const ctx = build();
       for (const name of NEVER_POPULATED) expect(ctx[name], `${name} should be blank`).toBeNull();
     });
 
     it('renders them through the real preview path as the ? placeholder, in both modes', () => {
-      const engine = previewEngine('metric');
+      const engine = getMacroEngine('metric');
       for (const ctx of [replyContext(), sendContext()]) {
         expect(renderPreview(engine, 'Heard you at {{ peer_rssi }}dBm', ctx).text).toBe('Heard you at ?dBm');
         expect(renderPreview(engine, '{{ peer_snr }}dB', ctx).text).toBe('?dB');
@@ -62,7 +62,7 @@ describe('sample contexts', () => {
     });
 
     it('leaves the peer variables that do resolve alone', () => {
-      const ctx = sendContext() as unknown as Record<string, unknown>;
+      const ctx = sendContext();
       expect(ctx.peer_hops).not.toBeNull();
       expect(ctx.peer_last_seen).not.toBeNull();
       expect(ctx.peer_pos).not.toBeNull();

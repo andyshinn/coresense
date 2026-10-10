@@ -5,7 +5,8 @@ vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), error: vi.fn(), inf
 
 import { type ApiClient, api } from '@/lib/api';
 import { useStore } from '@/lib/store';
-import { MacroStudio } from '@/panels/macros/MacroStudio';
+import { MacroStudio, QUICK_VARS } from '@/panels/macros/MacroStudio';
+import { MACRO_VARIABLES } from '../../../src/shared/macros';
 import type { MacroTemplate } from '../../../src/shared/macros/types';
 
 const client: ApiClient = { baseUrl: 'http://x', apiKey: 'k' };
@@ -47,6 +48,18 @@ describe('MacroStudio', () => {
     render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'sender_name' }));
     expect((screen.getByTestId('macro-editor') as HTMLTextAreaElement).value).toBe('{{ sender_name }}');
+  });
+
+  // A quick chip promotes a variable, so it must be one a real send fills:
+  // `rssi` was a chip, and is never populated, so it always sent `?`.
+  it('offers quick chips only for manifest variables that are populated', () => {
+    for (const name of QUICK_VARS) {
+      const v = MACRO_VARIABLES.find((x) => x.name === name);
+      expect(v, `${name} should be a manifest variable`).toBeDefined();
+      expect(v?.populated, `${name} should be populated`).not.toBe(false);
+    }
+    render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'rssi' })).toBeNull();
   });
 
   it('opens a variable autocomplete from a {{ tag and inserts the choice', async () => {
