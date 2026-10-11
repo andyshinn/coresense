@@ -19,6 +19,9 @@ export interface CliPromptProps {
   radioSettings: RadioSettings | null;
   hops: number;
   guest: CliGuest;
+  /** Why queued commands aren't being sent right now (another request holds
+   *  the radio); shown as a banner. They send once it clears. */
+  blockedHint?: string | null;
   queuedCount: number;
   onSubmit: (text: string) => void;
   onClearTranscript: () => void;
@@ -49,6 +52,7 @@ export function CliPrompt({
   radioSettings,
   hops,
   guest,
+  blockedHint = null,
   queuedCount,
   onSubmit,
   onClearTranscript,
@@ -184,6 +188,11 @@ export function CliPrompt({
         >
           Log in as admin →
         </button>
+      </div>
+    ) : blockedHint ? (
+      <div className="border-b border-cs-border bg-cs-bg-3 px-4 py-1.5 text-[11px] text-cs-text-muted">
+        {blockedHint}
+        {queuedCount > 0 ? ' · commands send when it finishes' : ''}
       </div>
     ) : null;
 

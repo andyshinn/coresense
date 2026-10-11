@@ -1,4 +1,17 @@
-import { Braces, Cog, FileText, Hash, Inbox, MapIcon, MessageCircle, Radio, ScrollText, Search, Users } from 'lucide-react';
+import {
+  Braces,
+  Cog,
+  FileText,
+  Hash,
+  Inbox,
+  MapIcon,
+  MessageCircle,
+  Radio,
+  ScrollText,
+  Search,
+  ThermometerSun,
+  Users,
+} from 'lucide-react';
 import type { PaletteItem, ToolItem } from '../types';
 
 export const TOOL_ITEMS: ToolItem[] = [
@@ -37,6 +50,7 @@ export const TOOL_ITEMS: ToolItem[] = [
   { key: 'tool:map', label: 'Map', hint: 'Contact locations', icon: MapIcon },
   { key: 'tool:contacts', label: 'Contact Management', hint: 'Add / edit contacts', icon: Users },
   { key: 'tool:macros', label: 'Macros', hint: 'Reusable message templates', icon: Braces },
+  { key: 'tool:myradio', label: 'My radio', hint: 'Telemetry, sensors, who can read them', icon: ThermometerSun },
   {
     key: 'tool:bleconnect',
     label: 'BLE Connect',

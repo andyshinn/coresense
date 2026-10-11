@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatVoltage, lipoPercent } from '../../../../src/renderer/lib/battery';
+import { formatVoltage, lipoPercent } from '../../../src/shared/battery';
 
 describe('lipoPercent', () => {
   it('returns null for a missing/zero reading', () => {

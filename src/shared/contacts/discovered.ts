@@ -1,4 +1,4 @@
-import type { BlockRule, ContactKind, PathHashSize } from '../types';
+import type { BlockRule, ContactKind, PathHashSize, TelemetryPerms } from '../types';
 
 /** A node we've heard an advert from. Superset of the on-radio contact list:
  *  `onRadio` marks whether it is currently committed to the radio's store. */
@@ -74,6 +74,11 @@ export interface DiscoveredContact {
   firstHeardMs: number;
   onRadio: boolean;
   favourite: boolean;
+  /** Which telemetry this node may read from MY radio under a "per contact"
+   *  mode: bits 1–3 of the stored firmware flags byte. Only meaningful while
+   *  `onRadio` — the radio keeps no flags for a contact it doesn't store.
+   *  Main always sets it; optional only so hand-built fixtures stay valid. */
+  telemetryPerms?: TelemetryPerms;
   blocked: boolean;
 }
 

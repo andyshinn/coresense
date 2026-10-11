@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My radio telemetry</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="telemetry.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#f59e0b}a:hover{color:#f5f1e6}
+</style>
+</helmet>
+<div style="width: 1320px; height: 1040px; display: flex; background: var(--cs-bg); color: var(--cs-text); font-family: var(--font-sans); overflow: hidden">
+
+  <main style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column">
+    <header style="background: var(--cs-bg-2); border-bottom: 1px solid var(--cs-border); padding: 10px 20px 0">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <div style="width: 28px; height: 28px; border-radius: 6px; background: var(--cs-bg-3); display: grid; grid-template-columns: repeat(3, 5px); gap: 2px; align-content: center; justify-content: center">
+          <span style="background: var(--cs-accent); height: 5px"></span><span style="height: 5px"></span><span style="background: var(--cs-accent); height: 5px"></span>
+          <span style="background: var(--cs-accent); height: 5px"></span><span style="background: var(--cs-accent); height: 5px"></span><span style="height: 5px"></span>
+          <span style="height: 5px"></span><span style="background: var(--cs-accent); height: 5px"></span><span style="background: var(--cs-accent); height: 5px"></span>
+        </div>
+        <div>
+          <div style="font-size: 16px; line-height: 24px; font-weight: 500">egrme.sh Hand</div>
+          <div class="meta">companion · 1a3d3c · my radio</div>
+        </div>
+      </div>
+      <nav aria-label="My radio" style="display: flex; gap: 22px; margin-top: 6px">
+        <a class="tab" href="#">Overview</a>
+        <a class="tab" href="#">Radio</a>
+        <a class="tab on" href="#" aria-current="page">Telemetry</a>
+        <a class="tab" href="#">Identity</a>
+        <a class="tab" href="#">Firmware</a>
+      </nav>
+    </header>
+
+    <section style="flex: 1 1 auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; overflow: hidden">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <h2 class="lcm" style="margin: 0; font-weight: 600; font-size: 11px; color: var(--cs-text)">My telemetry</h2>
+        <span class="meta" style="margin-left: auto; color: var(--cs-text-muted)">read over BLE at 21:31:02 · no airtime used</span>
+        <a href="#" style="font-size: 11px">14 saved reads</a>
+        <button class="btn" type="button">Read telemetry</button>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <span class="lcm" style="color: var(--cs-text)">Ch 1</span>
+          <span style="font-size: 12.5px; font-weight: 500">Self</span>
+          <span class="meta">battery · position</span>
+        </div>
+        <div class="seams" style="grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)">
+          <div class="tile">
+            <div style="display: flex; align-items: center; gap: 6px; color: var(--cs-accent)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z M22 11v2 M8 11v2 M12 11v2"></path></svg><span class="lc">Battery</span><span class="meta" style="margin-left: auto">voltage · 116</span></div>
+            <div style="display: flex; align-items: baseline; gap: 6px"><span class="mono" style="font-size: 30px; line-height: 36px">4.04</span><span class="mono" style="font-size: 12px; color: var(--cs-text-muted)">V</span><span class="mono" style="margin-left: 10px; font-size: 12px; color: var(--cs-text-muted)">92% · from radio</span></div>
+            <div style="height: 6px; border-radius: 999px; background: var(--cs-bg-3); overflow: hidden"><div style="width: 92%; height: 100%; background: var(--cs-online)"></div></div>
+            <div class="meta">discharging · about 2 d 6 h left at today’s rate</div>
+          </div>
+          <div class="tile" style="justify-content: center">
+            <div style="display: flex; align-items: center; gap: 6px; color: var(--cs-text-dim)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0 M12 7a3 3 0 1 0 0 6a3 3 0 1 0 0-6"></path></svg><span class="lc">GPS</span><span class="chip chip-off" style="margin-left: auto">off</span></div>
+            <div style="font-size: 12px; color: var(--cs-text-muted); line-height: 18px">GPS is off on this radio. Turn it on in sensor settings to report position on channel 1.</div>
+            <div><button class="btn" type="button">Sensor settings…</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <span class="lcm" style="color: var(--cs-text)">Ch 2</span>
+          <span style="font-size: 12.5px; font-weight: 500">Environment</span>
+          <span class="meta">field set matches AHT/SHT</span>
+        </div>
+        <div class="seams" style="grid-template-columns: repeat(2, minmax(0, 1fr))">
+          <div class="tile">
+            <div style="display: flex; align-items: center; gap: 6px; color: var(--cs-accent)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"></path></svg><span class="lc">Temperature</span><span class="meta" style="margin-left: auto">temp · 103</span></div>
+            <div style="display: flex; align-items: baseline; gap: 5px"><span class="mono" style="font-size: 22px; line-height: 30px">27.8</span><span class="mono" style="font-size: 11px; color: var(--cs-text-muted)">°C</span></div>
+            <div class="mono" style="font-size: 11px; color: var(--cs-text-muted)">82.0 °F · in a pocket, reads warm</div>
+          </div>
+          <div class="tile">
+            <div style="display: flex; align-items: center; gap: 6px; color: var(--cs-accent)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"></path></svg><span class="lc">Humidity</span><span class="meta" style="margin-left: auto">humidity · 104</span></div>
+            <div style="display: flex; align-items: baseline; gap: 5px"><span class="mono" style="font-size: 22px; line-height: 30px">46.0</span><span class="mono" style="font-size: 11px; color: var(--cs-text-muted)">%</span></div>
+            <div class="mono" style="font-size: 11px; color: var(--cs-text-muted)">dew point 15.0 °C</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true" style="color: var(--cs-accent)"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path></svg>
+          <span style="font-size: 13px; font-weight: 600">Who can read my telemetry</span>
+          <span class="meta" style="margin-left: auto">saved on radio</span>
+        </div>
+        <sc-for list="{{policy}}" as="p" hint-placeholder-count="3">
+          <div style="display: flex; align-items: center; gap: 16px; padding: 10px 14px; border-bottom: 1px solid var(--cs-border)">
+            <div style="min-width: 0; flex: 1 1 auto">
+              <div style="font-size: 12px">{{p.label}}</div>
+              <div style="font-size: 11px; color: var(--cs-text-muted)">{{p.desc}}</div>
+            </div>
+            <div class="seg" role="group" aria-label="{{p.label}}">
+              <sc-for list="{{p.opts}}" as="o" hint-placeholder-count="3">
+                <sc-if value="{{o.on}}" hint-placeholder-val="{{false}}"><span class="on">{{o.label}}</span></sc-if>
+                <sc-if value="{{o.off}}" hint-placeholder-val="{{true}}"><a href="#">{{o.label}}</a></sc-if>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+        <div style="padding: 8px 14px 10px; font-size: 11px; color: var(--cs-text-dim)">“Per contact” uses the telemetry flags on each contact. 3 contacts can read location, 5 can read environment.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true" style="color: var(--cs-accent)"><path d="M12 2a2 2 0 0 0-2 2v.3a8 8 0 0 0-1.7.7l-.2-.2a2 2 0 1 0-2.8 2.8l.2.2a8 8 0 0 0-.7 1.7H4a2 2 0 1 0 0 4h.3a8 8 0 0 0 .7 1.7l-.2.2a2 2 0 1 0 2.8 2.8l.2-.2a8 8 0 0 0 1.7.7v.3a2 2 0 1 0 4 0v-.3a8 8 0 0 0 1.7-.7l.2.2a2 2 0 1 0 2.8-2.8l-.2-.2a8 8 0 0 0 .7-1.7h.3a2 2 0 1 0 0-4h-.3a8 8 0 0 0-.7-1.7l.2-.2a2 2 0 1 0-2.8-2.8l-.2.2a8 8 0 0 0-1.7-.7V4a2 2 0 0 0-2-2Z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6"></path></svg>
+          <span style="font-size: 13px; font-weight: 600">Sensor settings</span>
+          <span class="meta" style="margin-left: auto">2 settings reported by the radio</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px; padding: 10px 14px; border-bottom: 1px solid var(--cs-border)">
+          <div style="flex: 1 1 auto"><div style="font-size: 12px">GPS</div><div class="meta">gps · 0 / 1</div></div>
+          <button type="button" role="switch" aria-checked="false" aria-label="GPS" style="width: 34px; height: 20px; border-radius: 999px; border: 1px solid var(--cs-border-strong); background: var(--cs-bg-3); padding: 2px; display: flex; cursor: pointer"><span style="width: 14px; height: 14px; border-radius: 999px; background: var(--cs-text-muted)"></span></button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px; padding: 10px 14px">
+          <div style="flex: 1 1 auto"><label for="gpsint" style="font-size: 12px">GPS update interval</label><div class="meta">gps_interval · seconds</div></div>
+          <input id="gpsint" class="mono" value="300" style="width: 80px; height: 28px; box-sizing: border-box; border-radius: 4px; border: 1px solid var(--cs-border); background: var(--cs-bg-3); color: var(--cs-text); padding: 0 8px; font-size: 12px; text-align: right">
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside aria-label="Contact permissions" style="width: 320px; flex-shrink: 0; background: var(--cs-bg-2); border-left: 1px solid var(--cs-border); display: flex; flex-direction: column">
+    <div style="padding: 10px 14px; border-bottom: 1px solid var(--cs-border)"><span class="lcm" style="color: var(--cs-text-dim)">Telemetry flags per contact</span></div>
+    <div style="padding: 8px 14px; border-bottom: 1px solid var(--cs-border); display: grid; grid-template-columns: minmax(0, 1fr) 40px 40px 40px; gap: 4px; align-items: center">
+      <span class="lc">Contact</span><span class="lc" style="text-align: center">Base</span><span class="lc" style="text-align: center">Loc</span><span class="lc" style="text-align: center">Env</span>
+    </div>
+    <sc-for list="{{contacts}}" as="c" hint-placeholder-count="7">
+      <div style="padding: 6px 14px; display: grid; grid-template-columns: minmax(0, 1fr) 40px 40px 40px; gap: 4px; align-items: center">
+        <div style="min-width: 0"><div style="font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{c.name}}</div><div class="meta">{{c.key}}</div></div>
+        <span class="mono" style="text-align: center; font-size: 12px; color: var(--cs-text-dim)">{{c.b}}</span>
+        <span class="mono" style="text-align: center; font-size: 12px; color: var(--cs-online)">{{c.l}}</span>
+        <span class="mono" style="text-align: center; font-size: 12px; color: var(--cs-online)">{{c.e}}</span>
+      </div>
+    </sc-for>
+    <div style="padding: 10px 14px; border-top: 1px solid var(--cs-border); margin-top: 6px; font-size: 11px; line-height: 16px; color: var(--cs-text-muted)">Base is greyed: the policy above already shares battery with everyone. Edit a contact’s flags from its contact card (Permissions…).</div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1320,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const opts = (sel) => ['Deny', 'Per contact', 'Everyone'].map((label) => ({ label, on: label === sel, off: label !== sel }));
+    const policy = [
+      { label: 'Base', desc: 'Battery voltage. Repeaters and room servers ask for this most.', opts: opts('Everyone') },
+      { label: 'Location', desc: 'GPS position on channel 1, when GPS is on.', opts: opts('Per contact') },
+      { label: 'Environment', desc: 'Every attached sensor, channel 2 onward.', opts: opts('Per contact') }
+    ];
+    const contacts = [
+      { name: 'egrme.sh MMM L15', key: '7c01e2…a9f0', b: '✓', l: '✓', e: '✓' },
+      { name: 'egrme.sh RAK3401', key: '42da74…d8e5', b: '✓', l: '✓', e: '✓' },
+      { name: 'Modular Mesh Maker Repeater', key: 'b3e910…4c12', b: '✓', l: '—', e: '✓' },
+      { name: 'Solar Skunk', key: '0f77ac…1e03', b: '✓', l: '—', e: '✓' },
+      { name: 'Unit C6L Sensor', key: 'e5a2d0…77b1', b: '✓', l: '✓', e: '✓' },
+      { name: 'Pfire Tower', key: '9d14c8…5a6e', b: '✓', l: '—', e: '—' },
+      { name: '_amjrpt1', key: '31be07…c2d9', b: '✓', l: '—', e: '—' }
+    ];
+    return { policy, contacts };
+  }
+}
+</script>
+</body>
+</html>

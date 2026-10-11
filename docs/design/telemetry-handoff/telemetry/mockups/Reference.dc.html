@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MeshCore sensor reference</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="telemetry.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#f59e0b}a:hover{color:#f5f1e6}
+</style>
+</helmet>
+<div style="width: 1240px; height: 1480px; box-sizing: border-box; padding: 40px; display: flex; flex-direction: column; gap: 24px; background: var(--cs-bg); color: var(--cs-text); font-family: var(--font-sans)">
+
+  <div style="display: flex; flex-direction: column; gap: 6px">
+    <span class="lcm">Research · MeshCore a366955</span>
+    <h1 style="margin: 0; font-size: 22px; line-height: 30px; font-weight: 600">What a MeshCore node can put in a telemetry reply</h1>
+    <p style="margin: 0; font-size: 13px; line-height: 20px; color: var(--cs-text-muted); max-width: 980px">From SensorManager.h and EnvironmentSensorManager.cpp. Ch 1 is the node itself (battery, then GPS). Environment sensors take ch 2 onward in the order they are detected at boot, so the same sensor can land on a different channel on another board.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px">
+    <div class="card"><div class="card-h"><span class="chip chip-ok">0x01</span><span style="font-size: 12.5px; font-weight: 500">Base</span></div><div style="padding: 10px 14px; font-size: 12px; line-height: 18px; color: var(--cs-text-muted)">Battery voltage on ch 1. Guests on a repeater get this and nothing else.</div></div>
+    <div class="card"><div class="card-h"><span class="chip chip-ok">0x02</span><span style="font-size: 12.5px; font-weight: 500">Location</span></div><div style="padding: 10px 14px; font-size: 12px; line-height: 18px; color: var(--cs-text-muted)">GPS on ch 1, only when a GPS is detected and switched on (setting gps = 1).</div></div>
+    <div class="card"><div class="card-h"><span class="chip chip-ok">0x04</span><span style="font-size: 12.5px; font-weight: 500">Environment</span></div><div style="padding: 10px 14px; font-size: 12px; line-height: 18px; color: var(--cs-text-muted)">Every detected I²C sensor, ch 2 onward. Without it the reply stops after ch 1.</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><span class="lcm" style="color: var(--cs-text)">Supported sensors</span><span class="meta" style="margin-left: auto">16 chips · ENV_INCLUDE_* build flags</span></div>
+    <div style="display: grid; grid-template-columns: 150px 70px minmax(0, 1fr) 90px 250px; column-gap: 14px; padding: 6px 14px; border-bottom: 1px solid var(--cs-border)">
+      <span class="lc">Sensor</span><span class="lc">I²C</span><span class="lc">LPP fields</span><span class="lc">Channels</span><span class="lc">Notes</span>
+    </div>
+    <sc-for list="{{sensors}}" as="s" hint-placeholder-count="17">
+      <div style="display: grid; grid-template-columns: 150px 70px minmax(0, 1fr) 90px 250px; column-gap: 14px; padding: 5px 14px; align-items: baseline; border-bottom: 1px solid var(--cs-border)">
+        <span style="font-size: 12.5px; font-weight: 500">{{s.name}}</span>
+        <span class="mono" style="font-size: 11px; color: var(--cs-text-muted)">{{s.addr}}</span>
+        <span class="mono" style="font-size: 11px; color: var(--cs-hash-1)">{{s.fields}}</span>
+        <span class="mono" style="font-size: 11px; color: var(--cs-text-muted)">{{s.ch}}</span>
+        <span style="font-size: 11px; color: var(--cs-text-dim)">{{s.note}}</span>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 14px; align-items: start">
+    <div class="card">
+      <div class="card-h"><span class="lcm" style="color: var(--cs-text)">CayenneLPP types to decode</span><span class="meta" style="margin-left: auto">[ch][type][data…]</span></div>
+      <div style="display: grid; grid-template-columns: 50px 130px 56px 110px 60px minmax(0, 1fr); column-gap: 12px; padding: 6px 14px; border-bottom: 1px solid var(--cs-border)">
+        <span class="lc">Id</span><span class="lc">Type</span><span class="lc">Bytes</span><span class="lc">Step</span><span class="lc">Signed</span><span class="lc">Shown as</span>
+      </div>
+      <sc-for list="{{types}}" as="t" hint-placeholder-count="13">
+        <div style="display: grid; grid-template-columns: 50px 130px 56px 110px 60px minmax(0, 1fr); column-gap: 12px; padding: 4px 14px; align-items: baseline">
+          <span class="mono" style="font-size: 11px; color: var(--cs-accent)">{{t.id}}</span>
+          <span style="font-size: 12px">{{t.name}}</span>
+          <span class="mono" style="font-size: 11px; color: var(--cs-text-muted)">{{t.len}}</span>
+          <span class="mono" style="font-size: 11px; color: var(--cs-text-muted)">{{t.step}}</span>
+          <span class="mono" style="font-size: 11px; color: var(--cs-text-muted)">{{t.signed}}</span>
+          <span class="mono" style="font-size: 11px">{{t.show}}</span>
+        </div>
+      </sc-for>
+      <div style="padding: 8px 14px 10px; border-top: 1px solid var(--cs-border); margin-top: 6px; font-size: 11px; color: var(--cs-text-dim)">Also decode 0 digital in, 101 luminosity, 125 concentration and 142 switch: third-party sensor managers can send them. Stop at an unknown id and show the remaining bytes raw.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span class="lcm" style="color: var(--cs-text)">Gotchas for the UI</span></div>
+      <div style="padding: 10px 14px; display: flex; flex-direction: column; gap: 10px">
+        <sc-for list="{{gotchas}}" as="g" hint-placeholder-count="6">
+          <div style="display: flex; gap: 8px; font-size: 12px; line-height: 18px"><span style="color: var(--cs-warn)">⚠</span><span><span style="font-weight: 600">{{g.t}}</span> <span style="color: var(--cs-text-muted)">{{g.d}}</span></span></div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":1480}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const sensors = [
+      { name: 'Battery (built in)', addr: '—', fields: 'voltage', ch: '1', note: 'Always sent with base permission' },
+      { name: 'GPS', addr: 'UART / I²C', fields: 'gps', ch: '1', note: 'RAK12500 on RAK boards, serial elsewhere' },
+      { name: 'AHT10 / AHT20', addr: '0x38', fields: 'temp, humidity', ch: '1 ch', note: '' },
+      { name: 'BME280', addr: '0x76', fields: 'temp, humidity, barometer, altitude', ch: '1 ch', note: 'Shares 0x76 with BME680, BMP280' },
+      { name: 'BME680', addr: '0x76', fields: 'temp, humidity, barometer, altitude, generic', ch: '1 ch', note: 'Generic = gas resistance' },
+      { name: 'BME680 + BSEC', addr: '0x76', fields: 'temp, humidity, barometer, altitude, generic, analog in', ch: '1 ch', note: 'Generic = IAQ, analog = accuracy' },
+      { name: 'BMP280', addr: '0x76', fields: 'temp, barometer, altitude', ch: '1 ch', note: '' },
+      { name: 'BMP085', addr: '0x77', fields: 'temp, barometer, altitude', ch: '1 ch', note: '' },
+      { name: 'SHTC3', addr: '0x70', fields: 'temp, humidity', ch: '1 ch', note: '' },
+      { name: 'SHT4x', addr: '0x44', fields: 'temp, humidity', ch: '1 ch', note: 'Skipped on a failed read; shares 0x44 with INA226' },
+      { name: 'LPS22HB', addr: '0x5C', fields: 'temp, barometer', ch: '1 ch', note: 'kPa converted to hPa on device' },
+      { name: 'INA219', addr: '0x40', fields: 'voltage, current, power', ch: '1 ch', note: '' },
+      { name: 'INA260', addr: '0x41', fields: 'voltage, current, power', ch: '1 ch', note: '' },
+      { name: 'INA226', addr: '0x44', fields: 'voltage, current, power', ch: '1 ch', note: '' },
+      { name: 'INA3221', addr: '0x42', fields: 'voltage, current, power ×N', ch: '1–3 ch', note: 'One channel per enabled input' },
+      { name: 'MLX90614', addr: '0x5A', fields: 'temp (object), temp (ambient)', ch: '2 ch', note: 'IR thermometer' },
+      { name: 'VL53L0X', addr: '0x29', fields: 'distance', ch: '1 ch', note: 'Reports 0 when out of range' },
+      { name: 'RAK12035', addr: '0x20', fields: 'temp, percentage (+ frequency, temp, power)', ch: '1–2 ch', note: 'Soil moisture; 2nd ch only in calibration' }
+    ];
+    const types = [
+      { id: '2', name: 'Analog input', len: '2', step: '0.01', signed: 'yes', show: '3 · IAQ accuracy' },
+      { id: '100', name: 'Generic sensor', len: '4', step: '1', signed: 'no', show: '48 211 · label from field set' },
+      { id: '103', name: 'Temperature', len: '2', step: '0.1 °C', signed: 'yes', show: '24.6 °C · 76.3 °F' },
+      { id: '104', name: 'Humidity', len: '1', step: '0.5%', signed: 'no', show: '58.5%' },
+      { id: '115', name: 'Barometer', len: '2', step: '0.1 hPa', signed: 'no', show: '1013.4 hPa' },
+      { id: '116', name: 'Voltage', len: '2', step: '0.01 V', signed: 'no', show: '4.25 V' },
+      { id: '117', name: 'Current', len: '2', step: '0.001 A', signed: 'no', show: '182 mA' },
+      { id: '118', name: 'Frequency', len: '4', step: '1 Hz', signed: 'no', show: '1 243 Hz' },
+      { id: '120', name: 'Percentage', len: '1', step: '1%', signed: 'no', show: '37%' },
+      { id: '121', name: 'Altitude', len: '2', step: '1 m', signed: 'yes', show: '162 m · 531 ft' },
+      { id: '128', name: 'Power', len: '2', step: '1 W', signed: 'no', show: '1 W' },
+      { id: '130', name: 'Distance', len: '4', step: '0.001 m', signed: 'no', show: '0.842 m' },
+      { id: '136', name: 'GPS', len: '9', step: '0.0001° · 0.01 m', signed: 'yes', show: '30.2114, −97.7622 · 168.4 m' }
+    ];
+    const gotchas = [
+      { t: 'No sensor names on the wire.', d: 'LPP carries channel and type only. Name groups from the field set and say “matches BME280”, never “BME280”.' },
+      { t: 'Voltage means two things.', d: 'Type 116 on ch 1 is the battery; on ch 2+ it is an INA bus voltage. Label by channel.' },
+      { t: 'Power is whole watts.', d: 'A 0.93 W solar panel reads 1 W. Show V × I alongside when both are present.' },
+      { t: 'Channel numbers drift.', d: 'Detection order sets ch 2+. Key history by node + channel + type, and warn if the field set on a channel changes.' },
+      { t: 'Address clashes hide sensors.', d: 'Only one of BME680 / BME280 / BMP280 at 0x76, and one of SHT4x / INA226 at 0x44.' },
+      { t: 'Distance 0 is not a reading.', d: 'VL53L0X sends 0 when out of range. Render “out of range”, not 0 mm.' }
+    ];
+    return { sensors, types, gotchas };
+  }
+}
+</script>
+</body>
+</html>

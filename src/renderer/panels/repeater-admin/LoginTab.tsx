@@ -4,6 +4,7 @@ import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { RelativeTime } from '../../components/RelativeTime';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
+import { RADIO_BUSY_HINT, useRadioBusy } from '../../lib/telemetry';
 import { ACL_ROLE_LABEL } from './aclRole';
 
 interface Props {
@@ -36,10 +37,12 @@ function deriveLoginLabel(contact: Contact, isGuest: boolean): string {
 export function LoginTab({ contact, client, session, onSession }: Props) {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  // A telemetry request holds the radio; a login now would kill its reply.
+  const radioBusy = useRadioBusy();
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!client || busy) return;
+    if (!client || busy || radioBusy) return;
     setBusy(true);
     try {
       const result = await api.repeaterLogin(client, contact.key, password);
@@ -116,7 +119,8 @@ export function LoginTab({ contact, client, session, onSession }: Props) {
 
         <button
           type="submit"
-          disabled={!client || busy}
+          disabled={!client || busy || radioBusy}
+          title={radioBusy ? RADIO_BUSY_HINT : undefined}
           className="self-start rounded border border-cs-border bg-cs-accent-soft/30 px-3 py-1 text-[12px] text-cs-text transition-colors hover:bg-cs-accent-soft/50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? 'Logging in…' : deriveLoginLabel(contact, password.length === 0)}

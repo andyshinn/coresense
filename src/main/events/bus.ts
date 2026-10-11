@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
+import type { TelemetryDeletedPayload, TelemetryInFlightPayload, TelemetrySavedPayload } from '../../shared/telemetry/types';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -25,7 +26,6 @@ import type {
   RadioSettings,
   RawPacket,
   RepeaterStatusSnapshot,
-  RepeaterTelemetrySnapshot,
   SyncProgress,
   TelemetryPolicy,
   ThemePush,
@@ -100,7 +100,9 @@ export const emit = {
   mapManifest: (manifest: TileManifest) => bus.emit('mapManifest', manifest),
   mapTileStatus: (status: MapTileStatus) => bus.emit('mapTileStatus', status),
   repeaterStatus: (snap: RepeaterStatusSnapshot) => bus.emit('repeaterStatus', snap),
-  repeaterTelemetry: (snap: RepeaterTelemetrySnapshot) => bus.emit('repeaterTelemetry', snap),
+  telemetrySaved: (payload: TelemetrySavedPayload) => bus.emit('telemetrySaved', payload),
+  telemetryDeleted: (payload: TelemetryDeletedPayload) => bus.emit('telemetryDeleted', payload),
+  telemetryInFlight: (payload: TelemetryInFlightPayload) => bus.emit('telemetryInFlight', payload),
   pathLearned: (event: PathLearnedEvent) => bus.emit('pathLearned', event),
   uiState: (state: UiState) => bus.emit('uiState', state),
   windowFocus: (focused: boolean) => bus.emit('windowFocus', focused),
@@ -143,7 +145,9 @@ export type BusEvents = {
   mapManifest: (manifest: TileManifest) => void;
   mapTileStatus: (status: MapTileStatus) => void;
   repeaterStatus: (snap: RepeaterStatusSnapshot) => void;
-  repeaterTelemetry: (snap: RepeaterTelemetrySnapshot) => void;
+  telemetrySaved: (payload: TelemetrySavedPayload) => void;
+  telemetryDeleted: (payload: TelemetryDeletedPayload) => void;
+  telemetryInFlight: (payload: TelemetryInFlightPayload) => void;
   pathLearned: (event: PathLearnedEvent) => void;
   uiState: (state: UiState) => void;
   windowFocus: (focused: boolean) => void;

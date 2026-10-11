@@ -25,3 +25,17 @@ export function tabFromActiveKey(key: string): SettingsTab | undefined {
   if (!suffix) return undefined;
   return LEGACY_SUFFIX_TO_TAB[suffix];
 }
+
+// The few deep links that land on one section rather than a tab's top: the
+// telemetry policy moved to My radio, and its Settings section is now the
+// link row there; Position is where My radio sends a library too old for
+// sensor settings.
+const LEGACY_SUFFIX_TO_SECTION: Record<string, string> = {
+  position: 'radio-position',
+  telemetry: 'radio-telemetry',
+};
+
+export function sectionFromActiveKey(key: string): string | undefined {
+  const suffix = key.split(':')[2];
+  return suffix ? LEGACY_SUFFIX_TO_SECTION[suffix] : undefined;
+}

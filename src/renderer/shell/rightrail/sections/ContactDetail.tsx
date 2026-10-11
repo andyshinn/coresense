@@ -4,12 +4,12 @@ import {
   MessageSquare,
   Minus,
   Plus,
-  Radio,
   RefreshCw,
   Share2,
   ShieldCheck,
   Star,
   TerminalSquare,
+  ThermometerSun,
 } from 'lucide-react';
 import { useState } from 'react';
 import { formatHops, formatLastHeard, formatObservedHops } from '../../../../shared/contacts/discovered';
@@ -31,7 +31,7 @@ import { type ApiClient, api } from '../../../lib/api';
 import { distanceKm, fmtDistance, type ResolvedContact, resolveContact } from '../../../lib/contactDetail';
 import { publish as publishMapBus } from '../../../lib/map/bus';
 import { notify } from '../../../lib/notify';
-import { useStore } from '../../../lib/store';
+import { type RepeaterAdminTab, useStore } from '../../../lib/store';
 import { fmtDateTime, fmtRelative } from '../../../lib/time';
 import { StatusPill, TypeGlyph } from '../../../panels/contacts/ContactRows';
 import { Placeholder } from '../atoms';
@@ -105,7 +105,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
   }
 
   const rcKey = rc.key;
-  function openRepeaterTab(tab: 'status' | 'acl' | 'cli') {
+  function openRepeaterTab(tab: RepeaterAdminTab) {
     setRepeaterAdminTab(tab);
     setActiveKey(rcKey);
   }
@@ -178,7 +178,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
         {hasFix && <CardActionButton icon={MapPin} label="View on map" onClick={() => flyToContact(rc)} />}
         {canAdminister && (
           <>
-            <CardActionButton icon={Radio} label="Telemetry" onClick={() => openRepeaterTab('status')} />
+            <CardActionButton icon={ThermometerSun} label="Telemetry" onClick={() => openRepeaterTab('telemetry')} />
             {rc.kind === 'repeater' && (
               <CardActionButton icon={ShieldCheck} label="Permissions" onClick={() => openRepeaterTab('acl')} />
             )}

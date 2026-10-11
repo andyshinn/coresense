@@ -207,7 +207,7 @@ function RadioTab({ client }: { client: ApiClient | null }) {
       <ContactSettingsSection client={client} />
       <MessageSection client={client} />
       <PositionSection client={client} />
-      <TelemetrySection client={client} />
+      <TelemetrySection />
       <DeviceInfoSection client={client} />
     </>
   );

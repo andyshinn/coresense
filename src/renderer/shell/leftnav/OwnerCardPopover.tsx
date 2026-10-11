@@ -1,6 +1,6 @@
-import { MapPin } from 'lucide-react';
+import { ChevronRight, MapPin, ThermometerSun } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { lipoPercent } from '../../lib/battery';
+import { lipoPercent } from '../../../shared/battery';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
 import { fmtBandwidth, fmtFirmware, fmtFreqMhz, fmtGpsInterval, fmtStorageKb } from './ownerFormat';
@@ -91,8 +91,9 @@ function MiniStat({ on, label }: { on: boolean; label: string }) {
 }
 
 /** Instrument-style hover popover: gauges, radio grid, capacity bars, position.
- *  Reads everything from the store, so it takes no props. */
-export function OwnerCardPopover() {
+ *  Reads everything from the store; `onOpenMyRadio` adds the footer link to
+ *  My radio (telemetry, sensors, who can read them). */
+export function OwnerCardPopover({ onOpenMyRadio }: { onOpenMyRadio?: () => void } = {}) {
   const deviceInfo = useStore((s) => s.deviceInfo);
   const radio = useStore((s) => s.radioSettings);
   const identity = useStore((s) => s.deviceIdentity);
@@ -174,6 +175,19 @@ export function OwnerCardPopover() {
           />
         </div>
       </Group>
+
+      {onOpenMyRadio && (
+        <button
+          type="button"
+          onClick={onOpenMyRadio}
+          className="-mx-1 flex items-center gap-2 rounded border-t border-cs-border px-1 pt-2.5 pb-1 text-left text-[11px] text-cs-text-muted hover:text-cs-accent"
+        >
+          <ThermometerSun className="size-3.5 shrink-0 text-cs-accent" aria-hidden />
+          <span className="flex-1">Telemetry and sensors</span>
+          <span className="font-mono text-[10px] text-cs-text-dim">My radio</span>
+          <ChevronRight className="size-3 shrink-0 text-cs-text-dim" aria-hidden />
+        </button>
+      )}
     </div>
   );
 }

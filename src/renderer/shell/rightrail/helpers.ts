@@ -17,6 +17,7 @@ export function railTitle(activeKey: string): string {
   if (activeKey === 'tool:contacts') return 'Contacts';
   if (activeKey === 'tool:map') return 'Map';
   if (activeKey === 'tool:macros') return 'Reference';
+  if (activeKey === 'tool:myradio') return 'My radio';
   const kind = viewKindFor(activeKey);
   switch (kind) {
     case 'channel':

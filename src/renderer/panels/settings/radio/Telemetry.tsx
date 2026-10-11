@@ -1,81 +1,48 @@
-import { SlidersHorizontal } from 'lucide-react';
+import { ChevronRight, SlidersHorizontal } from 'lucide-react';
 import type { TelemetryPolicy } from '../../../../shared/types';
-import { Row, Select } from '../../../components/settings/Field';
+import { Row } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
-import { api } from '../../../lib/api';
-import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
-import { useSettingsSection } from '../useSectionDraft';
-import type { SectionProps } from './shared';
 
-const TELEMETRY_MODE_OPTIONS = [
-  { value: '0', label: 'Deny all' },
-  { value: '1', label: 'Allow opt-in contacts' },
-  { value: '2', label: 'Allow all' },
-] as const;
+// Who can read this radio's telemetry is set in My radio now, where the
+// modes write straight to the radio next to the readings they govern. The
+// section stays (its id is the `tool:settings:telemetry` deep link's target)
+// as a summary and a link there. Multi-acks, which shares the radio frame,
+// stays in Messages.
 
-const eqTelemetry = (a: TelemetryPolicy, b: TelemetryPolicy) => a.base === b.base && a.loc === b.loc && a.env === b.env;
+const MODE_LABEL: Record<TelemetryPolicy['base'], string> = { 0: 'Deny', 1: 'Per contact', 2: 'Everyone' };
 
-export function TelemetrySection({ client }: SectionProps) {
-  const saved = useStore((s) => s.telemetryPolicy);
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
-    id: 'radio-telemetry',
-    saved,
-    eq: eqTelemetry,
-    onSave: async (d) => {
-      if (!client) throw new Error('No server connection');
-      await api.putTelemetryPolicy(client, {
-        ...useStore.getState().telemetryPolicy,
-        base: d.base,
-        loc: d.loc,
-        env: d.env,
-      });
-      notify.success('Telemetry settings saved');
-    },
-  });
+/** "Base Everyone · Location Per contact · Environment Deny" */
+export function policySummary(p: Pick<TelemetryPolicy, 'base' | 'loc' | 'env'>): string {
+  return `Base ${MODE_LABEL[p.base]} · Location ${MODE_LABEL[p.loc]} · Environment ${MODE_LABEL[p.env]}`;
+}
+
+export function TelemetrySection() {
+  const base = useStore((s) => s.telemetryPolicy.base);
+  const loc = useStore((s) => s.telemetryPolicy.loc);
+  const env = useStore((s) => s.telemetryPolicy.env);
+  const setActiveKey = useStore((s) => s.setActiveKey);
 
   return (
     <SettingsSection
       id="radio-telemetry"
       icon={SlidersHorizontal}
       title="Telemetry"
-      description="Who can query telemetry from this radio."
-      dirty={dirty}
-      saving={saving}
-      canSave={!!client}
-      onSave={save}
+      description="Who can query telemetry from this radio, and its sensor settings, are set in My radio."
+      dirty={false}
     >
       <Row
-        label="Base telemetry (battery, uptime)"
-        changed={draft.base !== saved.base}
+        label="Who can read my telemetry"
+        description={policySummary({ base, loc, env })}
         control={
-          <Select<string>
-            value={String(draft.base)}
-            options={TELEMETRY_MODE_OPTIONS}
-            onChange={(v) => setDraft((s) => ({ ...s, base: Number(v) as TelemetryPolicy['base'] }))}
-          />
-        }
-      />
-      <Row
-        label="Location telemetry"
-        changed={draft.loc !== saved.loc}
-        control={
-          <Select<string>
-            value={String(draft.loc)}
-            options={TELEMETRY_MODE_OPTIONS}
-            onChange={(v) => setDraft((s) => ({ ...s, loc: Number(v) as TelemetryPolicy['loc'] }))}
-          />
-        }
-      />
-      <Row
-        label="Environmental sensors"
-        changed={draft.env !== saved.env}
-        control={
-          <Select<string>
-            value={String(draft.env)}
-            options={TELEMETRY_MODE_OPTIONS}
-            onChange={(v) => setDraft((s) => ({ ...s, env: Number(v) as TelemetryPolicy['env'] }))}
-          />
+          <button
+            type="button"
+            onClick={() => setActiveKey('tool:myradio')}
+            className="flex items-center gap-1 rounded border border-cs-border bg-cs-bg-2 px-2 py-0.5 text-[12px] text-cs-text hover:border-cs-accent hover:text-cs-accent"
+          >
+            Open My radio
+            <ChevronRight className="size-3" aria-hidden />
+          </button>
         }
       />
     </SettingsSection>

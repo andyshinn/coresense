@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createRoutes } from '../../../src/main/api/routes';
 import { setProtocolSession } from '../../../src/main/protocol';
 import { stateHolder } from '../../../src/main/state/holder';
+import { markRadioTelemetryPolicyKnown } from '../../../src/main/telemetry/policy';
 import { transportManager } from '../../../src/main/transport/manager';
 import { type AutoAddConfig, DEFAULT_AUTO_ADD_CONFIG } from '../../../src/shared/types';
 import { makeTestSession, type TestSession } from '../../support/session-harness';
@@ -33,6 +34,9 @@ function connectedSession(): TestSession {
   s.transport.setState('connected');
   setProtocolSession(s.adapter);
   transportManager.setState('connected');
+  // Stand in for the connect-time telemetry-policy read-back, which needs a
+  // RESP_SELF_INFO this loopback never sends (see telemetry/policy.ts).
+  markRadioTelemetryPolicyKnown();
   live = s;
   return s;
 }

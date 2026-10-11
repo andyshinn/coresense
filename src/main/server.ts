@@ -6,6 +6,7 @@ import { cors } from 'hono/cors';
 import { type WebSocket, WebSocketServer } from 'ws';
 import type { DiscoveredContact } from '../shared/contacts/discovered';
 import { clampRetention } from '../shared/packetLog';
+import type { TelemetryDeletedPayload, TelemetryInFlightPayload, TelemetrySavedPayload } from '../shared/telemetry/types';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -30,7 +31,6 @@ import type {
   RadioSettings,
   RawPacket,
   RepeaterStatusSnapshot,
-  RepeaterTelemetrySnapshot,
   SyncProgress,
   TelemetryPolicy,
   ThemePush,
@@ -255,7 +255,9 @@ export async function startServer(
   const onMapManifest = (manifest: TileManifest) => broadcast({ type: 'mapManifest', payload: manifest });
   const onMapTileStatus = (status: MapTileStatus) => broadcast({ type: 'mapTileStatus', payload: status });
   const onRepeaterStatus = (snap: RepeaterStatusSnapshot) => broadcast({ type: 'repeaterStatus', payload: snap });
-  const onRepeaterTelemetry = (snap: RepeaterTelemetrySnapshot) => broadcast({ type: 'repeaterTelemetry', payload: snap });
+  const onTelemetrySaved = (payload: TelemetrySavedPayload) => broadcast({ type: 'telemetrySaved', payload });
+  const onTelemetryDeleted = (payload: TelemetryDeletedPayload) => broadcast({ type: 'telemetryDeleted', payload });
+  const onTelemetryInFlight = (payload: TelemetryInFlightPayload) => broadcast({ type: 'telemetryInFlight', payload });
   const onPathLearned = (event: PathLearnedEvent) => broadcast({ type: 'pathLearned', payload: event });
   const onDeviceIdentity = (identity: DeviceIdentity) => broadcast({ type: 'deviceIdentity', payload: identity });
   const onAutoAddConfig = (cfg: AutoAddConfig) => broadcast({ type: 'autoAddConfig', payload: cfg });
@@ -293,7 +295,9 @@ export async function startServer(
   bus.on('mapManifest', onMapManifest);
   bus.on('mapTileStatus', onMapTileStatus);
   bus.on('repeaterStatus', onRepeaterStatus);
-  bus.on('repeaterTelemetry', onRepeaterTelemetry);
+  bus.on('telemetrySaved', onTelemetrySaved);
+  bus.on('telemetryDeleted', onTelemetryDeleted);
+  bus.on('telemetryInFlight', onTelemetryInFlight);
   bus.on('pathLearned', onPathLearned);
   bus.on('deviceIdentity', onDeviceIdentity);
   bus.on('autoAddConfig', onAutoAddConfig);
@@ -334,7 +338,9 @@ export async function startServer(
     bus.off('mapManifest', onMapManifest);
     bus.off('mapTileStatus', onMapTileStatus);
     bus.off('repeaterStatus', onRepeaterStatus);
-    bus.off('repeaterTelemetry', onRepeaterTelemetry);
+    bus.off('telemetrySaved', onTelemetrySaved);
+    bus.off('telemetryDeleted', onTelemetryDeleted);
+    bus.off('telemetryInFlight', onTelemetryInFlight);
     bus.off('pathLearned', onPathLearned);
     bus.off('deviceIdentity', onDeviceIdentity);
     bus.off('autoAddConfig', onAutoAddConfig);
