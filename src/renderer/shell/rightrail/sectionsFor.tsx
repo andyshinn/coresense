@@ -1,6 +1,7 @@
 import type { Channel, Contact, Message } from '../../../shared/types';
 import { SetPathEditor } from '../../components/path/SetPathEditor';
 import type { RepeaterAdminTab } from '../../lib/store';
+import { TelemetryFlagsRail } from '../../panels/my-radio/TelemetryFlagsRail';
 import { SettingsJumpRail } from '../SettingsJumpRail';
 import { Placeholder } from './atoms';
 import { viewKindFor } from './helpers';
@@ -21,6 +22,7 @@ import {
 import { MentionedContactSection } from './sections/MentionedContact';
 import { MessageInfoSection } from './sections/MessageInfo';
 import { NeighboursRailBody } from './sections/NeighboursRail';
+import { TelemetryRailSection, TelemetryRailStamp } from './sections/TelemetryRail';
 import { VersionSection } from './sections/VersionSection';
 
 export interface RailSection {
@@ -103,6 +105,19 @@ export function sectionsFor(
         label: 'Discovery settings',
         defaultOpen: true,
         body: () => <DiscoverySettings />,
+      },
+    ];
+  }
+
+  // My radio's rail is the per-contact telemetry flags table.
+  if (activeKey === 'tool:myradio') {
+    return [
+      {
+        id: 'rail.myradio.flags',
+        label: 'Telemetry flags per contact',
+        defaultOpen: true,
+        bare: true,
+        body: () => <TelemetryFlagsRail />,
       },
     ];
   }
@@ -218,7 +233,23 @@ export function sectionsFor(
           ];
       return [...mentionedSections, ...messageSections, ...channelSections];
     }
-    case 'dm':
+    case 'dm': {
+      // Telemetry follows the focal repeater/sensor (data.contact is the radio's
+      // own contact list, so it's on radio), never the selected neighbour the
+      // card may be showing.
+      const focal = data.contact;
+      const telemetrySections: RailSection[] =
+        focal && (focal.kind === 'repeater' || focal.kind === 'sensor')
+          ? [
+              {
+                id: 'rail.contact.telemetry',
+                label: 'Telemetry',
+                defaultOpen: baseDefaultOpen,
+                body: () => <TelemetryRailSection contact={focal} />,
+                trailing: () => <TelemetryRailStamp contact={focal} />,
+              },
+            ]
+          : [];
       return [
         ...neighbourSections,
         ...mentionedSections,
@@ -229,6 +260,7 @@ export function sectionsFor(
           defaultOpen: baseDefaultOpen,
           body: () => <ContactDetail publicKeyHex={data.cardPublicKeyHex} showPath={false} />,
         },
+        ...telemetrySections,
         {
           id: 'rail.contact.path',
           label: 'Path',
@@ -240,6 +272,7 @@ export function sectionsFor(
             ),
         },
       ];
+    }
     default:
       return [
         ...mentionedSections,
