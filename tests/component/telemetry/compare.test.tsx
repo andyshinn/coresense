@@ -147,6 +147,27 @@ describe('TelemetryCompare — the table', () => {
     expect(rowText().some((r) => r?.startsWith('Battery'))).toBe(true);
   });
 
+  it('stops filtering (and reads unpressed) when the selection drops below two, resuming at two again', () => {
+    seed([R1, R2], ['r1', 'r2']);
+    render(<TelemetryPanel source="repeater" nodeKey={KEY} client={client} />);
+    const toggle = () => screen.getByText('Show changes only').closest('button') as HTMLButtonElement;
+    fireEvent.click(toggle());
+    expect(rowText().some((r) => r?.startsWith('GPS'))).toBe(false);
+
+    fireEvent.click(option('r2'));
+    expect(useStore.getState().telemetryCompare[PK]).toEqual(['r1']);
+    // One column: every row would read unchanged. Show them all, not "No reading changed".
+    expect(toggle().disabled).toBe(true);
+    expect(toggle().getAttribute('aria-pressed')).toBe('false');
+    expect(rowText().length).toBeGreaterThan(0);
+    expect(rowText().some((r) => r?.startsWith('GPS'))).toBe(true);
+    expect(screen.queryByText('No reading changed between these requests.')).toBeNull();
+
+    fireEvent.click(option('r2'));
+    expect(toggle().getAttribute('aria-pressed')).toBe('true');
+    expect(rowText().some((r) => r?.startsWith('GPS'))).toBe(false);
+  });
+
   it('warns when a channel’s field set drifts between columns', () => {
     seed([R2, DRIFT], ['r2', 'r4']);
     render(<TelemetryPanel source="repeater" nodeKey={KEY} client={client} />);

@@ -126,7 +126,7 @@ describe('TelemetryFailed', () => {
     );
     expect(screen.queryByText('Reset to flood')).toBeNull();
     expect(screen.getByText('No reply in 15 s over flood. Try again.')).toBeTruthy();
-    expect(screen.getByText('Repeaters reply only to logged-in clients.')).toBeTruthy();
+    expect(screen.getByText('Repeaters and sensors reply only to logged-in clients.')).toBeTruthy();
     fireEvent.click(screen.getByText('Log in'));
     expect(onLogIn).toHaveBeenCalledTimes(1);
   });
@@ -159,10 +159,14 @@ describe('TelemetryEmpty', () => {
 
   it('takes source-aware copy and a hint', () => {
     render(
-      <TelemetryEmpty actionLabel="Read telemetry" target="your radio" hint="Repeaters reply only to logged-in clients." />,
+      <TelemetryEmpty
+        actionLabel="Read telemetry"
+        target="your radio"
+        hint="Repeaters and sensors reply only to logged-in clients."
+      />,
     );
     expect(screen.getByText('No telemetry yet. Click Read telemetry to ask your radio.')).toBeTruthy();
-    expect(screen.getByText('Repeaters reply only to logged-in clients.')).toBeTruthy();
+    expect(screen.getByText('Repeaters and sensors reply only to logged-in clients.')).toBeTruthy();
   });
 });
 

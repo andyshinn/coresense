@@ -13,9 +13,10 @@ interface Props {
 /**
  * Telemetry tab of the repeater/sensor admin panel: the shared
  * TelemetryPanel for this node. Both kinds request as `source: 'repeater'`
- * (main infers a sensor's grants). Only a repeater drops requests from
- * clients outside its ACL, so only a repeater with no session gets the login
- * hint and the "Log in" shortcut to the Login tab.
+ * (main infers a sensor's grants). Both drop requests from clients outside
+ * their ACL (simple_repeater and simple_sensor searchPeersByHash match ACL
+ * clients only), so either with no session gets the login hint and the
+ * "Log in" shortcut to the Login tab.
  */
 export function TelemetryTab({ contact, client, session }: Props) {
   const setRepeaterAdminTab = useStore((s) => s.setRepeaterAdminTab);
@@ -32,8 +33,8 @@ export function TelemetryTab({ contact, client, session }: Props) {
       client={client}
       nodeName={contact.name}
       target={isRepeater ? 'this repeater' : 'this sensor'}
-      needsLogin={isRepeater && !session}
-      onLogIn={isRepeater ? () => setRepeaterAdminTab('login') : undefined}
+      needsLogin={!session}
+      onLogIn={() => setRepeaterAdminTab('login')}
       advertPosition={advertPosition}
       canResetPath={contact.hops !== undefined}
     />

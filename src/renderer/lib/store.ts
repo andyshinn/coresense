@@ -415,6 +415,12 @@ interface CoreState {
   repeaterAdminActiveTab: RepeaterAdminTab | null;
   setRepeaterAdminActiveTab: (tab: RepeaterAdminTab | null) => void;
 
+  // Bumped by RepeaterAdmin on every login/logout. Admin sessions live in its
+  // local state and main pushes none over WS, so this is how the rail's
+  // Telemetry section knows to re-read its "logged in?" hint. Not persisted.
+  repeaterAdminSessionRev: number;
+  bumpRepeaterAdminSessionRev: () => void;
+
   // Live handle published by the open Macro studio so the right-rail Reference
   // panel can insert into its editor. Null when no studio is open. Not persisted.
   macroStudioBridge: MacroStudioBridge | null;
@@ -734,6 +740,7 @@ export const useStore = create<CoreState>((set) => ({
   telemetryFetchLedger: {},
   repeaterAdminTab: null,
   repeaterAdminActiveTab: null,
+  repeaterAdminSessionRev: 0,
   macroStudioBridge: null,
   neighbours: NB_DEFAULTS,
 
@@ -892,6 +899,7 @@ export const useStore = create<CoreState>((set) => ({
   clearCmSelected: () => set((s) => ({ contactManager: { ...s.contactManager, selected: [] } })),
   setCmFocus: (key) => set((s) => ({ contactManager: { ...s.contactManager, focusKey: key } })),
   setRepeaterAdminTab: (tab) => set(() => ({ repeaterAdminTab: tab })),
+  bumpRepeaterAdminSessionRev: () => set((s) => ({ repeaterAdminSessionRev: s.repeaterAdminSessionRev + 1 })),
   setRepeaterAdminActiveTab: (tab) =>
     set((s) => ({
       repeaterAdminActiveTab: tab,

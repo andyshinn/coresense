@@ -143,23 +143,47 @@ function groupByChannel(readings: readonly Reading[]): Map<number, Reading[]> {
 
 const SELF_PARTS: Record<number, string> = { 116: 'battery', 136: 'position' };
 
+/** ch 1 types that mean an environment sensor reports on Self (Wio-E5's
+ *  BME280, MeshTracker's SPA06): humidity, barometer. */
+const SELF_ENV_TYPES = new Set([104, 115]);
+
+const isSelfTemp = (r: Reading | undefined): r is Reading => r?.ch === SELF_CHANNEL && r.typeId === 103;
+
 /**
  * The ch 1 MCU temperature of a payload, if any (the returned object is one
- * of `readings`). Its position differs by path: a remote reply appends it
- * after the sensors (simple_repeater/companion MyMesh.cpp), so it is the last
- * ch 1 temperature; a companion self read adds it straight after the battery
- * (companion MyMesh.cpp self branch), so it is the first.
+ * of `readings`, which must be the WHOLE payload in order). Firmware adds it
+ * only on boards whose getMCUTemperature() isn't NaN — ESP32, nRF52, nRF54;
+ * not STM32 (Wio-E5, RAK3x72), RP2040 or simple_sensor builds — so it is
+ * located by position, never as "whichever ch 1 temperature":
+ *  - a remote reply appends it after querySensors (simple_repeater/companion
+ *    MyMesh.cpp), so it exists only as the payload's final record. A Wio-E5
+ *    reply ending in its BME280's pressure has none;
+ *  - a companion self read adds it straight after the battery (companion
+ *    MyMesh.cpp self branch), so only record 1 can be it. An on-board sensor
+ *    on Self lands there too when the board has no MCU temperature (Wio-E5:
+ *    temperature, humidity, pressure), so record 1 counts only when ch 1
+ *    holds a second temperature, or no humidity/pressure says a sensor
+ *    reports on Self.
+ * Residual: a simple_sensor build whose querySensors ends in a ch 1
+ * temperature (T1000-E) still reads as having one; the payload can't tell.
  */
 export function mcuTemperature(readings: readonly Reading[], source: TelemetrySource = 'repeater'): Reading | undefined {
-  const temps = readings.filter((r) => r.ch === SELF_CHANNEL && r.typeId === 103);
-  return source === 'companion' ? temps[0] : temps[temps.length - 1];
+  if (source !== 'companion') {
+    const last = readings[readings.length - 1];
+    return isSelfTemp(last) ? last : undefined;
+  }
+  const candidate = readings[1];
+  if (readings[0]?.ch !== SELF_CHANNEL || !isSelfTemp(candidate)) return undefined;
+  const selfTemps = readings.filter(isSelfTemp).length;
+  if (selfTemps > 1) return candidate;
+  return readings.some((r) => r.ch === SELF_CHANNEL && SELF_ENV_TYPES.has(r.typeId)) ? undefined : candidate;
 }
 
 function analyze(readings: readonly Reading[], source: TelemetrySource): Analysis {
   const byChannel = groupByChannel(readings);
   const self = byChannel.get(SELF_CHANNEL) ?? [];
   const battery = self.find((r) => r.typeId === 116);
-  const mcu = mcuTemperature(self, source);
+  const mcu = mcuTemperature(readings, source);
 
   const channels = new Map<number, ChannelAnalysis>();
   const ordered = [...byChannel.keys()].sort((a, b) => a - b);
@@ -413,8 +437,7 @@ function describeWith(reading: Reading, a: Analysis): DescribedReading {
 /**
  * Describe one reading. Pass the whole request's readings (at least the
  * reading's own channel; the MLX90614 pair also looks at the next channel).
- * `source` decides which ch 1 temperature is the MCU's: the last one for
- * remote replies, the first for companion self reads.
+ * `source` decides where the MCU temperature can sit (see mcuTemperature).
  */
 export function describeReading(
   reading: Reading,

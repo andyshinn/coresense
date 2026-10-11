@@ -24,6 +24,7 @@ import type {
 import { adminSessions } from '../bridge/adminSession';
 import { APP_VERSION, GIT_SHA } from '../build-info';
 import { emit } from '../events/bus';
+import { child } from '../log';
 import { applyLoggingSettings } from '../logging/apply';
 import { currentPath, folderPath } from '../logging/fileSink';
 import { buildReplyContext, buildSendContext } from '../macros/contextBuilder';
@@ -53,6 +54,8 @@ import { markQuitConfirmed } from '../window/quit';
 import { getConfigPath } from './middleware/auth';
 import { registerTelemetryRoutes } from './telemetryRoutes';
 import { buildTileManifest, registerTileRoutes } from './tiles';
+
+const routesLog = child('routes');
 
 /** Write a hand-set (or reset) out-path through to the discovered mirror.
  *
@@ -406,6 +409,13 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       return c.json({ ok: true });
     }
     try {
+      const shareChanges =
+        typeof body.sharePositionInAdvert === 'boolean' && body.sharePositionInAdvert !== current.sharePositionInAdvert;
+      // A share-position change re-sends the telemetry policy (below). Resolve
+      // it first, so a refusal leaves the name and position unapplied too
+      // rather than half the save on the radio.
+      const policy = shareChanges ? await radioTelemetryPolicy(() => session.readTelemetryPolicy()) : null;
+      if (shareChanges && !policy) return c.json({ error: 'telemetry policy not read from the radio yet' }, 503);
       if (typeof body.name === 'string' && body.name !== current.name) {
         const ok = await session.setAdvertName(body.name);
         if (!ok) return c.json({ error: 'SET_ADVERT_NAME rejected by radio' }, 503);
@@ -419,7 +429,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
         const ok = await session.setAdvertLatLon(lat, lon);
         if (!ok) return c.json({ error: 'SET_ADVERT_LATLON rejected by radio' }, 503);
       }
-      if (typeof body.sharePositionInAdvert === 'boolean' && body.sharePositionInAdvert !== current.sharePositionInAdvert) {
+      if (shareChanges && policy && typeof body.sharePositionInAdvert === 'boolean') {
         // sharePositionInAdvert lives in SET_OTHER_PARAMS along with telemetry
         // policy — re-emit the full frame with the RADIO's telemetry values,
         // never our JSON copy (telemetry/policy.ts): resending a stale copy is
@@ -428,8 +438,6 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
         // mirrored from RESP_SELF_INFO: byte 1 of this command is the radio's
         // auto-add master switch, and passing anything else here would
         // reconfigure auto-add as a side effect of saving an advert setting.
-        const policy = await radioTelemetryPolicy(() => session.readTelemetryPolicy());
-        if (!policy) return c.json({ error: 'telemetry policy not read from the radio yet' }, 503);
         const ok = await session.setOtherParams(policy, body.sharePositionInAdvert);
         if (!ok) return c.json({ error: 'SET_OTHER_PARAMS rejected by radio' }, 503);
       }
@@ -462,6 +470,17 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     const baseManualAdd = onRadio?.manualAddContacts ?? current.manualAddContacts;
     const nextManualAdd = body.mode === 'selected' ? baseManualAdd | 1 : baseManualAdd & ~1;
     const next: AutoAddConfig = { ...body, manualAddContacts: nextManualAdd };
+    // The master switch rides CMD_SET_OTHER_PARAMS with the telemetry policy,
+    // which has to be the RADIO's (see the identity route). Resolve it before
+    // anything is written: a refusal after the kind flags reached the radio and
+    // the holder took the new mode would leave the UI showing a mode whose
+    // manual-add bit never went out.
+    const modeChanges = session !== null && onRadio !== null && nextManualAdd !== onRadio.manualAddContacts;
+    let policy: TelemetryPolicy | null = null;
+    if (session && modeChanges) {
+      policy = await radioTelemetryPolicy(() => session.readTelemetryPolicy());
+      if (!policy) return c.json({ error: 'telemetry policy not read from the radio yet' }, 503);
+    }
     // App-side fields (pull-to-refresh, show-pubkeys) are persisted regardless
     // of connection state. Wire flags only push when connected.
     holder.setAutoAddConfig(next);
@@ -502,11 +521,8 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       // be a separate command — the bit lives in CMD_SET_OTHER_PARAMS, which
       // carries the telemetry policy and advert-location policy along with it,
       // so sending it on every save would push those unrelated prefs too.
-      if (nextManualAdd !== onRadio.manualAddContacts) {
+      if (modeChanges && policy) {
         const share = holder.getDeviceIdentity().sharePositionInAdvert;
-        // The radio's policy, never our JSON copy — see the identity route.
-        const policy = await radioTelemetryPolicy(() => session.readTelemetryPolicy());
-        if (!policy) return c.json({ error: 'telemetry policy not read from the radio yet' }, 503);
         const otherOk = await session.setOtherParams(policy, share, nextManualAdd);
         if (!otherOk) return c.json({ error: 'SET_OTHER_PARAMS (auto-add mode) rejected by radio' }, 503);
       }
@@ -618,9 +634,14 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   });
 
   // POST /api/device/refresh — issues DEVICE_QUERY + GET_BATT_AND_STORAGE +
-  // GET_AUTO_ADD_CONFIG + GET_CUSTOM_VAR(gps,gps_interval). Each reply lands
-  // asynchronously and is broadcast via WS — the caller just gets "ok" once
-  // the writes succeeded.
+  // GET_AUTO_ADD_CONFIG + GET_CUSTOM_VARS. Each reply lands asynchronously and
+  // is broadcast via WS — the caller just gets "ok" once the writes succeeded.
+  //
+  // Custom vars is one request, not one per key: firmware ignores the key and
+  // returns every setting. It is fired, not awaited: meshcore-ts ≥ 0.9 makes
+  // requestCustomVars await RESP_CUSTOM_VARS and reject on RESP_ERR (firmware
+  // without CMD_GET_CUSTOM_VARS), a timeout or a not-yet-commandable session,
+  // and none of those should turn the whole refresh into a 500.
   api.post('/api/device/refresh', async (c) => {
     if (transportManager.getState().state !== 'connected') {
       return c.json({ error: 'no radio attached' }, 503);
@@ -629,8 +650,9 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     await session.requestDeviceInfo();
     await session.requestBattAndStorage();
     await session.requestAutoAddConfig();
-    await session.requestCustomVars('gps');
-    await session.requestCustomVars('gps_interval');
+    void session
+      .requestCustomVars('')
+      .catch((err: unknown) => routesLog.warn(`custom vars refresh failed: ${(err as Error).message}`));
     return c.json({ ok: true });
   });
 

@@ -5,8 +5,8 @@ import type { Reading } from './lpp';
 export type TelemetrySource = 'repeater' | 'contact' | 'companion';
 
 /**
- * `ok` includes guest (base-only) replies: the UI derives "base only" from
- * `aclRole === 'guest'`. Timeouts, disconnects and RESP_ERR are saved;
+ * `ok` includes guest (base-only) replies: the UI derives "base only" with
+ * isBaseOnlyReply(). Timeouts, disconnects and RESP_ERR are saved;
  * failures before anything was sent are not.
  */
 export type TelemetryOutcome = 'ok' | 'timeout' | 'error';
@@ -18,6 +18,17 @@ export type TelemetryRoute = 'direct' | 'flood' | 'local';
 export const TELEM_PERM_BASE = 0x01;
 export const TELEM_PERM_LOCATION = 0x02;
 export const TELEM_PERM_ENVIRONMENT = 0x04;
+
+/**
+ * A reply limited to base telemetry (battery, MCU temp): a guest login whose
+ * inferred grant holds nothing past TELEM_PERM_BASE. Not the guest role alone:
+ * a sensor ignores the role (simple_sensor querySensors(0xFF & perm_mask)), so
+ * main infers 0x07 for it and a guest-role sensor reply is complete.
+ */
+export function isBaseOnlyReply(r: Pick<SavedRequest, 'outcome' | 'aclRole' | 'permsGranted'>): boolean {
+  if (r.outcome !== 'ok' || r.aclRole !== 'guest') return false;
+  return r.permsGranted === null || (r.permsGranted & ~TELEM_PERM_BASE) === 0;
+}
 
 /** Retention: one global per-node count in AppSettings. */
 export const TELEMETRY_RETENTION_DEFAULT = 50;

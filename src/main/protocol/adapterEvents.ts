@@ -127,9 +127,10 @@ export function wireSessionEvents(session: MeshCoreSession): void {
   // completed", once per connect.
   let syncPhase: 'idle' | 'syncing' | 'done' = 'idle';
   let policySeedPending = false;
-  // A no-op once the policy is known (0.9's handshake `telemetryPolicy` event),
-  // and refused while a walk streams; a route that needs the policy before the
-  // seed lands reads it then (radioTelemetryPolicy).
+  // A no-op once the policy is known (0.9's handshake `telemetryPolicy` event).
+  // Only ever called with no walk streaming; a route that needs the policy
+  // before the seed lands waits for the walk to end and shares this read
+  // (radioTelemetryPolicy).
   const seedPolicy = () => {
     policySeedPending = false;
     void radioTelemetryPolicy(async () => policyFromSelfInfo(await session.getSelfInfo()));

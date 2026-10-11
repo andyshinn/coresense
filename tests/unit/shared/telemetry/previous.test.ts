@@ -42,6 +42,13 @@ describe('readingKey / keyReadings', () => {
       '1:103:1',
     ]);
   });
+
+  it('keys a board without an MCU temperature in plain payload order (Wio-E5 BME280 on Self)', () => {
+    const wio = readings('01 74 01 9A 01 67 00 DC 01 68 75 01 73 27 96');
+    const keys = ['1:116:0', '1:103:0', '1:104:0', '1:115:0'];
+    expect(keyReadings(wio).map((k) => k.key)).toEqual(keys);
+    expect(keyReadings(wio, 'companion').map((k) => k.key)).toEqual(keys);
+  });
 });
 
 describe('previousFor', () => {

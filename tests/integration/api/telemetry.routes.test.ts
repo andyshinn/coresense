@@ -6,6 +6,7 @@ import { setProtocolSession } from '../../../src/main/protocol';
 import { LibUnsupportedError } from '../../../src/main/protocol/errors';
 import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
 import { flushContactSyncEmits } from '../../../src/main/state/contactSync';
+import { endContactWalk, noteContactWalkStreaming } from '../../../src/main/state/contactWalk';
 import { stateHolder } from '../../../src/main/state/holder';
 import { discoveredStore } from '../../../src/main/storage/discoveredContacts';
 import { telemetryStore } from '../../../src/main/storage/telemetry';
@@ -126,6 +127,7 @@ afterEach(() => {
   stateHolder().setDeviceIdentity({ ...DEFAULT_DEVICE_IDENTITY });
   stateHolder().setGpsConfig({ ...DEFAULT_GPS_CONFIG });
   forgetRadioTelemetryPolicy();
+  endContactWalk();
 });
 
 describe('POST /api/telemetry/:nodeKey/request', () => {
@@ -433,6 +435,25 @@ describe('/api/device/custom-vars', () => {
   });
 });
 
+describe('POST /api/device/refresh — custom vars', () => {
+  it('asks once (firmware returns every var whatever the key) and survives a 0.9-style rejection', async () => {
+    const requestCustomVars = vi.fn(async () => {
+      throw new Error('RESP_ERR: unsupported command');
+    });
+    fakeSession({
+      requestDeviceInfo: vi.fn(async () => undefined),
+      requestBattAndStorage: vi.fn(async () => undefined),
+      requestAutoAddConfig: vi.fn(async () => undefined),
+      requestCustomVars,
+    });
+    const res = await post('/api/device/refresh');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(requestCustomVars).toHaveBeenCalledTimes(1);
+    expect(requestCustomVars).toHaveBeenCalledWith('');
+  });
+});
+
 describe('telemetry policy — the radio is the source of truth', () => {
   const policy: TelemetryPolicy = { base: 2, loc: 1, env: 0, multiAcks: 1 };
 
@@ -512,6 +533,82 @@ describe('telemetry policy — the radio is the source of truth', () => {
     const res = await put('/api/device/identity', { sharePositionInAdvert: true });
     expect(res.status).toBe(503);
     expect(session.setOtherParams).not.toHaveBeenCalled();
+  });
+
+  it('waits out a contact walk instead of refusing a share-position save, and reads once it ends', async () => {
+    const session = fakeSession();
+    stateHolder().setDeviceIdentity({ ...DEFAULT_DEVICE_IDENTITY, sharePositionInAdvert: false });
+    noteContactWalkStreaming();
+    const res = put('/api/device/identity', { sharePositionInAdvert: true });
+    await new Promise((r) => setTimeout(r, 0));
+    // Mid walk: APP_START would cut the walk short, so nothing goes out yet.
+    expect(session.readTelemetryPolicy).not.toHaveBeenCalled();
+    expect(session.setOtherParams).not.toHaveBeenCalled();
+    endContactWalk();
+    expect((await res).status).toBe(200);
+    expect(session.readTelemetryPolicy).toHaveBeenCalledTimes(1);
+    expect(session.setOtherParams).toHaveBeenCalledWith({ base: 2, loc: 0, env: 1, multiAcks: 0 }, true);
+  });
+
+  it('waits out a contact walk for a multi-acks save too', async () => {
+    const session = fakeSession();
+    noteContactWalkStreaming();
+    const res = put('/api/device/telemetry-policy', { multiAcks: 2 });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(session.setOtherParams).not.toHaveBeenCalled();
+    endContactWalk();
+    expect((await res).status).toBe(200);
+    expect(session.setOtherParams).toHaveBeenCalledWith({ base: 2, loc: 0, env: 1, multiAcks: 2 }, expect.any(Boolean));
+  });
+
+  it('refuses an identity save whole when the share part cannot get the policy — the name is not applied', async () => {
+    const setAdvertName = vi.fn(async () => true);
+    const session = fakeSession({
+      setAdvertName,
+      readTelemetryPolicy: vi.fn(async () => {
+        throw new Error('timeout waiting for frame 0x05');
+      }),
+    });
+    stateHolder().setDeviceIdentity({ ...DEFAULT_DEVICE_IDENTITY, name: 'Old', sharePositionInAdvert: false });
+    const res = await put('/api/device/identity', { name: 'New', sharePositionInAdvert: true });
+    expect(res.status).toBe(503);
+    expect(setAdvertName).not.toHaveBeenCalled();
+    expect(session.setOtherParams).not.toHaveBeenCalled();
+  });
+
+  it('refuses an auto-add mode change before writing the kind flags or the holder', async () => {
+    const libConfig = {
+      mode: 'all',
+      chat: true,
+      repeater: true,
+      room: true,
+      sensor: true,
+      overwriteOldest: false,
+      radioMaxHops: 0,
+      manualAddContacts: 0,
+    };
+    const setAutoAddConfig = vi.fn(async () => true);
+    const mirrorAutoAddConfig = vi.fn();
+    const session = fakeSession({
+      getLibAutoAddConfig: () => libConfig,
+      setAutoAddConfig,
+      mirrorAutoAddConfig,
+      readTelemetryPolicy: vi.fn(async () => {
+        throw new Error('timeout waiting for frame 0x05');
+      }),
+    });
+    const before = stateHolder().getAutoAddConfig();
+    const seen: unknown[] = [];
+    bus.on('autoAddConfig', (p: unknown) => seen.push(p));
+
+    const res = await put('/api/device/auto-add', { ...before, mode: 'selected', chat: true, repeater: false });
+
+    expect(res.status).toBe(503);
+    expect(setAutoAddConfig).not.toHaveBeenCalled();
+    expect(mirrorAutoAddConfig).not.toHaveBeenCalled();
+    expect(session.setOtherParams).not.toHaveBeenCalled();
+    expect(stateHolder().getAutoAddConfig()).toEqual(before);
+    expect(seen).toEqual([]);
   });
 
   it('uses the known policy without another read', async () => {
