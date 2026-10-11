@@ -24,12 +24,8 @@ export function TelemetrySection({ client }: SectionProps) {
     eq: eqTelemetry,
     onSave: async (d) => {
       if (!client) throw new Error('No server connection');
-      await api.putTelemetryPolicy(client, {
-        ...useStore.getState().telemetryPolicy,
-        base: d.base,
-        loc: d.loc,
-        env: d.env,
-      });
+      // The modes only: main merges them onto the radio's multi-acks.
+      await api.putTelemetryPolicy(client, { base: d.base, loc: d.loc, env: d.env });
       notify.success('Telemetry settings saved');
     },
   });

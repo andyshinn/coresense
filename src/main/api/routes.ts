@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
 import { getManifest, validateTemplate } from '../../shared/macros';
 import type { MacroContext } from '../../shared/macros/types';
 import { clampRetention } from '../../shared/packetLog';
@@ -17,6 +17,7 @@ import type {
   SearchOptions,
   ServerStatus,
   StateSnapshot,
+  TelemetryPerms,
   TelemetryPolicy,
   UiState,
 } from '../../shared/types';
@@ -32,7 +33,7 @@ import { clearApiKey, hasApiKey, setApiKey } from '../map/api-key';
 import { clampTileCacheMaxBytes, getTileCache } from '../map/tile-cache';
 import { sendMessage } from '../messaging/sendMessage';
 import { protocolSession } from '../protocol';
-import { ContactTableFullError, UnknownContactError } from '../protocol/errors';
+import { ContactTableFullError, LibUnsupportedError, UnknownContactError } from '../protocol/errors';
 import { appLifecycle } from '../runtime/appLifecycle';
 import { fetchAdvertPath } from '../state/advertPath';
 import { refreshContacts } from '../state/contactRefresh';
@@ -42,10 +43,15 @@ import { discoveredStore } from '../storage/discoveredContacts';
 import { messagesStore } from '../storage/messages';
 import { packetStore } from '../storage/packets';
 import { searchMessages } from '../storage/search';
+import { type MeshLockOwner, radioBusyBody, withMeshLock } from '../telemetry/meshLock';
+import { markRadioTelemetryPolicyKnown, parseTelemetryPolicyPatch, radioTelemetryPolicy } from '../telemetry/policy';
+import { normalizeTelemetrySettings, telemetryRetention } from '../telemetry/retention';
+import { applyTelemetryRetention, telemetryInFlightSnapshot } from '../telemetry/service';
 import { transportManager } from '../transport/manager';
 import { updatesController } from '../updates/controller';
 import { markQuitConfirmed } from '../window/quit';
 import { getConfigPath } from './middleware/auth';
+import { registerTelemetryRoutes } from './telemetryRoutes';
 import { buildTileManifest, registerTileRoutes } from './tiles';
 
 /** Write a hand-set (or reset) out-path through to the discovered mirror.
@@ -87,6 +93,28 @@ function mirrorOutPath(contactKey: string, outPathHex: string, opts: { emptyMean
   scheduleDiscoveredEmit();
 }
 
+/** Run an awaited admin request under the radio-wide mesh lock
+ *  (telemetry/meshLock.ts): the companion firmware keeps one pending request,
+ *  so a second one would silently kill the reply the first is waiting for.
+ *  Resolves the 409 `radio_busy` response when the lock is held, otherwise
+ *  whatever `fn` returns. */
+async function underMeshLock(
+  c: Context,
+  owner: MeshLockOwner,
+  contactKey: string,
+  fn: () => Promise<Response>,
+): Promise<Response> {
+  const nodeKey = (contactKey.startsWith('c:') ? contactKey.slice(2) : contactKey).toLowerCase();
+  const res = await withMeshLock(owner, nodeKey, fn);
+  return res.busy ? c.json(radioBusyBody(res.busy), 409) : res.value;
+}
+
+/** True for meshcore-ts's UnknownContactError as well as coresense's own: the
+ *  library throws its own class, which `instanceof` can't see through. */
+function isUnknownContactError(err: unknown): boolean {
+  return err instanceof UnknownContactError || (err instanceof Error && err.name === 'UnknownContactError');
+}
+
 interface RoutesDeps {
   port: () => number;
   wsClients: () => number;
@@ -97,6 +125,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
   const api = new Hono();
 
   registerTileRoutes(api);
+  registerTelemetryRoutes(api);
 
   // Apply the persisted cache cap on startup. Clamp for defense-in-depth
   // against a hand-edited settings file.
@@ -164,6 +193,7 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       blockRules: holder.getBlockRules(),
       macros: macrosStore.list(),
       packets: packetStore.recent(Math.min(retention.liveBufferSize, retention.storedHistorySize)),
+      telemetryInFlight: telemetryInFlightSnapshot(),
     };
     return c.json(payload);
   });
@@ -250,9 +280,17 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       const conflict = checkProxyPort(body.proxy.port, port());
       if (conflict) return c.json({ error: conflict }, 400);
     }
-    stateHolder().setAppSettings(body);
-    emit.appSettings(body);
-    applyLoggingSettings(body.logging);
+    // Telemetry retention sizes a per-node prune, so never store or fan out a
+    // value a client sent unclamped; a body without it keeps the current one.
+    const holder = stateHolder();
+    const current = holder.getAppSettings();
+    const next = normalizeTelemetrySettings(body, current);
+    holder.setAppSettings(next);
+    emit.appSettings(next);
+    applyLoggingSettings(next.logging);
+    // A smaller retention takes effect now, for every node, rather than as each
+    // node is next requested.
+    applyTelemetryRetention(telemetryRetention(current), telemetryRetention(next));
     return c.json({ ok: true });
   });
 
@@ -383,12 +421,15 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       }
       if (typeof body.sharePositionInAdvert === 'boolean' && body.sharePositionInAdvert !== current.sharePositionInAdvert) {
         // sharePositionInAdvert lives in SET_OTHER_PARAMS along with telemetry
-        // policy — re-emit the full frame with current telemetry values. The
-        // manual-add byte is deliberately omitted so the library resends the
-        // value it mirrored from RESP_SELF_INFO: byte 1 of this command is the
-        // radio's auto-add master switch, and passing anything else here would
+        // policy — re-emit the full frame with the RADIO's telemetry values,
+        // never our JSON copy (telemetry/policy.ts): resending a stale copy is
+        // how a policy set elsewhere used to get overwritten. The manual-add
+        // byte is deliberately omitted so the library resends the value it
+        // mirrored from RESP_SELF_INFO: byte 1 of this command is the radio's
+        // auto-add master switch, and passing anything else here would
         // reconfigure auto-add as a side effect of saving an advert setting.
-        const policy = holder.getTelemetryPolicy();
+        const policy = await radioTelemetryPolicy(() => session.readTelemetryPolicy());
+        if (!policy) return c.json({ error: 'telemetry policy not read from the radio yet' }, 503);
         const ok = await session.setOtherParams(policy, body.sharePositionInAdvert);
         if (!ok) return c.json({ error: 'SET_OTHER_PARAMS rejected by radio' }, 503);
       }
@@ -463,7 +504,10 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       // so sending it on every save would push those unrelated prefs too.
       if (nextManualAdd !== onRadio.manualAddContacts) {
         const share = holder.getDeviceIdentity().sharePositionInAdvert;
-        const otherOk = await session.setOtherParams(holder.getTelemetryPolicy(), share, nextManualAdd);
+        // The radio's policy, never our JSON copy — see the identity route.
+        const policy = await radioTelemetryPolicy(() => session.readTelemetryPolicy());
+        if (!policy) return c.json({ error: 'telemetry policy not read from the radio yet' }, 503);
+        const otherOk = await session.setOtherParams(policy, share, nextManualAdd);
         if (!otherOk) return c.json({ error: 'SET_OTHER_PARAMS (auto-add mode) rejected by radio' }, 503);
       }
     }
@@ -472,20 +516,37 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
 
   api.get('/api/device/auto-add', (c) => c.json(stateHolder().getAutoAddConfig()));
 
+  // The radio is the source of truth for the policy (telemetry/policy.ts).
+  // The body is a PATCH in all but verb: only the fields being changed, merged
+  // onto the radio's value — base/loc/env and multi-acks share one frame, so a
+  // full body built from a stale copy would overwrite the fields it didn't mean
+  // to touch. Connected: read the radio's value first if this connection
+  // hasn't yet (503 when it can't), write the radio, and the holder only once
+  // it accepted — a rejected write must not leave the UI showing a policy the
+  // radio doesn't hold. Disconnected: an app-side save onto the holder as
+  // before, which the next connect's read-back replaces.
   api.put('/api/device/telemetry-policy', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as TelemetryPolicy | null;
-    if (!body) return c.json({ error: 'invalid body' }, 400);
+    const patch = parseTelemetryPolicyPatch(await c.req.json().catch(() => null));
+    if (typeof patch === 'string') return c.json({ error: patch }, 400);
     const holder = stateHolder();
-    holder.setTelemetryPolicy(body);
-    emit.telemetryPolicy(body);
+    let next: TelemetryPolicy;
     if (transportManager.getState().state === 'connected') {
+      const session = protocolSession();
+      const current = await radioTelemetryPolicy(() => session.readTelemetryPolicy());
+      if (!current) return c.json({ error: 'telemetry policy not read from the radio yet' }, 503);
+      next = { ...current, ...patch };
       const share = holder.getDeviceIdentity().sharePositionInAdvert;
       // Third argument omitted on purpose — see the identity route above: the
       // library round-trips the radio's own manual-add byte so a telemetry save
       // can't reconfigure auto-add.
-      const ok = await protocolSession().setOtherParams(body, share);
+      const ok = await session.setOtherParams(next, share);
       if (!ok) return c.json({ error: 'SET_OTHER_PARAMS rejected by radio' }, 503);
+      markRadioTelemetryPolicyKnown();
+    } else {
+      next = { ...holder.getTelemetryPolicy(), ...patch };
     }
+    holder.setTelemetryPolicy(next);
+    emit.telemetryPolicy(next);
     return c.json({ ok: true });
   });
 
@@ -498,6 +559,60 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     if (transportManager.getState().state === 'connected') {
       const ok = await protocolSession().setGpsConfig(body);
       if (!ok) return c.json({ error: 'GPS custom-var rejected by radio' }, 503);
+    }
+    return c.json({ ok: true });
+  });
+
+  // Sensor settings: every custom var the radio reports (CMD_GET_CUSTOM_VARS),
+  // as the raw key → value map. `{}` is a real answer — a radio with no GPS
+  // hardware reports nothing — so "no GPS" is `!('gps' in vars)`, distinct
+  // from a failed read (503). `gps_interval` is write-only in firmware and
+  // never appears; GpsConfig.intervalSec is the value last set from CoreSense.
+  // Needs meshcore-ts >= 0.9 (501 `lib_unsupported` before that).
+  api.get('/api/device/custom-vars', async (c) => {
+    if (transportManager.getState().state !== 'connected') return c.json({ error: 'no radio attached' }, 503);
+    try {
+      return c.json(await protocolSession().requestCustomVarsMap());
+    } catch (err) {
+      if (err instanceof LibUnsupportedError) return c.json({ error: err.message, code: 'lib_unsupported' }, 501);
+      return c.json({ error: (err as Error).message }, 503);
+    }
+  });
+
+  // Write ONE sensor setting, `{ key, value }`. One per call so a key the radio
+  // rejects (T1000 refuses `gps_interval`) fails alone and the UI can report a
+  // partial save. A `gps`/`gps_interval` write also lands in GpsConfig, which
+  // is where the write-only interval is remembered.
+  api.put('/api/device/custom-vars', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { key?: unknown; value?: unknown } | null;
+    if (!body || typeof body.key !== 'string' || typeof body.value !== 'string') {
+      return c.json({ error: 'key and value (strings) required' }, 400);
+    }
+    // The firmware frames the write as "key:value" and the read as "k:v,k:v".
+    if (body.key.length === 0 || /[:,]/.test(body.key) || body.value.includes(',')) {
+      return c.json({ error: "key must be non-empty without ':' or ',', and value without ','" }, 400);
+    }
+    if (transportManager.getState().state !== 'connected') return c.json({ error: 'no radio attached' }, 503);
+    let ok: boolean;
+    try {
+      ok = await protocolSession().setCustomVar(body.key, body.value);
+    } catch (err) {
+      if (err instanceof LibUnsupportedError) return c.json({ error: err.message, code: 'lib_unsupported' }, 501);
+      return c.json({ error: (err as Error).message }, 503);
+    }
+    if (!ok) return c.json({ error: `radio rejected ${body.key}` }, 503);
+    const holder = stateHolder();
+    const gps = holder.getGpsConfig();
+    const interval = Number(body.value);
+    const next =
+      body.key === 'gps'
+        ? { ...gps, enabled: body.value !== '0' }
+        : body.key === 'gps_interval' && Number.isFinite(interval)
+          ? { ...gps, intervalSec: interval }
+          : null;
+    if (next) {
+      holder.setGpsConfig(next);
+      emit.gpsConfig(next);
     }
     return c.json({ ok: true });
   });
@@ -791,6 +906,34 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     }
   });
 
+  // Per-contact telemetry permissions on MY radio (contact flags bits 1-3),
+  // consulted only for a TelemetryPolicy mode of 1 (per contact). The library
+  // rewrites the whole contact record keeping the favourite bit; needs
+  // meshcore-ts >= 0.9 (501 `lib_unsupported` before that).
+  api.put('/api/contacts/:key/telemetry-perms', async (c) => {
+    const key = c.req.param('key');
+    const pubkey = (key.startsWith('c:') ? key.slice(2) : key).toLowerCase();
+    const body = (await c.req.json().catch(() => null)) as Partial<TelemetryPerms> | null;
+    if (!body || typeof body.base !== 'boolean' || typeof body.loc !== 'boolean' || typeof body.env !== 'boolean') {
+      return c.json({ error: 'base, loc and env (booleans) required' }, 400);
+    }
+    const perms: TelemetryPerms = { base: body.base, loc: body.loc, env: body.env };
+    try {
+      const ok = await protocolSession().setContactTelemetryPerms(`c:${pubkey}`, perms);
+      if (!ok) return c.json({ error: 'radio rejected the contact update or timed out' }, 503);
+    } catch (err) {
+      if (err instanceof LibUnsupportedError) return c.json({ error: err.message, code: 'lib_unsupported' }, 501);
+      if (isUnknownContactError(err)) return c.json({ error: (err as Error).message }, 422);
+      return c.json({ error: (err as Error).message }, 503);
+    }
+    // The library's `discovered` write-through only carries on_radio and
+    // favourite, so mirror the new bits ourselves or the stored flags byte —
+    // and every DiscoveredContact.telemetryPerms read from it — stays stale
+    // until the next contact walk.
+    if (discoveredStore.setTelemetryPerms(pubkey, perms)) scheduleDiscoveredEmit();
+    return c.json({ ok: true });
+  });
+
   // Measure one contact's INBOUND hop count (#45 item 7) — what the radio
   // counted on the last advert it heard from this node, which is a different
   // direction from the out_path_len-derived `hops` the app has always shown.
@@ -974,9 +1117,11 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     return c.json(searchMessages(body, stateHolder().getSearchBlockContext()));
   });
 
-  // Repeater admin: request a status / telemetry snapshot from a contact.
-  // Synchronous response = "did the radio accept the write"; the snapshot
-  // itself arrives as a separate WS push event after the mesh round-trip.
+  // Repeater admin: request a status snapshot from a contact. Synchronous
+  // response = "did the radio accept the write"; the snapshot itself arrives
+  // as a separate WS push event after the mesh round-trip. Deliberately NOT
+  // under the mesh lock: there is no reply to hold it across. Telemetry lives
+  // in api/telemetryRoutes.ts.
   api.post('/api/repeater/:key/status', async (c) => {
     const key = c.req.param('key');
     const result = await protocolSession().sendStatusReq(key);
@@ -984,16 +1129,11 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     return c.json({ ok: true });
   });
 
-  api.post('/api/repeater/:key/telemetry', async (c) => {
-    const key = c.req.param('key');
-    const result = await protocolSession().sendTelemetryReq(key);
-    if (!result.ok) return c.json({ error: result.error }, 503);
-    return c.json({ ok: true });
-  });
-
   // Repeater admin: full session-bearing flow. Login/logout track state in the
   // adminSessions store; ACL / neighbours / owner-info / CLI awaits the mesh
-  // round-trip and returns the parsed result inline (5-30s typical).
+  // round-trip and returns the parsed result inline (5-30s typical). Each of
+  // those awaited requests holds the radio-wide mesh lock and answers 409
+  // `radio_busy` while another one (telemetry included) holds it.
   api.get('/api/repeater/:key/session', (c) => {
     const key = c.req.param('key');
     return c.json({ session: adminSessions.getSession(key) });
@@ -1007,12 +1147,15 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     if (!body || typeof body.password !== 'string') {
       return c.json({ error: 'password is required' }, 400);
     }
-    try {
-      const result = await protocolSession().repeaterLogin(key, body.password);
-      return c.json({ ok: true, session: adminSessions.getSession(key), login: result });
-    } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
-    }
+    const password = body.password;
+    return underMeshLock(c, 'login', key, async () => {
+      try {
+        const result = await protocolSession().repeaterLogin(key, password);
+        return c.json({ ok: true, session: adminSessions.getSession(key), login: result });
+      } catch (err) {
+        return c.json({ error: (err as Error).message }, 503);
+      }
+    });
   });
 
   api.post('/api/repeater/:key/logout', async (c) => {
@@ -1027,12 +1170,14 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
 
   api.post('/api/repeater/:key/acl', async (c) => {
     const key = c.req.param('key');
-    try {
-      const entries = await protocolSession().repeaterRequestAcl(key);
-      return c.json({ ok: true, entries });
-    } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
-    }
+    return underMeshLock(c, 'acl', key, async () => {
+      try {
+        const entries = await protocolSession().repeaterRequestAcl(key);
+        return c.json({ ok: true, entries });
+      } catch (err) {
+        return c.json({ error: (err as Error).message }, 503);
+      }
+    });
   });
 
   api.post('/api/repeater/:key/neighbours', async (c) => {
@@ -1043,22 +1188,26 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
       orderBy?: number;
       prefixLen?: number;
     };
-    try {
-      const page = await protocolSession().repeaterRequestNeighbours(key, body);
-      return c.json({ ok: true, page });
-    } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
-    }
+    return underMeshLock(c, 'neighbours', key, async () => {
+      try {
+        const page = await protocolSession().repeaterRequestNeighbours(key, body);
+        return c.json({ ok: true, page });
+      } catch (err) {
+        return c.json({ error: (err as Error).message }, 503);
+      }
+    });
   });
 
   api.post('/api/repeater/:key/owner', async (c) => {
     const key = c.req.param('key');
-    try {
-      const info = await protocolSession().repeaterRequestOwnerInfo(key);
-      return c.json({ ok: true, info });
-    } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
-    }
+    return underMeshLock(c, 'owner', key, async () => {
+      try {
+        const info = await protocolSession().repeaterRequestOwnerInfo(key);
+        return c.json({ ok: true, info });
+      } catch (err) {
+        return c.json({ error: (err as Error).message }, 503);
+      }
+    });
   });
 
   api.post('/api/repeater/:key/cli', async (c) => {
@@ -1069,34 +1218,37 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     }
     // Defaults to a reply-expecting send; only an explicit false opts out.
     const expectReply = body.expectReply !== false;
-    try {
-      // Forward the HTTP request's own AbortSignal: if the client aborts (repeater
-      // switch / unmount), the library deletes its pendingCli entry rather than
-      // holding it for the full CLI_REPLY_TIMEOUT_MS (§5.1, §7.1).
-      const reply = await protocolSession().repeaterSendCli(key, body.command, {
-        expectReply,
-        signal: c.req.raw.signal,
-      });
-      if (!expectReply) return c.json({ ok: true, sent: true }, 202);
-      // The reply packet came from this repeater — the lib correlates pending
-      // CLI sends by the sender's pubkey prefix, so a resolved reply is a real
-      // reception from `key` and not a guess (#45 item 9).
-      noteHeard(key);
-      return c.json({ ok: true, reply }, 200);
-    } catch (err) {
-      // Coerce defensively: a non-Error rejection (thrown string, or an object
-      // without a string `.message`) would make `.includes(...)` throw and mask
-      // the real failure as an opaque 500.
-      const message = err instanceof Error ? err.message : String(err);
-      // The library rejects a lapsed reply with `CLI command timed out after
-      // <ms>ms` (§7.1). Everything else — transport drop, superseded-by-newer —
-      // is a transport-tier failure; the renderer re-reads the message to split
-      // superseded out (§5.4).
-      if (message.includes('timed out after')) {
-        return c.json({ error: message, code: 'cli_timeout' }, 504);
+    const command = body.command;
+    return underMeshLock(c, 'cli', key, async () => {
+      try {
+        // Forward the HTTP request's own AbortSignal: if the client aborts (repeater
+        // switch / unmount), the library deletes its pendingCli entry rather than
+        // holding it for the full CLI_REPLY_TIMEOUT_MS (§5.1, §7.1).
+        const reply = await protocolSession().repeaterSendCli(key, command, {
+          expectReply,
+          signal: c.req.raw.signal,
+        });
+        if (!expectReply) return c.json({ ok: true, sent: true }, 202);
+        // The reply packet came from this repeater — the lib correlates pending
+        // CLI sends by the sender's pubkey prefix, so a resolved reply is a real
+        // reception from `key` and not a guess (#45 item 9).
+        noteHeard(key);
+        return c.json({ ok: true, reply }, 200);
+      } catch (err) {
+        // Coerce defensively: a non-Error rejection (thrown string, or an object
+        // without a string `.message`) would make `.includes(...)` throw and mask
+        // the real failure as an opaque 500.
+        const message = err instanceof Error ? err.message : String(err);
+        // The library rejects a lapsed reply with `CLI command timed out after
+        // <ms>ms` (§7.1). Everything else — transport drop, superseded-by-newer —
+        // is a transport-tier failure; the renderer re-reads the message to split
+        // superseded out (§5.4).
+        if (message.includes('timed out after')) {
+          return c.json({ error: message, code: 'cli_timeout' }, 504);
+        }
+        return c.json({ error: message, code: 'transport' }, 503);
       }
-      return c.json({ error: message, code: 'transport' }, 503);
-    }
+    });
   });
 
   api.post('/api/repeater/:key/trace', async (c) => {
@@ -1110,23 +1262,24 @@ export function createRoutes({ port, wsClients, bridgeStatus }: RoutesDeps) {
     if (!body || typeof body.tag !== 'number' || typeof body.pathHex !== 'string') {
       return c.json({ error: 'tag and pathHex are required' }, 400);
     }
-    try {
-      const trace = await protocolSession().repeaterTracePath({
-        tag: body.tag,
-        authCode: body.authCode ?? 0,
-        flags: body.flags,
-        pathHex: body.pathHex,
-      });
-      // A returned trace means the node at the end of `pathHex` turned the
-      // packet around. TRACE_DATA itself carries only per-hop HASHES, so the
-      // identity comes from the caller's own `:key` — the contact it asked to
-      // trace. Attribution is therefore only as good as that assertion, which
-      // is why it lives here rather than in the decode path (#45 item 9).
-      noteHeard(key);
-      return c.json({ ok: true, trace });
-    } catch (err) {
-      return c.json({ error: (err as Error).message }, 503);
-    }
+    const params = { tag: body.tag, authCode: body.authCode ?? 0, flags: body.flags, pathHex: body.pathHex };
+    // Under the mesh lock although firmware keeps trace out of the pending
+    // slot: its RESP_SENT can be swapped with a telemetry request's (see
+    // telemetry/meshLock.ts).
+    return underMeshLock(c, 'trace', key, async () => {
+      try {
+        const trace = await protocolSession().repeaterTracePath(params);
+        // A returned trace means the node at the end of `pathHex` turned the
+        // packet around. TRACE_DATA itself carries only per-hop HASHES, so the
+        // identity comes from the caller's own `:key` — the contact it asked to
+        // trace. Attribution is therefore only as good as that assertion, which
+        // is why it lives here rather than in the decode path (#45 item 9).
+        noteHeard(key);
+        return c.json({ ok: true, trace });
+      } catch (err) {
+        return c.json({ error: (err as Error).message }, 503);
+      }
+    });
   });
 
   api.post('/api/repeater/local/stats', async (c) => {

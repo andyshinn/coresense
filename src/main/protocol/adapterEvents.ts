@@ -3,10 +3,16 @@ import { emit, summarizeContactSync } from '../events/bus';
 import { child } from '../log';
 import { sampleAdvertPathAfterAdvert } from '../state/advertPath';
 import { applyLibContacts, ingestObservedContact, noteHeard, scheduleDiscoveredEmit } from '../state/contactSync';
-import { endContactWalk, noteContactWalkStreaming } from '../state/contactWalk';
+import { endContactWalk, isContactWalkInFlight, noteContactWalkStreaming } from '../state/contactWalk';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { messagesStore } from '../storage/messages';
+import {
+  forgetRadioTelemetryPolicy,
+  markRadioTelemetryPolicyKnown,
+  policyFromSelfInfo,
+  radioTelemetryPolicy,
+} from '../telemetry/policy';
 import { mergeSyncedChannels } from './mergeChannels';
 
 const log = child('contacts');
@@ -60,12 +66,21 @@ export function wireSessionEvents(session: MeshCoreSession): void {
     emit.radioSettings(r);
   });
   ev.on('gpsConfig', (g) => {
-    holder.setGpsConfig(g);
-    emit.gpsConfig(g);
+    // `intervalSec` is never the radio's: firmware's gps_interval is write-only
+    // (CMD_GET_CUSTOM_VARS never reports it), so the library fills it from its
+    // own unseeded mirror (default 300) on every custom-vars reply carrying
+    // `gps`. Keep the holder's value — the one last set from CoreSense, which
+    // every route that writes it stores first.
+    const next = { ...g, intervalSec: holder.getGpsConfig().intervalSec };
+    holder.setGpsConfig(next);
+    emit.gpsConfig(next);
   });
+  // 0.8.1 emits this only after a setOtherParams the radio accepted; 0.9 also
+  // folds every RESP_SELF_INFO into it. Either way it is the radio's value.
   ev.on('telemetryPolicy', (t) => {
     holder.setTelemetryPolicy(t);
     emit.telemetryPolicy(t);
+    markRadioTelemetryPolicyKnown();
   });
   ev.on('autoAddConfig', (a) => {
     // The lib owns the radio-driven fields; coresense keeps two app-only UI
@@ -111,6 +126,14 @@ export function wireSessionEvents(session: MeshCoreSession): void {
   // else moves it, so an idle/syncing → done edge is exactly "one handshake
   // completed", once per connect.
   let syncPhase: 'idle' | 'syncing' | 'done' = 'idle';
+  let policySeedPending = false;
+  // A no-op once the policy is known (0.9's handshake `telemetryPolicy` event),
+  // and refused while a walk streams; a route that needs the policy before the
+  // seed lands reads it then (radioTelemetryPolicy).
+  const seedPolicy = () => {
+    policySeedPending = false;
+    void radioTelemetryPolicy(async () => policyFromSelfInfo(await session.getSelfInfo()));
+  };
   ev.on('syncProgress', (p) => {
     // `contacts.done < total` means RESP_CONTACT frames are still arriving, i.e.
     // the radio is mid-walk RIGHT NOW. That is the only reliable signal we get:
@@ -132,6 +155,23 @@ export function wireSessionEvents(session: MeshCoreSession): void {
     // rather than on 'connected' so it can't race CMD_APP_START — the radio has
     // to have a session before it will answer anything else.
     if (finished) void session.requestAutoAddConfig();
+    // Same gap for the telemetry policy: the handshake's RESP_SELF_INFO carries
+    // it, but meshcore-ts 0.8.1 never emits it, so the holder would keep
+    // whatever telemetry-policy.json last held. The radio is the source of
+    // truth (see telemetry/policy.ts); read it back once per connect. The read
+    // re-sends APP_START, which stops a contact walk dead — and 'done' can
+    // arrive mid-walk (the 10s END_OF_CONTACTS waiter) — so a walk still
+    // streaming defers the read to its END_OF_CONTACTS (`contactsSynced`).
+    if (finished) {
+      if (isContactWalkInFlight()) policySeedPending = true;
+      else seedPolicy();
+    }
+    // 'idle' after a handshake is the disconnect edge: the next radio may hold
+    // a different policy, and nothing may re-send ours until it is read again.
+    if (p.phase === 'idle') {
+      policySeedPending = false;
+      forgetRadioTelemetryPolicy();
+    }
   });
   // The three identity-bearing pushes below are all receptions FROM the named
   // contact, so each one is a last-heard signal (#45 item 9). A path learn in
@@ -144,14 +184,23 @@ export function wireSessionEvents(session: MeshCoreSession): void {
     noteHeard(s.contactKey);
     emit.repeaterStatus(s);
   });
-  ev.on('repeaterTelemetry', (s) => {
-    noteHeard(s.contactKey);
-    emit.repeaterTelemetry(s);
-  });
+  // A PUSH_TELEMETRY_RESPONSE (0x8B) the library resolved to a contact. Still
+  // a reception for last-heard purposes, but no longer broadcast: telemetry is
+  // requested and saved through telemetry/service.ts, which awaits the reply
+  // itself, and an unsolicited push (another client on the same radio, the
+  // legacy CMD_SEND_TELEMETRY_REQ) has nothing in the app to land in.
+  ev.on('repeaterTelemetry', (s) => noteHeard(s.contactKey));
   ev.on('contactsFull', () => emit.error('radio contact store is full — remove or favourite contacts to make room'));
 
   wireContacts(session); // Task C2
   wireMessages(session); // Task C3
+
+  // The deferred policy seed (see syncProgress above). Registered AFTER
+  // wireContacts so its contactsSynced handler has already released the walk
+  // guard by the time this one runs.
+  ev.on('contactsSynced', () => {
+    if (policySeedPending) seedPolicy();
+  });
 }
 
 function wireContacts(session: MeshCoreSession): void {

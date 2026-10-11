@@ -1,5 +1,6 @@
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
 import type { MacroManifest, MacroTemplate, RenderResult, ValidateResult } from '../../shared/macros/types';
+import type { RequestDetailDto, SavedRequestDto } from '../../shared/telemetry/types';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -24,11 +25,13 @@ import type {
   SearchResults,
   ServerStatus,
   StateSnapshot,
+  TelemetryPerms,
   TelemetryPolicy,
   TileCacheInfo,
   UiState,
   UpdateState,
 } from '../../shared/types';
+import { withTelemetryRetention } from './telemetryRetention';
 
 export interface ApiClient {
   baseUrl: string;
@@ -125,6 +128,14 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(settings),
     }),
+  /** Change the global per-node telemetry retention. Goes through the whole-
+   *  AppSettings PUT like every other app setting; main clamps it again and
+   *  prunes at once when it shrinks. */
+  putTelemetryRetention: (c: ApiClient, settings: AppSettings, keep: number) =>
+    request<{ ok: true }>(c, '/api/settings/app', {
+      method: 'PUT',
+      body: JSON.stringify(withTelemetryRetention(settings, keep)),
+    }),
   putRadioSettings: (c: ApiClient, settings: RadioSettings & { pushToDevice?: boolean }) =>
     request<{ ok: true }>(c, '/api/settings/radio', {
       method: 'PUT',
@@ -154,10 +165,24 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(cfg),
     }),
-  putTelemetryPolicy: (c: ApiClient, policy: TelemetryPolicy) =>
+  /** Change some of the radio's telemetry policy. Send only the fields being
+   *  changed: main merges them onto the RADIO's value, so the rest of the
+   *  shared SET_OTHER_PARAMS frame isn't rewritten from a possibly stale copy. */
+  putTelemetryPolicy: (c: ApiClient, policy: Partial<TelemetryPolicy>) =>
     request<{ ok: true }>(c, '/api/device/telemetry-policy', {
       method: 'PUT',
       body: JSON.stringify(policy),
+    }),
+  /** Every sensor setting the radio reports (`CMD_GET_CUSTOM_VARS`), e.g.
+   *  `{ gps: '1' }`. `{}` is a real answer: no GPS hardware reports nothing.
+   *  `gps_interval` is write-only in firmware, so it never appears here. */
+  getSensorSettings: (c: ApiClient) => request<Record<string, string>>(c, '/api/device/custom-vars'),
+  /** Write one sensor setting. One key per call so a rejected key (T1000
+   *  refuses `gps_interval`) fails alone and the UI can report a partial save. */
+  putSensorSetting: (c: ApiClient, key: string, value: string) =>
+    request<{ ok: true }>(c, '/api/device/custom-vars', {
+      method: 'PUT',
+      body: JSON.stringify({ key, value }),
     }),
   putGpsConfig: (c: ApiClient, cfg: GpsConfig) =>
     request<{ ok: true }>(c, '/api/device/gps', {
@@ -240,10 +265,6 @@ export const api = {
     request<{ ok: true }>(c, `/api/repeater/${encodeURIComponent(key)}/status`, {
       method: 'POST',
     }),
-  repeaterTelemetry: (c: ApiClient, key: string) =>
-    request<{ ok: true }>(c, `/api/repeater/${encodeURIComponent(key)}/telemetry`, {
-      method: 'POST',
-    }),
   repeaterSession: (c: ApiClient, key: string) =>
     request<{ session: RepeaterAdminSession | null }>(c, `/api/repeater/${encodeURIComponent(key)}/session`),
   repeaterLogin: (c: ApiClient, key: string, password: string) =>
@@ -312,6 +333,14 @@ export const api = {
     request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/favourite`, {
       method: 'PUT',
       body: JSON.stringify({ favourite }),
+    }),
+  /** Per-contact telemetry permission flags on MY radio (contact flags bits
+   *  1–3). Only consulted for a mode set to "Per contact". Answers 501
+   *  `lib_unsupported` until meshcore-ts can write them. */
+  putContactTelemetryPerms: (c: ApiClient, key: string, perms: TelemetryPerms) =>
+    request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/telemetry-perms`, {
+      method: 'PUT',
+      body: JSON.stringify(perms),
     }),
   clearDiscovered: (c: ApiClient) => request<{ ok: true }>(c, `/api/discovered-contacts/clear`, { method: 'POST' }),
   setPathHashMode: (c: ApiClient, size: 1 | 2 | 4) =>
@@ -399,4 +428,23 @@ export const api = {
     },
   ) => request<RenderResult>(c, '/api/macros/render', { method: 'POST', body: JSON.stringify(body) }),
   clearPackets: (c: ApiClient) => request<{ ok: true }>(c, '/api/packets/clear', { method: 'POST' }),
+  /** Ask a node for telemetry, or read my own radio's when `nodeKey` is the
+   *  owner key. Resolves once the request finished, with the saved request:
+   *  200 even when `outcome` is `timeout`/`error`. Throws ApiError 409
+   *  `radio_busy` while another mesh request holds the radio, and 503/422 for
+   *  failures before anything was sent (those are not saved). A second call for
+   *  the same node joins the in-flight request. `nodeKey` is `c:<hex>` or bare. */
+  requestTelemetry: (c: ApiClient, nodeKey: string) =>
+    request<SavedRequestDto>(c, `/api/telemetry/${encodeURIComponent(nodeKey)}/request`, { method: 'POST' }),
+  /** A node's saved requests, newest first, readings decoded. */
+  listTelemetry: (c: ApiClient, nodeKey: string) =>
+    request<SavedRequestDto[]>(c, `/api/telemetry/${encodeURIComponent(nodeKey)}`),
+  /** One saved request plus, per reading, the most recent earlier reading with the same key. */
+  getTelemetryRequest: (c: ApiClient, id: string) =>
+    request<RequestDetailDto>(c, `/api/telemetry/request/${encodeURIComponent(id)}`),
+  deleteTelemetryRequest: (c: ApiClient, id: string) =>
+    request<{ ok: true }>(c, `/api/telemetry/request/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  /** Delete every saved request for one node. */
+  clearTelemetry: (c: ApiClient, nodeKey: string) =>
+    request<{ ok: true }>(c, `/api/telemetry/${encodeURIComponent(nodeKey)}`, { method: 'DELETE' }),
 };

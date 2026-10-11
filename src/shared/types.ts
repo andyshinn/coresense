@@ -1,6 +1,13 @@
 import type { QuickActionId } from '../renderer/features/quick-actions/ids';
 import type { DiscoveredContact } from './contacts/discovered';
 import type { DistanceUnit, MacroTemplate } from './macros/types';
+import {
+  TELEMETRY_RETENTION_DEFAULT,
+  type TelemetryDeletedPayload,
+  type TelemetryInFlight,
+  type TelemetryInFlightPayload,
+  type TelemetrySavedPayload,
+} from './telemetry/types';
 
 export type { MacroTemplate } from './macros/types';
 
@@ -127,6 +134,12 @@ export interface Contact {
    *  protects the contact from overwrite-oldest eviction. Distinct from
    *  `pinned` (app-only pin-to-top in the nav). */
   favourite?: boolean;
+  /** Which telemetry this contact may read from MY radio when that group's
+   *  TelemetryPolicy mode is 1 (per contact) — firmware contact flags bits
+   *  1–3. Copied from meshcore-ts ≥ 0.9's Contact; undefined on older libs
+   *  (DiscoveredContact.telemetryPerms, read from the stored flags byte, is
+   *  always present). */
+  telemetryPerms?: TelemetryPerms;
   muted?: boolean;
   /** Hex-encoded out-path bytes (no separators) mirroring the firmware's
    *  advert.out_path. Empty / undefined means "flood" (no source-route). The
@@ -150,6 +163,27 @@ export interface Contact {
    *  absent (default for radios without a GPS module). */
   gpsLat?: number;
   gpsLon?: number;
+}
+
+/** Per-contact telemetry permissions: firmware contact flags `>> 1`, bit 1
+ *  base (battery, MCU temperature), bit 2 location, bit 3 environment. Bit 0
+ *  of the same byte is the favourite flag. Mirrors meshcore-ts 0.9's
+ *  TelemetryPerms; redeclared because the renderer can't import the library. */
+export interface TelemetryPerms {
+  base: boolean;
+  loc: boolean;
+  env: boolean;
+}
+
+/** Decode TelemetryPerms from a raw firmware contact flags byte. */
+export function telemetryPermsFromFlags(flags: number): TelemetryPerms {
+  return { base: (flags & 0x02) !== 0, loc: (flags & 0x04) !== 0, env: (flags & 0x08) !== 0 };
+}
+
+/** Rewrite bits 1–3 of a contact flags byte, keeping every other bit
+ *  (favourite, and anything a later firmware adds). */
+export function flagsWithTelemetryPerms(flags: number, perms: TelemetryPerms): number {
+  return (flags & ~0x0e) | (perms.base ? 0x02 : 0) | (perms.loc ? 0x04 : 0) | (perms.env ? 0x08 : 0);
 }
 
 /** True iff the contact carries a usable WGS84 fix: both coords present, not
@@ -533,6 +567,12 @@ export interface AppSettings {
     autoCheck: boolean;
   };
   distanceUnit: DistanceUnit;
+  /** Saved telemetry requests (shared/telemetry). One global value, applied to
+   *  every node; main clamps it to TELEMETRY_RETENTION_BOUNDS on load and on
+   *  PUT, and prunes every node at once when it shrinks. */
+  telemetry: {
+    retentionPerNode: number;
+  };
 }
 
 export type ContactGrouping = 'nested' | 'top-level';
@@ -576,6 +616,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   quickActions: ['flood', 'gps', 'shareLoc', 'disconnect'],
   updates: { channel: 'stable', autoCheck: true },
   distanceUnit: 'metric',
+  telemetry: { retentionPerNode: TELEMETRY_RETENTION_DEFAULT },
 };
 
 /** Bundled vector basemap source for the Map panel.
@@ -1027,6 +1068,9 @@ export interface StateSnapshot {
   macros: MacroTemplate[];
   /** Newest persisted packets (min(liveBufferSize, storedHistorySize)), oldest→newest. */
   packets: RawPacket[];
+  /** Pending telemetry requests, the same snapshot `telemetryInFlight` pushes.
+   *  Optional so a renderer hydrating from an older main reads it as empty. */
+  telemetryInFlight?: TelemetryInFlight[];
 }
 
 export type MenuAction =
@@ -1181,19 +1225,6 @@ export type RepeaterLocalStats =
       nRecvErrors: number;
     };
 
-export interface RepeaterTelemetrySnapshot {
-  contactKey: string;
-  receivedAt: number;
-  payloadHex: string;
-  fields: Array<{
-    channel: number;
-    typeHex: string;
-    name: string;
-    value: number | string;
-    unit?: string;
-  }>;
-}
-
 export type WsMessage =
   | { type: 'packet'; payload: RawPacket }
   | { type: 'transportState'; payload: { state: TransportState; deviceId?: string } }
@@ -1222,7 +1253,12 @@ export type WsMessage =
   | { type: 'mapManifest'; payload: TileManifest }
   | { type: 'mapTileStatus'; payload: MapTileStatus }
   | { type: 'repeaterStatus'; payload: RepeaterStatusSnapshot }
-  | { type: 'repeaterTelemetry'; payload: RepeaterTelemetrySnapshot }
+  // Saved telemetry requests (shared/telemetry). `telemetrySaved` carries the
+  // decoded DTO, so the rail and open tabs update without a refetch;
+  // `telemetryInFlight` is a full snapshot of pending requests every time.
+  | { type: 'telemetrySaved'; payload: TelemetrySavedPayload }
+  | { type: 'telemetryDeleted'; payload: TelemetryDeletedPayload }
+  | { type: 'telemetryInFlight'; payload: TelemetryInFlightPayload }
   | { type: 'pathLearned'; payload: PathLearnedEvent }
   | { type: 'deviceIdentity'; payload: DeviceIdentity }
   | { type: 'autoAddConfig'; payload: AutoAddConfig }

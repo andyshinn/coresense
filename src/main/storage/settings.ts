@@ -30,6 +30,7 @@ import {
 import { child } from '../log';
 import { isPackaged } from '../runtime/appInfo';
 import { userDataDir } from '../runtime/userData';
+import { normalizeTelemetrySettings } from '../telemetry/retention';
 
 const log = child('settings');
 
@@ -169,7 +170,9 @@ export const settingsStore = {
       writeJson(FILES.app, merged);
       log.info('migrated retired field out of app-settings.json: theme');
     }
-    return merged;
+    // mergeDefaults passes a stored `"telemetry": null`, or an out-of-range
+    // retention from a hand edit, straight through; it sizes a per-node prune.
+    return normalizeTelemetrySettings(merged);
   },
   saveAppSettings: (v: AppSettings): void => writeJson(FILES.app, v),
 

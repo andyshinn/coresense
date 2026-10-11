@@ -3,6 +3,7 @@ import { CLI_BY_NAME } from '../../../shared/repeater-cli/catalog';
 import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { useStore } from '../../lib/store';
+import { RADIO_BUSY_HINT, useRadioBusy } from '../../lib/telemetry';
 import { type CliGuest, CliPrompt } from './cli/CliPrompt';
 import type { FollowUp } from './cli/CliRow';
 import { CliTranscript } from './cli/CliTranscript';
@@ -29,6 +30,9 @@ const newId = () => `cli-${Date.now().toString(36)}-${(seq++).toString(36)}`;
 export function CliTab({ contact, client, session, sessionChecked, pending, onPending }: Props) {
   const radioSettings = useStore((s) => s.radioSettings);
   const setRepeaterAdminTab = useStore((s) => s.setRepeaterAdminTab);
+  // A telemetry request holds the radio, and a CLI send now would be refused
+  // (409). Commands still queue; the drain below waits until it lets go.
+  const radioBusy = useRadioBusy();
   const hops = Math.max(1, contact.hops ?? 1);
 
   const [queue, setQueue] = useState<CliQueueState>({ entries: [] });
@@ -93,9 +97,9 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
     [contact.publicKeyHex, guest],
   );
 
-  // Drain: start the next entry whenever nothing is sending.
+  // Drain: start the next entry whenever nothing is sending and the radio is free.
   useEffect(() => {
-    if (sendingRef.current || !client) return;
+    if (sendingRef.current || !client || radioBusy) return;
     const { state, next } = beginNext(queue);
     if (!next) return;
     sendingRef.current = true;
@@ -139,7 +143,7 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
         sendingRef.current = false;
       }
     })();
-  }, [queue, client, contact.key, patchStatus, onPending, pending]);
+  }, [queue, client, radioBusy, contact.key, patchStatus, onPending, pending]);
 
   // Abort the queue on unmount / repeater switch: abort the live send first —
   // which clears the main-process pendingCli entry (§7.1) instead of leaving
@@ -201,6 +205,7 @@ export function CliTab({ contact, client, session, sessionChecked, pending, onPe
         radioSettings={radioSettings}
         hops={hops}
         guest={guest}
+        blockedHint={radioBusy ? RADIO_BUSY_HINT : null}
         queuedCount={queuedCount}
         onSubmit={submit}
         onClearTranscript={onClear}

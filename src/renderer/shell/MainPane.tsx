@@ -94,6 +94,10 @@ function MainPaneInner({ client, onScan, onConnect, onDisconnect, renderPacketLo
   if (activeKey === 'tool:macros') {
     return <MacrosPanel client={client} />;
   }
+  if (activeKey === 'tool:myradio') {
+    // Stand-in until the My radio telemetry panel lands.
+    return <PlaceholderPanel title="My radio" description="Telemetry for the connected radio." />;
+  }
 
   if (activeKey.startsWith('ch:')) {
     const ch = channels.find((c) => c.key === activeKey);

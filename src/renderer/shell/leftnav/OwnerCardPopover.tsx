@@ -1,6 +1,6 @@
 import { MapPin } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { lipoPercent } from '../../lib/battery';
+import { lipoPercent } from '../../../shared/battery';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
 import { fmtBandwidth, fmtFirmware, fmtFreqMhz, fmtGpsInterval, fmtStorageKb } from './ownerFormat';

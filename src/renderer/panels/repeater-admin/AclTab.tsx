@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Contact, RepeaterAclEntry } from '../../../shared/types';
 import { type ApiClient, api } from '../../lib/api';
 import { notify } from '../../lib/notify';
+import { RADIO_BUSY_HINT, useRadioBusy } from '../../lib/telemetry';
 import { ACL_ROLE_LABEL } from './aclRole';
 
 interface Props {
@@ -13,9 +14,11 @@ interface Props {
 export function AclTab({ contact, client, disabled }: Props) {
   const [entries, setEntries] = useState<RepeaterAclEntry[] | null>(null);
   const [busy, setBusy] = useState(false);
+  // A telemetry request holds the radio; a fetch now would kill its reply.
+  const radioBusy = useRadioBusy();
 
   const load = async () => {
-    if (!client || busy) return;
+    if (!client || busy || radioBusy) return;
     setBusy(true);
     try {
       const res = await api.repeaterAcl(client, contact.key);
@@ -42,7 +45,8 @@ export function AclTab({ contact, client, disabled }: Props) {
         <button
           type="button"
           onClick={load}
-          disabled={!client || busy}
+          disabled={!client || busy || radioBusy}
+          title={radioBusy ? RADIO_BUSY_HINT : undefined}
           className="rounded border border-cs-border bg-cs-bg-3 px-2 py-0.5 text-[11px] text-cs-text-muted hover:bg-cs-accent-soft/30 hover:text-cs-text disabled:opacity-50"
         >
           {busy ? 'Fetching…' : 'Refresh ACL'}

@@ -5,6 +5,7 @@ import { type ApiClient, api } from '../../../lib/api';
 import { type NeighbourSortKey, resolveNeighbours, sortNeighbours } from '../../../lib/neighbours';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
+import { RADIO_BUSY_HINT, useRadioBusy } from '../../../lib/telemetry';
 import { NeighbourList } from '../../../panels/repeater-admin/neighbours/NeighbourList';
 
 // Client Order key -> firmware orderBy byte for the fetch window
@@ -35,6 +36,8 @@ export function NeighboursRailBody({ contact, client }: { contact: Contact; clie
   const setNeighbourSelected = useStore((s) => s.setNeighbourSelected);
   const setNeighbourHovered = useStore((s) => s.setNeighbourHovered);
   const setNeighboursShowNames = useStore((s) => s.setNeighboursShowNames);
+  // A telemetry request holds the radio; a fetch now would kill its reply.
+  const radioBusy = useRadioBusy();
 
   const isForThis = nb.forKey === contact.key;
   const page = isForThis ? nb.page : null;
@@ -52,7 +55,7 @@ export function NeighboursRailBody({ contact, client }: { contact: Contact; clie
   }, [page, contacts, discovered, nb.sortKey, nb.count]);
 
   const doFetch = async () => {
-    if (!client || nb.busy) return;
+    if (!client || nb.busy || radioBusy) return;
     setNeighboursBusy(true);
     try {
       const res = await api.repeaterNeighbours(client, contact.key, {
@@ -76,6 +79,7 @@ export function NeighboursRailBody({ contact, client }: { contact: Contact; clie
       sortKey={nb.sortKey}
       count={nb.count}
       busy={nb.busy}
+      blockedHint={radioBusy ? RADIO_BUSY_HINT : null}
       hasFetched={page !== null}
       onSort={setNeighboursSort}
       onCount={setNeighboursCount}

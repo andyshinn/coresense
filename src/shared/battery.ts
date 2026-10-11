@@ -1,8 +1,10 @@
 // Single-cell LiPo battery helpers. MeshCore radios report only raw battery
 // millivolts (RESP_BATT_AND_STORAGE) — never a percentage — so we estimate one
 // from a typical single-cell discharge curve. Companion/handheld radios are
-// LiPo-powered; the estimate is meaningless for mains/12V repeaters, but the
-// identity card only ever shows the locally-connected radio.
+// LiPo-powered; the estimate is meaningless for mains/12V repeaters, so the
+// telemetry view (shared/telemetry/describe.ts) only shows it for a ch 1
+// battery voltage inside the single-cell range. Lives in shared/ so main and
+// renderer use the same curve.
 
 // Resting-voltage (V) → charge (%) anchor points for a single-cell LiPo.
 const LIPO_CURVE: ReadonlyArray<readonly [number, number]> = [

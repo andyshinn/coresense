@@ -135,6 +135,30 @@ export function openDb(): DatabaseSync {
       code_name   TEXT
     );
     CREATE INDEX IF NOT EXISTS packets_by_ts ON packets (ts);
+
+    -- Saved telemetry requests (storage/telemetry.ts), every attempt that
+    -- reached the radio: replies, timeouts and errors alike. raw_hex is the
+    -- CayenneLPP payload exactly as received (mesh padding included) and is the
+    -- source of truth — readings are decoded on read, so a better decoder
+    -- re-reads old rows. NULL when no reply came. node_key is the bare
+    -- lowercase 64-hex public key; the owner's own key for a companion read.
+    -- Kept when the contact is deleted, as messages are.
+    CREATE TABLE IF NOT EXISTS telemetry_requests (
+      id            TEXT PRIMARY KEY,
+      node_key      TEXT    NOT NULL,
+      source        TEXT    NOT NULL,          -- 'repeater' | 'contact' | 'companion'
+      requested_at  INTEGER NOT NULL,          -- epoch ms, when the user clicked
+      replied_at    INTEGER,
+      outcome       TEXT    NOT NULL,          -- 'ok' | 'timeout' | 'error'
+      error         TEXT,
+      round_trip_ms INTEGER,
+      hops          INTEGER,
+      route         TEXT,                      -- 'direct' | 'flood' | 'local'
+      acl_role      TEXT,                      -- RepeaterAclRole at request time
+      perms_granted INTEGER,                   -- inferred TELEM_PERM_* mask
+      raw_hex       TEXT
+    );
+    CREATE INDEX IF NOT EXISTS telemetry_by_node_time ON telemetry_requests (node_key, requested_at DESC);
   `);
 
   // The observed_* columns above were added after the app shipped (#45 item 7),

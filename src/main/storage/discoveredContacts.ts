@@ -6,7 +6,7 @@ import {
   hashSizeFromOutPathLen,
   hopsFromOutPathLen,
 } from '../../shared/contacts/discovered';
-import type { BlockRule } from '../../shared/types';
+import { type BlockRule, flagsWithTelemetryPerms, type TelemetryPerms, telemetryPermsFromFlags } from '../../shared/types';
 import { openDb } from './db';
 
 interface Row {
@@ -58,6 +58,7 @@ function rowToDiscovered(row: Row, blockRules: BlockRule[]): DiscoveredContact {
     firstHeardMs: row.first_heard_ms,
     onRadio: row.on_radio !== 0,
     favourite: row.favourite !== 0,
+    telemetryPerms: telemetryPermsFromFlags(row.flags),
     blocked: contactMatchesAnyBlockRule(row.pubkey, row.name, blockRules),
   };
 }
@@ -328,6 +329,20 @@ export const discoveredStore = {
          SET favourite = ?, flags = (flags & ~1) | ? WHERE pubkey = ?`,
     ).run(favourite ? 1 : 0, favourite ? 1 : 0, pubkey);
     invalidateFlagCache(pubkey);
+  },
+
+  /** Write a contact's telemetry permissions (flags bits 1–3) after the radio
+   *  accepted them. Keeps every other bit — favourite above all. The lib's
+   *  `discovered` write-through (applyRadioFlags) only ever touches bit 0, so
+   *  without this the stored byte, and the DTO read from it, stays at the
+   *  pre-edit value until the next GET_CONTACTS walk. Returns false when no
+   *  row matched. */
+  setTelemetryPerms(pubkey: string, perms: TelemetryPerms): boolean {
+    const bits = flagsWithTelemetryPerms(0, perms);
+    const res = openDb()
+      .prepare(`UPDATE discovered_contacts SET flags = (flags & ~14) | ? WHERE pubkey = ?`)
+      .run(bits, pubkey);
+    return Number(res.changes) > 0;
   },
 
   remove(pubkey: string): void {

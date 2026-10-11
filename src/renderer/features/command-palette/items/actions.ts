@@ -13,12 +13,14 @@ import {
   Radio,
   Signal,
   Sun,
+  ThermometerSun,
 } from 'lucide-react';
 import type { Contact, Owner, RawPacket, TransportState } from '../../../../shared/types';
 import { type ApiClient, api } from '../../../lib/api';
 import type { LastDevice } from '../../../lib/lastDevice';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
+import { notifyTelemetryOutcome } from '../../../lib/telemetry';
 import type { PaletteItem } from '../types';
 
 export interface BuildActionsArgs {
@@ -149,21 +151,27 @@ export function buildActionItems({
         close();
       },
     });
+  }
+  if (activeContact?.kind === 'repeater' || activeContact?.kind === 'sensor') {
     list.push({
       id: 'action:repeaterTelemetry',
-      label: 'Request repeater telemetry',
+      label: `Request ${activeContact.kind} telemetry`,
       hint: activeContact.name,
       group: 'action',
       groupLabel: 'Actions',
-      icon: Radio,
-      keywords: 'repeater telemetry',
+      icon: ThermometerSun,
+      keywords: 'repeater sensor telemetry battery sensors',
       run: () => {
         if (!client) return;
-        void api.repeaterTelemetry(client, activeContact.key).then(
-          () => notify.success('Telemetry requested'),
-          (err) => notify.error(`Telemetry request failed: ${(err as Error).message}`, err),
-        );
+        // Show the Telemetry tab, where the in-flight state and the saved
+        // request appear; the POST resolves only once the reply (or timeout)
+        // is in, so the outcome toast lands after the tab is already up.
+        useStore.getState().setRepeaterAdminTab('telemetry');
+        setActiveKey(activeContact.key);
         close();
+        void api
+          .requestTelemetry(client, activeContact.key)
+          .then(notifyTelemetryOutcome, (err) => notify.error(`Telemetry request failed: ${(err as Error).message}`, err));
       },
     });
   }

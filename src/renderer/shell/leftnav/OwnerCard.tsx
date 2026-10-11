@@ -1,4 +1,5 @@
 import { Copy, Radio } from 'lucide-react';
+import { formatVoltage, lipoPercent } from '../../../shared/battery';
 import type { Owner } from '../../../shared/types';
 import { CopyButton } from '../../components/CopyButton';
 import { PathHashBadge } from '../../components/PathHashBadge';
@@ -7,7 +8,6 @@ import { SidebarMenu, SidebarMenuItem } from '../../components/ui/sidebar';
 import { Identicon } from '../../features/quick-actions/Identicon';
 import { QuickActions } from '../../features/quick-actions/QuickActions';
 import type { ApiClient } from '../../lib/api';
-import { formatVoltage, lipoPercent } from '../../lib/battery';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
 import { OwnerCardPopover } from './OwnerCardPopover';

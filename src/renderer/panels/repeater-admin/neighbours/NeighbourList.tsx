@@ -11,6 +11,9 @@ interface NeighbourListProps {
   sortKey: NeighbourSortKey;
   count: number;
   busy: boolean;
+  /** Why Fetch is disabled though nothing of ours is running — another request
+   *  (telemetry) holds the radio. Shown as the button's hint. */
+  blockedHint?: string | null;
   hasFetched: boolean;
   onSort: (k: NeighbourSortKey) => void;
   onCount: (n: number) => void;
@@ -115,6 +118,7 @@ export function NeighbourList({
   sortKey,
   count,
   busy,
+  blockedHint = null,
   hasFetched,
   onSort,
   onCount,
@@ -173,7 +177,8 @@ export function NeighbourList({
           <button
             type="button"
             onClick={onFetch}
-            disabled={busy}
+            disabled={busy || !!blockedHint}
+            title={blockedHint ?? undefined}
             className="h-8 flex-1 rounded-md border border-cs-border bg-cs-bg-2 text-[12px] font-medium text-cs-text transition-colors hover:bg-cs-accent-soft/30 disabled:opacity-50"
           >
             {busy ? 'Fetching…' : 'Fetch neighbours'}

@@ -316,21 +316,31 @@ describe('repeater administration', () => {
     expect(entries.map((e) => e.permissions)).toEqual([1, 2, 3, 0x80]);
   });
 
-  it('emits repeaterTelemetry on PUSH_TELEMETRY_RESPONSE for a known sender', async () => {
-    const { adapter, receive } = makeTestSession();
+  it('resolves a telemetry binary request with the raw, still-padded LPP body', async () => {
+    const { adapter, transport, receive } = makeTestSession();
     adapter.session.state.upsertContact(repeater());
 
-    const events: Array<{ contactKey: string; fields: unknown[] }> = [];
-    const on = (s: { contactKey: string; fields: unknown[] }) => events.push(s);
-    bus.on('repeaterTelemetry', on);
-    try {
-      await adapter.sendTelemetryReq(`c:${PK}`);
-      receive(telemetryResponse(PREFIX));
-      expect(events.at(-1)?.contactKey).toBe(`c:${PK}`);
-      expect(events.at(-1)?.fields.length).toBeGreaterThan(0);
-    } finally {
-      bus.off('repeaterTelemetry', on);
-    }
+    const req = Uint8Array.from([0x03, 0x00, 0, 0, 0, 1, 2, 3, 4]);
+    const p = adapter.sendBinaryRequest(`c:${PK}`, req, { timeoutMs: 1000 });
+    await tick();
+    const sent = transport.sent.find((f) => f[0] === 0x32); // CMD_SEND_BINARY_REQ
+    expect(sent && [...sent.subarray(33)]).toEqual([...req]);
+    receive(respSent('0badf00d'));
+    await tick();
+    // ch1 voltage 4.25 V, then the AES block's zero padding.
+    receive(binaryResponse('0badf00d', Buffer.from('017401a9000000', 'hex')));
+    expect(Buffer.from(await p).toString('hex')).toBe('017401a9000000');
+  });
+
+  it('no longer broadcasts an unsolicited PUSH_TELEMETRY_RESPONSE', async () => {
+    const { adapter, receive } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
+    const seen: string[] = [];
+    const record = (name: string) => () => seen.push(name);
+    for (const name of ['telemetrySaved', 'telemetryInFlight']) bus.on(name, record(name));
+    receive(telemetryResponse(PREFIX));
+    await tick();
+    expect(seen).toEqual([]);
   });
 
   it('resolves local stats from RESP_STATS', async () => {
