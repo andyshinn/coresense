@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Telemetry components</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="telemetry.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#f59e0b}a:hover{color:#f5f1e6}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1480px; box-sizing: border-box; padding: 40px; display: flex; flex-direction: column; gap: 28px; background: var(--cs-bg); color: var(--cs-text); font-family: var(--font-sans)">
+
+  <div style="display: flex; flex-direction: column; gap: 6px">
+    <span class="lcm">CoreSense · telemetry kit</span>
+    <h1 style="margin: 0; font-size: 22px; line-height: 30px; font-weight: 600">One decoder, five parts — the same for a repeater and for my radio</h1>
+    <p style="margin: 0; font-size: 13px; line-height: 20px; color: var(--cs-text-muted); max-width: 900px">The panel only takes decoded readings and a source. Where the bytes came from (a repeater login reply, a contact telemetry response, or my radio over BLE) changes the header and the actions, never the tiles.</p>
+  </div>
+
+  <!-- API strip -->
+  <div class="seams" style="grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--cs-border); border-radius: 8px; overflow: hidden">
+    <sc-for list="{{api}}" as="a" hint-placeholder-count="5">
+      <div class="tile" style="gap: 8px">
+        <div style="display: flex; align-items: center; gap: 6px"><span class="mono" style="font-size: 12.5px; color: var(--cs-accent)">{{a.name}}</span></div>
+        <div style="font-size: 11.5px; line-height: 17px; color: var(--cs-text-muted)">{{a.desc}}</div>
+        <div class="mono" style="font-size: 10.5px; line-height: 16px; color: var(--cs-text-dim); white-space: pre-line">{{a.props}}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- Tile gallery -->
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; align-items: baseline; gap: 10px"><h2 class="lcm" style="margin: 0; color: var(--cs-text); font-size: 11px">TelemetryTile — one per LPP type MeshCore emits</h2><span class="meta">icon, label and formatter come from the type id; the channel never decides the look</span></div>
+    <div class="seams" style="grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--cs-border); border-radius: 8px; overflow: hidden">
+      <sc-for list="{{tiles}}" as="t" hint-placeholder-count="15">
+        <div class="tile">
+          <div style="display: flex; align-items: center; gap: 6px; color: var(--cs-accent)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="{{t.icon}}"></path></svg><span class="lc">{{t.label}}</span><span class="meta" style="margin-left: auto">{{t.type}}</span></div>
+          <div style="display: flex; align-items: baseline; gap: 5px"><span class="mono" style="font-size: 22px; line-height: 30px">{{t.value}}</span><span class="mono" style="font-size: 11px; color: var(--cs-text-muted)">{{t.unit}}</span></div>
+          <div class="mono" style="font-size: 11px; color: var(--cs-text-muted)">{{t.alt}}</div>
+          <div class="meta">{{t.src}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- States -->
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; align-items: baseline; gap: 10px"><h2 class="lcm" style="margin: 0; color: var(--cs-text); font-size: 11px">TelemetryPanel states</h2><span class="meta">same frame as a group card</span></div>
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px">
+
+      <div class="card">
+        <div class="card-h"><span class="lcm">Loading</span><span class="meta" style="margin-left: auto">Requesting…</span></div>
+        <div style="padding: 14px; display: flex; flex-direction: column; gap: 10px" aria-busy="true">
+          <div class="skel" style="height: 10px; width: 40%"></div>
+          <div class="skel" style="height: 22px; width: 60%"></div>
+          <div class="skel" style="height: 10px; width: 80%"></div>
+          <div class="skel" style="height: 22px; width: 50%"></div>
+        </div>
+        <div class="meta" style="padding: 0 14px 12px">waiting for reply · 4 s · timeout at 15 s · button disabled until it ends</div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><span class="lcm">Guest login</span><span class="chip chip-warn" style="margin-left: auto">Base only</span></div>
+        <div style="padding: 14px; display: flex; flex-direction: column; gap: 8px">
+          <div class="kv"><span class="lc">Battery</span><span>4.25 V</span></div>
+          <div style="font-size: 12px; line-height: 18px; color: var(--cs-text-muted)">Environment and location are hidden for guests. Log in as admin to see sensors.</div>
+          <div><button class="btn" type="button">Log in as admin…</button></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><span class="lcm">No sensors</span></div>
+        <div style="padding: 14px; display: flex; flex-direction: column; gap: 8px">
+          <div class="kv"><span class="lc">Battery</span><span>3.98 V</span></div>
+          <div style="font-size: 12px; line-height: 18px; color: var(--cs-text-muted)">Battery only. This node reported no environment sensors.</div>
+          <div class="meta">firmware detects I²C sensors at boot</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><span class="lcm">Stale</span><span class="chip chip-warn" style="margin-left: auto">⚠ 3 h old</span></div>
+        <div style="padding: 14px; display: flex; flex-direction: column; gap: 8px; opacity: 0.85">
+          <div class="kv"><span class="lc">Battery</span><span style="color: var(--cs-text-muted)">4.11 V</span></div>
+          <div class="kv"><span class="lc">Temperature</span><span style="color: var(--cs-text-muted)">21.3 °C</span></div>
+          <div style="font-size: 12px; line-height: 18px; color: var(--cs-text-muted)">Showing the saved request from 18:42. Request telemetry for current values.</div>
+        </div>
+      </div>
+
+      <div class="card" style="border-color: rgba(220, 38, 38, 0.45)">
+        <div class="card-h"><span class="lcm">Failed</span><span class="chip chip-bad" style="margin-left: auto">✕ timeout</span></div>
+        <div style="padding: 14px; display: flex; flex-direction: column; gap: 8px">
+          <div style="font-size: 12px; line-height: 18px">Telemetry request failed: timeout</div>
+          <div style="font-size: 12px; line-height: 18px; color: var(--cs-text-muted)">No reply in 15 s over a 2-hop path. Try again, or reset the path to flood.</div>
+          <div style="display: flex; gap: 8px"><button class="btn" type="button">Try again</button><button class="btn" type="button">Reset to flood</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rows + inspector -->
+  <div style="display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 24px; align-items: start">
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <h2 class="lcm" style="margin: 0; color: var(--cs-text); font-size: 11px">TelemetryRow — rail and hover card</h2>
+      <div style="background: var(--cs-bg-2); border: 1px solid var(--cs-border); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px">
+        <sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+          <div class="kv">
+            <span style="display: flex; align-items: center; gap: 6px; color: var(--cs-text-dim)"><svg class="ico ico-s" viewBox="0 0 24 24" aria-hidden="true"><path d="{{r.icon}}"></path></svg><span class="lc">{{r.label}}</span></span>
+            <span>{{r.value}}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div class="meta" style="line-height: 15px">Rows reuse KeyValueRow’s label/value split and add the type icon. Pinned rows (battery first) also feed the repeater list hover card.</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <h2 class="lcm" style="margin: 0; color: var(--cs-text); font-size: 11px">LppInspector — byte highlight</h2>
+      <div class="card">
+        <div style="padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 4px" class="mono">
+          <sc-for list="{{bytes}}" as="b" hint-placeholder-count="20">
+            <span style="font-size: 12px; padding: 3px 5px; border-radius: 4px; background: {{b.bg}}; color: {{b.fg}}">{{b.h}}</span>
+          </sc-for>
+        </div>
+        <div style="display: flex; gap: 16px; padding: 8px 14px 12px; border-top: 1px solid var(--cs-border)">
+          <span class="meta" style="display: inline-flex; gap: 6px; align-items: center"><span style="width: 10px; height: 10px; border-radius: 2px; background: rgba(193, 178, 145, 0.18)"></span>channel</span>
+          <span class="meta" style="display: inline-flex; gap: 6px; align-items: center"><span style="width: 10px; height: 10px; border-radius: 2px; background: rgba(70, 183, 174, 0.22)"></span>type id</span>
+          <span class="meta" style="display: inline-flex; gap: 6px; align-items: center"><span style="width: 10px; height: 10px; border-radius: 2px; background: rgba(245, 158, 11, 0.22)"></span>value · selected: ch 2 temp → 0x00F6 = 246 ÷ 10 = 24.6 °C</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1480}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const I = {
+      thermo: 'M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z',
+      drop: 'M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z',
+      gauge: 'M12 14l4-4 M3.34 19a10 10 0 1 1 17.32 0',
+      mountain: 'M8 3l4 8 5-5 5 15H2L8 3z',
+      battery: 'M6 7h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z M22 11v2',
+      zap: 'M13 2 3 14h9l-1 8 10-12h-9l1-8z',
+      plug: 'M12 22v-5 M9 8V2 M15 8V2 M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z',
+      power: 'M12 2v10 M18.4 6.6a9 9 0 1 1-12.77.04',
+      percent: 'M19 5L5 19 M6.5 4a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5 M17.5 15a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5',
+      ruler: 'M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z M14.5 12.5l2-2 M11.5 9.5l2-2 M8.5 6.5l2-2',
+      cpu: 'M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z M9 9h6v6H9Z M15 2v2 M15 20v2 M2 15h2 M2 9h2 M20 15h2 M20 9h2 M9 2v2 M9 20v2',
+      dial: 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20 M12 12l4-3',
+      waves: 'M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1',
+      pin: 'M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0 M12 7a3 3 0 1 0 0 6a3 3 0 1 0 0-6',
+      target: 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20 M12 6a6 6 0 1 0 0 12a6 6 0 1 0 0-12 M12 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4'
+    };
+    const api = [
+      { name: 'decodeLpp()', desc: 'Pure function in shared/telemetry. Bytes in, readings out. Unknown type ids stop decoding and keep the tail as raw.', props: 'decodeLpp(bytes: Uint8Array)\n→ { readings: Reading[], rest: Uint8Array }\nReading = { ch, typeId, values, offset, len }' },
+      { name: 'TelemetryPanel', desc: 'Request log on the left, the selected saved request on the right. The only part that knows the source.', props: 'source: "repeater" | "companion" | "contact"\nrequests: SavedRequest[], selected\nonRequest (manual only)' },
+      { name: 'TelemetryGroup', desc: 'One card per LPP channel. Ch 1 is always titled Self; others take a name from the field set.', props: 'channel: number\nreadings: Reading[]\nprevious?: Reading[]' },
+      { name: 'TelemetryTile', desc: 'Always shown for every reading. Adds a “was … at …” line only when an earlier saved request had the same ch + type; a new sensor gets none.', props: 'reading: Reading\nprevious?: { reading, at }\nunits: "metric" | "imperial"' },
+      { name: 'TelemetryRow', desc: 'Compact line for the right rail, hover cards and the compare table. Same formatter as the tile.', props: 'reading: Reading\ncompact?: boolean' }
+    ];
+    const tiles = [
+      { icon: I.battery, label: 'Battery', type: '116', value: '4.25', unit: 'V', alt: '≈ 98% est.', src: 'every node · ch 1 · base' },
+      { icon: I.pin, label: 'GPS', type: '136', value: '30.2114', unit: '°', alt: '−97.7622 · 168.4 m', src: 'GPS module · ch 1 · location' },
+      { icon: I.thermo, label: 'Temperature', type: '103', value: '24.6', unit: '°C', alt: '76.3 °F', src: 'AHT, BME, BMP, SHT, LPS22, MLX' },
+      { icon: I.drop, label: 'Humidity', type: '104', value: '58.5', unit: '%', alt: '0.5% steps', src: 'AHT, BME280/680, SHTC3, SHT4x' },
+      { icon: I.gauge, label: 'Pressure', type: '115', value: '1013.4', unit: 'hPa', alt: '29.93 inHg', src: 'BME, BMP, LPS22HB' },
+      { icon: I.mountain, label: 'Altitude', type: '121', value: '162', unit: 'm', alt: 'barometric · 531 ft', src: 'BME280/680, BMP085/280' },
+      { icon: I.zap, label: 'Voltage', type: '116', value: '5.12', unit: 'V', alt: 'bus voltage', src: 'INA219, INA226, INA260, INA3221' },
+      { icon: I.plug, label: 'Current', type: '117', value: '182', unit: 'mA', alt: '0.182 A', src: 'INA family' },
+      { icon: I.power, label: 'Power', type: '128', value: '1', unit: 'W', alt: '≈ 0.93 W from V × I', src: 'INA family · whole watts' },
+      { icon: I.percent, label: 'Soil moisture', type: '120', value: '37', unit: '%', alt: 'percentage', src: 'RAK12035' },
+      { icon: I.ruler, label: 'Distance', type: '130', value: '0.842', unit: 'm', alt: '84.2 cm', src: 'VL53L0X ToF' },
+      { icon: I.cpu, label: 'Gas / IAQ', type: '100', value: '48 211', unit: 'Ω', alt: 'generic sensor', src: 'BME680 · IAQ with BSEC' },
+      { icon: I.dial, label: 'IAQ accuracy', type: '2', value: '3', unit: '', alt: 'analog input · calibrated', src: 'BME680 + BSEC' },
+      { icon: I.waves, label: 'Frequency', type: '118', value: '1 243', unit: 'Hz', alt: 'probe raw reading', src: 'RAK12035 calibration' },
+      { icon: I.target, label: 'Object temp', type: '103', value: '31.9', unit: '°C', alt: 'IR · ambient on next ch', src: 'MLX90614 · 2 channels' }
+    ];
+    const rows = [
+      { icon: I.battery, label: 'Battery', value: '4.25 V · 98%' },
+      { icon: I.thermo, label: 'Temperature', value: '24.6 °C · 76.3 °F' },
+      { icon: I.drop, label: 'Humidity', value: '58.5%' },
+      { icon: I.gauge, label: 'Pressure', value: '1013.4 hPa' },
+      { icon: I.zap, label: 'Ch 3 voltage', value: '5.12 V' }
+    ];
+    const seq = [
+      ['01','c'],['74','t'],['01','v'],['A9','v'],
+      ['01','c'],['88','t'],['04','v'],['9C','v'],['22','v'],['F1','v'],['15','v'],['2A','v'],['00','v'],['41','v'],['C8','v'],
+      ['02','c'],['67','t'],['00','s'],['F6','s'],
+      ['02','c'],['68','t'],['75','v'],
+      ['02','c'],['73','t'],['27','v'],['96','v'],
+      ['02','c'],['79','t'],['00','v'],['A2','v'],
+      ['03','c'],['74','t'],['02','v'],['00','v'],
+      ['03','c'],['75','t'],['00','v'],['B6','v'],
+      ['03','c'],['80','t'],['00','v'],['01','v']
+    ];
+    const sty = {
+      c: { bg: 'rgba(193, 178, 145, 0.14)', fg: 'var(--cs-text-muted)' },
+      t: { bg: 'rgba(70, 183, 174, 0.18)', fg: 'var(--cs-hash-1)' },
+      v: { bg: 'var(--cs-bg-3)', fg: 'var(--cs-text-dim)' },
+      s: { bg: 'rgba(245, 158, 11, 0.28)', fg: 'var(--cs-text)' }
+    };
+    const bytes = seq.map(([h, k]) => ({ h, bg: sty[k].bg, fg: sty[k].fg }));
+    return { api, tiles, rows, bytes };
+  }
+}
+</script>
+</body>
+</html>
