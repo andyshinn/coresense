@@ -1,12 +1,17 @@
 import type { Hono } from 'hono';
 import type { AdvertPathResponse, ApiErrorBody, RefreshContactsResponse } from '../../../shared/api/contract';
-import { contactPathBodySchema, contactSchema, favouriteBodySchema } from '../../../shared/api/schemas';
+import {
+  contactPathBodySchema,
+  contactSchema,
+  favouriteBodySchema,
+  telemetryPermsSchema,
+} from '../../../shared/api/schemas';
 import { pubkeyFromKey } from '../../../shared/conversationKey';
 import { emit } from '../../events/bus';
 import { protocolSession } from '../../protocol';
 import { fetchAdvertPath } from '../../state/advertPath';
 import { refreshContacts } from '../../state/contactRefresh';
-import { mirrorOutPath } from '../../state/contactSync';
+import { mirrorOutPath, scheduleDiscoveredEmit } from '../../state/contactSync';
 import { stateHolder } from '../../state/holder';
 import { discoveredStore } from '../../storage/discoveredContacts';
 import { readJson } from '../body';
@@ -110,6 +115,27 @@ export function registerContactRoutes(api: Hono): void {
     } catch (err) {
       return knownErrorResponse(c, err) ?? fail503(c, err);
     }
+  });
+
+  // Per-contact telemetry permissions on MY radio (contact flags bits 1-3),
+  // consulted only for a TelemetryPolicy mode of 1 (per contact). The library
+  // rewrites the whole contact record keeping the favourite bit; needs
+  // meshcore-ts >= 0.9 (501 `lib_unsupported` before that).
+  api.put('/api/contacts/:key/telemetry-perms', async (c) => {
+    const pubkey = pubkeyFromKey(c.req.param('key')).toLowerCase();
+    const perms = await readJson(c, telemetryPermsSchema);
+    try {
+      const ok = await protocolSession().setContactTelemetryPerms(`c:${pubkey}`, perms);
+      if (!ok) return c.json({ error: 'radio rejected the contact update or timed out' }, 503);
+    } catch (err) {
+      return knownErrorResponse(c, err) ?? fail503(c, err);
+    }
+    // The library's `discovered` write-through only carries on_radio and
+    // favourite, so mirror the new bits ourselves or the stored flags byte —
+    // and every DiscoveredContact.telemetryPerms read from it — stays stale
+    // until the next contact walk.
+    if (discoveredStore.setTelemetryPerms(pubkey, perms)) scheduleDiscoveredEmit();
+    return c.json({ ok: true });
   });
 
   // Measure one contact's INBOUND hop count (#45 item 7) — what the radio

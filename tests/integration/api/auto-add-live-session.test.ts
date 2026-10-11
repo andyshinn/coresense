@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import { Protocol } from '@andyshinn/meshcore-ts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { stateHolder } from '../../../src/main/state/holder';
+import { markRadioTelemetryPolicyKnown } from '../../../src/main/telemetry/policy';
 import { type AutoAddConfig, DEFAULT_AUTO_ADD_CONFIG } from '../../../src/shared/types';
 import { json, testRoutes } from '../../support/api';
 import { makeTestSession, type TestSession } from '../../support/session-harness';
@@ -28,6 +29,9 @@ function connectedSession(): TestSession {
   // Makes the session `connected` so its command methods run. The handshake it
   // kicks off writes its own frames in the background; nothing here waits on it.
   s.transport.setState('connected');
+  // Stand in for the connect-time telemetry-policy read-back, which needs a
+  // RESP_SELF_INFO this loopback never sends (see telemetry/policy.ts).
+  markRadioTelemetryPolicyKnown();
   return s;
 }
 

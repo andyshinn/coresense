@@ -2,6 +2,12 @@
 
 import type { MacroTemplate } from '../macros/types';
 import type {
+  TelemetryDeletedPayload,
+  TelemetryInFlight,
+  TelemetryInFlightPayload,
+  TelemetrySavedPayload,
+} from '../telemetry/types';
+import type {
   BlockRule,
   Channel,
   Contact,
@@ -16,7 +22,7 @@ import type {
 } from './domain';
 import type { MapSettings, MapTileStatus, TileManifest } from './map';
 import type { BleDevice, BridgeStatus, Capabilities, LogEntry, ThemePush, TransportState, UpdateState } from './platform';
-import type { RepeaterStatusSnapshot, RepeaterTelemetrySnapshot } from './repeater';
+import type { RepeaterStatusSnapshot } from './repeater';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -67,6 +73,9 @@ export interface StateSnapshot {
   macros: MacroTemplate[];
   /** Newest persisted packets (min(liveBufferSize, storedHistorySize)), oldest→newest. */
   packets: RawPacket[];
+  /** Pending telemetry requests, the same snapshot `telemetryInFlight` pushes.
+   *  Optional so a renderer hydrating from an older main reads it as empty. */
+  telemetryInFlight?: TelemetryInFlight[];
 }
 
 export type MenuAction =
@@ -127,7 +136,12 @@ export type WsMessage =
   | { type: 'mapManifest'; payload: TileManifest }
   | { type: 'mapTileStatus'; payload: MapTileStatus }
   | { type: 'repeaterStatus'; payload: RepeaterStatusSnapshot }
-  | { type: 'repeaterTelemetry'; payload: RepeaterTelemetrySnapshot }
+  // Saved telemetry requests (shared/telemetry). `telemetrySaved` carries the
+  // decoded DTO, so the rail and open tabs update without a refetch;
+  // `telemetryInFlight` is a full snapshot of pending requests every time.
+  | { type: 'telemetrySaved'; payload: TelemetrySavedPayload }
+  | { type: 'telemetryDeleted'; payload: TelemetryDeletedPayload }
+  | { type: 'telemetryInFlight'; payload: TelemetryInFlightPayload }
   | { type: 'pathLearned'; payload: PathLearnedEvent }
   | { type: 'deviceIdentity'; payload: DeviceIdentity }
   | { type: 'autoAddConfig'; payload: AutoAddConfig }

@@ -4,6 +4,7 @@ import type { ApiErrorBody } from '../../shared/api/contract';
 import { errorMessage } from '../../shared/errors';
 import { child } from '../log';
 import { MacroValidationError } from '../macros/store';
+import { LibUnsupportedError } from '../protocol/errors';
 import { InvalidBodyError } from './body';
 
 const log = child('api');
@@ -26,6 +27,10 @@ export function knownErrorResponse(c: Context, err: unknown) {
   // favourite). The message is user-facing.
   if (err instanceof Errors.ContactTableFullError) {
     return c.json({ error: err.message, code: 'contact_table_full' } satisfies ApiErrorBody, 409);
+  }
+  // The installed meshcore-ts predates the API this route needs.
+  if (err instanceof LibUnsupportedError) {
+    return c.json({ error: err.message, code: 'lib_unsupported' } satisfies ApiErrorBody, 501);
   }
   if (err instanceof MacroValidationError) return c.json({ error: 'invalid template', errors: err.errors }, 400);
   if (err instanceof InvalidBodyError) {

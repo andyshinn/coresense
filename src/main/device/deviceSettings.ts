@@ -4,6 +4,7 @@ import { protocolSession } from '../protocol';
 import { kindFlagsForSave, withModeBit } from '../protocol/autoAddMapping';
 import { commit } from '../state/commit';
 import { stateHolder } from '../state/holder';
+import { markRadioTelemetryPolicyKnown, radioTelemetryPolicy } from '../telemetry/policy';
 import { transportManager } from '../transport/manager';
 
 /** How a device-settings write ended. `rejected` covers every way the radio
@@ -17,6 +18,17 @@ const OK: DeviceWriteResult = { status: 'ok' };
  *  no reason, so the command name is the message. */
 async function expectOk(sent: Promise<boolean>, message: string): Promise<void> {
   if (!(await sent)) throw new Error(message);
+}
+
+/** The telemetry policy the RADIO holds, for a write about to re-send it with
+ *  CMD_SET_OTHER_PARAMS — never our JSON copy (telemetry/policy.ts): resending
+ *  a stale copy is how a policy set elsewhere used to get overwritten. Throws
+ *  (a refusal, so a 503) when it can't be read. */
+async function radioPolicyOrThrow(): Promise<TelemetryPolicy> {
+  const session = protocolSession();
+  const policy = await radioTelemetryPolicy(() => session.readTelemetryPolicy());
+  if (!policy) throw new Error('telemetry policy not read from the radio yet');
+  return policy;
 }
 
 /** Run a sequence of radio writes. The first refusal or throw ends it and
@@ -98,15 +110,14 @@ export async function applyDeviceIdentity(patch: Partial<DeviceIdentity>): Promi
     }
     if (typeof patch.sharePositionInAdvert === 'boolean' && patch.sharePositionInAdvert !== current.sharePositionInAdvert) {
       // sharePositionInAdvert lives in SET_OTHER_PARAMS along with telemetry
-      // policy — re-emit the full frame with current telemetry values. The
-      // manual-add byte is deliberately omitted so the library resends the
-      // value it mirrored from RESP_SELF_INFO: byte 1 of this command is the
-      // radio's auto-add master switch, and passing anything else here would
-      // reconfigure auto-add as a side effect of saving an advert setting.
-      await expectOk(
-        session.setOtherParams(holder.getTelemetryPolicy(), patch.sharePositionInAdvert),
-        'SET_OTHER_PARAMS rejected by radio',
-      );
+      // policy — re-emit the full frame with the RADIO's telemetry values (see
+      // radioPolicyOrThrow). The manual-add byte is deliberately omitted so the
+      // library resends the value it mirrored from RESP_SELF_INFO: byte 1 of
+      // this command is the radio's auto-add master switch, and passing
+      // anything else here would reconfigure auto-add as a side effect of
+      // saving an advert setting.
+      const policy = await radioPolicyOrThrow();
+      await expectOk(session.setOtherParams(policy, patch.sharePositionInAdvert), 'SET_OTHER_PARAMS rejected by radio');
     }
   });
 }
@@ -160,23 +171,40 @@ export async function applyAutoAddConfig(cfg: AutoAddConfig): Promise<DeviceWrit
     // so sending it on every save would push those unrelated prefs too.
     if (nextManualAdd !== onRadio.manualAddContacts) {
       const share = holder.getDeviceIdentity().sharePositionInAdvert;
+      // The radio's policy, never our JSON copy — see applyDeviceIdentity.
+      const policy = await radioPolicyOrThrow();
       await expectOk(
-        session.setOtherParams(holder.getTelemetryPolicy(), share, nextManualAdd),
+        session.setOtherParams(policy, share, nextManualAdd),
         'SET_OTHER_PARAMS (auto-add mode) rejected by radio',
       );
     }
   });
 }
 
-/** Save the telemetry policy locally, then push it when connected. */
-export async function applyTelemetryPolicy(policy: TelemetryPolicy): Promise<DeviceWriteResult> {
-  commit.telemetryPolicy(policy);
-  if (!transportManager.isConnected()) return OK;
-  const share = stateHolder().getDeviceIdentity().sharePositionInAdvert;
-  // Third argument omitted on purpose — see applyDeviceIdentity: the library
-  // round-trips the radio's own manual-add byte so a telemetry save can't
-  // reconfigure auto-add.
-  return radioWrites(() => expectOk(protocolSession().setOtherParams(policy, share), 'SET_OTHER_PARAMS rejected by radio'));
+/** Save a change to the telemetry policy. The radio is the source of truth
+ *  (telemetry/policy.ts), and `patch` holds only the fields being changed,
+ *  merged onto the radio's value: base/loc/env and multi-acks share one frame,
+ *  so a full body built from a stale copy would overwrite the fields it didn't
+ *  mean to touch. Connected: read the radio's value first if this connection
+ *  hasn't yet (a refusal when it can't), write the radio, and commit only once
+ *  it accepted — a rejected write must not leave the UI showing a policy the
+ *  radio doesn't hold. Disconnected: an app-side save, which the next
+ *  connect's read-back replaces. */
+export async function applyTelemetryPolicy(patch: Partial<TelemetryPolicy>): Promise<DeviceWriteResult> {
+  if (!transportManager.isConnected()) {
+    commit.telemetryPolicy({ ...stateHolder().getTelemetryPolicy(), ...patch });
+    return OK;
+  }
+  return radioWrites(async () => {
+    const next = { ...(await radioPolicyOrThrow()), ...patch };
+    const share = stateHolder().getDeviceIdentity().sharePositionInAdvert;
+    // Third argument omitted on purpose — see applyDeviceIdentity: the library
+    // round-trips the radio's own manual-add byte so a telemetry save can't
+    // reconfigure auto-add.
+    await expectOk(protocolSession().setOtherParams(next, share), 'SET_OTHER_PARAMS rejected by radio');
+    markRadioTelemetryPolicyKnown();
+    commit.telemetryPolicy(next);
+  });
 }
 
 /** Save the GPS config. Disconnected, it is stored app-side only. Connected,

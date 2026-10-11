@@ -3,6 +3,7 @@
 import type { LogLevel } from '../logLevels';
 import type { DistanceUnit } from '../macros/types';
 import { DEFAULT_QUICK_ACTION_IDS, type QuickActionId } from '../quickActions';
+import { TELEMETRY_RETENTION_DEFAULT } from '../telemetry/types';
 import type { ContactKind, PathHashSize } from './domain';
 import { BRIDGE_DEFAULT_TCP_PORT, type UpdateChannel } from './platform';
 import type { SearchSort } from './search';
@@ -127,6 +128,12 @@ export interface AppSettings {
     autoCheck: boolean;
   };
   distanceUnit: DistanceUnit;
+  /** Saved telemetry requests (shared/telemetry). One global value, applied to
+   *  every node; main clamps it to TELEMETRY_RETENTION_BOUNDS on load and on
+   *  PUT, and prunes every node at once when it shrinks. */
+  telemetry: {
+    retentionPerNode: number;
+  };
 }
 
 export type ContactGrouping = 'nested' | 'top-level';
@@ -170,6 +177,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   quickActions: [...DEFAULT_QUICK_ACTION_IDS],
   updates: { channel: 'stable', autoCheck: true },
   distanceUnit: 'metric',
+  telemetry: { retentionPerNode: TELEMETRY_RETENTION_DEFAULT },
 };
 
 export interface RadioSettings {

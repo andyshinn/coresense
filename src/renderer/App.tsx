@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { errorMessage } from '../shared/errors';
 import { createMenuActionHandler } from './app/menuActions';
 import { resolveBaseUrl } from './app/resolveBaseUrl';
@@ -18,6 +18,7 @@ import { loadApiKey, saveApiKey } from './lib/apiKey';
 import { notify } from './lib/notify';
 import { dispatchShortcut } from './lib/shortcut-dispatch';
 import { useStore } from './lib/store';
+import { resyncTelemetryAfterReconnect } from './lib/telemetry';
 import { applyTheme, clearLegacyThemePref, readLegacyThemePref, resolveTheme, type ThemePref } from './lib/theme';
 import { AppShell } from './shell/AppShell';
 
@@ -198,7 +199,21 @@ export function App() {
     [handleMenuAction, setSystemDark],
   );
 
-  useWebSocket({ url: wsUrl, onMessage });
+  // The socket reconnects on its own, but nothing replays the pushes sent while
+  // it was down. Telemetry is the state that can wedge on one (a lost final
+  // in-flight push keeps the admin buttons disabled), so re-read it on every
+  // re-open; the first open is covered by the initial hydrate.
+  const wsOpenedRef = useRef(false);
+  const onWsOpen = useCallback(() => {
+    if (!wsOpenedRef.current) {
+      wsOpenedRef.current = true;
+      return;
+    }
+    if (!client) return;
+    resyncTelemetryAfterReconnect(client).catch((err) => notify.failure('Telemetry resync', err));
+  }, [client]);
+
+  useWebSocket({ url: wsUrl, onMessage, onOpen: onWsOpen });
 
   // Scan, connect and disconnect share one shape: busy for the duration of the
   // call, and a toast on failure.

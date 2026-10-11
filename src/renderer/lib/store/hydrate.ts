@@ -85,6 +85,10 @@ export const createHydrateSlice: SliceCreator<HydrateSlice> = (set) => ({
       // Seed in-session sort from the persisted default so an existing user
       // preference takes effect immediately on launch.
       searchSort: snapshot.appSettings.search.defaultSort,
+      telemetryInFlight: snapshot.telemetryInFlight ?? [],
+      // Saves pushed while we weren't listening are missing from the lists we
+      // hold, so let mounted panels refetch. The lists stay to avoid a flash.
+      telemetryLoaded: {},
     }));
   },
 });

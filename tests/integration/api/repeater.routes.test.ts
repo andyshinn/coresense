@@ -138,11 +138,8 @@ describe('POST /api/repeater/:key/logout', () => {
   });
 });
 
-describe('POST /api/repeater/:key/status and /telemetry', () => {
-  it.each([
-    ['status', 'sendStatusReq'],
-    ['telemetry', 'sendTelemetryReq'],
-  ] as const)('%s: acknowledges the accepted request', async (path, method) => {
+describe('POST /api/repeater/:key/status', () => {
+  it.each([['status', 'sendStatusReq']] as const)('%s: acknowledges the accepted request', async (path, method) => {
     const send = vi.fn((_key: string) => Promise.resolve({ ok: true }));
     installSessionStub({ [method]: send });
 
@@ -153,17 +150,17 @@ describe('POST /api/repeater/:key/status and /telemetry', () => {
     expect(send).toHaveBeenCalledWith(KEY);
   });
 
-  it.each([
-    ['status', 'sendStatusReq'],
-    ['telemetry', 'sendTelemetryReq'],
-  ] as const)('%s: answers 503 with the radio error when the request is refused', async (path, method) => {
-    installSessionStub({ [method]: () => Promise.resolve({ ok: false, error: 'unknown contact' }) });
+  it.each([['status', 'sendStatusReq']] as const)(
+    '%s: answers 503 with the radio error when the request is refused',
+    async (path, method) => {
+      installSessionStub({ [method]: () => Promise.resolve({ ok: false, error: 'unknown contact' }) });
 
-    const res = await post(`${BASE}/${path}`);
+      const res = await post(`${BASE}/${path}`);
 
-    expect(res.status).toBe(503);
-    expect((await res.json()) as ApiErrorBody).toEqual({ error: 'unknown contact' });
-  });
+      expect(res.status).toBe(503);
+      expect((await res.json()) as ApiErrorBody).toEqual({ error: 'unknown contact' });
+    },
+  );
 });
 
 describe('POST /api/repeater/:key/acl', () => {

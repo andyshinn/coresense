@@ -12,6 +12,7 @@ import { registerMessageRoutes } from './messages';
 import { registerRepeaterRoutes } from './repeater';
 import { registerSettingsRoutes } from './settings';
 import { registerStateRoutes } from './state';
+import { registerTelemetryRoutes } from './telemetry';
 import { registerTransportRoutes } from './transport';
 
 export type { RoutesDeps } from './app';
@@ -36,6 +37,7 @@ export function createRoutes(deps: RoutesDeps) {
   registerRepeaterRoutes(api);
   registerTransportRoutes(api);
   registerMacroRoutes(api);
+  registerTelemetryRoutes(api);
 
   return api;
 }

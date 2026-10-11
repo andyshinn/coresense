@@ -12,6 +12,7 @@ import { createPacketsSlice } from './packets';
 import { createRepeaterAdminSlice } from './repeaterAdmin';
 import { createSearchSlice } from './search';
 import { createSettingsSlice } from './settings';
+import { createTelemetrySlice } from './telemetry';
 import { createUiSlice } from './ui';
 
 // The renderer's single zustand store. Each concern is a slice in its own
@@ -42,6 +43,7 @@ export type {
   SettingsPendingTarget,
   SettingsSectionMeta,
   SettingsTab,
+  TelemetryFetchLedger,
 } from './types';
 
 export const useStore = create<CoreState>()((...a) => ({
@@ -50,6 +52,7 @@ export const useStore = create<CoreState>()((...a) => ({
   ...createContactManagerSlice(...a),
   ...createSettingsSlice(...a),
   ...createRepeaterAdminSlice(...a),
+  ...createTelemetrySlice(...a),
   ...createMacroStudioSlice(...a),
   ...createPacketsSlice(...a),
   ...createLogsSlice(...a),

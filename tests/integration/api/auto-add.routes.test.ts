@@ -2,6 +2,7 @@ import { Models } from '@andyshinn/meshcore-ts';
 import { describe, expect, it } from 'vitest';
 import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
 import { stateHolder } from '../../../src/main/state/holder';
+import { markRadioTelemetryPolicyKnown } from '../../../src/main/telemetry/policy';
 import { transportManager } from '../../../src/main/transport/manager';
 import type { ApiErrorBody } from '../../../src/shared/api/contract';
 import { type AutoAddConfig, DEFAULT_AUTO_ADD_CONFIG } from '../../../src/shared/types';
@@ -70,6 +71,9 @@ function seedRadioState(manualAddContacts: number, radioMaxHops = 0): void {
     manualAddContacts,
     radioMaxHops,
   });
+  // The connect-time read-back of the telemetry policy has happened, so the
+  // route may re-send it with the mode bit (see telemetry/policy.ts).
+  markRadioTelemetryPolicyKnown();
 }
 
 /** Seed holder + mirror, install the double and mark the transport connected. */

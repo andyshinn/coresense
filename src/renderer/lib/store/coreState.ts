@@ -10,6 +10,7 @@ import type { PacketsSlice } from './packets';
 import type { RepeaterAdminSlice } from './repeaterAdmin';
 import type { SearchSlice } from './search';
 import type { SettingsSlice } from './settings';
+import type { TelemetrySlice } from './telemetry';
 import type { UiSlice } from './ui';
 
 /** The whole renderer store: one flat object composed from per-concern slices
@@ -20,6 +21,7 @@ export type CoreState = ConnectionSlice &
   ContactManagerSlice &
   SettingsSlice &
   RepeaterAdminSlice &
+  TelemetrySlice &
   MacroStudioSlice &
   PacketsSlice &
   LogsSlice &

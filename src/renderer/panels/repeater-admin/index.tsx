@@ -1,4 +1,15 @@
-import { Activity, ListTree, LogIn, LogOut, Radio, ShieldCheck, Spline, TerminalSquare, Users } from 'lucide-react';
+import {
+  Activity,
+  ListTree,
+  LogIn,
+  LogOut,
+  Radio,
+  ShieldCheck,
+  Spline,
+  TerminalSquare,
+  ThermometerSun,
+  Users,
+} from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { RssiChip } from '../../components/RssiChip';
@@ -15,6 +26,7 @@ import { NeighboursTab } from './NeighboursTab';
 import { OwnerTab } from './OwnerTab';
 import { PathTab } from './PathTab';
 import { StatusTab } from './StatusTab';
+import { TelemetryTab } from './TelemetryTab';
 
 type TabId = RepeaterAdminTab;
 
@@ -22,10 +34,18 @@ interface Props {
   contact: Contact;
 }
 
-const TABS: Array<{ id: TabId; label: string; icon: typeof Radio; adminOnly?: boolean }> = [
+const TABS: Array<{
+  id: TabId;
+  label: string;
+  icon: typeof Radio;
+  adminOnly?: boolean;
+  /** Only for these contact kinds; every kind when absent. */
+  kinds?: ReadonlyArray<Contact['kind']>;
+}> = [
   { id: 'login', label: 'Login', icon: LogIn },
   { id: 'path', label: 'Path', icon: Spline },
   { id: 'status', label: 'Status', icon: Activity },
+  { id: 'telemetry', label: 'Telemetry', icon: ThermometerSun, kinds: ['repeater', 'sensor'] },
   { id: 'acl', label: 'ACL', icon: ShieldCheck, adminOnly: true },
   { id: 'neighbours', label: 'Neighbours', icon: Users },
   { id: 'owner', label: 'Owner', icon: ListTree },
@@ -159,7 +179,7 @@ export function RepeaterAdmin({ contact }: Props) {
       </header>
 
       <nav className="flex shrink-0 gap-0.5 border-b border-cs-border bg-cs-bg-2 px-2">
-        {TABS.map((t) => {
+        {TABS.filter((t) => !t.kinds || t.kinds.includes(contact.kind)).map((t) => {
           const Icon = t.icon;
           const disabled = t.adminOnly && !isAdmin;
           const active = tab === t.id;
@@ -191,6 +211,7 @@ export function RepeaterAdmin({ contact }: Props) {
         {tab === 'login' && <LoginTab contact={contact} session={session} onSession={setSession} />}
         {tab === 'path' && <PathTab contact={contact} />}
         {tab === 'status' && <StatusTab contact={contact} />}
+        {tab === 'telemetry' && <TelemetryTab contact={contact} client={client} session={session} />}
         {tab === 'acl' && <AclTab contact={contact} disabled={!isAdmin} />}
         {tab === 'neighbours' && <NeighboursTab contact={contact} />}
         {tab === 'owner' && <OwnerTab contact={contact} />}

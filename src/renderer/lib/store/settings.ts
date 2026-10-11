@@ -27,7 +27,9 @@ import {
   type UpdateState,
 } from '../../../shared/types';
 import { setRendererLogLevel } from '../logger';
+import { telemetryRetentionOf } from '../telemetryRetention';
 import type { SliceCreator } from './coreState';
+import { pruneTelemetry } from './telemetry';
 
 /** Rows main returns per history window (`byKey`'s default limit). The renderer
  *  holds more than this by design; a few places need to know the server's unit. */
@@ -94,9 +96,17 @@ export const createSettingsSlice: SliceCreator<SettingsSlice> = (set) => ({
   mapManifest: DEFAULT_MAP_MANIFEST,
   mapTileStatus: DEFAULT_MAP_TILE_STATUS,
 
+  // Also trims the telemetry slice's lists when retention shrinks.
   applyAppSettings: (settings) => {
     setRendererLogLevel(settings.logging.level);
-    set(() => ({ appSettings: settings }));
+    set((s) => {
+      // Main prunes every node at once when retention shrinks and pushes a
+      // telemetryDeleted per node; trimming here too keeps the lists we hold
+      // from showing the extra rows in the gap before those pushes land.
+      const keep = telemetryRetentionOf(settings);
+      if (keep >= telemetryRetentionOf(s.appSettings)) return { appSettings: settings };
+      return { appSettings: settings, ...pruneTelemetry(s, keep) };
+    });
   },
   applyUpdateState: (state) => set(() => ({ updateState: state })),
   // `meta.blocked` is not stored — main computes it per read and stamps it onto

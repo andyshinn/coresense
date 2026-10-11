@@ -5,6 +5,7 @@ import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { api } from '../../lib/api';
 import { useApiClient } from '../../lib/apiClientContext';
 import { useStore } from '../../lib/store';
+import { RADIO_BUSY_HINT, useRadioBusy } from '../../lib/telemetry';
 import { type CliGuest, CliPrompt } from './cli/CliPrompt';
 import type { FollowUp } from './cli/CliRow';
 import { CliTranscript } from './cli/CliTranscript';
@@ -30,6 +31,9 @@ export function CliTab({ contact, session, sessionChecked, pending, onPending }:
   const client = useApiClient();
   const radioSettings = useStore((s) => s.radioSettings);
   const setRepeaterAdminTab = useStore((s) => s.setRepeaterAdminTab);
+  // A telemetry request holds the radio, and a CLI send now would be refused
+  // (409). Commands still queue; the drain below waits until it lets go.
+  const radioBusy = useRadioBusy();
   const hops = Math.max(1, contact.hops ?? 1);
 
   const [queue, setQueue] = useState<CliQueueState>({ entries: [] });
@@ -94,9 +98,9 @@ export function CliTab({ contact, session, sessionChecked, pending, onPending }:
     [contact.publicKeyHex, guest],
   );
 
-  // Drain: start the next entry whenever nothing is sending.
+  // Drain: start the next entry whenever nothing is sending and the radio is free.
   useEffect(() => {
-    if (sendingRef.current || !client) return;
+    if (sendingRef.current || !client || radioBusy) return;
     const { state, next } = beginNext(queue);
     if (!next) return;
     sendingRef.current = true;
@@ -140,7 +144,7 @@ export function CliTab({ contact, session, sessionChecked, pending, onPending }:
         sendingRef.current = false;
       }
     })();
-  }, [queue, client, contact.key, patchStatus, onPending, pending]);
+  }, [queue, client, radioBusy, contact.key, patchStatus, onPending, pending]);
 
   // Abort the queue on unmount / repeater switch: abort the live send first —
   // which clears the main-process pendingCli entry (§7.1) instead of leaving
@@ -201,6 +205,7 @@ export function CliTab({ contact, session, sessionChecked, pending, onPending }:
         radioSettings={radioSettings}
         hops={hops}
         guest={guest}
+        blockedHint={radioBusy ? RADIO_BUSY_HINT : null}
         queuedCount={queuedCount}
         onSubmit={submit}
         onClearTranscript={onClear}

@@ -103,6 +103,12 @@ export interface Contact {
    *  `UiState.pinned` (app-only pin-to-top in the nav) and from the deprecated
    *  `Contact.pinned`. */
   favourite?: boolean;
+  /** Which telemetry this contact may read from MY radio when that group's
+   *  TelemetryPolicy mode is 1 (per contact) — firmware contact flags bits
+   *  1–3. Copied from meshcore-ts ≥ 0.9's Contact; undefined on older libs
+   *  (DiscoveredContact.telemetryPerms, read from the stored flags byte, is
+   *  always present). */
+  telemetryPerms?: TelemetryPerms;
   muted?: boolean;
   /** Hex-encoded out-path bytes (no separators) mirroring the firmware's
    *  advert.out_path. Empty / undefined means "flood" (no source-route). The
@@ -126,6 +132,27 @@ export interface Contact {
    *  absent (default for radios without a GPS module). */
   gpsLat?: number;
   gpsLon?: number;
+}
+
+/** Per-contact telemetry permissions: firmware contact flags `>> 1`, bit 1
+ *  base (battery, MCU temperature), bit 2 location, bit 3 environment. Bit 0
+ *  of the same byte is the favourite flag. Mirrors meshcore-ts 0.9's
+ *  TelemetryPerms; redeclared because the renderer can't import the library. */
+export interface TelemetryPerms {
+  base: boolean;
+  loc: boolean;
+  env: boolean;
+}
+
+/** Decode TelemetryPerms from a raw firmware contact flags byte. */
+export function telemetryPermsFromFlags(flags: number): TelemetryPerms {
+  return { base: (flags & 0x02) !== 0, loc: (flags & 0x04) !== 0, env: (flags & 0x08) !== 0 };
+}
+
+/** Rewrite bits 1–3 of a contact flags byte, keeping every other bit
+ *  (favourite, and anything a later firmware adds). */
+export function flagsWithTelemetryPerms(flags: number, perms: TelemetryPerms): number {
+  return (flags & ~0x0e) | (perms.base ? 0x02 : 0) | (perms.loc ? 0x04 : 0) | (perms.env ? 0x08 : 0);
 }
 
 export type MessageState = 'sending' | 'sent' | 'heard' | 'ack' | 'failed' | 'received';
@@ -366,5 +393,10 @@ export interface DiscoveredContact {
   firstHeardMs: number;
   onRadio: boolean;
   favourite: boolean;
+  /** Which telemetry this node may read from MY radio under a "per contact"
+   *  mode: bits 1–3 of the stored firmware flags byte. Only meaningful while
+   *  `onRadio` — the radio keeps no flags for a contact it doesn't store.
+   *  Main always sets it; optional only so hand-built fixtures stay valid. */
+  telemetryPerms?: TelemetryPerms;
   blocked: boolean;
 }
