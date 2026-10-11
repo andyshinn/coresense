@@ -44,7 +44,8 @@ function telemetryAction(activeContact: Contact | undefined, setActiveKey = vi.f
   return items.find((i) => i.id === 'action:repeaterTelemetry');
 }
 
-const saved = (over: Partial<SavedRequestDto>) => ({ id: 'r1', outcome: 'ok', ...over }) as SavedRequestDto;
+const saved = (over: Partial<SavedRequestDto>) =>
+  ({ id: 'r1', source: 'repeater', outcome: 'ok', ...over }) as SavedRequestDto;
 
 describe('command palette: request telemetry', () => {
   beforeEach(() => {

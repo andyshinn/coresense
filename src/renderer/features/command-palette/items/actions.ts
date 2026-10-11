@@ -20,7 +20,7 @@ import { type ApiClient, api } from '../../../lib/api';
 import type { LastDevice } from '../../../lib/lastDevice';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
-import { notifyTelemetryOutcome } from '../../../lib/telemetry';
+import { requestTelemetryOnce } from '../../../lib/telemetry';
 import type { PaletteItem } from '../types';
 
 export interface BuildActionsArgs {
@@ -169,9 +169,8 @@ export function buildActionItems({
         useStore.getState().setRepeaterAdminTab('telemetry');
         setActiveKey(activeContact.key);
         close();
-        void api
-          .requestTelemetry(client, activeContact.key)
-          .then(notifyTelemetryOutcome, (err) => notify.error(`Telemetry request failed: ${(err as Error).message}`, err));
+        // The tab's own request path: one POST per node, the same toasts.
+        void requestTelemetryOnce(client, activeContact.key, activeContact.kind === 'repeater' ? 'repeater' : 'contact');
       },
     });
   }

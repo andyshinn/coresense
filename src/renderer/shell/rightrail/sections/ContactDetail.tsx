@@ -4,12 +4,12 @@ import {
   MessageSquare,
   Minus,
   Plus,
-  Radio,
   RefreshCw,
   Share2,
   ShieldCheck,
   Star,
   TerminalSquare,
+  ThermometerSun,
 } from 'lucide-react';
 import { useState } from 'react';
 import { formatHops, formatLastHeard, formatObservedHops } from '../../../../shared/contacts/discovered';
@@ -178,7 +178,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
         {hasFix && <CardActionButton icon={MapPin} label="View on map" onClick={() => flyToContact(rc)} />}
         {canAdminister && (
           <>
-            <CardActionButton icon={Radio} label="Telemetry" onClick={() => openRepeaterTab('telemetry')} />
+            <CardActionButton icon={ThermometerSun} label="Telemetry" onClick={() => openRepeaterTab('telemetry')} />
             {rc.kind === 'repeater' && (
               <CardActionButton icon={ShieldCheck} label="Permissions" onClick={() => openRepeaterTab('acl')} />
             )}

@@ -241,6 +241,18 @@ function track(
   return entry.promise;
 }
 
+/** The reply's round trip; for a timeout, how long it waited ("no reply in
+ *  15 s"); null for any other failure. */
+function roundTripFor(
+  outcome: TelemetryOutcome,
+  startedAt: number,
+  repliedAt: number | null,
+  settledAt: number,
+): number | null {
+  if (repliedAt !== null) return repliedAt - startedAt;
+  return outcome === 'timeout' ? settledAt - startedAt : null;
+}
+
 type Settled = { kind: 'reply'; raw: Uint8Array; at: number } | { kind: 'deadline' } | { kind: 'rejected'; err: unknown };
 
 async function runRemote(
@@ -305,6 +317,7 @@ async function runRemote(
         (err: unknown) => finish({ kind: 'rejected', err }),
       );
   });
+  const settledAt = Date.now();
 
   let outcome: TelemetryOutcome;
   let error: string | undefined;
@@ -347,7 +360,7 @@ async function runRemote(
     repliedAt,
     outcome,
     ...(error !== undefined ? { error } : {}),
-    roundTripMs: repliedAt !== null ? repliedAt - startedAt : null,
+    roundTripMs: roundTripFor(outcome, startedAt, repliedAt, settledAt),
     hops,
     route,
     aclRole,
@@ -377,7 +390,8 @@ async function runSelf(entry: InFlightEntry): Promise<TelemetryRequestResult> {
       error = message;
     }
   }
-  const repliedAt = raw ? Date.now() : null;
+  const settledAt = Date.now();
+  const repliedAt = raw ? settledAt : null;
   return save({
     id: randomUUID(),
     nodeKey,
@@ -386,7 +400,7 @@ async function runSelf(entry: InFlightEntry): Promise<TelemetryRequestResult> {
     repliedAt,
     outcome,
     ...(error !== undefined ? { error } : {}),
-    roundTripMs: repliedAt !== null ? repliedAt - startedAt : null,
+    roundTripMs: roundTripFor(outcome, startedAt, repliedAt, settledAt),
     hops: null,
     route: 'local',
     aclRole: null,

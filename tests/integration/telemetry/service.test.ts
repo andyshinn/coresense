@@ -176,7 +176,13 @@ describe('requestTelemetry — remote node', () => {
 
     expect(res.status).toBe('saved');
     if (res.status !== 'saved') return;
-    expect(res.request).toMatchObject({ outcome: 'timeout', rawHex: null, repliedAt: null, roundTripMs: null });
+    expect(res.request).toMatchObject({
+      outcome: 'timeout',
+      rawHex: null,
+      repliedAt: null,
+      // How long it waited, for "no reply in 15 s".
+      roundTripMs: TELEMETRY_FALLBACK_DEADLINE_MS,
+    });
     expect(telemetryStore.get(res.request.id)?.raw).toBeNull();
     expect(telemetryInFlightSnapshot()).toEqual([]);
     expect(meshLockHolder()).toBeNull();

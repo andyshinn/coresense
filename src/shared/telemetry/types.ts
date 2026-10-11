@@ -39,6 +39,7 @@ export interface SavedRequest {
   repliedAt: number | null;
   outcome: TelemetryOutcome;
   error?: string;
+  /** Click to reply; for a timeout, how long it waited before giving up. Null for other failures. */
   roundTripMs: number | null;
   /** Path length used; null for companion reads. */
   hops: number | null;

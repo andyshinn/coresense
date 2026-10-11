@@ -82,8 +82,28 @@ describe('RepeaterAdmin — Telemetry tab', () => {
     render(<RepeaterAdmin contact={repeater} client={client} />);
 
     expect(screen.getByText('Request telemetry')).toBeTruthy();
-    await waitFor(() => expect(screen.getByText(/4\.25 V/)).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByTestId('telemetry-tile')).toHaveLength(1));
+    expect(screen.getByText('4.25')).toBeTruthy();
     expect(listTelemetry).toHaveBeenCalledWith(client, PK);
+  });
+
+  it('hints at the login a repeater needs, and "Log in" switches to the Login tab', async () => {
+    act(() => useStore.getState().setRepeaterAdminTab('telemetry'));
+    render(<RepeaterAdmin contact={repeater} client={client} />);
+    await waitFor(() => expect(screen.getByText(/^No telemetry yet/)).toBeTruthy());
+    expect(screen.getByTestId('telemetry-request-hint').textContent).toBe('Repeaters reply only to logged-in clients');
+    fireEvent.click(screen.getByText('Log in'));
+    await waitFor(() => expect(screen.getByText(/Log In as Guest/)).toBeTruthy());
+  });
+
+  it('asks a sensor without the repeater login hint', async () => {
+    const sensor: Contact = { ...repeater, name: 'Sensor', kind: 'sensor' };
+    act(() => useStore.getState().setRepeaterAdminTab('telemetry'));
+    render(<RepeaterAdmin contact={sensor} client={client} />);
+    await waitFor(() =>
+      expect(screen.getByText('No telemetry yet. Click Request telemetry to ask this sensor.')).toBeTruthy(),
+    );
+    expect(screen.queryByTestId('telemetry-request-hint')).toBeNull();
   });
 
   it('sits between Status and ACL, and only for repeaters and sensors', () => {
