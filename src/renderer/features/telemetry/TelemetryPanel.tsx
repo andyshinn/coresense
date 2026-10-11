@@ -4,6 +4,7 @@ import { type DescribedReading, describeChannels } from '../../../shared/telemet
 import { isGpsValue } from '../../../shared/telemetry/lpp';
 import { COMPARE_MAX_COLUMNS, previousForRequest } from '../../../shared/telemetry/previous';
 import {
+  isBaseOnlyReply,
   type SavedRequestDto,
   TELEM_PERM_ENVIRONMENT,
   type TelemetryInFlight,
@@ -250,7 +251,8 @@ function RequestDetail({
   const companion = source === 'companion';
   const copy = TELEMETRY_COPY[source];
   const Heading = `h${headingLevel}` as const;
-  const guest = ok && request.aclRole === 'guest';
+  // Base only from the grant, not the role: a sensor answers a guest in full.
+  const guest = isBaseOnlyReply(request);
   const envGranted = request.permsGranted === null || (request.permsGranted & TELEM_PERM_ENVIRONMENT) !== 0;
   // Nothing but base and location readings. Not "nothing past ch 1": a
   // T1000-E reports its luminosity and temperature on ch 1 (DECISIONS fact 3).

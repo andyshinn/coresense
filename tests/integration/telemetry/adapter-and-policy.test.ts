@@ -107,14 +107,44 @@ describe('telemetry policy read-back', () => {
     });
   });
 
-  it('never reads (APP_START) while a contact walk streams, and reads once it ended', async () => {
+  it('never reads (APP_START) while a contact walk streams: it waits for the walk, then reads', async () => {
     const read = vi.fn(async () => radio);
     noteContactWalkStreaming();
-    expect(await radioTelemetryPolicy(read)).toBeNull();
+    let settled = false;
+    const pending = radioTelemetryPolicy(read).finally(() => {
+      settled = true;
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(settled).toBe(false);
     expect(read).not.toHaveBeenCalled();
     endContactWalk();
-    expect(await radioTelemetryPolicy(read)).toEqual(radio);
+    expect(await pending).toEqual(radio);
     expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it('a caller waiting out the walk rides the deferred seed instead of reading twice', async () => {
+    const routeRead = vi.fn(async () => ({ ...radio, multiAcks: 9 }));
+    const seedRead = vi.fn(async () => radio);
+    noteContactWalkStreaming();
+    const pending = radioTelemetryPolicy(routeRead);
+    // What adapterEvents' contactsSynced handlers do, in order: release the
+    // walk guard, then fire the deferred connect seed — synchronously.
+    endContactWalk();
+    const seeded = radioTelemetryPolicy(seedRead);
+    expect(await pending).toEqual(radio);
+    expect(await seeded).toEqual(radio);
+    expect(seedRead).toHaveBeenCalledTimes(1);
+    expect(routeRead).not.toHaveBeenCalled();
+  });
+
+  it('gives up waiting (null, no read) when the link drops mid walk', async () => {
+    const read = vi.fn(async () => radio);
+    noteContactWalkStreaming();
+    const pending = radioTelemetryPolicy(read);
+    forgetRadioTelemetryPolicy();
+    endContactWalk();
+    expect(await pending).toBeNull();
+    expect(read).not.toHaveBeenCalled();
   });
 
   it('seeds the holder and broadcasts, sharing one read between callers', async () => {

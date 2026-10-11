@@ -4,6 +4,7 @@ import type { DescribedReading } from '../../../shared/telemetry/describe';
 import { Skeleton } from '../../components/ui/skeleton';
 import { useNowTick } from '../../hooks/useNowTick';
 import { useStore } from '../../lib/store';
+import { LOGIN_HINT } from '../../lib/telemetry';
 import { dayKey, fmtDateTime, fmtTime } from '../../lib/time';
 import { cn } from '../../lib/utils';
 import { ageOld, type RequestSummary } from './format';
@@ -255,7 +256,7 @@ export function TelemetryFailed({
           {failedLabel}: {reason}
         </p>
         {context && <p className={COPY}>{context}</p>}
-        {onLogIn && <p className={COPY}>Repeaters reply only to logged-in clients.</p>}
+        {onLogIn && <p className={COPY}>{LOGIN_HINT}.</p>}
         {(onRetry || canReset || onLogIn) && (
           <div className="flex flex-wrap gap-2">
             {onRetry && (
@@ -290,7 +291,7 @@ interface EmptyProps {
   actionLabel?: string;
   /** Who gets asked ("this repeater", "this sensor", "your radio"). */
   target?: string;
-  /** An extra line, e.g. "Repeaters reply only to logged-in clients." */
+  /** An extra line, e.g. "Repeaters and sensors reply only to logged-in clients." */
   hint?: ReactNode;
 }
 

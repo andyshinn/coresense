@@ -7,6 +7,7 @@ import {
   pathHashModeBodySchema,
   telemetryPolicyPatchSchema,
 } from '../../../shared/api/schemas';
+import { errorMessage } from '../../../shared/errors';
 import {
   applyAutoAddConfig,
   applyDeviceIdentity,
@@ -14,12 +15,15 @@ import {
   applyTelemetryPolicy,
   type DeviceWriteResult,
 } from '../../device/deviceSettings';
+import { child } from '../../log';
 import { protocolSession } from '../../protocol';
 import { commit } from '../../state/commit';
 import { stateHolder } from '../../state/holder';
 import { transportManager } from '../../transport/manager';
 import { readJson } from '../body';
 import { fail503, knownErrorResponse } from '../errors';
+
+const log = child('device');
 
 function deviceWriteResponse(c: Context, res: DeviceWriteResult) {
   return res.status === 'ok' ? c.json({ ok: true }) : c.json({ error: res.message }, 503);
@@ -85,9 +89,14 @@ export function registerDeviceRoutes(api: Hono): void {
   });
 
   // POST /api/device/refresh — issues DEVICE_QUERY + GET_BATT_AND_STORAGE +
-  // GET_AUTO_ADD_CONFIG + GET_CUSTOM_VAR(gps,gps_interval). Each reply lands
-  // asynchronously and is broadcast via WS — the caller just gets "ok" once
-  // the writes succeeded.
+  // GET_AUTO_ADD_CONFIG + GET_CUSTOM_VARS. Each reply lands asynchronously and
+  // is broadcast via WS — the caller just gets "ok" once the writes succeeded.
+  //
+  // Custom vars is one request, not one per key: firmware ignores the key and
+  // returns every setting. It is fired, not awaited: meshcore-ts ≥ 0.9 makes
+  // requestCustomVars await RESP_CUSTOM_VARS and reject on RESP_ERR (firmware
+  // without CMD_GET_CUSTOM_VARS), a timeout or a not-yet-commandable session,
+  // and none of those should fail the whole refresh.
   api.post('/api/device/refresh', async (c) => {
     if (!transportManager.isConnected()) {
       return c.json({ error: 'no radio attached' }, 503);
@@ -97,8 +106,9 @@ export function registerDeviceRoutes(api: Hono): void {
       await session.requestDeviceInfo();
       await session.requestBattAndStorage();
       await session.requestAutoAddConfig();
-      await session.requestCustomVars('gps');
-      await session.requestCustomVars('gps_interval');
+      void session
+        .requestCustomVars('')
+        .catch((err: unknown) => log.warn(`custom vars refresh failed: ${errorMessage(err)}`));
       return c.json({ ok: true });
     } catch (err) {
       return fail503(c, err);

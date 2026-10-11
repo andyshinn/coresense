@@ -238,7 +238,7 @@ describe('TelemetryRailSection', () => {
     expect(button().disabled).toBe(false);
   });
 
-  it('shows no login hint once logged in, nor for a sensor', async () => {
+  it('shows no login hint once logged in, for a repeater or a sensor', async () => {
     seed([]);
     api.repeaterSession.mockImplementation(async () => ({ session: { role: 'admin' } }));
     const { unmount } = renderWithClient(<TelemetryRailSection contact={repeater} />);
@@ -249,9 +249,41 @@ describe('TelemetryRailSection', () => {
 
     api.repeaterSession.mockClear();
     renderWithClient(<TelemetryRailSection contact={sensor} />);
+    await waitFor(() => expect(api.repeaterSession).toHaveBeenCalledWith(client, sensor.key));
     await act(async () => {});
-    expect(api.repeaterSession).not.toHaveBeenCalled();
     expect(screen.queryByText(LOGIN_HINT)).toBeNull();
+  });
+
+  it('gives a sensor with no session the login hint (sensors drop non-ACL clients too)', async () => {
+    seed([]);
+    renderWithClient(<TelemetryRailSection contact={sensor} />);
+    await screen.findByText(LOGIN_HINT);
+    expect(button().disabled).toBe(false);
+  });
+
+  it('re-reads the session on a login or logout in RepeaterAdmin, with no tab switch', async () => {
+    seed([]);
+    renderWithClient(<TelemetryRailSection contact={repeater} />);
+    await screen.findByText(LOGIN_HINT);
+
+    api.repeaterSession.mockImplementation(async () => ({ session: { role: 'admin' } }));
+    act(() => useStore.getState().bumpRepeaterAdminSessionRev());
+    await waitFor(() => expect(screen.queryByText(LOGIN_HINT)).toBeNull());
+
+    api.repeaterSession.mockImplementation(async () => ({ session: null }));
+    act(() => useStore.getState().bumpRepeaterAdminSessionRev());
+    await screen.findByText(LOGIN_HINT);
+  });
+
+  it('says "Base only" for a guest repeater reply, not for a guest-role sensor reply (granted everything)', () => {
+    seed([dto('g', Date.now() - 5_000, '01 74 01 A9 01 67 01 36', { aclRole: 'guest', permsGranted: 1 })]);
+    const { unmount } = renderWithClient(<TelemetryRailSection contact={repeater} />);
+    expect(screen.getByText('Base only · guest login')).toBeTruthy();
+    unmount();
+
+    seed([dto('s', Date.now() - 5_000, PLAN_FIXTURE, { aclRole: 'guest', permsGranted: 7 })]);
+    renderWithClient(<TelemetryRailSection contact={sensor} />);
+    expect(screen.queryByText('Base only · guest login')).toBeNull();
   });
 
   it('opens the Telemetry tab from the saved-requests link', () => {

@@ -16,6 +16,20 @@ vi.mock('../../src/renderer/lib/api', () => ({
     listTelemetry: (...a: unknown[]) => listTelemetry(...(a as [])),
     requestTelemetry: (...a: unknown[]) => requestTelemetry(...a),
     repeaterOwner: () => repeaterOwner(),
+    repeaterLogin: vi.fn(async () => ({
+      session: {
+        contactKey: `c:${'aa'.repeat(32)}`,
+        publicKeyHex: 'aa'.repeat(32),
+        role: 'guest',
+        mode: 'flood',
+        permissionsBits: 0,
+        aclPermissionsBits: null,
+        aclRole: null,
+        firmwareVerLevel: null,
+        loggedInAt: 1,
+      },
+      login: { effective: 'flood' },
+    })),
   },
 }));
 
@@ -91,19 +105,33 @@ describe('RepeaterAdmin — Telemetry tab', () => {
     act(() => useStore.getState().setRepeaterAdminTab('telemetry'));
     renderWithClient(<RepeaterAdmin contact={repeater} />);
     await waitFor(() => expect(screen.getByText(/^No telemetry yet/)).toBeTruthy());
-    expect(screen.getByTestId('telemetry-request-hint').textContent).toBe('Repeaters reply only to logged-in clients');
+    expect(screen.getByTestId('telemetry-request-hint').textContent).toBe(
+      'Repeaters and sensors reply only to logged-in clients',
+    );
     fireEvent.click(screen.getByText('Log in'));
     await waitFor(() => expect(screen.getByText(/Log In as Guest/)).toBeTruthy());
   });
 
-  it('asks a sensor without the repeater login hint', async () => {
+  it('hints at the login a sensor needs too (it drops non-ACL clients), and "Log in" goes to its Login tab', async () => {
     const sensor: Contact = { ...repeater, name: 'Sensor', kind: 'sensor' };
     act(() => useStore.getState().setRepeaterAdminTab('telemetry'));
     renderWithClient(<RepeaterAdmin contact={sensor} />);
     await waitFor(() =>
       expect(screen.getByText('No telemetry yet. Click Request telemetry to ask this sensor.')).toBeTruthy(),
     );
-    expect(screen.queryByTestId('telemetry-request-hint')).toBeNull();
+    expect(screen.getByTestId('telemetry-request-hint').textContent).toBe(
+      'Repeaters and sensors reply only to logged-in clients',
+    );
+    fireEvent.click(screen.getByText('Log in'));
+    await waitFor(() => expect(screen.getByText(/Log In as Guest/)).toBeTruthy());
+  });
+
+  it('bumps the session revision on a login, so the rail re-reads its login hint', async () => {
+    renderWithClient(<RepeaterAdmin contact={repeater} />);
+    const button = await screen.findByText(/Log In as Guest/);
+    const before = useStore.getState().repeaterAdminSessionRev;
+    fireEvent.click(button.closest('button') as HTMLButtonElement);
+    await waitFor(() => expect(useStore.getState().repeaterAdminSessionRev).toBeGreaterThan(before));
   });
 
   it('sits between Status and ACL, and only for repeaters and sensors', () => {

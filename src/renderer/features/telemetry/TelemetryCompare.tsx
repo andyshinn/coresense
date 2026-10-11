@@ -411,9 +411,15 @@ export function TelemetryCompare({ nodeKey, source, client, requests, compareIds
     return requests.filter((r) => ids.has(r.id) && r.outcome === 'ok');
   }, [requests, compareIds]);
   const table = useMemo(() => buildCompareTable(chosen, { source }), [chosen, source]);
+  const n = table.columns.length;
+  // One column has nothing to change against, so every row reads unchanged:
+  // filtering then would empty the table (and the CSV) behind a toggle that is
+  // disabled below two columns and so couldn't be turned off. The choice is
+  // kept and applies again once a second request is ticked.
+  const filtering = changesOnly && n >= 2;
   const shown = useMemo<CompareTable>(
     () =>
-      changesOnly
+      filtering
         ? {
             ...table,
             groups: table.groups
@@ -421,10 +427,9 @@ export function TelemetryCompare({ nodeKey, source, client, requests, compareIds
               .filter((g) => g.rows.length > 0),
           }
         : table,
-    [table, changesOnly],
+    [table, filtering],
   );
   const appearances = useMemo(() => firstAppearances(table), [table]);
-  const n = table.columns.length;
 
   const onExport = () => {
     downloadText(compareCsvFilename(nodeKey, nodeName), compareCsv(shown), 'text/csv;charset=utf-8');
@@ -451,11 +456,11 @@ export function TelemetryCompare({ nodeKey, source, client, requests, compareIds
           </div>
           <div className="ml-auto flex gap-2">
             <TelemetryButton
-              aria-pressed={changesOnly}
+              aria-pressed={filtering}
               onClick={() => setChangesOnly((v) => !v)}
               disabled={n < 2}
               // Pressed reads from the border and fill: accent text on bg-3 is 3.7:1 in light.
-              className={cn(changesOnly && 'border-cs-accent bg-cs-accent-soft/30')}
+              className={cn(filtering && 'border-cs-accent bg-cs-accent-soft/30')}
             >
               Show changes only
             </TelemetryButton>

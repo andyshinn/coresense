@@ -86,7 +86,9 @@ describe('TelemetryPanel — states', () => {
     const onLogIn = vi.fn();
     render(<TelemetryPanel source="repeater" nodeKey={KEY} client={client} needsLogin onLogIn={onLogIn} />);
     expect(screen.getByText('No telemetry yet. Click Request telemetry to ask this repeater.')).toBeTruthy();
-    expect(screen.getByTestId('telemetry-request-hint').textContent).toBe('Repeaters reply only to logged-in clients');
+    expect(screen.getByTestId('telemetry-request-hint').textContent).toBe(
+      'Repeaters and sensors reply only to logged-in clients',
+    );
     fireEvent.click(screen.getByText('Log in'));
     expect(onLogIn).toHaveBeenCalledTimes(1);
   });
@@ -146,6 +148,15 @@ describe('TelemetryPanel — states', () => {
     expect(screen.getByText('Base only')).toBeTruthy();
     fireEvent.click(screen.getByText('Log in as admin'));
     expect(onLogIn).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call a guest-role sensor reply base only: a sensor answers guests in full (perms 0x07)', () => {
+    seed([dto('s', NOW - 5_000, PLAN_FIXTURE, { aclRole: 'guest', permsGranted: 7 })]);
+    render(<TelemetryPanel source="repeater" nodeKey={KEY} client={client} onLogIn={vi.fn()} />);
+    expect(screen.getByText('Granted as guest')).toBeTruthy();
+    expect(screen.queryByText('Base only')).toBeNull();
+    expect(screen.queryByText('Log in as admin')).toBeNull();
+    expect(screen.getAllByTestId('telemetry-tile').length).toBeGreaterThan(1);
   });
 
   it('notes a full reply with no sensors, wording it from ch 1', () => {
@@ -210,7 +221,7 @@ describe('TelemetryPanel — request button', () => {
     seed([NEWEST]);
     render(<TelemetryPanel source="repeater" nodeKey={KEY} client={client} needsLogin />);
     expect(requestButton().disabled).toBe(false);
-    expect(screen.getByText('Repeaters reply only to logged-in clients')).toBeTruthy();
+    expect(screen.getByText('Repeaters and sensors reply only to logged-in clients')).toBeTruthy();
   });
 
   it('is disabled while this node is in flight, and shows the loading card', () => {
@@ -300,7 +311,7 @@ describe('TelemetryPanel — failed request', () => {
     render(<TelemetryPanel source="repeater" nodeKey={KEY} client={client} needsLogin onLogIn={() => {}} />);
     expect(screen.getByText('Telemetry request failed: disconnected')).toBeTruthy();
     expect(screen.queryByText('Log in')).toBeNull();
-    expect(screen.queryByText('Repeaters reply only to logged-in clients.')).toBeNull();
+    expect(screen.queryByText('Repeaters and sensors reply only to logged-in clients.')).toBeNull();
   });
 
   it('hides Reset to flood without a stored path, and Log in with a session', () => {

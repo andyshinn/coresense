@@ -97,6 +97,12 @@ export async function applyDeviceIdentity(patch: Partial<DeviceIdentity>): Promi
   }
   const session = protocolSession();
   return radioWrites(async () => {
+    const shareChanges =
+      typeof patch.sharePositionInAdvert === 'boolean' && patch.sharePositionInAdvert !== current.sharePositionInAdvert;
+    // A share-position change re-sends the telemetry policy (below). Resolve
+    // it first, so a refusal leaves the name and position unapplied too
+    // rather than half the save on the radio.
+    const policy = shareChanges ? await radioPolicyOrThrow() : null;
     if (typeof patch.name === 'string' && patch.name !== current.name) {
       await expectOk(session.setAdvertName(patch.name), 'SET_ADVERT_NAME rejected by radio');
     }
@@ -108,7 +114,7 @@ export async function applyDeviceIdentity(patch: Partial<DeviceIdentity>): Promi
       const lon = typeof patch.lon === 'number' ? patch.lon : (current.lon ?? 0);
       await expectOk(session.setAdvertLatLon(lat, lon), 'SET_ADVERT_LATLON rejected by radio');
     }
-    if (typeof patch.sharePositionInAdvert === 'boolean' && patch.sharePositionInAdvert !== current.sharePositionInAdvert) {
+    if (policy && typeof patch.sharePositionInAdvert === 'boolean') {
       // sharePositionInAdvert lives in SET_OTHER_PARAMS along with telemetry
       // policy — re-emit the full frame with the RADIO's telemetry values (see
       // radioPolicyOrThrow). The manual-add byte is deliberately omitted so the
@@ -116,7 +122,6 @@ export async function applyDeviceIdentity(patch: Partial<DeviceIdentity>): Promi
       // this command is the radio's auto-add master switch, and passing
       // anything else here would reconfigure auto-add as a side effect of
       // saving an advert setting.
-      const policy = await radioPolicyOrThrow();
       await expectOk(session.setOtherParams(policy, patch.sharePositionInAdvert), 'SET_OTHER_PARAMS rejected by radio');
     }
   });
@@ -142,6 +147,20 @@ export async function applyAutoAddConfig(cfg: AutoAddConfig): Promise<DeviceWrit
   // raw byte.
   const nextManualAdd = withModeBit(onRadio?.manualAddContacts ?? current.manualAddContacts, cfg.mode);
   const next: AutoAddConfig = { ...cfg, manualAddContacts: nextManualAdd };
+  // The master switch rides CMD_SET_OTHER_PARAMS with the telemetry policy,
+  // which has to be the RADIO's (see applyDeviceIdentity). Resolve it before
+  // anything is written: a refusal after the kind flags reached the radio and
+  // the holder took the new mode would leave the UI showing a mode whose
+  // manual-add bit never went out.
+  const modeChanges = onRadio !== null && nextManualAdd !== onRadio.manualAddContacts;
+  let policy: TelemetryPolicy | null = null;
+  if (modeChanges) {
+    try {
+      policy = await radioPolicyOrThrow();
+    } catch (err) {
+      return { status: 'rejected', message: errorMessage(err) };
+    }
+  }
   commit.autoAddConfig(next);
   if (!session || !onRadio) return OK;
 
@@ -169,10 +188,8 @@ export async function applyAutoAddConfig(cfg: AutoAddConfig): Promise<DeviceWrit
     // be a separate command — the bit lives in CMD_SET_OTHER_PARAMS, which
     // carries the telemetry policy and advert-location policy along with it,
     // so sending it on every save would push those unrelated prefs too.
-    if (nextManualAdd !== onRadio.manualAddContacts) {
+    if (modeChanges && policy) {
       const share = holder.getDeviceIdentity().sharePositionInAdvert;
-      // The radio's policy, never our JSON copy — see applyDeviceIdentity.
-      const policy = await radioPolicyOrThrow();
       await expectOk(
         session.setOtherParams(policy, share, nextManualAdd),
         'SET_OTHER_PARAMS (auto-add mode) rejected by radio',

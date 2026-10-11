@@ -2,7 +2,7 @@ import { TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { type ChannelGroup, type DescribedReading, describeChannels } from '../../../../shared/telemetry/describe';
 import { fmtAge } from '../../../../shared/telemetry/format';
-import type { SavedRequestDto } from '../../../../shared/telemetry/types';
+import { isBaseOnlyReply, type SavedRequestDto } from '../../../../shared/telemetry/types';
 import type { Contact, RepeaterAdminSession } from '../../../../shared/types';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { requestDetail, TelemetryButton, TelemetryRow, waitingLine } from '../../../features/telemetry';
@@ -119,17 +119,23 @@ export function TelemetryRailStamp({ contact }: { contact: Contact }) {
   );
 }
 
+/** Repeaters and sensors both answer only clients in their ACL (simple_repeater
+ *  and simple_sensor searchPeersByHash), so both get the login hint. */
+const dropsNonAclClients = (contact: Contact) => contact.kind === 'repeater' || contact.kind === 'sensor';
+
 /**
  * The login state the hint needs. RepeaterAdmin keeps its session locally, so
- * the rail asks main too; it re-reads after a tab switch (a login happens on
- * the Login tab) and after each saved request.
+ * the rail asks main too; it re-reads after each login/logout (RepeaterAdmin
+ * bumps `repeaterAdminSessionRev`), a tab switch and each saved request.
  */
 function useHasSession(client: ApiClient | null, contact: Contact, refreshOn: unknown): boolean | null {
   const [has, setHas] = useState<boolean | null>(null);
   const activeTab = useStore((s) => s.repeaterAdminActiveTab);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: activeTab/refreshOn only trigger a re-read
+  const sessionRev = useStore((s) => s.repeaterAdminSessionRev);
+  const applies = dropsNonAclClients(contact);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: activeTab/sessionRev/refreshOn only trigger a re-read
   useEffect(() => {
-    if (!client || contact.kind !== 'repeater') {
+    if (!client || !applies) {
       setHas(null);
       return;
     }
@@ -146,7 +152,7 @@ function useHasSession(client: ApiClient | null, contact: Contact, refreshOn: un
     return () => {
       cancelled = true;
     };
-  }, [client, contact.key, contact.kind, activeTab, refreshOn]);
+  }, [client, contact.key, applies, activeTab, sessionRev, refreshOn]);
   return has;
 }
 
@@ -181,8 +187,10 @@ export function TelemetryRailSection({ contact }: Props) {
   const hasSession = useHasSession(client, contact, shown?.id ?? failed?.id);
   // Only for the one-hour "older" rule; the waiting line keeps its own clock.
   const now = useNowTick();
-  const source = contact.kind === 'repeater' ? 'repeater' : 'contact';
-  const needsLogin = contact.kind === 'repeater' && hasSession === false;
+  // The tab's source for both kinds (TelemetryTab); main saves a sensor's
+  // requests as 'repeater' too.
+  const source = 'repeater';
+  const needsLogin = dropsNonAclClients(contact) && hasSession === false;
   const control = useTelemetryRequest({ source, nodeKey: contact.key, client, needsLogin });
   const { inFlight, hint } = control;
 
@@ -223,7 +231,7 @@ export function TelemetryRailSection({ contact }: Props) {
               ))}
             </div>
           )}
-          {shown?.aclRole === 'guest' && <p className="text-[11px] text-cs-text-dim">Base only · guest login</p>}
+          {shown && isBaseOnlyReply(shown) && <p className="text-[11px] text-cs-text-dim">Base only · guest login</p>}
           {older && (
             <p className="flex items-center gap-1 text-[11px] text-[rgb(var(--cs-hop-far))]">
               <TriangleAlert aria-hidden="true" className="size-3 shrink-0" />

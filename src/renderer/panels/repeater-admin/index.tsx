@@ -75,7 +75,17 @@ export function RepeaterAdmin({ contact }: Props) {
       setRepeaterAdminTab(null);
     }
   }, [pendingTab, setRepeaterAdminTab]);
-  const [session, setSession] = useState<RepeaterAdminSession | null>(null);
+  const [session, setLocalSession] = useState<RepeaterAdminSession | null>(null);
+  const bumpSessionRev = useStore((s) => s.bumpRepeaterAdminSessionRev);
+  // Every session change goes through here so the rail's Telemetry login hint,
+  // which can't see this local state, re-reads it (store.repeaterAdminSessionRev).
+  const setSession = useCallback(
+    (next: RepeaterAdminSession | null) => {
+      setLocalSession(next);
+      bumpSessionRev();
+    },
+    [bumpSessionRev],
+  );
   const [sessionChecked, setSessionChecked] = useState(false);
   const [pending, setPendingState] = useState<RebootPendingState>(EMPTY_REBOOT);
 
@@ -129,7 +139,7 @@ export function RepeaterAdmin({ contact }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [client, contact.key]);
+  }, [client, contact.key, setSession]);
 
   const isAdmin = session?.role === 'admin';
 

@@ -19,14 +19,17 @@
 // contact walk in progress (`_iter_started = false`, companion_radio
 // MyMesh.cpp): the remaining RESP_CONTACT frames and END_OF_CONTACTS never
 // come, so the app keeps a truncated contact list and no reconcile runs. So the
-// read is never issued while a walk streams (state/contactWalk.ts):
-// radioTelemetryPolicy() refuses instead, and the connect-time seed waits for
-// the walk's END_OF_CONTACTS.
+// read is never issued while a walk streams (state/contactWalk.ts): the
+// connect-time seed waits for the walk's END_OF_CONTACTS, and a route that
+// needs the policy mid walk (a share-position, multi-acks or auto-add-mode
+// save while contacts are still loading) waits with it, then rides that seed —
+// refusing instead would 503 every such save for the whole walk, 25 s or more
+// on a large radio.
 
 import type { TelemetryPolicy } from '../../shared/types';
 import { emit } from '../events/bus';
 import { child } from '../log';
-import { isContactWalkInFlight } from '../state/contactWalk';
+import { contactWalkEnded, isContactWalkInFlight } from '../state/contactWalk';
 import { stateHolder } from '../state/holder';
 
 const log = child('telemetry');
@@ -129,11 +132,16 @@ export function seedTelemetryPolicyFromRadio(read: () => Promise<TelemetryPolicy
 }
 
 /** The policy the radio holds, for a route about to re-send it (or the
- *  connect-time seed). Reads it now when this connection hasn't yet; null when
- *  that read fails, or when it would have to go out mid contact walk (see the
- *  header) — the caller refuses rather than guess. */
+ *  connect-time seed). Reads it now when this connection hasn't yet — first
+ *  waiting out a contact walk in flight (see the header), which also lets the
+ *  deferred connect seed land and answer for it. Null when that read fails or
+ *  the link drops while waiting — the caller refuses rather than guess. */
 export async function radioTelemetryPolicy(read: () => Promise<TelemetryPolicy>): Promise<TelemetryPolicy | null> {
+  const gen = generation;
+  while (!known && isContactWalkInFlight()) {
+    await contactWalkEnded();
+    if (gen !== generation) return null;
+  }
   if (known) return stateHolder().getTelemetryPolicy();
-  if (isContactWalkInFlight()) return null;
   return seedTelemetryPolicyFromRadio(read);
 }

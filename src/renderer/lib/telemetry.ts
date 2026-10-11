@@ -15,8 +15,8 @@ import { telemetryRetentionOf } from './telemetryRetention';
 /** Hint shown on admin buttons while a mesh telemetry request holds the radio. */
 export const RADIO_BUSY_HINT = 'Waiting for telemetry request';
 
-/** Repeaters answer only clients in their ACL; anyone else just times out. */
-export const LOGIN_HINT = 'Repeaters reply only to logged-in clients';
+/** Repeaters and sensors answer only clients in their ACL; anyone else just times out. */
+export const LOGIN_HINT = 'Repeaters and sensors reply only to logged-in clients';
 
 /** Copy that depends on who answers: a mesh node is asked (a "request"), the companion is read (a "read"). */
 export interface TelemetrySourceCopy {

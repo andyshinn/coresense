@@ -159,6 +159,34 @@ describe('ch 1 MCU temperature', () => {
     const rs = readings('01 74 01 9A 01 67 01 2C');
     expect(describeReading(rs[1], rs, 'companion').label).toBe('MCU temp');
   });
+
+  // Wio-E5 (STM32: getMCUTemperature() is NaN, so firmware adds none): its
+  // BME280 reports on Self — battery, temperature, humidity, pressure.
+  const WIO_E5 = '01 74 01 9A 01 67 00 DC 01 68 75 01 73 27 96';
+
+  it('Wio-E5 remote reply: no MCU temp — the payload ends in pressure, so the BME280 temperature stays a temperature', () => {
+    const [ch1] = describeChannels(readings(WIO_E5), 'repeater');
+    expect(ch1.caption).toBe('battery · temperature · humidity · pressure');
+    expect(ch1.readings.map((d) => d.kind)).not.toContain('mcuTemp');
+    expect(ch1.readings[1]).toMatchObject({ label: 'Temperature', icon: 'Thermometer' });
+    // The humidity tile keeps its dew point (it skips only the MCU's temperature).
+    expect(ch1.readings[2].secondary).toMatch(/^dew point/);
+  });
+
+  it('Wio-E5 self read: record 1 is the BME280, not an MCU temp', () => {
+    const rs = readings(WIO_E5);
+    const [ch1] = describeChannels(rs, 'companion');
+    expect(ch1.caption).toBe('battery · temperature · humidity · pressure');
+    expect(describeReading(rs[1], rs, 'companion').label).toBe('Temperature');
+  });
+
+  it('a remote reply has an MCU temp only as its final record', () => {
+    // RP2040-style repeater: a ch 1 temperature mid-payload, sensors after it.
+    const rs = readings('01 74 01 9A 01 67 00 DC 02 67 00 F6 02 68 75');
+    const [ch1] = describeChannels(rs, 'repeater');
+    expect(ch1.caption).toBe('battery · temperature');
+    expect(describeReading(rs[1], rs, 'repeater').kind).toBe('reading');
+  });
 });
 
 describe('field-set matches', () => {

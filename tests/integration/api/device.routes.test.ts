@@ -282,7 +282,7 @@ describe('PUT /api/device/gps', () => {
 });
 
 describe('POST /api/device/refresh', () => {
-  function recordingRefresh() {
+  function recordingRefresh(customVars: () => Promise<void> = () => Promise.resolve()) {
     const order: string[] = [];
     const record = (name: string) => () => {
       order.push(name);
@@ -294,7 +294,7 @@ describe('POST /api/device/refresh', () => {
       requestAutoAddConfig: record('requestAutoAddConfig'),
       requestCustomVars: (key?: string) => {
         order.push(`requestCustomVars:${key}`);
-        return Promise.resolve();
+        return customVars();
       },
     });
     return order;
@@ -322,9 +322,18 @@ describe('POST /api/device/refresh', () => {
       'requestDeviceInfo',
       'requestBattAndStorage',
       'requestAutoAddConfig',
-      'requestCustomVars:gps',
-      'requestCustomVars:gps_interval',
+      // One request: firmware ignores the key and returns every setting.
+      'requestCustomVars:',
     ]);
+  });
+
+  it('does not fail the refresh when the custom-vars read rejects', async () => {
+    recordingRefresh(() => Promise.reject(new Error('unsupported')));
+    transportManager.setState('connected');
+
+    const res = await post('/api/device/refresh');
+
+    expect(res.status).toBe(200);
   });
 
   // Regression: the route had no catch, so a query that rejected (the link
