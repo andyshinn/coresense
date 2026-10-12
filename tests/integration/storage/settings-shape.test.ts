@@ -26,6 +26,21 @@ describe('settings loaders — corrupt root shapes fall back to defaults', () =>
     expect(ui.logsFilter).not.toBe(DEFAULT_UI_STATE.logsFilter);
   });
 
+  it('never hands back an array shared with the defaults', () => {
+    write('ui-state.json', '{}');
+    const ui = settingsStore.loadUiState();
+    expect(ui.pinned).toEqual([]);
+    expect(ui.pinned).not.toBe(DEFAULT_UI_STATE.pinned);
+  });
+
+  it('drops __proto__ and friends instead of swapping the prototype', () => {
+    write('map-settings.json', '{"__proto__": {"polluted": true}, "constructor": 1}');
+    const map = settingsStore.loadMapSettings() as unknown as Record<string, unknown>;
+    expect(Object.getPrototypeOf(map)).toBe(Object.prototype);
+    expect(map.polluted).toBeUndefined();
+    expect(Object.hasOwn(map, 'constructor')).toBe(false);
+  });
+
   it.each(['{}', '5', '{"a":1}'])('a list file holding %s yields an empty list', (raw) => {
     write('channels.json', raw);
     write('contacts.json', raw);

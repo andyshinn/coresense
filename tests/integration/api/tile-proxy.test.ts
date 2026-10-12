@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getLogBuffer } from '../../../src/main/log';
 import { getTileCache } from '../../../src/main/map/tile-cache';
 import { transportManager } from '../../../src/main/transport/manager';
 import type { StateSnapshot } from '../../../src/shared/types';
@@ -79,6 +80,23 @@ describe('online tile proxy', () => {
     const res = await a.request('/api/map/online-tile-proxy/basemap/9/3/3');
     expect(res.status).toBe(200);
     expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4]));
+  });
+
+  it('keeps the API key out of the log when a fetch error quotes the URL', async () => {
+    const a = testRoutes();
+    await setKey(a);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        throw new Error(`request to ${url} failed`);
+      }),
+    );
+
+    const res = await a.request('/api/map/online-tile-proxy/basemap/9/4/4');
+    expect(res.status).toBe(502);
+    const line = [...getLogBuffer()].reverse().find((e) => e.message.includes('fetch failed for 9/4/4'));
+    expect(line?.message).toContain('key=<redacted>');
+    expect(line?.message).not.toContain('pm-secret');
   });
 
   it('maps upstream 401 to a rejected key + 401, then clears on success', async () => {

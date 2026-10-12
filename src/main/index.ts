@@ -52,6 +52,8 @@ import { flushWindowState, loadWindowState, trackWindow } from './window/state';
 
 const SHUTDOWN_BLE_TIMEOUT_MS = 5000;
 const SHUTDOWN_LOG_FLUSH_TIMEOUT_MS = 1000;
+// Well above the BLE bound plus the flushes, which normally take milliseconds.
+const SHUTDOWN_TIMEOUT_MS = 15_000;
 
 const rendererLog = child('renderer');
 
@@ -524,6 +526,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   void finishQuit({
     shutdown: beginShutdown,
+    shutdownTimeoutMs: SHUTDOWN_TIMEOUT_MS,
     onShutdownError: (err) => log.error(`shutdown failed: ${errorMessage(err)}`),
     flushLog: flushLogFile,
     flushTimeoutMs: SHUTDOWN_LOG_FLUSH_TIMEOUT_MS,

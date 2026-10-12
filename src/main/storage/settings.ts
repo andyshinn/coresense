@@ -313,15 +313,24 @@ export const settingsStore = {
 // inside an existing object (e.g. a new key under `composer`). Below the root,
 // arrays and primitives are taken wholesale from the stored value. A root that
 // is missing or not an object (a corrupt file holding `5` or `[]`) yields the
-// defaults: always a fresh copy, since loaders mutate what they get back.
+// defaults. The defaults are deep-cloned first, so the result never shares an
+// array or nested object with a DEFAULT_* constant: loaders mutate what they
+// get back.
 function mergeDefaults<T extends object>(stored: unknown, defaults: T): T {
-  return mergeValue(isPlainObject(stored) ? stored : defaults, defaults) as T;
+  const fresh = structuredClone(defaults);
+  return mergeValue(isPlainObject(stored) ? stored : fresh, fresh) as T;
 }
+
+// JSON.parse makes `__proto__` an own key, and assigning it through `out[key]`
+// would swap the merged object's prototype. A hand-edited file has no business
+// setting these, so they are dropped.
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 function mergeValue(stored: unknown, defaults: unknown): unknown {
   if (!isPlainObject(stored) || !isPlainObject(defaults)) return stored;
   const out: Record<string, unknown> = { ...defaults };
   for (const [key, storedVal] of Object.entries(stored)) {
+    if (UNSAFE_KEYS.has(key)) continue;
     out[key] = mergeValue(storedVal, defaults[key]);
   }
   return out;

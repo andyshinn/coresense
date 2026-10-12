@@ -9,6 +9,7 @@ function harness(overrides: { shutdown?: () => Promise<void>; flushLog?: () => P
   const calls: string[] = [];
   const deps = {
     shutdown: overrides.shutdown ?? vi.fn(async () => void calls.push('shutdown')),
+    shutdownTimeoutMs: 5000,
     onShutdownError: vi.fn((err: unknown) => void calls.push(`error:${(err as Error).message}`)),
     flushLog: overrides.flushLog ?? vi.fn(async () => void calls.push('flush')),
     flushTimeoutMs: 1000,
@@ -43,5 +44,16 @@ describe('finishQuit', () => {
     await vi.advanceTimersByTimeAsync(1);
     await done;
     expect(deps.exit).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up on a hung shutdown after the timeout, logs it, flushes and exits', async () => {
+    vi.useFakeTimers();
+    const { deps, calls } = harness({ shutdown: () => new Promise<void>(() => {}) });
+    const done = finishQuit(deps);
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(deps.exit).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    await done;
+    expect(calls).toEqual(['error:shutdown timed out after 5000ms', 'flush', 'exit']);
   });
 });

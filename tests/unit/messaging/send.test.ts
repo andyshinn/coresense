@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { createSender } from '../../../src/main/messaging/sendMessage';
 import type { Message } from '../../../src/shared/types';
 
+/** Let the fire-and-forget DM send's promise chain run to the end. */
+const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
+
 function harness(
   over: {
     channelOk?: boolean;
@@ -93,9 +96,8 @@ describe('createSender', () => {
       logError,
     });
     await send('c:abcd', 'yo');
-    // The .catch runs on a microtask after the fire-and-forget DM send rejects.
-    await Promise.resolve();
-    await Promise.resolve();
+    // The .catch runs a few microtasks after the fire-and-forget DM send settles.
+    await settle();
     expect(states).toContainEqual({ id: 'local-test', state: 'failed' });
     expect(logError).toHaveBeenCalledWith(expect.stringContaining('local-test'));
   });
@@ -106,8 +108,7 @@ describe('createSender', () => {
     // row would sit in 'sending' forever unless the sender fails it.
     const h = harness({ dmResult: { ok: false, error: 'unknown contact c:abcd' } });
     await h.send('c:abcd', 'yo');
-    await Promise.resolve();
-    await Promise.resolve();
+    await settle();
     expect(h.states).toEqual([{ id: 'local-test', state: 'failed' }]);
     expect(h.emitMessageState).toHaveBeenCalledWith('local-test', 'failed');
     expect(h.logError).toHaveBeenCalledWith(expect.stringContaining('unknown contact c:abcd'));
@@ -116,8 +117,7 @@ describe('createSender', () => {
   it('DM: leaves the row alone when the retry send resolves ok', async () => {
     const h = harness();
     await h.send('c:abcd', 'yo');
-    await Promise.resolve();
-    await Promise.resolve();
+    await settle();
     expect(h.states).toEqual([]);
   });
 });

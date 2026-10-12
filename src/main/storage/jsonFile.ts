@@ -32,7 +32,9 @@ export function readJsonFile<T>(
 
 export interface JsonWriter {
   /** Queue an atomic write (write `<path>.tmp`, then rename over `path`).
-   *  Fire-and-forget: failures go to the writer's `onError`. */
+   *  Atomic, not durable: readers never see a half-written file, but nothing
+   *  is fsynced, so a power loss right after the rename can still leave the
+   *  file empty. Fire-and-forget: failures go to the writer's `onError`. */
   write(path: string, value: unknown): void;
   /** Settles once every write queued so far has finished. */
   flush(): Promise<void>;

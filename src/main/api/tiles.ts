@@ -222,7 +222,9 @@ export function registerTileRoutes(api: Hono): void {
         'Content-Type': res.headers.get('Content-Type') ?? TILE_HEADERS['Content-Type'],
       });
     } catch (err) {
-      log.warn(`fetch failed for ${z}/${x}/${y}: ${errorMessage(err)}`);
+      // Some network errors quote the request URL, which carries the key.
+      const reason = errorMessage(err).replaceAll(encodeURIComponent(key), '<redacted>').replaceAll(key, '<redacted>');
+      log.warn(`fetch failed for ${z}/${x}/${y}: ${reason}`);
       return c.body(null, 502);
     }
   });
