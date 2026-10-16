@@ -285,11 +285,10 @@ describe('POST /api/device/refresh', () => {
     ]);
   });
 
-  // BUG: the route has no catch, so a query that rejects (the link dropping
-  // mid-refresh, a request timeout) escapes to onApiError as a 500 `internal`,
-  // where every other radio failure in the API is a 503 (see the transport
-  // scan/connect/disconnect regression in error-contract.test.ts).
-  it.fails('answers 503 when a device query rejects', async () => {
+  // Regression: the route had no catch, so a query that rejected (the link
+  // dropping mid-refresh, a request timeout) escaped to onApiError as a 500
+  // `internal`, where every other radio failure in the API is a 503.
+  it('answers 503 when a device query rejects', async () => {
     installSessionStub({ requestDeviceInfo: () => Promise.reject(new Error('link lost')) });
     transportManager.setState('connected');
 

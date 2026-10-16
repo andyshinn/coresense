@@ -53,12 +53,16 @@ export function registerDeviceRoutes(api: Hono): void {
       return c.json({ error: 'no radio attached' }, 503);
     }
     const session = protocolSession();
-    await session.requestDeviceInfo();
-    await session.requestBattAndStorage();
-    await session.requestAutoAddConfig();
-    await session.requestCustomVars('gps');
-    await session.requestCustomVars('gps_interval');
-    return c.json({ ok: true });
+    try {
+      await session.requestDeviceInfo();
+      await session.requestBattAndStorage();
+      await session.requestAutoAddConfig();
+      await session.requestCustomVars('gps');
+      await session.requestCustomVars('gps_interval');
+      return c.json({ ok: true });
+    } catch (err) {
+      return fail503(c, err);
+    }
   });
 
   api.post('/api/device/reboot', async (c) => {
