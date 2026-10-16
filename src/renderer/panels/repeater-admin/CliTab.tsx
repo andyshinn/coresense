@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CLI_REPLY_TIMEOUT_MS } from '../../../shared/api/contract';
 import { CLI_SETTER_BY_KEY, isGetter, isSetter } from '../../../shared/repeater-cli/catalog';
 import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { api } from '../../lib/api';
@@ -22,7 +23,6 @@ interface Props {
   onPending: (next: RebootPendingState) => void;
 }
 
-const CLI_TIMEOUT_MS = 30_000;
 let seq = 0;
 const newId = () => `cli-${Date.now().toString(36)}-${(seq++).toString(36)}`;
 
@@ -189,7 +189,7 @@ export function CliTab({ contact, session, sessionChecked, pending, onPending }:
       />
       <CliTranscript
         entries={queue.entries}
-        timeoutMs={CLI_TIMEOUT_MS}
+        timeoutMs={CLI_REPLY_TIMEOUT_MS}
         followUpsFor={followUpsFor}
         onRetry={onRetry}
         onEdit={onEdit}
