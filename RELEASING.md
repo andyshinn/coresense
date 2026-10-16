@@ -16,7 +16,7 @@ so `package.json` decides what ships:
   runtime: the externals listed in `vite.main.config.mts` (`@stoprocent/noble`,
   `ws`, `electron-squirrel-startup`) and their dependency closure.
 - **`devDependencies`** holds everything else, including every library Vite
-  bundles into `.vite/` (React, Radix, MapLibre, Hono, meshcore-ts, ...).
+  bundles into `.vite/` (React, Radix, MapLibre, Hono, zod, meshcore-ts, ...).
   A bundled library listed under `dependencies` would ship twice.
 - **`optionalDependencies`** holds `macos-alias`, which `appdmg` (MakerDMG)
   builds on macOS. It declares its own `nan` dependency.
