@@ -75,6 +75,43 @@
       }
     },
     {
+      "includes": ["src/renderer/lib/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/main/**", "electron", "node:*"],
+                    "message": "The renderer runs in the browser sandbox: reach the main process through the HTTP/WS API or the preload bridge, and put shared code in src/shared."
+                  },
+                  {
+                    "group": [
+                      "**/features/**",
+                      "**/panels/**",
+                      "**/components/**",
+                      "**/shell/**",
+                      "**/hooks/**",
+                      "**/app/**",
+                      "@/features/**",
+                      "@/panels/**",
+                      "@/components/**",
+                      "@/shell/**",
+                      "@/hooks/**",
+                      "@/app/**"
+                    ],
+                    "message": "src/renderer/lib is the renderer's bottom layer: it may import src/shared, other lib modules and packages, never features/panels/components/shell/hooks/app. Move the pure helper down into lib instead."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": ["src/main/**", "src/preload.ts"],
       "linter": {
         "rules": {
