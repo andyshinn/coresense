@@ -10,8 +10,9 @@ import { useStore } from '../lib/store';
 // pass; without sharing, expanding the section would double every fetch.
 //
 // The cache is keyed on a cheap scalar "version" of the message list rather
-// than the array's identity. `store.ts`'s `updateMessageById` now rebuilds only
-// the list holding the updated id, but that list is often this channel's own:
+// than the array's identity. The store's `updateMessageById`
+// (lib/store/conversations.ts) now rebuilds only the list holding the updated
+// id, but that list is often this channel's own:
 // `appendMessagePath` replaces it (new identity, same timestamps) on every ✓×N
 // heard-chip update, and `applyMessageState` does the same when one of its
 // messages changes state. Keying on identity would re-run the effect and

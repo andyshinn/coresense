@@ -57,7 +57,7 @@ describe('useChannelStats', () => {
   });
 
   // Regression test for I-2, and the load-bearing property of the whole
-  // version scalar: `applyMessageState` (store.ts) rebuilds EVERY key's
+  // version scalar: `applyMessageState` (lib/store) rebuilds EVERY key's
   // `messagesByKey` array — a new array identity, same contents — on any
   // message's pending → sent → delivered transition, even for channels the
   // transitioning message doesn't belong to. The original effect keyed on

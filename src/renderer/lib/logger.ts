@@ -20,7 +20,7 @@ export const log = new Logger({ name: 'renderer', minLevel: 2 });
 // ---------------------------------------------------------------------------
 //
 // The store registers a sink via setRendererLogSink() once it's created. We
-// keep this indirection so logger.ts never imports the store (store.ts already
+// keep this indirection so logger.ts never imports the store (the store already
 // imports this module for setRendererLogLevel — a direct back-import would be a
 // circular dependency). Until a sink is registered, renderer logs still reach
 // the DevTools console; they just aren't buffered for the panel.
