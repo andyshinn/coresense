@@ -1,6 +1,7 @@
-import { readFile, stat } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
-import { extname, join, normalize } from 'node:path';
+import { extname, join } from 'node:path';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { type WebSocket, WebSocketServer } from 'ws';
@@ -113,6 +114,8 @@ export async function startServer(
       maxAge: 600,
     }),
   );
+  // Set by listenOnPort once bound; createRoutes reads it lazily.
+  let boundPort = requestedPort;
   // createRoutes installs the same handler on its own app; this one covers
   // throws from the middleware and the static file routes below.
   app.onError(onApiError);
@@ -132,27 +135,15 @@ export async function startServer(
   if (rendererDir) {
     // Preload index.html once at startup; the production bundle is immutable.
     const indexHtml = await readFile(join(rendererDir, 'index.html'), 'utf8');
-    const normalizedRoot = normalize(rendererDir);
     app.get('/', (c) => c.html(indexHtml));
-    app.get('/*', async (c) => {
-      const reqPath = c.req.path === '/' ? '/index.html' : c.req.path;
-      const filePath = normalize(join(rendererDir, reqPath));
-      if (!filePath.startsWith(normalizedRoot)) {
-        return c.json({ error: 'Forbidden' }, 403);
-      }
-      try {
-        const s = await stat(filePath);
-        if (!s.isFile()) throw new Error('not a file');
-      } catch {
-        if (extname(c.req.path) === '') return c.html(indexHtml);
-        return c.json({ error: 'Not found' }, 404);
-      }
-      const body = await readFile(filePath);
-      return c.body(body, 200, { 'Content-Type': mimeFor(extname(filePath)) });
-    });
+    // serveStatic owns MIME types, streaming, ranges and path traversal (it
+    // refuses any `.`/`..` segment), and falls through when nothing matches.
+    app.get('/*', serveStatic({ root: rendererDir }));
+    // SPA fallback: an extensionless path is a client-side route. Anything else
+    // serveStatic didn't find is a missing asset.
+    app.get('*', (c) => (extname(c.req.path) === '' ? c.html(indexHtml) : c.json({ error: 'Not found' }, 404)));
   }
 
-  let boundPort = requestedPort;
   const httpServer = await listenOnPort(app.fetch, requestedPort, bindAddress, (p) => {
     boundPort = p;
   });
@@ -279,37 +270,4 @@ export async function startServer(
   };
 
   return { port: boundPort, close, hasOpenClients };
-}
-
-function mimeFor(ext: string): string {
-  switch (ext.toLowerCase()) {
-    case '.html':
-      return 'text/html; charset=utf-8';
-    case '.js':
-    case '.mjs':
-      return 'application/javascript; charset=utf-8';
-    case '.css':
-      return 'text/css; charset=utf-8';
-    case '.json':
-      return 'application/json; charset=utf-8';
-    case '.svg':
-      return 'image/svg+xml';
-    case '.png':
-      return 'image/png';
-    case '.jpg':
-    case '.jpeg':
-      return 'image/jpeg';
-    case '.gif':
-      return 'image/gif';
-    case '.ico':
-      return 'image/x-icon';
-    case '.woff':
-      return 'font/woff';
-    case '.woff2':
-      return 'font/woff2';
-    case '.map':
-      return 'application/json; charset=utf-8';
-    default:
-      return 'application/octet-stream';
-  }
 }
