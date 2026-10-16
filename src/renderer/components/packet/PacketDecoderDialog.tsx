@@ -1,11 +1,11 @@
 import { Binary } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { companionFrameName } from '../../../shared/companionFrames';
+import { useChannelKeyStore } from '../../hooks/useChannelKeyStore';
 import { type BleFrameInspection, inspectBleFrame } from '../../lib/bleFrameLayouts';
 import { normalizeToHex } from '../../lib/packetInput';
 import { inspectPacket, type PacketInspection } from '../../lib/packetInspect';
 import { useStore } from '../../lib/store';
-import { useChannelKeyStore } from '../../lib/useChannelKeyStore';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../ui/dialog';
 import { BleFrameView } from './BleFrameView';
 import { PacketInspectionView } from './PacketInspectionView';

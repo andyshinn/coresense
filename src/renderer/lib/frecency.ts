@@ -1,5 +1,5 @@
-import { DAY_MS } from '../../../shared/time';
-import type { UsageEntry, UsageMap } from '../../../shared/types';
+import { DAY_MS } from '../../shared/time';
+import type { UsageEntry, UsageMap } from '../../shared/types';
 
 /** Curated, airtime-aware seed shown before the user has any history. */
 export const EMOJI_SEED: readonly string[] = ['👍', '✅', '📡', '🔋', '😂', '❤️'];

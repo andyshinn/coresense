@@ -6,12 +6,12 @@ import { SidebarMenuAction } from '../../components/ui/sidebar';
 import { api } from '../../lib/api';
 import { useApiClient } from '../../lib/apiClientContext';
 import { notify } from '../../lib/notify';
+import { sortChannels } from '../../lib/sortByPinned';
 import { useStore } from '../../lib/store';
 import { EmptySubHint } from './atoms';
 import type { ChannelMenuState } from './ChannelContextMenu';
 import { ChannelSubList } from './ChannelSubList';
 import { ParentBranch } from './ParentBranch';
-import { sortChannels } from './sorting';
 
 /** The "Channels" branch: its add-channel popover and the sorted, capped,
  *  drag-reorderable channel list. */

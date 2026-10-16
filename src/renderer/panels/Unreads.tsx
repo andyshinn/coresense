@@ -5,9 +5,10 @@ import type { ChannelKind, ContactKind } from '../../shared/types';
 import { CountTab } from '../components/CountTab';
 import { MessageItem } from '../components/MessageItem';
 import { RelativeTime } from '../components/RelativeTime';
-import { type UnreadConversation, useUnreadConversations } from '../hooks/useUnreads';
+import { useUnreadConversations } from '../hooks/useUnreads';
 import { CHANNEL_ICON, CONTACT_ICON } from '../lib/conversationIcons';
 import { useStore } from '../lib/store';
+import type { UnreadConversation } from '../lib/unreads';
 
 type Filter = 'all' | 'channels' | 'direct';
 

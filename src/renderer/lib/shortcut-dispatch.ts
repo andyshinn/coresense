@@ -1,9 +1,10 @@
 import type { RendererShortcut } from '../../shared/shortcuts';
 import type { ShortcutKeyEvent } from '../../shared/shortcuts-format';
-import { computeUnreadConversations } from '../hooks/useUnreads';
+
 import { resolveShortcut } from './shortcut-resolve';
 import { adjacentUnreadKey, isTypingTarget, nthChannelKey } from './shortcut-selectors';
 import { useStore } from './store';
+import { computeUnreadConversations } from './unreads';
 
 /** Run the side effect for a resolved shortcut id. */
 function run(id: RendererShortcut['id'], ev: ShortcutKeyEvent): void {

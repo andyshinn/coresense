@@ -1,6 +1,6 @@
 import { Hash, Inbox, MessageCircle, Radio } from 'lucide-react';
 import type { Channel, Contact, Message } from '../../../../shared/types';
-import { computeUnreadConversations } from '../../../hooks/useUnreads';
+import { computeUnreadConversations } from '../../../lib/unreads';
 import type { PaletteItem } from '../types';
 import { TOOL_ITEMS } from './tools';
 

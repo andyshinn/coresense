@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { EMOJI_SEED, recordUsage, score, topIds } from '../../../../../src/renderer/features/message-actions/frecency';
-import type { UsageMap } from '../../../../../src/shared/types';
+import { EMOJI_SEED, recordUsage, score, topIds } from '../../../../src/renderer/lib/frecency';
+import type { UsageMap } from '../../../../src/shared/types';
 
 const NOW = 1_000_000_000_000;
 const DAY = 86_400_000;

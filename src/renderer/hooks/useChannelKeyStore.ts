@@ -1,6 +1,6 @@
 import { type CryptoKeyStore, MeshCoreDecoder } from '@michaelhart/meshcore-decoder';
 import { useMemo } from 'react';
-import { useStore } from './store';
+import { useStore } from '../lib/store';
 
 // Builds a decoder key store from every channel's secret so RF packet decode
 // (rail + standalone decoder dialog) can attempt decryption. Memoized on

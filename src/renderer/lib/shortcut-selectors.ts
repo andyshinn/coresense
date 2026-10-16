@@ -1,6 +1,6 @@
 import type { Platform } from '../../shared/shortcuts-format';
 import type { Channel } from '../../shared/types';
-import { sortChannels } from '../shell/leftnav/sorting';
+import { sortChannels } from './sortByPinned';
 
 /** True when a keydown originated in an editable field — used to suppress
  *  bare-key shortcuts (?, ⌥↑/↓) while the user is typing. */

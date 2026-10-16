@@ -1,6 +1,6 @@
 import type { MacroTemplate } from '../../../shared/macros/types';
 import type { UsageMap } from '../../../shared/types';
-import { score } from './frecency';
+import { score } from '../../lib/frecency';
 
 /** Macros valid for one conversation: `global` everywhere, `channel`/`contact`
  *  only on the conversation their key names. A scoped macro with no key is

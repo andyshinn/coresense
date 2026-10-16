@@ -7,7 +7,7 @@ import {
   type UiState,
   type UsageMap,
 } from '../../../shared/types';
-import { recordUsage } from '../../features/message-actions/frecency';
+import { recordUsage } from '../frecency';
 import type { SliceCreator } from './coreState';
 import { keepLast } from './util';
 

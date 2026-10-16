@@ -1,10 +1,10 @@
 import { Binary, Copy, Route } from 'lucide-react';
 import { type ReactNode, useMemo } from 'react';
+import { useChannelKeyStore } from '../../hooks/useChannelKeyStore';
 import { bleFramePurpose, inspectBleFrame, summarizeBleFrame } from '../../lib/bleFrameLayouts';
 import { inspectPacket } from '../../lib/packetInspect';
 import { useStore } from '../../lib/store';
 import { fmtDateTime } from '../../lib/time';
-import { useChannelKeyStore } from '../../lib/useChannelKeyStore';
 import { cn } from '../../lib/utils';
 import { CopyButton } from '../CopyButton';
 import { KeyValueRow } from '../ui/KeyValueRow';
