@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { DiscoveredContact } from '../../shared/contacts/discovered';
-import type { MacroRenderMode, MacroTemplate } from '../../shared/macros/types';
+import type { DiscoveredContact } from '../../../shared/contacts/discovered';
+import type { MacroRenderMode, MacroTemplate } from '../../../shared/macros/types';
 import {
   type ActivityWindowKey,
   type AppSettings,
@@ -54,12 +54,12 @@ import {
   type UiState,
   type UpdateState,
   type UsageMap,
-} from '../../shared/types';
-import { recordUsage } from '../features/message-actions/frecency';
-import { setRendererLogLevel, setRendererLogSink } from './logger';
-import { mergeMessages } from './mergeMessages';
-import type { NeighbourSortKey } from './neighbours';
-import type { PacketLogColumn, PacketLogColumnWidths } from './packetLogColumns';
+} from '../../../shared/types';
+import { recordUsage } from '../../features/message-actions/frecency';
+import { setRendererLogLevel, setRendererLogSink } from '../logger';
+import { mergeMessages } from '../mergeMessages';
+import type { NeighbourSortKey } from '../neighbours';
+import type { PacketLogColumn, PacketLogColumnWidths } from '../packetLogColumns';
 import type {
   CmSortDir,
   CmSortField,
@@ -74,7 +74,7 @@ import type {
   SettingsSectionMeta,
   SettingsTab,
   SettingsUiState,
-} from './storeTypes';
+} from './types';
 
 export type {
   CmHeard,
@@ -91,7 +91,7 @@ export type {
   SettingsPendingTarget,
   SettingsSectionMeta,
   SettingsTab,
-} from './storeTypes';
+} from './types';
 
 /** Rows main returns per history window (`byKey`'s default limit). The renderer
  *  holds more than this by design; a few places need to know the server's unit. */

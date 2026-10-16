@@ -3,8 +3,8 @@
 // store itself never has to import a panel module. store.ts re-exports the
 // types it exported before the move, so existing `from '../lib/store'` imports
 // keep working.
-import type { ContactKind, RawPacket, RepeaterNeighboursPage, SearchCategory } from '../../shared/types';
-import type { NeighbourSortKey } from './neighbours';
+import type { ContactKind, RawPacket, RepeaterNeighboursPage, SearchCategory } from '../../../shared/types';
+import type { NeighbourSortKey } from '../neighbours';
 
 export type LivePacket = RawPacket & { id: string };
 
