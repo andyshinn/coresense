@@ -1,6 +1,7 @@
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
 import { pubkeyFromKey } from '../../shared/conversationKey';
-import { type Contact, hasValidFix, type RepeaterNeighbour } from '../../shared/types';
+import { hasValidFix } from '../../shared/geo';
+import type { Contact, RepeaterNeighbour } from '../../shared/types';
 
 // 'protocol' is reserved for a future firmware that returns the neighbour's name
 // in the response; current firmware sends only the key prefix, so resolveNeighbours

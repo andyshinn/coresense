@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { type Contact, hasValidFix } from '../../shared/types';
+import { hasValidFix } from '../../shared/geo';
+import type { Contact } from '../../shared/types';
 import { useApiClient } from '../lib/apiClientContext';
 import { resolveNeighbours, sortNeighbours } from '../lib/neighbours';
 import { useStore } from '../lib/store';

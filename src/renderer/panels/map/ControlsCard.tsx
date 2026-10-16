@@ -1,6 +1,7 @@
 import { Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { type ContactKind, hasValidFix, type MapSettings } from '../../../shared/types';
+import { hasValidFix } from '../../../shared/geo';
+import type { ContactKind, MapSettings } from '../../../shared/types';
 import { MARKER_KIND_ORDER, MARKER_TYPES, MarkerShape } from '../../components/map/markers/MarkerShape';
 import { Input } from '../../components/ui/input';
 import { useApiClient } from '../../lib/apiClientContext';

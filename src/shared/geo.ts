@@ -34,3 +34,22 @@ export function compassPoint(deg: number): string {
   const idx = Math.round((((deg % 360) + 360) % 360) / 22.5) % 16;
   return POINTS[idx];
 }
+
+/** True iff the contact carries a usable WGS84 fix: both coords present, not
+ *  the 0/0 "no GPS" sentinel, and within valid lat/lon ranges. Corrupt adverts
+ *  can yield out-of-range coords — treat those as no fix rather than letting
+ *  them reach MapLibre, which throws on an invalid LngLat. Structural, so it
+ *  narrows any `{ gpsLat, gpsLon }` shape (Contact, DiscoveredContact, …). */
+export function hasValidFix<T extends { gpsLat?: number | null; gpsLon?: number | null }>(
+  c: T,
+): c is T & { gpsLat: number; gpsLon: number } {
+  return (
+    typeof c.gpsLat === 'number' &&
+    typeof c.gpsLon === 'number' &&
+    (c.gpsLat !== 0 || c.gpsLon !== 0) &&
+    c.gpsLat >= -90 &&
+    c.gpsLat <= 90 &&
+    c.gpsLon >= -180 &&
+    c.gpsLon <= 180
+  );
+}

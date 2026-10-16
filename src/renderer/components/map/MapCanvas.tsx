@@ -2,7 +2,8 @@ import { type AJAXError, Map as MapLibreMap, NavigationControl } from 'maplibre-
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '../../lib/map/maplibre-worker';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { hasValidFix, type MapSettings, type TileManifest } from '../../../shared/types';
+import { hasValidFix } from '../../../shared/geo';
+import type { MapSettings, TileManifest } from '../../../shared/types';
 import type { ApiClient } from '../../lib/api';
 import { log } from '../../lib/logger';
 import { subscribe as subscribeMapBus } from '../../lib/map/bus';

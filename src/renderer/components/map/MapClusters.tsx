@@ -1,7 +1,8 @@
 import { type Map as MapLibreMap, Marker } from 'maplibre-gl';
 import { useEffect, useMemo, useRef } from 'react';
+import { hasValidFix } from '../../../shared/geo';
 import { HOUR_MS } from '../../../shared/time';
-import { type Contact, hasValidFix } from '../../../shared/types';
+import type { Contact } from '../../../shared/types';
 import { useStore } from '../../lib/store';
 import type { CachedMarker } from './cluster/markerCache';
 import {

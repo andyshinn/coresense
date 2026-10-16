@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { hasValidFix } from '../../../shared/types';
+import { hasValidFix } from '../../../shared/geo';
 import { MARKER_KIND_ORDER, MARKER_TYPES, MarkerShape } from '../../components/map/markers/MarkerShape';
 import { useStore } from '../../lib/store';
 

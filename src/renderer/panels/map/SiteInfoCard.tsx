@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
-import { type Contact, hasValidFix } from '../../../shared/types';
+import { hasValidFix } from '../../../shared/geo';
+import type { Contact } from '../../../shared/types';
 import { centroidOf } from '../../components/map/markers/cluster';
 import { MARKER_TYPES, MarkerShape } from '../../components/map/markers/MarkerShape';
 import { Button } from '../../components/ui/button';

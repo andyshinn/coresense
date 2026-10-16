@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { CONTACT_KINDS, type ContactKind, hasValidFix, isPathHashSize } from '../../../src/shared/types';
+import { hasValidFix } from '../../../src/shared/geo';
+import { CONTACT_KINDS, type ContactKind, isPathHashSize } from '../../../src/shared/types';
 
 describe('hasValidFix', () => {
   it('accepts an in-range, non-0/0 fix', () => {

@@ -1,7 +1,8 @@
 import { MapIcon, MapPinOff } from 'lucide-react';
 import { useEffect } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { type Contact, hasValidFix } from '../../../shared/types';
+import { hasValidFix } from '../../../shared/geo';
+import type { Contact } from '../../../shared/types';
 import { logError, MapErrorFallback } from '../../components/errors/ErrorFallback';
 import { MapCanvas } from '../../components/map/MapCanvas';
 import { NeighbourMapLayer } from '../../components/map/NeighbourMapLayer';

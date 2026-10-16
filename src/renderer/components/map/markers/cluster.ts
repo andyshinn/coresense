@@ -1,6 +1,6 @@
 import Supercluster from 'supercluster';
-import { haversineMeters } from '../../../../shared/geo';
-import { type Contact, type ContactKind, hasValidFix } from '../../../../shared/types';
+import { hasValidFix, haversineMeters } from '../../../../shared/geo';
+import type { Contact, ContactKind } from '../../../../shared/types';
 
 export interface ContactPoint {
   contact: Contact;

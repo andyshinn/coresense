@@ -1,6 +1,7 @@
 import { MessageSquare, Star, X } from 'lucide-react';
+import { hasValidFix } from '../../../shared/geo';
 import { abbreviatePubkey } from '../../../shared/pubkey';
-import { type Contact, hasValidFix } from '../../../shared/types';
+import type { Contact } from '../../../shared/types';
 import { MARKER_TYPES, MarkerShape } from '../../components/map/markers/MarkerShape';
 import { Button } from '../../components/ui/button';
 import { publish as publishMapBus } from '../../lib/map/bus';

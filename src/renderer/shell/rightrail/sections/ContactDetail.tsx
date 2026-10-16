@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { formatHops, formatLastHeard, formatObservedHops } from '../../../../shared/contacts/discovered';
-import { hasValidFix } from '../../../../shared/types';
+import { hasValidFix } from '../../../../shared/geo';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { CopyButton } from '../../../components/CopyButton';
