@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
 import { stateHolder } from '../../../src/main/state/holder';
 import { transportManager } from '../../../src/main/transport/manager';
+import type { ApiErrorBody } from '../../../src/shared/api/contract';
 import { type AutoAddConfig, DEFAULT_AUTO_ADD_CONFIG } from '../../../src/shared/types';
 import { installSessionStub, json, testRoutes } from '../../support/api';
 
@@ -258,5 +259,36 @@ describe('PUT /api/device/auto-add — autoadd_max_hops', () => {
     await putAutoAdd(panelSave({ mode: 'all', radioMaxHops: 3 }));
 
     expect(rec.flags[0].radioMaxHops).toBe(3);
+  });
+});
+
+describe('PUT /api/device/auto-add — a throwing setter', () => {
+  // The device-settings service turns a throw into a rejection, so a dropped
+  // link is a 503 like a refusal, not a 500 `internal`.
+  it('answers 503 with the message', async () => {
+    const rec = connectedRadio(0);
+    rec.adapter.setAutoAddConfig = () => Promise.reject(new Error('link lost'));
+
+    const res = await putAutoAdd(panelSave({ mode: 'selected' }));
+
+    expect(res.status).toBe(503);
+    expect((await res.json()) as ApiErrorBody).toEqual({ error: 'link lost' });
+    expect(rec.otherParams).toEqual([]);
+  });
+});
+
+describe('GET /api/device/auto-add', () => {
+  it('serves the stored config', async () => {
+    seedRadioState(1, 2);
+
+    const res = await testRoutes().request('/api/device/auto-add');
+
+    expect(res.status).toBe(200);
+    expect((await res.json()) as AutoAddConfig).toEqual({
+      ...DEFAULT_AUTO_ADD_CONFIG,
+      mode: 'selected',
+      manualAddContacts: 1,
+      radioMaxHops: 2,
+    });
   });
 });
