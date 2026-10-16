@@ -4,9 +4,10 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [
     // Exposes version (from package.json) and git SHA at build time via the
-    // virtual modules `~build/info` and `~build/git`. Read in src/main/about.ts
-    // and forwarded to the renderer through the existing Capabilities handshake
-    // — single source of truth.
+    // virtual modules `~build/package` and `~build/git`. Read in
+    // src/main/build-info.ts, surfaced by src/main/about.ts and forwarded to
+    // the renderer through the existing Capabilities handshake — single source
+    // of truth.
     Info({}),
   ],
   build: {
@@ -22,6 +23,9 @@ export default defineConfig({
         'ws',
         'bufferutil',
         'utf-8-validate',
+        // Forge externalizes Node builtins from `builtinModules`, which omits
+        // prefix-only builtins like node:sqlite, so it must be listed by hand.
+        // Only `pnpm start` surfaces the miss; `make` builds fine without it.
         'node:sqlite',
       ],
     },

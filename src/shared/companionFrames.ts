@@ -1,6 +1,8 @@
 // Names for MeshCore companion-radio frame codes (the first byte of every frame over
-// BLE/serial). Shared so main's frame parser and the renderer's standalone decoder,
-// which is handed a whole frame, name frames identically.
+// BLE/serial). A copy of the names meshcore-ts derives from Protocol.PUSH/RESP, kept
+// so the renderer's standalone decoder (which cannot import the lib) names frames the
+// way main's parser does. tests/unit/main/transport/companion-frames.test.ts fails
+// when the two drift.
 
 const PUSH_NAMES: Record<number, string> = {
   128: 'PUSH_ADVERT',
@@ -49,6 +51,7 @@ const RESP_NAMES: Record<number, string> = {
   23: 'RESP_TUNING_PARAMS',
   24: 'RESP_STATS',
   25: 'RESP_AUTOADD_CONFIG',
+  26: 'RESP_ALLOWED_REPEAT_FREQ',
   27: 'RESP_CHANNEL_DATA_RECV',
   28: 'RESP_DEFAULT_FLOOD_SCOPE',
 };

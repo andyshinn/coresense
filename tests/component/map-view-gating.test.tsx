@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/renderer/components/map/MapCanvas', () => ({
@@ -8,6 +8,7 @@ vi.mock('../../src/renderer/components/map/MapCanvas', () => ({
 import { useStore } from '../../src/renderer/lib/store';
 import { MapView } from '../../src/renderer/panels/MapView';
 import type { TileManifest } from '../../src/shared/types';
+import { renderWithClient } from '../support/renderWithClient';
 
 const presentManifest: TileManifest = {
   missing: false,
@@ -21,7 +22,6 @@ const presentManifest: TileManifest = {
     tileType: 1,
   },
 };
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 
 beforeEach(() => useStore.getState().applyMapManifest(presentManifest));
 afterEach(() => useStore.getState().applyMapTileStatus({ keyConfigured: false, keyRejected: false }));
@@ -29,20 +29,20 @@ afterEach(() => useStore.getState().applyMapTileStatus({ keyConfigured: false, k
 describe('MapView gating', () => {
   it('shows the empty-state when tiles are missing', () => {
     useStore.getState().applyMapManifest({ missing: true, basemap: null });
-    render(<MapView client={client} />);
+    renderWithClient(<MapView />);
     expect(screen.getByText(/Map tiles not installed/i)).toBeTruthy();
   });
 
   it('renders the backdrop + banner when no key is set', () => {
     useStore.getState().applyMapTileStatus({ keyConfigured: false, keyRejected: false });
-    render(<MapView client={client} />);
+    renderWithClient(<MapView />);
     expect(screen.getByTestId('map-canvas')).toBeTruthy();
     expect(screen.getByText(/Add a Protomaps API key/i)).toBeTruthy();
   });
 
   it('renders the map with no banner when the key is accepted', () => {
     useStore.getState().applyMapTileStatus({ keyConfigured: true, keyRejected: false });
-    render(<MapView client={client} />);
+    renderWithClient(<MapView />);
     expect(screen.getByTestId('map-canvas')).toBeTruthy();
     expect(screen.queryByText(/Add a Protomaps API key/i)).toBeNull();
   });

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { UiState } from '../../shared/types';
 import { type ApiClient, api } from '../lib/api';
+import { log } from '../lib/logger';
 import { useStore } from '../lib/store';
 
 /** Longest a `ui` change can sit unwritten while something is bursting. */
@@ -53,8 +54,9 @@ export function useUiStatePersistence(client: ApiClient | null, hydrated: boolea
       chain = chain.then(async () => {
         try {
           await api.putUiState(client, ui);
-        } catch {
+        } catch (err) {
           // Non-fatal; renderer state is the source of truth for this session.
+          log.warn('ui-state: write failed', err);
         }
       });
       return chain;

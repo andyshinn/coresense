@@ -1,45 +1,35 @@
-import { useState } from 'react';
 import type { Contact } from '../../../shared/types';
 import { RelativeTime } from '../../components/RelativeTime';
-import { type ApiClient, api } from '../../lib/api';
+import { useBusyAction } from '../../hooks/useBusyAction';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
+import { TabToolbar } from './TabToolbar';
 
 interface Props {
   contact: Contact;
-  client: ApiClient | null;
 }
 
-export function StatusTab({ contact, client }: Props) {
+export function StatusTab({ contact }: Props) {
+  const client = useApiClient();
   const status = useStore((s) => s.repeaterStatusByKey[contact.key]);
-  const [busy, setBusy] = useState(false);
-
-  const onRefresh = async () => {
-    if (!client || busy) return;
-    setBusy(true);
-    try {
-      await api.repeaterStatus(client, contact.key);
-      notify.success('Status requested');
-    } catch (err) {
-      notify.error(`Status request failed: ${(err as Error).message}`, err);
-    } finally {
-      setBusy(false);
-    }
-  };
+  const [onRefresh, busy] = useBusyAction(async () => {
+    if (!client) return;
+    await api.repeaterStatus(client, contact.key);
+    notify.success('Status requested');
+  }, 'Status request');
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-auto p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">Repeater status</h3>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={!client || busy}
-          className="rounded border border-cs-border bg-cs-bg-3 px-2 py-0.5 text-[11px] text-cs-text-muted hover:bg-cs-accent-soft/30 hover:text-cs-text disabled:opacity-50"
-        >
-          {busy ? 'Requesting…' : 'Request status'}
-        </button>
-      </div>
+      <TabToolbar
+        title="Repeater status"
+        label="Request status"
+        busyLabel="Requesting…"
+        busy={busy}
+        disabled={!client}
+        onClick={onRefresh}
+      />
 
       {!status && (
         <p className="text-[12px] text-cs-text-dim">

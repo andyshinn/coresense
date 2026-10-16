@@ -3,9 +3,8 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { bus } from '../../../src/main/events/bus';
 import { FileReplayTransport } from '../../../src/main/transport/replay';
-import type { RawPacket } from '../../../src/shared/types';
+import { captureBus } from '../../support/bus';
 
 describe('FileReplayTransport', () => {
   it('replays fixture frames onto the bus as companion packets', async () => {
@@ -14,10 +13,10 @@ describe('FileReplayTransport', () => {
     // RESP_DEVICE_INFO (0x0d) then a short RESP_SELF_INFO-ish (0x05) frame.
     writeFileSync(fixture, JSON.stringify([{ hex: '0d0babcd' }, '05aa']));
 
-    const packets: RawPacket[] = [];
-    bus.on('packet', (p: RawPacket) => packets.push(p));
+    const cap = captureBus('packet');
 
     await new FileReplayTransport(fixture).connect('replay');
+    const packets = cap.values;
 
     expect(packets).toHaveLength(2);
     expect(packets[0].kind).toBe('companion');
@@ -33,10 +32,10 @@ describe('FileReplayTransport', () => {
     // [0x88][snr*4 i8=0x14 → 20/4=5][rssi i8=0xd8 → -40][mesh=aabbcc]
     writeFileSync(fixture, JSON.stringify(['8814d8aabbcc']));
 
-    const packets: RawPacket[] = [];
-    bus.on('packet', (p: RawPacket) => packets.push(p));
+    const cap = captureBus('packet');
 
     await new FileReplayTransport(fixture).connect('replay');
+    const packets = cap.values;
 
     expect(packets).toHaveLength(1);
     expect(packets[0].kind).toBe('mesh');
@@ -49,11 +48,10 @@ describe('FileReplayTransport', () => {
     const dir = mkdtempSync(join(tmpdir(), 'replay-test-'));
     const fixture = join(dir, 'does-not-exist.json');
 
-    const packets: RawPacket[] = [];
-    bus.on('packet', (p: RawPacket) => packets.push(p));
+    const cap = captureBus('packet');
 
     await expect(new FileReplayTransport(fixture).connect('x')).resolves.toBeUndefined();
-    expect(packets).toHaveLength(0);
+    expect(cap.values).toHaveLength(0);
   });
 
   it('records sendBytes without emitting packets', async () => {

@@ -1,4 +1,6 @@
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
+import type { ContactKey } from '../../shared/conversationKey';
+import { contactKey } from '../../shared/conversationKey';
 import type { Contact } from '../../shared/types';
 
 /** A contact merged from both store slices for the detail panel. The discovered
@@ -8,7 +10,7 @@ import type { Contact } from '../../shared/types';
  *  node has no on-radio row. */
 export interface ResolvedContact {
   publicKeyHex: string;
-  key: string; // `c:${publicKeyHex}`
+  key: ContactKey;
   name: string;
   kind: DiscoveredContact['kind'];
   onRadio: boolean;
@@ -66,7 +68,7 @@ export function resolveContact(
   const kind = d?.kind ?? c?.kind ?? 'chat';
   return {
     publicKeyHex: d?.publicKeyHex ?? c?.publicKeyHex ?? publicKeyHex,
-    key: `c:${d?.publicKeyHex ?? c?.publicKeyHex ?? publicKeyHex}`,
+    key: contactKey(d?.publicKeyHex ?? c?.publicKeyHex ?? publicKeyHex),
     name,
     kind,
     onRadio: d?.onRadio ?? c != null,

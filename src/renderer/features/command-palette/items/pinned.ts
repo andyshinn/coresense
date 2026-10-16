@@ -1,13 +1,14 @@
+import type { ActiveKey } from '../../../../shared/keys';
 import type { Channel, Contact } from '../../../../shared/types';
 import type { PaletteItem } from '../types';
 import { resolveKeyItem } from './tools';
 
 export interface BuildPinnedArgs {
-  pinnedKeys: string[];
+  pinnedKeys: ActiveKey[];
   activeKey: string;
   channels: Channel[];
   contacts: Contact[];
-  setActiveKey: (key: string) => void;
+  setActiveKey: (key: ActiveKey) => void;
   close: () => void;
 }
 
@@ -28,7 +29,6 @@ export function buildPinnedItems({
       ...item,
       id: `pinned:${key}`,
       group: 'pinned',
-      groupLabel: 'Pinned',
       run: () => {
         setActiveKey(key);
         close();

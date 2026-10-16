@@ -4,7 +4,6 @@ import type { Message, MessageStyle, TimeFormatPref } from '../../shared/types';
 import { DeleteConfirmPopover } from '../features/message-actions/DeleteConfirmPopover';
 import { MessageQuickBar } from '../features/message-actions/MessageQuickBar';
 import { useIdentityHash } from '../hooks/useIdentityHash';
-import type { ApiClient } from '../lib/api';
 import { isKnownHashMode } from '../lib/hopWarmth';
 import { fmtDateTime, fmtMessageTime } from '../lib/time';
 import { cn } from '../lib/utils';
@@ -41,8 +40,6 @@ export interface MessageItemProps {
    *  Suppressed list-wide, not just on the owning row, because the menu can be
    *  drawn over neighbours the cursor then travels across. */
   contextMenuOpen?: boolean;
-  /** Needed by the quick bar's macro affordances; absent ⇒ no macro cluster. */
-  client?: ApiClient | null;
   onMacro?: (name: string, text: string) => void;
   /** Retry a failed send. Forwarded as-is rather than wrapped like onBlock:
    *  the overflow menu shows "Re-send" only when this is non-null. */
@@ -60,7 +57,7 @@ const STATE_LABEL: Record<Message['state'], string> = {
 
 /**
  * The single, density-driven message presentation shared by the channel/DM
- * conversation list (via MessageRow) and the Unreads triage previews. Rich
+ * conversation list (via MessageList's ItemRow) and the Unreads triage previews. Rich
  * shows avatar + sender header + bubble + meta; compact is one inline line with
  * the sender in front. Both densities show hop count + path-hash mode (from the
  * first path seen) next to the timestamp. Interactivity is opt-in: callers that
@@ -81,7 +78,6 @@ export function MessageItem({
   onReact,
   onBlock,
   contextMenuOpen,
-  client,
   onMacro,
   onResend,
 }: MessageItemProps) {
@@ -146,6 +142,7 @@ export function MessageItem({
             <span title={fmtDateTime(message.ts, timeFormat)}>{fmtMessageTime(message.ts, timeFormat)}</span>
             <StateChip message={message} />
             <PathStatsMeta stats={stats} />
+            {/* TODO: nothing writes meta.rssi yet; this lights up once the pending meshcore-ts RSSI work lands. */}
             {message.meta?.rssi != null && <RssiChip rssi={message.meta.rssi} showHops={false} />}
           </div>
         </div>
@@ -166,7 +163,6 @@ export function MessageItem({
           message={message}
           isSelf={isSelf}
           senderName={senderName}
-          client={client ?? null}
           onReact={onReact}
           onReply={(name) => onReply?.(name)}
           onBlock={(prefill) => onBlock?.(prefill)}
@@ -174,14 +170,7 @@ export function MessageItem({
           onResend={onResend}
         />
       )}
-      {interactive && (
-        <DeleteConfirmPopover
-          messageId={message.id}
-          conversationKey={message.key}
-          preview={message.body}
-          client={client ?? null}
-        />
-      )}
+      {interactive && <DeleteConfirmPopover messageId={message.id} conversationKey={message.key} preview={message.body} />}
       {interactive ? (
         // biome-ignore lint/a11y/useSemanticElements: cannot be a <button> because MentionPill renders a nested button
         <div

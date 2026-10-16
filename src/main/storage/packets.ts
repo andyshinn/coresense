@@ -1,12 +1,18 @@
 import { RESP_PRIVATE_KEY } from '../../shared/companionFrames';
+import { hexToBytes } from '../../shared/hex';
 import type { RawPacket } from '../../shared/types';
-import { openDb } from './db';
+import { all, openDb } from './db';
 
-// Re-derive byte arrays from hex on read so we don't store them twice.
-function hexToBytes(hex: string): number[] {
-  const out: number[] = [];
-  for (let i = 0; i + 1 < hex.length; i += 2) out.push(parseInt(hex.slice(i, i + 2), 16));
-  return out;
+interface Row {
+  ts: number;
+  transport: string;
+  kind: string;
+  hex: string;
+  payload_hex: string;
+  snr: number | null;
+  rssi: number | null;
+  code: number | null;
+  code_name: string | null;
 }
 
 // Prune eagerly after each insert. Until the table exceeds keep, the SELECT MAX(id) + DELETE is a cheap no-op on the id primary key.
@@ -41,22 +47,14 @@ export const packetStore = {
   /** Newest `limit` rows, returned oldest→newest so the live list appends in order. */
   recent(limit: number): RawPacket[] {
     if (limit <= 0) return [];
-    const rows = openDb()
-      .prepare(
+    const rows = all<Row>(
+      openDb().prepare(
         `SELECT ts, transport, kind, hex, payload_hex, snr, rssi, code, code_name
          FROM packets ORDER BY id DESC LIMIT ?`,
-      )
-      .all(limit) as Array<{
-      ts: number;
-      transport: string;
-      kind: string;
-      hex: string;
-      payload_hex: string;
-      snr: number | null;
-      rssi: number | null;
-      code: number | null;
-      code_name: string | null;
-    }>;
+      ),
+      limit,
+    );
+    // Re-derive byte arrays from hex on read so we don't store them twice.
     return rows.reverse().map((r) => ({
       timestamp: r.ts,
       transportType: r.transport as RawPacket['transportType'],

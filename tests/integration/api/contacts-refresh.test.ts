@@ -1,31 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createRoutes } from '../../../src/main/api/routes';
-import { setProtocolSession } from '../../../src/main/protocol';
 import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
 import { endContactWalk, noteContactWalkStreaming } from '../../../src/main/state/contactWalk';
 import { transportManager } from '../../../src/main/transport/manager';
-import { DEFAULT_SYNC_PROGRESS, type SyncProgress } from '../../../src/shared/types';
+import { type Contact, DEFAULT_SYNC_PROGRESS, type SyncProgress } from '../../../src/shared/types';
+import { installSessionStub, testRoutes } from '../../support/api';
 
-function app() {
-  return createRoutes({
-    port: () => 8080,
-    wsClients: () => 0,
-    bridgeStatus: () => ({ running: false, clients: 0 }) as never,
-  });
-}
+/** `n` placeholder contacts: the route only counts what the walk returns. */
+const someContacts = (n: number) => Array.from({ length: n }, () => ({}) as Contact);
 
 /** A SessionAdapter double exposing only the two methods the route uses. */
-function spySession(opts: { contacts?: () => Promise<unknown[]>; phase?: SyncProgress['phase'] } = {}) {
-  const getContacts = vi.fn(opts.contacts ?? (() => Promise.resolve([{}, {}, {}])));
+function spySession(opts: { contacts?: SessionAdapter['getContacts']; phase?: SyncProgress['phase'] } = {}) {
+  const getContacts = vi.fn(opts.contacts ?? (() => Promise.resolve(someContacts(3))));
   const getSyncProgress = vi.fn(() => ({ ...DEFAULT_SYNC_PROGRESS, phase: opts.phase ?? 'done' }));
-  setProtocolSession({ getContacts, getSyncProgress } as unknown as SessionAdapter);
+  installSessionStub({ getContacts, getSyncProgress });
   return { getContacts, getSyncProgress };
 }
 
-const post = () => app().request('/api/contacts/refresh', { method: 'POST' });
+const post = () => testRoutes().request('/api/contacts/refresh', { method: 'POST' });
 
 afterEach(() => {
-  setProtocolSession(null);
   // Walk state is module-level (it has to be — it is shared between the route
   // and the auto-refresh timer), so drop it between cases.
   endContactWalk();
@@ -74,8 +67,8 @@ describe('POST /api/contacts/refresh', () => {
   // first walk's END_OF_CONTACTS delete everything the second hasn't reached.
   it('refuses a second refresh while the first request is still outstanding', async () => {
     transportManager.setState('connected');
-    let finish!: (v: unknown[]) => void;
-    const { getContacts } = spySession({ contacts: () => new Promise<unknown[]>((r) => (finish = r)) });
+    let finish!: (v: Contact[]) => void;
+    const { getContacts } = spySession({ contacts: () => new Promise<Contact[]>((r) => (finish = r)) });
 
     const first = post();
     await vi.waitFor(() => expect(getContacts).toHaveBeenCalledTimes(1));
@@ -100,7 +93,7 @@ describe('POST /api/contacts/refresh', () => {
       contacts: () => {
         // Frames are flowing when the 10s waiter gives up and resolves us.
         noteContactWalkStreaming();
-        return Promise.resolve([{}, {}]);
+        return Promise.resolve(someContacts(2));
       },
     });
 

@@ -2,26 +2,21 @@ import { ArrowLeft, Check, Info } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
-import { type ApiClient, api } from '@/lib/api';
+import { api } from '@/lib/api';
+import { useApiClient } from '@/lib/apiClientContext';
 import { notify } from '@/lib/notify';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
-import {
-  buildSampleContext,
-  lintTemplate,
-  MACRO_VARIABLES,
-  resolvePath,
-  structureOf,
-  validateTemplate,
-} from '../../../shared/macros';
+import { errorMessage } from '../../../shared/errors';
+import { lintTemplate, MACRO_VARIABLES, resolvePath, sampleStructure, validateTemplate } from '../../../shared/macros';
 import type { MacroScope, MacroTemplate } from '../../../shared/macros/types';
-import { ModeChip } from './components/chips';
+import { ModeChip } from '../../features/macros/chips';
 import { MacroEditor } from './studio/MacroEditor';
 import { PreviewPane } from './studio/PreviewPane';
 import { useStudio } from './studio/useStudio';
 import { VariableHoverCard } from './studio/VariableHoverCard';
 
-const QUICK_VARS = ['sender_name', 'rssi', 'snr', 'my_pos', 'peer_name'];
+export const QUICK_VARS = ['sender_name', 'snr', 'my_pos', 'peer_name'];
 const SCOPES: { value: MacroScope; label: string }[] = [
   { value: 'global', label: 'Global' },
   { value: 'channel', label: 'Channel' },
@@ -29,31 +24,39 @@ const SCOPES: { value: MacroScope; label: string }[] = [
 ];
 
 interface MacroStudioProps {
-  client: ApiClient | null;
   macro: MacroTemplate | null;
   onClose: () => void;
 }
 
-export function MacroStudio({ client, macro, onClose }: MacroStudioProps) {
+export function MacroStudio({ macro, onClose }: MacroStudioProps) {
+  const client = useApiClient();
   const st = useStudio(macro);
   const channels = useStore((s) => s.channels);
   const contacts = useStore((s) => s.contacts);
   const distanceUnit = useStore((s) => s.appSettings.distanceUnit);
   const setMacroStudioBridge = useStore((s) => s.setMacroStudioBridge);
+  const setMacroStudioPreviewMode = useStore((s) => s.setMacroStudioPreviewMode);
   const [saving, setSaving] = useState(false);
 
-  // Publish a handle so the Reference panel (rendered in the right rail) can
-  // insert into this editor. Insert callbacks are stable, so this only re-runs
-  // when the preview mode changes; cleared on unmount.
+  // The Reference panel's sample context follows the preview mode. Published on
+  // its own: it changes while the studio is open, and re-publishing the bridge
+  // for it re-opened the rail on every Reply/New send toggle.
   useEffect(() => {
-    setMacroStudioBridge({ previewMode: st.previewMode, insertVar: st.insertVar, insertText: st.insertText });
+    setMacroStudioPreviewMode(st.previewMode);
+  }, [st.previewMode, setMacroStudioPreviewMode]);
+
+  // Publish a handle so the Reference panel (rendered in the right rail) can
+  // insert into this editor. Insert callbacks are stable, so in practice this
+  // runs once per mount (opening the rail once); cleared on unmount.
+  useEffect(() => {
+    setMacroStudioBridge({ insertVar: st.insertVar, insertText: st.insertText });
     return () => setMacroStudioBridge(null);
-  }, [st.previewMode, st.insertVar, st.insertText, setMacroStudioBridge]);
+  }, [st.insertVar, st.insertText, setMacroStudioBridge]);
 
   const validation = useMemo(() => validateTemplate(st.value), [st.value]);
   // Non-blocking: warnings never gate canSave, unlike `validation`.
   const warnings = useMemo(() => lintTemplate(st.value), [st.value]);
-  const structureRoot = useMemo(() => structureOf(buildSampleContext()), []);
+  const structureRoot = sampleStructure();
   const canSave = !!client && !saving && st.name.trim() !== '' && st.value.trim() !== '' && validation.ok;
 
   const save = async () => {
@@ -72,7 +75,7 @@ export function MacroStudio({ client, macro, onClose }: MacroStudioProps) {
       notify.success(macro ? 'Macro saved' : 'Macro created');
       onClose();
     } catch (err) {
-      notify.error(`Couldn’t save macro: ${(err as Error).message}`, err);
+      notify.error(`Couldn’t save macro: ${errorMessage(err)}`, err);
     } finally {
       setSaving(false);
     }

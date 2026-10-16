@@ -1,17 +1,16 @@
 import type { Marker } from 'maplibre-gl';
-import type { Contact } from '../../../../shared/types';
+import type { MarkerSubject } from '../markers/markerHtml';
 
-/** Cached marker entry tracking the live MapLibre marker, its render signature, and contact kind. */
+/** Cached marker entry tracking the live MapLibre marker and its render signature. */
 export interface CachedMarker {
   marker: Marker;
   signature: string;
-  kind: Contact['kind'] | null;
 }
 
 /** Builds a stable signature string capturing the inputs that affect a marker's rendered visual. */
 export function markerSignature(
   prefix: string,
-  c: Contact,
+  c: MarkerSubject,
   state: { selected: boolean; faded: boolean; stale: boolean; showLabel: boolean },
 ): string {
   return [

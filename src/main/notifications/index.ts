@@ -86,6 +86,7 @@ export function startNotifications(): void {
     getMessagesForKey: (key) => stateHolder().getMessagesForKey(key),
     isBlocked: isBlockedNow,
     debug: (message) => log.debug(message),
+    warn: (message) => log.warn(message),
   });
 
   bus.on('messages', (key: string, list: Message[]) => router.handleMessages(key, list));

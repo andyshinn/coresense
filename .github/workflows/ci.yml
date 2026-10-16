@@ -15,12 +15,13 @@ concurrency:
   # never cancel an in-flight tag/release build; do cancel superseded PR/main runs
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
+# pnpm comes from package.json "packageManager" (pnpm/action-setup reads it when
+# given no version), so local and CI pnpm match. It is held at 11.10.0: pnpm
+# 11.12.0 crashes action-setup with "Cannot use 'in' operator to search for
+# 'integrity' in undefined". See https://github.com/pnpm/action-setup/issues/276
 env:
+  # Electron 44 bundles Node 24; mise.toml and @types/node track the same major.
   NODE_VERSION: '24.15.0'
-  # Pinned: pnpm 11.12.0 crashes action-setup with "Cannot use 'in' operator to
-  # search for 'integrity' in undefined". Hold at the last known-good release.
-  # See https://github.com/pnpm/action-setup/issues/276
-  PNPM_VERSION: '11.10.0'
 
 jobs:
   checks:
@@ -30,8 +31,6 @@ jobs:
       - name: Install native build deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev
       - uses: pnpm/action-setup@v6.0.9
-        with:
-          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -39,8 +38,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
-      - run: pnpm test:unit
-      - run: pnpm test:integration
+      # One run of every vitest project (unit, integration, dom) under coverage.
       - run: pnpm test:coverage
       - uses: actions/upload-artifact@v7
         if: always()
@@ -55,8 +53,6 @@ jobs:
       - name: Install native build + headless Electron deps
         run: sudo apt-get update && sudo apt-get install -y libudev-dev xvfb
       - uses: pnpm/action-setup@v6.0.9
-        with:
-          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -97,8 +93,6 @@ jobs:
         if: matrix.platform == 'linux'
         run: sudo apt-get update && sudo apt-get install -y libudev-dev rpm fakeroot
       - uses: pnpm/action-setup@v6.0.9
-        with:
-          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}

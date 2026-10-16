@@ -16,7 +16,7 @@
 //   7654  HTTP/WS  installed      7656  bridge TCP  installed
 //   7754  HTTP/WS  dev            7756  bridge TCP  dev
 //
-// (The bridge halves live in src/shared/types.ts, since the renderer shows
+// (The bridge halves live in src/shared/types/platform.ts, since the renderer shows
 // them in the Proxy settings panel.)
 
 /** Port an installed (packaged) instance claims. */

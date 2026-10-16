@@ -1,9 +1,9 @@
-import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
 import { buildReplyContext } from '../../../src/main/macros/contextBuilder';
 import { renderMacro } from '../../../src/main/macros/service';
 import { messagesStore } from '../../../src/main/storage/messages';
 import type { DeviceIdentity, DeviceInfo, Owner } from '../../../src/shared/types';
+import { channelMsgV1, channelMsgV3, contactMsgV3 } from '../../support/companionFrames';
 import { makeTestSession } from '../../support/session-harness';
 
 // The V3 message frames carry a signal header the V1 frames do not:
@@ -26,53 +26,9 @@ import { makeTestSession } from '../../support/session-harness';
 // emit that, so if a decoder starts reading byte 2 again the value surfaces
 // here and these tests fail, instead of the bug reaching a radio.
 
-// RESP_CHANNEL_MSG_RECV_V3 (0x11): [0x11][snr*4 i8][rsv][rsv][idx][path_len]
-// [txt_type][ts u32 LE][body]. path_len 0xFF = direct (no mesh observation).
-function channelMsgV3(idx: number, ts: number, body: string, snrQ: number, reserved = 0): Buffer {
-  const text = Buffer.from(body, 'utf8');
-  const frame = Buffer.alloc(11 + text.length);
-  frame[0] = 0x11;
-  frame.writeInt8(snrQ, 1);
-  frame.writeInt8(reserved, 2); // reserved1 — firmware always 0
-  frame.writeInt8(reserved, 3); // reserved2 — firmware always 0
-  frame[4] = idx;
-  frame[5] = 0xff;
-  frame[6] = 0; // txt_type = plain
-  frame.writeUInt32LE(ts, 7);
-  text.copy(frame, 11);
-  return frame;
-}
-
-// RESP_CHANNEL_MSG_RECV (0x08), the V1 shape: no signal header at all —
-// [0x08][idx][path_len][txt_type][ts u32 LE][body].
-function channelMsgV1(idx: number, ts: number, body: string): Buffer {
-  const text = Buffer.from(body, 'utf8');
-  const frame = Buffer.alloc(8 + text.length);
-  frame[0] = 0x08;
-  frame[1] = idx;
-  frame[2] = 0xff;
-  frame[3] = 0;
-  frame.writeUInt32LE(ts, 4);
-  text.copy(frame, 8);
-  return frame;
-}
-
-// RESP_CONTACT_MSG_RECV_V3 (0x10): [0x10][snr*4 i8][rsv][rsv]
-// [sender pubkey prefix 6B][path_len][txt_type][ts u32 LE][body].
-function contactMsgV3(prefixHex: string, ts: number, body: string, snrQ: number, reserved = 0): Buffer {
-  const text = Buffer.from(body, 'utf8');
-  const frame = Buffer.alloc(16 + text.length);
-  frame[0] = 0x10;
-  frame.writeInt8(snrQ, 1);
-  frame.writeInt8(reserved, 2); // reserved1 — firmware always 0
-  frame.writeInt8(reserved, 3); // reserved2 — firmware always 0
-  Buffer.from(prefixHex, 'hex').copy(frame, 4);
-  frame[10] = 0xff;
-  frame[11] = 0; // txt_type = plain
-  frame.writeUInt32LE(ts, 12);
-  text.copy(frame, 16);
-  return frame;
-}
+// The frame layouts (RESP_CHANNEL_MSG_RECV_V3 0x11, RESP_CONTACT_MSG_RECV_V3
+// 0x10, the V1 RESP_CHANNEL_MSG_RECV 0x08) are in tests/support/companionFrames.ts;
+// `reserved` writes the same value into both reserved bytes.
 
 function channelSession() {
   const s = makeTestSession();
@@ -89,7 +45,7 @@ const self = {
 describe('V3 reserved bytes never become meta.rssi', () => {
   it('leaves rssi off a channel message, even when byte 2 looks like an RSSI', () => {
     const { receive } = channelSession();
-    receive(channelMsgV3(0, 1_700_000_000, 'Alice: hi', 48, -73));
+    receive(channelMsgV3(0, 1_700_000_000, 'Alice: hi', { snrQ: 48, reserved: -73 }));
 
     const row = messagesStore.byKey('ch:General')[0];
     expect(row.body).toBe('hi');
@@ -100,7 +56,7 @@ describe('V3 reserved bytes never become meta.rssi', () => {
   it('leaves rssi off a DM, even when byte 2 looks like an RSSI', () => {
     const { receive } = makeTestSession();
     const prefix = 'a1b2c3d4e5f6';
-    receive(contactMsgV3(prefix, 1_700_000_100, 'dm body', -20, -104));
+    receive(contactMsgV3(prefix, 1_700_000_100, 'dm body', { snrQ: -20, reserved: -104 }));
 
     const row = messagesStore.byKey(`c:${prefix}`)[0];
     expect(row.body).toBe('dm body');
@@ -110,8 +66,8 @@ describe('V3 reserved bytes never become meta.rssi', () => {
 
   it('ignores byte 2 per frame — two frames differing only there both stay clean', () => {
     const { receive } = channelSession();
-    receive(channelMsgV3(0, 1_700_000_200, 'Alice: near', 40, -42));
-    receive(channelMsgV3(0, 1_700_000_201, 'Alice: far', 40, -119));
+    receive(channelMsgV3(0, 1_700_000_200, 'Alice: near', { snrQ: 40, reserved: -42 }));
+    receive(channelMsgV3(0, 1_700_000_201, 'Alice: far', { snrQ: 40, reserved: -119 }));
 
     const rows = messagesStore.byKey('ch:General');
     expect(rows).toHaveLength(2);
@@ -123,7 +79,7 @@ describe('V3 reserved bytes never become meta.rssi', () => {
 
   it('omits rssi on a firmware-faithful frame, where the reserved bytes are 0', () => {
     const { receive } = channelSession();
-    receive(channelMsgV3(0, 1_700_000_250, 'Alice: real', 48));
+    receive(channelMsgV3(0, 1_700_000_250, 'Alice: real', { snrQ: 48 }));
 
     const row = messagesStore.byKey('ch:General')[0];
     expect(row.body).toBe('real');
@@ -141,7 +97,7 @@ describe('V3 reserved bytes never become meta.rssi', () => {
 
   it('renders {{ rssi }} as the ? placeholder, matching the manifest caveat', () => {
     const { receive } = channelSession();
-    receive(channelMsgV3(0, 1_700_000_400, 'Alice: ping', 48, -87));
+    receive(channelMsgV3(0, 1_700_000_400, 'Alice: ping', { snrQ: 48, reserved: -87 }));
 
     // Read the message back out of storage (a full JSON meta round-trip), then
     // drive the real reply-context builder and the real macro engine over it.

@@ -1,10 +1,8 @@
 import { type RefObject, useCallback, useRef, useState } from 'react';
-import type { MacroScope, MacroTemplate } from '../../../../shared/macros/types';
-import { MACRO_CATALOG } from '../lib/catalog';
-import { spliceAtCaret } from '../lib/insertAtCaret';
-import { deriveMacroMode } from '../lib/macroMode';
-
-export type PreviewMode = 'reply' | 'send';
+import type { MacroRenderMode, MacroScope, MacroTemplate } from '../../../../shared/macros/types';
+import { MACRO_CATALOG } from '../../../features/macros/catalog';
+import { deriveMacroMode } from '../../../features/macros/macroMode';
+import { focusCaret, spliceAtCaret, varTag } from '../lib/insertAtCaret';
 
 export interface StudioState {
   taRef: RefObject<HTMLTextAreaElement | null>;
@@ -18,8 +16,8 @@ export interface StudioState {
   setChannelKey: (k: string | undefined) => void;
   contactKey: string | undefined;
   setContactKey: (k: string | undefined) => void;
-  previewMode: PreviewMode;
-  setPreviewMode: (m: PreviewMode) => void;
+  previewMode: MacroRenderMode;
+  setPreviewMode: (m: MacroRenderMode) => void;
   /** Splice text in at the textarea caret and restore focus + caret. */
   insertText: (text: string) => void;
   insertVar: (name: string) => void;
@@ -35,7 +33,7 @@ export function useStudio(macro: MacroTemplate | null): StudioState {
   const [scope, setScope] = useState<MacroScope>(macro?.scope ?? 'global');
   const [channelKey, setChannelKey] = useState<string | undefined>(macro?.channelKey);
   const [contactKey, setContactKey] = useState<string | undefined>(macro?.contactKey);
-  const [previewMode, setPreviewMode] = useState<PreviewMode>(() =>
+  const [previewMode, setPreviewMode] = useState<MacroRenderMode>(() =>
     macro && deriveMacroMode(macro.template, MACRO_CATALOG) === 'reply' ? 'reply' : 'send',
   );
 
@@ -52,14 +50,10 @@ export function useStudio(macro: MacroTemplate | null): StudioState {
     const end = ta?.selectionEnd ?? current.length;
     const res = spliceAtCaret(current, start, end, text);
     setValue(res.value);
-    requestAnimationFrame(() => {
-      if (!ta) return;
-      ta.focus();
-      ta.setSelectionRange(res.caret, res.caret);
-    });
+    focusCaret(taRef, res.caret);
   }, []);
 
-  const insertVar = useCallback((n: string) => insertText(`{{ ${n} }}`), [insertText]);
+  const insertVar = useCallback((n: string) => insertText(varTag(n)), [insertText]);
 
   const isNew = macro === null;
   const dirty = isNew

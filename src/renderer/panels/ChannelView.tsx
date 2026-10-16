@@ -5,7 +5,8 @@ import type { Channel } from '../../shared/types';
 import { Composer, type ComposerHandle } from '../components/Composer';
 import { MessageList } from '../components/MessageList';
 import { useJumpBackfill } from '../hooks/useJumpBackfill';
-import { type ApiClient, api } from '../lib/api';
+import { api } from '../lib/api';
+import { useApiClient } from '../lib/apiClientContext';
 import { notify } from '../lib/notify';
 import { useStore } from '../lib/store';
 
@@ -22,11 +23,10 @@ const EMPTY_MESSAGES: never[] = [];
 
 interface Props {
   channel: Channel;
-  client: ApiClient | null;
 }
 
-export function ChannelView({ channel, client }: Props) {
-  const owner = useStore((s) => s.owner);
+export function ChannelView({ channel }: Props) {
+  const client = useApiClient();
   const contacts = useStore((s) => s.contacts);
   const messages = useStore((s) => s.messagesByKey[channel.key]) ?? EMPTY_MESSAGES;
   const selectedId = useStore((s) => s.selectedMessageId);
@@ -66,7 +66,7 @@ export function ChannelView({ channel, client }: Props) {
 
   // A search hit older than the trailing window above has no row to scroll to
   // until this pulls the history around it.
-  useJumpBackfill(client, channel.key, pendingJumpMid);
+  useJumpBackfill(channel.key, pendingJumpMid);
 
   const onSend = useCallback(
     async (body: string) => {
@@ -74,7 +74,7 @@ export function ChannelView({ channel, client }: Props) {
       try {
         await api.sendMessage(client, channel.key, body);
       } catch (err) {
-        notify.error(`Send failed: ${(err as Error).message}`, err);
+        notify.failure('Send', err);
       }
     },
     [client, channel.key],
@@ -104,7 +104,7 @@ export function ChannelView({ channel, client }: Props) {
       const res = await api.pushChannelToDevice(client, channel.key);
       notify.success(`Added "${channel.name}" to device (slot ${res.idx})`);
     } catch (err) {
-      notify.error(`Add failed: ${(err as Error).message}`, err);
+      notify.failure('Add', err);
     } finally {
       setPushing(false);
     }
@@ -142,7 +142,6 @@ export function ChannelView({ channel, client }: Props) {
         <MessageList
           conversationKey={channel.key}
           messages={messages}
-          owner={owner}
           contacts={contacts}
           selectedId={selectedId}
           onSelect={onSelectMessage}
@@ -153,7 +152,6 @@ export function ChannelView({ channel, client }: Props) {
           onReply={handleReply}
           onReact={handleReact}
           onMacro={handleMacro}
-          client={client}
           jumpToId={pendingJumpMid}
           onJumpConsumed={() => setPendingJump(null)}
         />
@@ -173,7 +171,6 @@ export function ChannelView({ channel, client }: Props) {
         autoFocus={appSettings.composer.autoFocus}
         disabled={composerDisabled}
         draftKey={channel.key}
-        client={client}
       />
     </div>
   );

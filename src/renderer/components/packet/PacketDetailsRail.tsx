@@ -1,31 +1,42 @@
 import { Binary, Copy, Route } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import type { ApiClient } from '../../lib/api';
+import { type ReactNode, useMemo } from 'react';
+import { useChannelKeyStore } from '../../hooks/useChannelKeyStore';
 import { bleFramePurpose, inspectBleFrame, summarizeBleFrame } from '../../lib/bleFrameLayouts';
 import { inspectPacket } from '../../lib/packetInspect';
 import { useStore } from '../../lib/store';
 import { fmtDateTime } from '../../lib/time';
-import { useChannelKeyStore } from '../../lib/useChannelKeyStore';
+import { cn } from '../../lib/utils';
 import { CopyButton } from '../CopyButton';
 import { KeyValueRow } from '../ui/KeyValueRow';
-import { PacketBreakdown } from './PacketBreakdown';
+import { BleFrameView } from './BleFrameView';
 import { PacketHeardVia } from './PacketHeardVia';
-import { PacketSecondary } from './PacketSecondary';
+import { PacketInspectionView } from './PacketInspectionView';
 
-export function PacketDetailsRail({ client: _client }: { client: ApiClient | null }) {
+const RAIL_LABEL = 'font-mono text-[10px] tracking-wide text-cs-text-dim';
+
+function WarnNotice({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <div
+      className={cn(
+        'rounded-md border border-cs-warn/25 bg-cs-warn/10 px-3 py-2 text-[11.5px] text-cs-text-muted',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function PacketDetailsRail() {
   const selectedId = useStore((s) => s.selectedPacketId);
   const packet = useStore((s) => s.packets.find((p) => p.id === s.selectedPacketId) ?? null);
   const radio = useStore((s) => s.radioSettings);
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
   const setDecoderOpen = useStore((s) => s.setDecoderOpen);
   const keyStore = useChannelKeyStore();
-  const [hovered, setHovered] = useState<string | null>(null);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedId is the reset trigger, not read in the body — field keys (pk0, pl0, …) repeat across packets so hover state must clear on selection change.
-  useEffect(() => setHovered(null), [selectedId]);
-
-  // Decode once per selected packet (not on every hover) — packet reference
-  // is stable across hovers and only changes when the selection changes.
+  // Decode once per selected packet, not on every render — the packet
+  // reference only changes when the selection changes.
   const d = useMemo(
     () =>
       packet && packet.kind !== 'companion' ? inspectPacket(packet.payloadHex, keyStore ? { keyStore } : undefined) : null,
@@ -60,7 +71,7 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
     const summary = summarizeBleFrame(packet.payloadHex, packet.codeName);
     return (
       <div className="px-3.5 py-3.5" key={selectedId}>
-        <div className="mb-1 font-mono text-[10px] tracking-wide text-cs-text-dim">DETAILS</div>
+        <div className={`mb-1 ${RAIL_LABEL}`}>DETAILS</div>
         <div className="space-y-1.5">
           <KeyValueRow label="Frame" value={ble.codeName.replace(/_/g, ' ')} mono />
           {summary && <KeyValueRow label="Summary" value={summary} />}
@@ -69,15 +80,7 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
           <KeyValueRow label="Received" value={fmtDateTime(packet.timestamp, timeFormat)} mono />
         </div>
         {purpose && <div className="mt-2 text-[11.5px] text-cs-text-muted">{purpose}</div>}
-        <PacketBreakdown
-          title="BLE Frame Breakdown"
-          count={ble.bytes.length}
-          bytes={ble.bytes}
-          fields={ble.fields}
-          scope="ble"
-          hovered={hovered}
-          setHovered={setHovered}
-        />
+        <BleFrameView frame={ble} />
       </div>
     );
   }
@@ -92,18 +95,15 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
   if (!d.ok && d.fields.length === 0) {
     return (
       <div className="px-3.5 py-3.5" key={selectedId}>
-        <div className="mb-1 font-mono text-[10px] tracking-wide text-cs-text-dim">DETAILS</div>
-        <div className="rounded-md border border-cs-warn/25 bg-cs-warn/10 px-3 py-2 text-[11.5px] text-cs-text-muted">
-          {d.error ?? 'Could not decode this packet.'}
-        </div>
+        <div className={`mb-1 ${RAIL_LABEL}`}>DETAILS</div>
+        <WarnNotice>{d.error ?? 'Could not decode this packet.'}</WarnNotice>
       </div>
     );
   }
-  const sec = d.payload?.secondary ?? null;
 
   return (
     <div className="px-3.5 py-3.5" key={selectedId}>
-      <div className="mb-1 font-mono text-[10px] tracking-wide text-cs-text-dim">DETAILS</div>
+      <div className={`mb-1 ${RAIL_LABEL}`}>DETAILS</div>
       <div className="space-y-1.5">
         <KeyValueRow label="Type" value={d.payloadTypeName} />
         <KeyValueRow label="Route" value={d.routeName} mono />
@@ -127,7 +127,7 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
       <PacketHeardVia packet={packet} sender={d.sender} />
 
       <div className="mt-3 flex flex-wrap items-center gap-2.5">
-        <span className="font-mono text-[10px] tracking-wide text-cs-text-dim">PACKET HASH</span>
+        <span className={RAIL_LABEL}>PACKET HASH</span>
         <CopyButton
           value={d.hashFull}
           title="Copy hash"
@@ -147,37 +147,9 @@ export function PacketDetailsRail({ client: _client }: { client: ApiClient | nul
         </button>
       </div>
 
-      {d.lowConfidence && (
-        <div className="mt-2 rounded-md border border-cs-warn/25 bg-cs-warn/10 px-3 py-2 text-[11.5px] text-cs-text-muted">
-          {d.lowConfidence}
-        </div>
-      )}
+      {d.lowConfidence && <WarnNotice className="mt-2">{d.lowConfidence}</WarnNotice>}
 
-      <PacketBreakdown
-        title="Packet Byte Breakdown"
-        count={d.size}
-        bytes={d.bytes}
-        fields={d.fields}
-        scope="packet"
-        hovered={hovered}
-        setHovered={setHovered}
-      />
-
-      {d.payload && (
-        <>
-          <PacketBreakdown
-            title={`${d.payload.typeName} Payload Byte Breakdown`}
-            count={d.payload.bytes.length}
-            bytes={d.payload.bytes}
-            fields={d.payload.fields}
-            scope="payload"
-            hovered={hovered}
-            setHovered={setHovered}
-          />
-
-          <PacketSecondary secondary={sec} hovered={hovered} setHovered={setHovered} />
-        </>
-      )}
+      <PacketInspectionView inspection={d} />
     </div>
   );
 }

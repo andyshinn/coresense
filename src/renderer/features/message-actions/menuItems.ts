@@ -1,7 +1,11 @@
 import { Copy, KeyRound, Radio, RotateCw, ShieldOff, Trash2, User, Waypoints } from 'lucide-react';
+import type { ContactKey } from '../../../shared/conversationKey';
+import { contactKey } from '../../../shared/conversationKey';
+import { parseSender } from '../../../shared/sender';
 import type { Message } from '../../../shared/types';
 import type { BlockSenderDialogPrefill } from '../../components/BlockSenderDialog';
-import { type ContextMenuEntry, copyToClipboard, menuItem, menuSeparator } from '../../components/ContextMenu';
+import { type ContextMenuEntry, menuItem, menuSeparator } from '../../components/ContextMenu';
+import { copyToClipboard } from '../../lib/clipboard';
 import { notify } from '../../lib/notify';
 import { formatAllPathsHeard, formatFirstPathHeard } from './paths';
 
@@ -9,7 +13,7 @@ export interface BuildMessageMenuOpts {
   message: Message;
   isSelf: boolean;
   senderName: string | undefined;
-  onViewContact: (key: string) => void;
+  onViewContact: (key: ContactKey) => void;
   onBlock: (prefill: BlockSenderDialogPrefill) => void;
   onDelete: (message: Message) => void;
   onResend?: (m: Message) => void;
@@ -36,15 +40,15 @@ export function buildMessageMenuItems({
 
   const items: ContextMenuEntry[] = [menuItem('Copy text', () => copy(message.body, 'Copied message text'), { icon: Copy })];
 
-  const rawPk = message.fromPublicKeyHex;
-  const hasRealPubkey = rawPk != null && rawPk !== 'unknown' && !rawPk.startsWith('name:');
+  const sender = parseSender(message.fromPublicKeyHex);
+  const realPk = sender.kind === 'pubkey' ? sender.pk : undefined;
   const firstPath = formatFirstPathHeard(message);
   const allPaths = formatAllPathsHeard(message);
 
-  if (hasRealPubkey || firstPath || allPaths) pushSeparator(items);
-  if (hasRealPubkey) {
-    items.push(menuItem('View contact', () => onViewContact(`c:${rawPk}`), { icon: User }));
-    items.push(menuItem('Copy public key', () => copy(rawPk, 'Copied public key'), { icon: KeyRound }));
+  if (realPk || firstPath || allPaths) pushSeparator(items);
+  if (realPk) {
+    items.push(menuItem('View contact', () => onViewContact(contactKey(realPk)), { icon: User }));
+    items.push(menuItem('Copy public key', () => copy(realPk, 'Copied public key'), { icon: KeyRound }));
   }
   if (firstPath) {
     items.push(menuItem('Copy first path heard', () => copy(firstPath, 'Copied first path'), { icon: Waypoints }));
@@ -63,12 +67,12 @@ export function buildMessageMenuItems({
     // path-build pipeline never populates it for channel messages — it's always
     // null. Treat it as the authoritative source if a future change wires it.
     const originHop = message.meta?.paths?.[0]?.hops.find((h) => h.kind === 'origin');
-    const pubkey = hasRealPubkey ? rawPk : (originHop?.pk ?? undefined);
+    const pubkey = realPk ?? originHop?.pk ?? undefined;
     // Prefix is the first 4 hex chars of the real pubkey. originHop.shortId
     // is a 2-char name-derived display label (NOT hex), so we don't use it as
     // a pubkey prefix — that would silently create rules like pattern='sr'
     // that match by name lookalike, which is misleading.
-    const prefix = hasRealPubkey ? rawPk.slice(0, 4) : (originHop?.pk?.slice(0, 4) ?? undefined);
+    const prefix = pubkey?.slice(0, 4);
     items.push(
       menuItem('Block sender…', () => onBlock({ pubkey, pubkeyPrefix: prefix, name: senderName || undefined }), {
         icon: ShieldOff,

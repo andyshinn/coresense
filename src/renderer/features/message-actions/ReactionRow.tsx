@@ -1,6 +1,6 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
+import { EMOJI_SEED, topIds } from '../../lib/frecency';
 import { useStore } from '../../lib/store';
-import { EMOJI_SEED, topIds } from './frecency';
 
 interface Props {
   onPick: (emoji: string) => void;

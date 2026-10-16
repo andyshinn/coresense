@@ -1,7 +1,7 @@
 import type { Buffer } from 'node:buffer';
 
 // Injectable wrapper over Electron safeStorage (used by map/api-key.ts).
-// Production wires electron.safeStorage in index.ts; tests inject an in-memory
+// Production wires electron.safeStorage in bootstrap/seams.ts; tests inject an in-memory
 // plaintext impl. Mirrors the safeStorage API surface api-key.ts depends on.
 export interface SecretStore {
   available(): boolean;
@@ -17,7 +17,7 @@ export function setSecretStore(impl: SecretStore | null): void {
 
 export function secretStore(): SecretStore {
   if (!injected) {
-    throw new Error('secretStore not set — call setSecretStore() during bootstrap (index.ts)');
+    throw new Error('secretStore not set — call setSecretStore() during bootstrap (bootstrap/seams.ts)');
   }
   return injected;
 }

@@ -1,31 +1,24 @@
 import { useState } from 'react';
 import type { Contact, RepeaterAclEntry } from '../../../shared/types';
-import { type ApiClient, api } from '../../lib/api';
-import { notify } from '../../lib/notify';
-import { ACL_ROLE_LABEL } from './aclRole';
+import { useBusyAction } from '../../hooks/useBusyAction';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
+import { ACL_ROLE_LABEL, formatPermissions } from './aclRole';
+import { TabToolbar } from './TabToolbar';
 
 interface Props {
   contact: Contact;
-  client: ApiClient | null;
   disabled: boolean;
 }
 
-export function AclTab({ contact, client, disabled }: Props) {
+export function AclTab({ contact, disabled }: Props) {
+  const client = useApiClient();
   const [entries, setEntries] = useState<RepeaterAclEntry[] | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const load = async () => {
-    if (!client || busy) return;
-    setBusy(true);
-    try {
-      const res = await api.repeaterAcl(client, contact.key);
-      setEntries(res.entries);
-    } catch (err) {
-      notify.error(`ACL fetch failed: ${(err as Error).message}`, err);
-    } finally {
-      setBusy(false);
-    }
-  };
+  const [load, busy] = useBusyAction(async () => {
+    if (!client) return;
+    const res = await api.repeaterAcl(client, contact.key);
+    setEntries(res.entries);
+  }, 'ACL fetch');
 
   if (disabled) {
     return (
@@ -37,17 +30,14 @@ export function AclTab({ contact, client, disabled }: Props) {
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-auto p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-cs-text-muted">Access control list</h3>
-        <button
-          type="button"
-          onClick={load}
-          disabled={!client || busy}
-          className="rounded border border-cs-border bg-cs-bg-3 px-2 py-0.5 text-[11px] text-cs-text-muted hover:bg-cs-accent-soft/30 hover:text-cs-text disabled:opacity-50"
-        >
-          {busy ? 'Fetching…' : 'Refresh ACL'}
-        </button>
-      </div>
+      <TabToolbar
+        title="Access control list"
+        label="Refresh ACL"
+        busyLabel="Fetching…"
+        busy={busy}
+        disabled={!client}
+        onClick={load}
+      />
 
       {entries === null && (
         <p className="text-[12px] text-cs-text-dim">
@@ -72,7 +62,7 @@ export function AclTab({ contact, client, disabled }: Props) {
             {entries.map((e) => (
               <tr key={e.pubKeyPrefixHex} className="border-b border-cs-border/40">
                 <td className="py-0.5 font-mono text-cs-text">{e.pubKeyPrefixHex}</td>
-                <td className="py-0.5 font-mono text-cs-text">0x{e.permissions.toString(16).padStart(2, '0')}</td>
+                <td className="py-0.5 font-mono text-cs-text">{formatPermissions(e.permissions)}</td>
                 <td className="py-0.5 text-cs-text-muted">{ACL_ROLE_LABEL[e.role]}</td>
               </tr>
             ))}

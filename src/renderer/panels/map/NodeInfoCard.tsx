@@ -1,17 +1,15 @@
 import { MessageSquare, Star, X } from 'lucide-react';
-import { type Contact, hasValidFix } from '../../../shared/types';
+import { hasValidFix } from '../../../shared/geo';
+import { abbreviatePubkey } from '../../../shared/pubkey';
+import type { Contact } from '../../../shared/types';
 import { MARKER_TYPES, MarkerShape } from '../../components/map/markers/MarkerShape';
 import { Button } from '../../components/ui/button';
-import type { ApiClient } from '../../lib/api';
 import { publish as publishMapBus } from '../../lib/map/bus';
 import { useStore } from '../../lib/store';
 import { fmtRelative } from '../../lib/time';
 
 interface Props {
   contact: Contact;
-  // Unused since starring started going through the ui-state subscriber;
-  // preserved for parity with the call-site (cf. SiteInfoCard).
-  client: ApiClient | null;
 }
 
 export function NodeInfoCard({ contact }: Props) {
@@ -58,7 +56,7 @@ export function NodeInfoCard({ contact }: Props) {
       </div>
 
       <dl className="space-y-1.5 font-mono text-[11px]">
-        <Field k="pubkey" v={shortPk(contact.publicKeyHex)} />
+        <Field k="pubkey" v={abbreviatePubkey(contact.publicKeyHex, { head: 8, tail: 8 })} />
         <Field k="last seen" v={contact.lastSeenMs ? fmtRelative(contact.lastSeenMs) : '—'} />
         <Field k="lat,lon" v={hasValidFix(contact) ? `${contact.gpsLat.toFixed(5)}, ${contact.gpsLon.toFixed(5)}` : '—'} />
       </dl>
@@ -83,11 +81,6 @@ export function NodeInfoCard({ contact }: Props) {
       </div>
     </div>
   );
-}
-
-function shortPk(hex: string): string {
-  if (hex.length <= 18) return hex;
-  return `${hex.slice(0, 8)}…${hex.slice(-8)}`;
 }
 
 function Field({ k, v }: { k: string; v: string }) {

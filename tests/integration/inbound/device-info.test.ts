@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
-import { bus } from '../../../src/main/events/bus';
 import { stateHolder } from '../../../src/main/state/holder';
+import { captureBus } from '../../support/bus';
 import { frameBuf } from '../../support/frames';
 import { makeTestSession } from '../../support/session-harness';
 
@@ -9,30 +9,22 @@ describe('RESP_DEVICE_INFO handled via the feature registry', () => {
   it('folds firmware info into device state and emits deviceInfo + deviceCapabilities', async () => {
     const { receive } = makeTestSession();
 
-    const info: { firmwareVerCode?: number }[] = [];
-    const caps: { repeatMode?: boolean; identityKeyIO?: boolean }[] = [];
-    const onInfo = (d: { firmwareVerCode?: number }) => info.push(d);
-    const onCaps = (c: { repeatMode?: boolean; identityKeyIO?: boolean }) => caps.push(c);
-    bus.on('deviceInfo', onInfo);
-    bus.on('deviceCapabilities', onCaps);
+    const info = captureBus('deviceInfo');
+    const caps = captureBus('deviceCapabilities');
 
     receive(frameBuf('deviceInfo'));
     await Promise.resolve();
-    bus.off('deviceInfo', onInfo);
-    bus.off('deviceCapabilities', onCaps);
 
-    expect(info.at(-1)?.firmwareVerCode).toBe(0x0b);
-    expect(caps.at(-1)?.repeatMode).toBe(true); // ver 11 >= 9
-    expect(caps.at(-1)?.identityKeyIO).toBe(false); // ver 11 < 25
+    expect(info.last()?.firmwareVerCode).toBe(0x0b);
+    expect(caps.last()?.repeatMode).toBe(true); // ver 11 >= 9
+    expect(caps.last()?.identityKeyIO).toBe(false); // ver 11 < 25
     expect(stateHolder().getDeviceInfo().maxContacts).toBe(0xaf * 2);
   });
 
   it('parses firmware version + build date from a full DEVICE_INFO frame', async () => {
     const { receive } = makeTestSession();
 
-    const info: Array<{ firmwareVersion?: string; firmwareBuildDate?: string }> = [];
-    const onInfo = (d: { firmwareVersion?: string; firmwareBuildDate?: string }) => info.push(d);
-    bus.on('deviceInfo', onInfo);
+    const info = captureBus('deviceInfo');
 
     // RESP_DEVICE_INFO fixed layout (firmware MyMesh.cpp CMD_DEVICE_QUERY):
     //   [0]=code 0x0d, [1]=verCode, [2]=maxContacts/2, [3]=maxChannels,
@@ -51,10 +43,9 @@ describe('RESP_DEVICE_INFO handled via the feature registry', () => {
 
     receive(frame);
     await Promise.resolve();
-    bus.off('deviceInfo', onInfo);
 
-    expect(info.at(-1)?.firmwareVersion).toBe('v1.15.0');
-    expect(info.at(-1)?.firmwareBuildDate).toBe('19 Apr 2026');
+    expect(info.last()?.firmwareVersion).toBe('v1.15.0');
+    expect(info.last()?.firmwareBuildDate).toBe('19 Apr 2026');
     expect(stateHolder().getDeviceInfo().deviceModel).toBe('Heltec T096');
   });
 });

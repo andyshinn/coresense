@@ -8,8 +8,12 @@ import { loraAirtimeMs } from '../../../../lib/airtime';
 
 const WRAPPER = 32; // rough transport wrapper overhead (Composer.tsx:106)
 const REPLY_BYTES = 160; // one reply frame ≤160 B (§0)
+/** A reply this close to the one-frame cap (REPLY_BYTES) may have been cut
+ *  short by firmware — `neighbors` routinely is (§5.3). */
+export const REPLY_TRUNCATE_BYTES = 156;
 
-function byteLength(s: string): number {
+/** UTF-8 size of `s` — what a frame actually carries, not its JS length. */
+export function byteLength(s: string): number {
   return new TextEncoder().encode(s).length;
 }
 

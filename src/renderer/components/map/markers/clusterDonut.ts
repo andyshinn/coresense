@@ -8,8 +8,7 @@ interface DonutArgs {
 }
 
 // SVG markup for the cluster donut — arcs sized by per-type counts with the
-// total centered. Used both as inner-HTML for the map's cluster <button> and
-// by the React preview component below.
+// total centered. Used as inner-HTML for the map's cluster <button>.
 export function donutMarkup({ breakdown, total, size = 44 }: DonutArgs): string {
   const cx = size / 2;
   const cy = size / 2;

@@ -2,9 +2,9 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MessageItem } from '@/components/MessageItem';
 import { useStore } from '@/lib/store';
-import type { Message } from '../../src/shared/types';
+import type { Contact, Message } from '../../src/shared/types';
 
-const contact = { key: 'c:abc', publicKeyHex: 'abc', name: 'alice', kind: 'chat' as const };
+const contact: Contact = { key: 'c:abc', publicKeyHex: 'abc', name: 'alice', kind: 'chat' };
 
 const message: Message = {
   id: 'm1',

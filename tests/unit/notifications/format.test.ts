@@ -1,18 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { notificationCapabilities } from '../../../src/main/notifications/capabilities';
-import { buildContent, channelSenderName, formatSummaryBody, truncateBody } from '../../../src/main/notifications/format';
+import { buildContent, formatSummaryBody, truncateBody } from '../../../src/main/notifications/format';
 
 const mac = notificationCapabilities('darwin');
 const win = notificationCapabilities('win32');
-
-describe('channelSenderName', () => {
-  it('strips the name: prefix', () => expect(channelSenderName('name:Alice')).toBe('Alice'));
-  it('is empty for unknown/self', () => {
-    expect(channelSenderName('unknown')).toBe('');
-    expect(channelSenderName(undefined)).toBe('');
-  });
-  it('shortens a raw pubkey', () => expect(channelSenderName('abcdef0123456789')).toBe('abcdef01…'));
-});
 
 describe('truncateBody', () => {
   it('leaves short bodies alone', () => expect(truncateBody('hi')).toBe('hi'));

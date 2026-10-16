@@ -2,12 +2,14 @@ import { type AJAXError, Map as MapLibreMap, NavigationControl } from 'maplibre-
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '../../lib/map/maplibre-worker';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { hasValidFix, type MapSettings, type TileManifest } from '../../../shared/types';
-import { type ApiClient, api } from '../../lib/api';
+import { hasValidFix } from '../../../shared/geo';
+import type { MapSettings, TileManifest } from '../../../shared/types';
+import type { ApiClient } from '../../lib/api';
 import { log } from '../../lib/logger';
 import { subscribe as subscribeMapBus } from '../../lib/map/bus';
 import { ensurePmtilesProtocol } from '../../lib/map/pmtiles-protocol';
-import { buildStyle, maxZoomForSettings } from '../../lib/map/style-builder';
+import { updateMapSettings } from '../../lib/map/settings';
+import { buildStyle, maxZoomFor } from '../../lib/map/style-builder';
 import { useStore } from '../../lib/store';
 import { resolveTheme } from '../../lib/theme';
 import { MapClusters } from './MapClusters';
@@ -29,13 +31,15 @@ const defaultOverlays = (map: MapLibreMap | null) => (
 );
 
 interface MapCanvasProps {
+  // A prop rather than useApiClient(): the map can't exist without a client,
+  // so the parents (MapView, NeighboursTab) gate on it and hand it down narrowed.
   client: ApiClient;
   manifest: TileManifest;
   settings: MapSettings;
   // Optional overlay renderer — defaults to the standard clusters/local/info
   // stack. A focused view (e.g. repeater neighbours) passes its own layer.
   renderOverlays?: (map: MapLibreMap | null) => ReactNode;
-  // When false, the moveend/zoom persistence effect is skipped (transient
+  // When false, the moveend persistence effect is skipped (transient
   // sub-maps must not overwrite the Map View's saved viewport).
   persistViewport?: boolean;
   // Initial camera. Defaults to pickInitialView (persisted viewport / freshest
@@ -64,6 +68,7 @@ export function MapCanvas({
   // theme-derived flavor — useful when reading the map outdoors with a dark
   // app theme.
   const theme: 'light' | 'dark' = settings.lightBasemap ? 'light' : resolveTheme(themePref, systemDark);
+  const onlineTiles = settings.hasProtomapsApiKey;
 
   // Mount-once on purpose. Style/source/layer updates in later phases will
   // happen via map.setStyle / map.addSource on the existing instance rather
@@ -82,12 +87,12 @@ export function MapCanvas({
     // around every MapCanvas mount renders MapErrorFallback for it.
     const map = new MapLibreMap({
       container,
-      style: buildStyle({ baseUrl: client.baseUrl, manifest, settings, theme }),
+      style: buildStyle({ baseUrl: client.baseUrl, manifest, theme, onlineTiles }),
       center: initial.center,
       zoom: initial.zoom,
       bearing: initial.bearing,
       pitch: initial.pitch,
-      maxZoom: maxZoomForSettings(manifest, settings),
+      maxZoom: maxZoomFor(manifest, onlineTiles),
       // Attach the API-key Bearer header to every request hitting our own
       // server. PMTiles uses its own protocol with its own Headers; this
       // catches the online tile proxy and any future locally-served URL.
@@ -143,7 +148,6 @@ export function MapCanvas({
   // so on quick back-to-back theme flips an uncached dark sprite could land
   // after the cached light one: dark icons on a light map, until the next flip.
   const spriteRequestRef = useRef<AbortController | null>(null);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: rebuild only on fallback/theme flips, not on every settings tick
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -152,7 +156,7 @@ export function MapCanvas({
       return;
     }
     const apply = () => {
-      const next = buildStyle({ baseUrl: client.baseUrl, manifest, settings, theme });
+      const next = buildStyle({ baseUrl: client.baseUrl, manifest, theme, onlineTiles });
       // `_spriteRequest` is private; if it disappears this degrades to the
       // upstream race rather than breaking the restyle.
       const liveSpriteRequest = () =>
@@ -188,7 +192,7 @@ export function MapCanvas({
     return () => {
       map.off('style.load', apply);
     };
-  }, [settings.hasProtomapsApiKey, theme, manifest, client.baseUrl]);
+  }, [onlineTiles, theme, manifest, client.baseUrl]);
 
   // Keep the map's max-zoom in sync with whether the online fallback can
   // extend coverage past the bundled extract. Decoupled from the setStyle
@@ -197,29 +201,30 @@ export function MapCanvas({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const cap = maxZoomForSettings(manifest, settings);
+    const cap = maxZoomFor(manifest, onlineTiles);
     if (map.getMaxZoom() !== cap) map.setMaxZoom(cap);
-  }, [manifest, settings.hasProtomapsApiKey, settings]);
+  }, [manifest, onlineTiles]);
 
   // Listen for imperative commands from other parts of the UI (RightRail's
   // "Center on map" button publishes flyTo events on the bus). Decoupled from
   // the store so the global state doesn't have to carry transient camera commands.
   useEffect(() => {
-    const map = mapRef.current;
+    const map = mapInstance;
     if (!map) return;
     return subscribeMapBus((e) => {
       if (e.kind === 'flyTo') {
         map.flyTo({ center: [e.lng, e.lat], zoom: e.zoom ?? map.getZoom() });
       }
     });
-  }, []);
+  }, [mapInstance]);
 
   // Persist the viewport after the user stops interacting. Debounced so a
   // drag that fires hundreds of move events doesn't beat the IPC into the
   // ground — we only care about the resting position. Compare to the last
   // persisted values to skip no-op writes (e.g. clicks that don't move the map).
+  // `moveend` also ends every zoom, rotate and pitch.
   useEffect(() => {
-    const map = mapRef.current;
+    const map = mapInstance;
     if (!map) return;
     if (!persistViewport) return;
 
@@ -240,32 +245,23 @@ export function MapCanvas({
       ) {
         return;
       }
-      const next: MapSettings = {
-        ...current,
+      updateMapSettings(client, {
         lastCenter: { lng: center.lng, lat: center.lat },
         lastZoom: zoom,
         lastBearing: bearing,
         lastPitch: pitch,
-      };
-      useStore.getState().applyMapSettings(next);
-      void api.putMapSettings(client, next);
+      });
     };
     const schedule = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(flush, VIEWPORT_PERSIST_DEBOUNCE_MS);
     };
     map.on('moveend', schedule);
-    map.on('zoomend', schedule);
-    map.on('rotateend', schedule);
-    map.on('pitchend', schedule);
     return () => {
       if (timer) clearTimeout(timer);
       map.off('moveend', schedule);
-      map.off('zoomend', schedule);
-      map.off('rotateend', schedule);
-      map.off('pitchend', schedule);
     };
-  }, [client, persistViewport]);
+  }, [mapInstance, client, persistViewport]);
 
   const overlays = renderOverlays ?? defaultOverlays;
 

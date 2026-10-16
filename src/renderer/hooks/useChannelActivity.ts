@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { errorMessage } from '../../shared/errors';
 import type { ChannelActivity } from '../../shared/types';
-import { type ApiClient, api } from '../lib/api';
+import { api } from '../lib/api';
+import { useApiClient } from '../lib/apiClientContext';
 import { useStore } from '../lib/store';
 
 /** Nothing in the app invalidates on wall-clock rollover, so an idle channel's
@@ -10,10 +12,12 @@ const REFRESH_MS = 300_000;
 /** Fetches the channel activity histogram lazily (the rail only mounts a section's
  *  body when it is expanded) and refetches whenever this channel's message list
  *  changes or the refresh interval elapses. */
-export function useChannelActivity(
-  key: string,
-  client: ApiClient | null,
-): { activity: ChannelActivity | null; loading: boolean; error: string | null } {
+export function useChannelActivity(key: string): {
+  activity: ChannelActivity | null;
+  loading: boolean;
+  error: string | null;
+} {
+  const client = useApiClient();
   const messages = useStore((s) => s.messagesByKey[key]);
   const [activity, setActivity] = useState<ChannelActivity | null>(null);
   // Starts true: the first render happens before the fetch effect below has run,
@@ -49,7 +53,7 @@ export function useChannelActivity(
           // API/radio hiccup should not blank a chart that was correct a minute ago.
           // `error` is only ever surfaced when there is nothing to show — see the
           // `!activity` branch in the Activity section.
-          setError((e as Error).message);
+          setError(errorMessage(e));
           setLoading(false);
         }
       },

@@ -279,3 +279,47 @@ describe('reverse-i-search', () => {
     expect(s.value).toBe('draft');
   });
 });
+
+describe('reverse-search accept', () => {
+  it('Tab and →/End both load the match onto the line and leave the search', () => {
+    const base = withHistory(['ver', 'set tx 22']);
+    for (const kind of ['key/tab', 'key/acceptGhost'] as const) {
+      const s = run(base, { kind: 'key/ctrlR' }, { kind: 'rsearch/setQuery', query: 'tx' }, { kind }).state;
+      expect(s.rsearch).toBeNull();
+      expect(s.value).toBe('set tx 22');
+      expect(s.caret).toBe('set tx 22'.length);
+    }
+  });
+
+  it('with no match, Tab leaves the search but →/End stays in it', () => {
+    const base = { ...withHistory(['ver']), value: 'draft', caret: 5 };
+    const failing = run(base, { kind: 'key/ctrlR' }, { kind: 'rsearch/setQuery', query: 'zzz' }).state;
+    const tabbed = run(failing, { kind: 'key/tab' }).state;
+    expect(tabbed.rsearch).toBeNull();
+    expect(tabbed.value).toBe('draft');
+    expect(run(failing, { kind: 'key/acceptGhost' }).state).toBe(failing);
+  });
+
+  it('rsearchView exposes the whole matched entry, status included', () => {
+    const base: CliPromptState = {
+      ...initialPromptState(),
+      history: [
+        { text: 'get radio', status: 'ok' },
+        { text: 'get tx', status: 'timeout' },
+      ],
+    };
+    const s = run(base, { kind: 'key/ctrlR' }, { kind: 'rsearch/setQuery', query: 'tx' }).state;
+    expect(rsearchView(s).match).toEqual({ text: 'get tx', status: 'timeout' });
+    expect(rsearchView(initialPromptState()).match).toBeNull();
+  });
+});
+
+describe('initialPromptState', () => {
+  it('seeds the history and the suggestion context', () => {
+    const history = [{ text: 'ver', status: 'ok' as const }];
+    const s = initialPromptState({ recent: ['ver'] }, history);
+    expect(s.history).toBe(history);
+    expect(s.ctx).toEqual({ recent: ['ver'], nodeValues: {} });
+    expect(s.histIndex).toBe(-1);
+  });
+});

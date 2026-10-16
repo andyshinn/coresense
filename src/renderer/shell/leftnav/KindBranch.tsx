@@ -2,6 +2,7 @@ import { ChevronRight, type LucideIcon } from 'lucide-react';
 import { Collapsible } from 'radix-ui';
 import type { ReactNode } from 'react';
 import { SidebarMenuButton, SidebarMenuItem } from '../../components/ui/sidebar';
+import { UnreadChip } from './atoms';
 
 /** Inner branch nested inside a SidebarMenuSub (chevron-first sub-row with own collapsible). */
 export function KindBranch({
@@ -31,15 +32,7 @@ export function KindBranch({
             <ChevronRight className="transition-transform" />
             <Icon />
             <span>{label}</span>
-            {unreadTotal > 0 && (
-              <span
-                role="status"
-                aria-label={`${unreadTotal} unread`}
-                className="ml-auto rounded-full bg-cs-accent px-1.5 py-px font-mono text-[10px] leading-none text-cs-bg tabular-nums"
-              >
-                {unreadTotal > 99 ? '99+' : unreadTotal}
-              </span>
-            )}
+            {unreadTotal > 0 && <UnreadChip count={unreadTotal} className="ml-auto" />}
           </SidebarMenuButton>
         </Collapsible.Trigger>
         <Collapsible.Content>{children}</Collapsible.Content>

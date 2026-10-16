@@ -1,3 +1,4 @@
+import { DAY_MS, HOUR_MS, MINUTE_MS, WEEK_MS } from '../../shared/time';
 import type { TimeFormatPref } from '../../shared/types';
 
 // All timestamp rendering flows through here so the user's 12/24-hour
@@ -42,12 +43,12 @@ const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
 // Largest-to-smallest so we report in the coarsest unit that fits. 'numeric:
 // auto' turns the obvious values into words ("yesterday", "last week").
 const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
-  ['year', 31_536_000_000],
-  ['month', 2_592_000_000],
-  ['week', 604_800_000],
-  ['day', 86_400_000],
-  ['hour', 3_600_000],
-  ['minute', 60_000],
+  ['year', 365 * DAY_MS],
+  ['month', 30 * DAY_MS],
+  ['week', WEEK_MS],
+  ['day', DAY_MS],
+  ['hour', HOUR_MS],
+  ['minute', MINUTE_MS],
 ];
 
 // Human-readable "2 minutes ago" / "in 3 hours" / "yesterday".
@@ -103,7 +104,7 @@ export function fmtMessageTime(ts: number, pref: TimeFormatPref, now: number = D
  *  between the radio and the host should never render as a negative age. */
 export function fmtAgoShort(ts: number, now: number = Date.now()): string {
   const diff = Math.max(0, now - ts);
-  const m = Math.floor(diff / 60_000);
+  const m = Math.floor(diff / MINUTE_MS);
   if (m < 1) return 'just now';
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);

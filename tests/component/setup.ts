@@ -6,8 +6,17 @@
 import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
 
-afterEach(() => {
+afterEach(async () => {
   cleanup();
+  // Put the zustand store back to its initial state, so one test's
+  // setState can't leak into the next. Imported here rather than at the top:
+  // a setup file's static imports load before a test file's vi.mock() calls
+  // register, so a top-level import would pin the store's own dependencies
+  // (logger, frecency, …) to their real modules even in a file that mocks
+  // them. By now the test file has loaded the store, so this is the same
+  // instance it used.
+  const { useStore } = await import('@/lib/store');
+  useStore.setState(useStore.getInitialState(), true);
 });
 
 // jsdom doesn't implement matchMedia. shadcn's SidebarProvider -> useIsMobile
@@ -42,6 +51,16 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 // `Command` list (e.g. SetPathEditor's Add-hop picker) needs this stub.
 if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
+}
+
+// jsdom implements neither pointer-capture method on Element. ResizeHandle and
+// the Packet Log's column handles call them to keep receiving moves once the
+// pointer leaves their few-pixel hit area.
+if (typeof Element !== 'undefined' && !Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = () => {};
+}
+if (typeof Element !== 'undefined' && !Element.prototype.releasePointerCapture) {
+  Element.prototype.releasePointerCapture = () => {};
 }
 
 // Vitest 4's built-in jsdom environment deliberately does not copy

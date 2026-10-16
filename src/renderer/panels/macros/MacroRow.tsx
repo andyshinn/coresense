@@ -5,7 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { fmtRelative } from '@/lib/time';
 import { cn } from '@/lib/utils';
 import type { MacroTemplate } from '../../../shared/macros/types';
-import { ModeChip, ScopeTag, Snippet } from './components/chips';
+import { ModeChip, ScopeTag, Snippet } from '../../features/macros/chips';
 
 interface RowActionProps {
   icon: LucideIcon;

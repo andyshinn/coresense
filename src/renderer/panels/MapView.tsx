@@ -3,14 +3,11 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { logError, MapErrorFallback } from '../components/errors/ErrorFallback';
 import { MapApiKeyNotice } from '../components/map/MapApiKeyNotice';
 import { MapCanvas } from '../components/map/MapCanvas';
-import type { ApiClient } from '../lib/api';
+import { useApiClient } from '../lib/apiClientContext';
 import { useStore } from '../lib/store';
 
-interface MapViewProps {
-  client: ApiClient | null;
-}
-
-export function MapView({ client }: MapViewProps) {
+export function MapView() {
+  const client = useApiClient();
   const manifest = useStore((s) => s.mapManifest);
   const settings = useStore((s) => s.mapSettings);
 

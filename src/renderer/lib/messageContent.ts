@@ -1,7 +1,7 @@
 // Tokenises a chat message body into renderable spans: plain text, @mentions,
 // web links, and custom-scheme URIs (e.g. meshcore://). Rendering lives in
-// MessageRow's MessageBody — this module only decides *where* the boundaries
-// are.
+// MessageBody (used by MessageItem via MessageList's ItemRow) — this module
+// only decides *where* the boundaries are.
 //
 // Adding support for a new URI scheme is two steps:
 //   1. list its scheme in KNOWN_URI_SCHEMES below;

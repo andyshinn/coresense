@@ -1,8 +1,10 @@
 import { EventEmitter } from 'node:events';
+import { errorMessage } from '../../shared/errors';
 import type { BridgeStatus, RawPacket, TransportState } from '../../shared/types';
 import { bus, emit } from '../events/bus';
 import { child } from '../log';
 import { transportManager } from '../transport/manager';
+import { withTimeout } from '../util/async';
 import { InboxRouter } from './drain';
 
 const logger = child('bridge:hub');
@@ -153,8 +155,8 @@ export class BridgeHub extends EventEmitter {
       try {
         client.send(buf);
       } catch (err) {
-        logger.warn(`fanout to ${client.remoteAddr} failed: ${(err as Error).message}`);
-        emit.error(`Bridge: send to ${client.remoteAddr} failed: ${(err as Error).message}`);
+        logger.warn(`fanout to ${client.remoteAddr} failed: ${errorMessage(err)}`);
+        emit.error(`Bridge: send to ${client.remoteAddr} failed: ${errorMessage(err)}`);
       }
     }
   };
@@ -176,7 +178,7 @@ export class BridgeHub extends EventEmitter {
         const item = this.sendQueue.shift();
         if (!item) break;
         const transport = transportManager.getTransport();
-        if (!transport?.sendBytes) {
+        if (!transport) {
           logger.warn(`no radio attached; dropped ${item.payload.length}B from ${item.client.remoteAddr}`);
           emit.error(`Bridge: dropped ${item.payload.length} bytes from ${item.client.remoteAddr} (no radio)`);
           continue;
@@ -185,32 +187,14 @@ export class BridgeHub extends EventEmitter {
           logger.trace(
             `→ radio ${item.payload.length}B from ${item.client.remoteAddr} cmd=0x${(item.payload[0] ?? 0).toString(16).padStart(2, '0')}`,
           );
-          await this.sendWithTimeout(transport.sendBytes(item.payload));
+          await withTimeout(transport.sendBytes(item.payload), SEND_ITEM_TIMEOUT_MS, 'hub send-worker');
         } catch (err) {
-          logger.warn(`radio send failed for ${item.client.remoteAddr}: ${(err as Error).message}`);
-          emit.error(`Bridge: send to radio failed for ${item.client.remoteAddr}: ${(err as Error).message}`);
+          logger.warn(`radio send failed for ${item.client.remoteAddr}: ${errorMessage(err)}`);
+          emit.error(`Bridge: send to radio failed for ${item.client.remoteAddr}: ${errorMessage(err)}`);
         }
       }
     } finally {
       this.workerRunning = false;
     }
-  }
-
-  private sendWithTimeout(p: Promise<void>): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error(`hub send-worker timeout after ${SEND_ITEM_TIMEOUT_MS}ms`));
-      }, SEND_ITEM_TIMEOUT_MS);
-      p.then(
-        () => {
-          clearTimeout(timer);
-          resolve();
-        },
-        (err) => {
-          clearTimeout(timer);
-          reject(err);
-        },
-      );
-    });
   }
 }

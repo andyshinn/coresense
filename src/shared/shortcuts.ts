@@ -4,19 +4,23 @@ import type { MenuAction } from './types';
 export type Surface = 'menu' | 'renderer' | 'contextual';
 export type ShortcutCategory = 'General' | 'Navigation' | 'Messages' | 'Radio';
 
-export interface Shortcut {
-  id: string;
+interface ShortcutBase<I extends string> {
+  id: I;
   category: ShortcutCategory;
   name: string; // ACTION column
   desc: string; // DESCRIPTION column
-  chords: Chord[]; // alternates render as "A or B"; usually length 1
-  surface: Surface;
-  menuAction?: MenuAction; // required iff surface === 'menu'
+  chords: readonly Chord[]; // alternates render as "A or B"; usually length 1
   guardTyping?: boolean; // renderer-surface: ignore while a text field has focus
 }
 
+/** A menu-surface shortcut carries the MenuAction its native menu item sends;
+ *  no other surface may. */
+type ShortcutDef<I extends string = string> =
+  | (ShortcutBase<I> & { surface: 'menu'; menuAction: MenuAction })
+  | (ShortcutBase<I> & { surface: 'renderer' | 'contextual'; menuAction?: never });
+
 // The single source of truth. Order within a category is the overlay's row order.
-export const SHORTCUTS: Shortcut[] = [
+const SHORTCUT_DEFS = [
   // ── General ──────────────────────────────────────────────────────
   {
     id: 'commandPalette',
@@ -61,6 +65,14 @@ export const SHORTCUTS: Shortcut[] = [
     chords: [{ mods: ['shift'], key: '?' }, { key: '?' }],
     surface: 'renderer',
     guardTyping: true,
+  },
+  {
+    id: 'reload',
+    category: 'General',
+    name: 'Reload window',
+    desc: 'Reload the app window (developer / recovery).',
+    chords: [{ mods: ['mod', 'shift'], key: 'e' }],
+    surface: 'contextual',
   },
   // ── Navigation ───────────────────────────────────────────────────
   {
@@ -220,34 +232,32 @@ export const SHORTCUTS: Shortcut[] = [
     chords: [{ mods: ['ctrl'], key: 'l' }],
     surface: 'contextual',
   },
-  {
-    id: 'reload',
-    category: 'General',
-    name: 'Reload window',
-    desc: 'Reload the app window (developer / recovery).',
-    chords: [{ mods: ['mod', 'shift'], key: 'e' }],
-    surface: 'contextual',
-  },
-];
+] as const satisfies readonly ShortcutDef[];
 
-const BY_ID = new Map(SHORTCUTS.map((s) => [s.id, s]));
+type ShortcutEntry = (typeof SHORTCUT_DEFS)[number];
+export type ShortcutId = ShortcutEntry['id'];
+export type Shortcut = ShortcutDef<ShortcutId>;
+/** Ids of the shortcuts the native menu owns (and so have a menuAction). */
+export type MenuShortcutId = Extract<ShortcutEntry, { surface: 'menu' }>['id'];
+/** A shortcut the renderer's global keydown listener handles. */
+export type RendererShortcut = Shortcut & { surface: 'renderer'; id: Extract<ShortcutEntry, { surface: 'renderer' }>['id'] };
 
-export function byId(id: string): Shortcut {
-  const s = BY_ID.get(id);
-  if (!s) throw new Error(`Unknown shortcut id: ${id}`);
-  return s;
+/** The registry, widened so every entry exposes the optional fields. */
+export const SHORTCUTS: readonly Shortcut[] = SHORTCUT_DEFS;
+
+const BY_ID = new Map<ShortcutId, ShortcutEntry>(SHORTCUT_DEFS.map((s) => [s.id, s]));
+
+export function byId<I extends ShortcutId>(id: I): Extract<ShortcutEntry, { id: I }> {
+  // Every ShortcutId is in the map by construction.
+  return BY_ID.get(id) as Extract<ShortcutEntry, { id: I }>;
 }
 
 /** Electron accelerator string for a shortcut's primary chord. */
-export function accelFor(id: string): string {
+export function accelFor(id: ShortcutId): string {
   return toAccelerator(byId(id).chords[0]);
 }
 
-/** The MenuAction for a menu-surface shortcut. Throws if the id is unknown or
- *  the shortcut has no menuAction (i.e. it is not surface 'menu'). Use instead
- *  of `byId(id).menuAction!`. */
-export function menuActionFor(id: string): MenuAction {
-  const s = byId(id);
-  if (!s.menuAction) throw new Error(`Shortcut "${id}" has no menuAction`);
-  return s.menuAction;
+/** The MenuAction a menu-surface shortcut's native menu item sends. */
+export function menuActionFor(id: MenuShortcutId): MenuAction {
+  return byId(id).menuAction;
 }

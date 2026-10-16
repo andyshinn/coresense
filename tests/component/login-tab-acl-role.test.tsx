@@ -1,18 +1,16 @@
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 // LoginTab imports notify + api at module scope; stub both so mounting is inert.
-vi.mock('../../src/renderer/lib/notify', () => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
+vi.mock('../../src/renderer/lib/notify', () => import('../support/notifyMock'));
 vi.mock('../../src/renderer/lib/api', () => ({
   api: { repeaterLogin: vi.fn() },
 }));
 
 import { LoginTab } from '../../src/renderer/panels/repeater-admin/LoginTab';
 import type { Contact, RepeaterAdminSession } from '../../src/shared/types';
+import { renderWithClient } from '../support/renderWithClient';
 
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 const repeater: Contact = {
   key: `c:${'aa'.repeat(32)}`,
   publicKeyHex: 'aa'.repeat(32),
@@ -35,7 +33,7 @@ const session = (over: Partial<RepeaterAdminSession>): RepeaterAdminSession => (
 
 describe('LoginTab — ACL permissions', () => {
   it('names the role the repeater actually enforces alongside the raw byte', () => {
-    render(<LoginTab contact={repeater} client={client} session={session({})} onSession={() => {}} />);
+    renderWithClient(<LoginTab contact={repeater} session={session({})} onSession={() => {}} />);
     // `role` above is the login reply's isAdmin boolean; the ACL byte is the
     // one with the 2-bit role value in it, and "Read-write" is a role neither
     // isAdmin nor isGuest can express.
@@ -43,13 +41,8 @@ describe('LoginTab — ACL permissions', () => {
   });
 
   it('shows the raw byte alone when the login reply carried no ACL byte', () => {
-    render(
-      <LoginTab
-        contact={repeater}
-        client={client}
-        session={session({ aclPermissionsBits: 3, aclRole: null })}
-        onSession={() => {}}
-      />,
+    renderWithClient(
+      <LoginTab contact={repeater} session={session({ aclPermissionsBits: 3, aclRole: null })} onSession={() => {}} />,
     );
     expect(screen.getByText(/0x03/).textContent).not.toContain('Admin');
   });

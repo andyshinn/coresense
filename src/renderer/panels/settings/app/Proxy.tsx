@@ -4,10 +4,10 @@ import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { NumberInput, Row, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../radio/shared';
+import { saveApp } from '../save';
 import { useSettingsSection } from '../useSectionDraft';
-import { saveApp } from './shared';
 
 const eqProxy = (a: AppSettingsType, b: AppSettingsType) => {
   const x = a.proxy;
@@ -15,7 +15,8 @@ const eqProxy = (a: AppSettingsType, b: AppSettingsType) => {
   return x.enabled === y.enabled && x.bindAll === y.bindAll && x.port === y.port && x.mdns === y.mdns;
 };
 
-export function ProxySection({ client }: SectionProps) {
+export function ProxySection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.appSettings);
   const bridge = useStore((s) => s.bridge);
   // The app's own API port. The bridge binds before the API server does, so a
@@ -23,7 +24,7 @@ export function ProxySection({ client }: SectionProps) {
   // rejects it too (shared/ports.ts) — this just catches it before the round
   // trip. Null until the first snapshot hydrates capabilities.
   const httpPort = useStore((s) => s.capabilities?.httpPort ?? null);
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setGroup, dirty, sectionProps } = useSettingsSection({
     id: 'app-proxy',
     saved,
     eq: eqProxy,
@@ -31,7 +32,6 @@ export function ProxySection({ client }: SectionProps) {
   });
   const p = draft.proxy;
   const p0 = saved.proxy;
-  const setP = (patch: Partial<AppSettingsType['proxy']>) => setDraft((s) => ({ ...s, proxy: { ...s.proxy, ...patch } }));
 
   // Listeners are bound at startup, so a saved change that doesn't match the
   // currently-running bridge means the user needs to restart. Compare against
@@ -62,14 +62,11 @@ export function ProxySection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="app-proxy"
+      {...sectionProps}
       icon={Wifi}
       title="TCP Proxy"
       description="Lets the official MeshCore mobile app (or another desktop client) share this radio over LAN."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client && !portError}
-      onSave={save}
     >
       {portConflict && (
         <div className="mb-2 rounded border border-cs-warn/40 bg-cs-warn/10 px-2.5 py-1.5 text-[11px] text-cs-warn">
@@ -93,14 +90,14 @@ export function ProxySection({ client }: SectionProps) {
       <Row
         label="Enabled"
         changed={p.enabled !== p0.enabled}
-        control={<Toggle checked={p.enabled} onChange={(v) => setP({ enabled: v })} />}
+        control={<Toggle checked={p.enabled} onChange={(v) => setGroup('proxy', { enabled: v })} />}
       />
       <Row
         label="Bind to all interfaces (0.0.0.0)"
         description="Off binds to 127.0.0.1 only; on allows LAN clients to connect."
         warning={p.bindAll ? 'Anyone on your network can connect to this radio without auth.' : undefined}
         changed={p.bindAll !== p0.bindAll}
-        control={<Toggle checked={p.bindAll} disabled={!p.enabled} onChange={(v) => setP({ bindAll: v })} />}
+        control={<Toggle checked={p.bindAll} disabled={!p.enabled} onChange={(v) => setGroup('proxy', { bindAll: v })} />}
       />
       <Row
         label="TCP port"
@@ -108,14 +105,20 @@ export function ProxySection({ client }: SectionProps) {
         warning={portError ?? undefined}
         changed={p.port !== p0.port}
         control={
-          <NumberInput value={p.port} min={1} max={65535} disabled={!p.enabled} onChange={(v) => setP({ port: v })} />
+          <NumberInput
+            value={p.port}
+            min={1}
+            max={65535}
+            disabled={!p.enabled}
+            onChange={(v) => setGroup('proxy', { port: v })}
+          />
         }
       />
       <Row
         label="Advertise via mDNS"
         description="So clients on the LAN can find this radio by name without hard-coding the IP."
         changed={p.mdns !== p0.mdns}
-        control={<Toggle checked={p.mdns} disabled={!p.enabled} onChange={(v) => setP({ mdns: v })} />}
+        control={<Toggle checked={p.mdns} disabled={!p.enabled} onChange={(v) => setGroup('proxy', { mdns: v })} />}
       />
     </SettingsSection>
   );

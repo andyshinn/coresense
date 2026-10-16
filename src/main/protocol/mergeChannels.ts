@@ -1,4 +1,9 @@
+import { isChannelKey } from '../../shared/conversationKey';
 import type { Channel } from '../../shared/types';
+
+/** A channel as meshcore-ts reports it: the same shape, with the key typed as a
+ *  plain string. */
+type LibChannel = Omit<Channel, 'key'> & { key: string };
 
 /** Reconcile a fresh channel list enumerated by the radio with coresense's
  *  persisted channels.
@@ -21,18 +26,25 @@ import type { Channel } from '../../shared/types';
  *  that aren't on the radio at all (e.g. after "remove from device"). Membership
  *  is owned by explicit user actions (DELETE /api/channels/:key), never by a
  *  sync — dropping here would erase a not-yet-enumerated channel's muted/order. */
-export function mergeSyncedChannels(prev: Channel[], incoming: Channel[]): Channel[] {
-  const prevByKey = new Map(prev.map((c) => [c.key, c]));
+export function mergeSyncedChannels(prev: Channel[], incoming: LibChannel[]): Channel[] {
+  const prevByKey = new Map<string, Channel>(prev.map((c) => [c.key, c]));
   const incomingKeys = new Set(incoming.map((c) => c.key));
-  const synced = incoming.map((ch) => {
-    const existing = prevByKey.get(ch.key);
-    return {
-      ...ch,
-      order: existing?.order ?? ch.idx,
-      muted: existing?.muted,
-      pinned: existing?.pinned,
-      createdAt: existing?.createdAt ?? Date.now(),
-    };
+  // The library builds every channel key as `ch:<name>`; the guard narrows the
+  // type and would drop anything else rather than store it.
+  const synced = incoming.flatMap((ch): Channel[] => {
+    const { key } = ch;
+    if (!isChannelKey(key)) return [];
+    const existing = prevByKey.get(key);
+    return [
+      {
+        ...ch,
+        key,
+        order: existing?.order ?? ch.idx,
+        muted: existing?.muted,
+        pinned: existing?.pinned,
+        createdAt: existing?.createdAt ?? Date.now(),
+      },
+    ];
   });
   // Carry over channels the radio didn't mention this pass (see the union note
   // above). Sorting for display happens in the renderer, so append order here

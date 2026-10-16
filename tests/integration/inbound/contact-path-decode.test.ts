@@ -1,6 +1,7 @@
-import { Buffer } from 'node:buffer';
+import { Protocol } from '@andyshinn/meshcore-ts';
 import { describe, expect, it } from 'vitest';
 import { discoveredStore } from '../../../src/main/storage/discoveredContacts';
+import { newAdvertFrame } from '../../support/companionFrames';
 import { makeTestSession } from '../../support/session-harness';
 
 // PUSH_NEW_ADVERT (0x8a) carries a full 148-byte contact record — same layout as
@@ -8,16 +9,8 @@ import { makeTestSession } from '../../support/session-harness';
 // 64-byte out_path region begins at offset 36. This drives a real advert frame
 // through the (linked) meshcore-ts decoder and coresense's discovered store, so
 // it exercises the whole decode→map chain end to end.
-function advertFrame(pubkeyHex: string, name: string, outPathLen: number, pathHex = ''): Buffer {
-  const frame = Buffer.alloc(148);
-  frame[0] = 0x8a;
-  Buffer.from(pubkeyHex, 'hex').copy(frame, 1);
-  frame[33] = 2; // type = repeater
-  frame[34] = 0; // flags
-  frame[35] = outPathLen;
-  if (pathHex) Buffer.from(pathHex, 'hex').copy(frame, 36);
-  Buffer.from(name, 'utf8').copy(frame, 100);
-  return frame;
+function advertFrame(pubkeyHex: string, name: string, outPathLen: number, outPathHex = '') {
+  return newAdvertFrame(pubkeyHex, name, { type: Protocol.ADV_TYPE.REPEATER, outPathLen, outPathHex });
 }
 
 function seen(pubkeyHex: string) {

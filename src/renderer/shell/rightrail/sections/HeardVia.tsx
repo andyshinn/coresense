@@ -1,3 +1,4 @@
+import { parseSender } from '../../../../shared/sender';
 import type { Contact, Message, MessageHop, MessagePath } from '../../../../shared/types';
 import { PathViewer } from '../../../components/path/PathViewer';
 import { HASH_MODE_UNKNOWN } from '../../../lib/hopWarmth';
@@ -26,7 +27,8 @@ export function HeardViaSection({ message, repeaters }: { message: Message; repe
 /** Build a placeholder path from a bare hop count when no observations exist. */
 function synthesizeUnnamedPath(message: Message, hopCount: number): MessagePath {
   const hops: MessageHop[] = [];
-  const senderName = message.fromPublicKeyHex?.startsWith('name:') ? message.fromPublicKeyHex.slice(5) : null;
+  const sender = parseSender(message.fromPublicKeyHex);
+  const senderName = sender.kind === 'name' ? sender.name : null;
   hops.push({
     kind: 'origin',
     shortId: senderName ? senderName.slice(0, 2).toLowerCase() : '??',

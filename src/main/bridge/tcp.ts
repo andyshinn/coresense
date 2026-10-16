@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:net';
+import { errorMessage } from '../../shared/errors';
 import { emit } from '../events/bus';
 import { child } from '../log';
 import { DIR_RADIO_TO_CLIENT, encodeFrame, FrameDecoder } from './framing';
@@ -55,8 +56,8 @@ export async function startTcpListener(hub: BridgeHub, bindAddress: string, port
           hub.handleClientFrame(client, frame);
         });
       } catch (err) {
-        emit.error(`Bridge TCP ${remoteAddr}: protocol error, dropping client: ${(err as Error).message}`);
-        logger.warn(`protocol error from ${remoteAddr}: ${(err as Error).message}`);
+        emit.error(`Bridge TCP ${remoteAddr}: protocol error, dropping client: ${errorMessage(err)}`);
+        logger.warn(`protocol error from ${remoteAddr}: ${errorMessage(err)}`);
         socket.destroy();
       }
     });

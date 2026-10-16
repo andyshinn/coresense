@@ -17,6 +17,7 @@ import {
   type TracePayload,
   Utils,
 } from '@michaelhart/meshcore-decoder';
+import { errorMessage } from '../../shared/errors';
 
 export interface PacketSummary {
   routeName: string;
@@ -103,7 +104,7 @@ export function summarizePacket(hex: string): PacketSummary {
     return {
       routeName: '?',
       typeName: 'invalid',
-      detail: (err as Error).message,
+      detail: errorMessage(err),
       isValid: false,
       decoded: null,
     };

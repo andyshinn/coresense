@@ -1,14 +1,13 @@
 import type { Models } from '@andyshinn/meshcore-ts';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createRoutes } from '../../../src/main/api/routes';
-import { bus } from '../../../src/main/events/bus';
-import { setProtocolSession } from '../../../src/main/protocol';
+import { describe, expect, it, vi } from 'vitest';
 import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
 import { flushContactSyncEmits } from '../../../src/main/state/contactSync';
 import { stateHolder } from '../../../src/main/state/holder';
 import { discoveredStore } from '../../../src/main/storage/discoveredContacts';
 import type { DiscoveredContact } from '../../../src/shared/contacts/discovered';
 import { DEFAULT_RADIO_SETTINGS } from '../../../src/shared/types';
+import { installSessionStub, json, testRoutes } from '../../support/api';
+import { captureBus } from '../../support/bus';
 
 // meshcore-ts's setContactPath/resetContactPath write the radio and then their
 // OWN contact map — they emit neither contactObserved nor discovered, so nothing
@@ -19,14 +18,6 @@ import { DEFAULT_RADIO_SETTINGS } from '../../../src/shared/types';
 
 const PK = 'a1'.repeat(32);
 const KEY = `c%3A${PK}`;
-
-function app() {
-  return createRoutes({
-    port: () => 8080,
-    wsClients: () => 0,
-    bridgeStatus: () => ({ running: false, clients: 0 }) as never,
-  });
-}
 
 /** Seed a flood-routed (OUT_PATH_UNKNOWN) contact in the mirror. */
 function seed(outPathLen = 0xff, outPathHex = ''): void {
@@ -47,42 +38,31 @@ function seed(outPathLen = 0xff, outPathHex = ''): void {
   );
 }
 
-function spySession(over: Partial<Record<'setContactPath' | 'resetContactPath', unknown>> = {}) {
+function spySession(over: Partial<Pick<SessionAdapter, 'setContactPath' | 'resetContactPath'>> = {}) {
   const setContactPath = vi.fn(() => Promise.resolve());
   const resetContactPath = vi.fn(() => Promise.resolve());
-  setProtocolSession({
+  installSessionStub({
     setContactPath,
     resetContactPath,
     setContactPreferDirect: vi.fn(),
     ...over,
-  } as unknown as SessionAdapter);
+  });
   return { setContactPath, resetContactPath };
 }
 
 /** Capture the coalesced discovered broadcast the route schedules. */
 async function capturedDiscovered(run: () => Promise<unknown> | unknown): Promise<DiscoveredContact[] | null> {
-  let rows: DiscoveredContact[] | null = null;
-  const onDiscovered = (r: DiscoveredContact[]) => {
-    rows = r;
-  };
-  bus.on('discovered', onDiscovered);
+  const discovered = captureBus('discovered');
   try {
     await run();
     await flushContactSyncEmits();
   } finally {
-    bus.off('discovered', onDiscovered);
+    discovered.stop();
   }
-  return rows;
+  return discovered.last() ?? null;
 }
 
-const putPath = (outPathHex: string) =>
-  app().request(`/api/contacts/${KEY}/path`, {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ outPathHex }),
-  });
-
-afterEach(() => setProtocolSession(null));
+const putPath = (outPathHex: string) => testRoutes().request(`/api/contacts/${KEY}/path`, json('PUT', { outPathHex }));
 
 describe('PUT /api/contacts/:key/path — discovered mirror', () => {
   it('packs the new path into out_path_len so the hop count reads back', async () => {
@@ -163,7 +143,7 @@ describe('DELETE /api/contacts/:key/path — discovered mirror', () => {
     seed(0x42, 'aabbccdd');
     spySession();
 
-    const res = await app().request(`/api/contacts/${KEY}/path`, { method: 'DELETE' });
+    const res = await testRoutes().request(`/api/contacts/${KEY}/path`, { method: 'DELETE' });
 
     expect(res.status).toBe(200);
     expect(discoveredStore.get(PK)?.out_path_len).toBe(0xff);
@@ -175,7 +155,7 @@ describe('DELETE /api/contacts/:key/path — discovered mirror', () => {
     seed(0x42, 'aabbccdd');
     spySession({ resetContactPath: vi.fn(() => Promise.reject(new Error('radio disconnected'))) });
 
-    const res = await app().request(`/api/contacts/${KEY}/path`, { method: 'DELETE' });
+    const res = await testRoutes().request(`/api/contacts/${KEY}/path`, { method: 'DELETE' });
 
     expect(res.status).toBe(503);
     expect(discoveredStore.get(PK)?.out_path_len).toBe(0x42);

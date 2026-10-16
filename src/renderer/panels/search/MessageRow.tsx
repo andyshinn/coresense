@@ -1,8 +1,8 @@
 import { Hash, Trash2, User } from 'lucide-react';
+import { isChannelKey } from '../../../shared/conversationKey';
 import type { MessageHit } from '../../../shared/types';
 import { RelativeTime } from '../../components/RelativeTime';
 import { DeleteConfirmPopover } from '../../features/message-actions/DeleteConfirmPopover';
-import type { ApiClient } from '../../lib/api';
 import { useStore } from '../../lib/store';
 
 export function SearchMessageRow({
@@ -10,18 +10,16 @@ export function SearchMessageRow({
   channelName,
   senderName,
   onClick,
-  client,
   onDeleted,
 }: {
   hit: MessageHit;
   channelName: string | undefined;
   senderName: string;
   onClick: () => void;
-  client: ApiClient | null;
   onDeleted: (id: string) => void;
 }) {
   const setPendingDeleteMessageId = useStore((s) => s.setPendingDeleteMessageId);
-  const isChannel = hit.key.startsWith('ch:');
+  const isChannel = isChannelKey(hit.key);
   return (
     <li className="group relative">
       <button
@@ -31,7 +29,7 @@ export function SearchMessageRow({
       >
         <div className="flex items-center gap-2 font-mono text-[10px] text-cs-text-dim">
           {isChannel ? <Hash size={11} aria-hidden="true" /> : <User size={11} aria-hidden="true" />}
-          <span>{isChannel ? (channelName ?? hit.key) : (senderName ?? hit.key)}</span>
+          <span>{isChannel ? (channelName ?? hit.key) : senderName}</span>
           <span>·</span>
           <RelativeTime ts={hit.ts} />
           {isChannel && (
@@ -70,7 +68,6 @@ export function SearchMessageRow({
         messageId={hit.id}
         conversationKey={hit.key}
         preview={hit.body}
-        client={client}
         onDeleted={() => onDeleted(hit.id)}
       />
     </li>

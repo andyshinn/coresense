@@ -1,13 +1,14 @@
 import { Check, ChevronDown, ChevronUp, Inbox } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { senderDisplayName } from '../../shared/sender';
 import type { ChannelKind, ContactKind } from '../../shared/types';
+import { CountTab } from '../components/CountTab';
 import { MessageItem } from '../components/MessageItem';
 import { RelativeTime } from '../components/RelativeTime';
-import { type UnreadConversation, useUnreadConversations } from '../hooks/useUnreads';
-import type { ApiClient } from '../lib/api';
+import { useUnreadConversations } from '../hooks/useUnreads';
 import { CHANNEL_ICON, CONTACT_ICON } from '../lib/conversationIcons';
 import { useStore } from '../lib/store';
-import { cn, deriveSenderName } from '../lib/utils';
+import type { UnreadConversation } from '../lib/unreads';
 
 type Filter = 'all' | 'channels' | 'direct';
 
@@ -27,9 +28,9 @@ const CONTACT_KIND_LABEL: Record<ContactKind, string> = {
 // The Unreads panel aggregates every conversation with unread messages into a
 // single triage list. Marking is immediate and permanent — `markAllRead`
 // advances the per-conversation last-read marker, so a marked card simply drops
-// off the reactively-computed list. `client` is unused (marking is store-only)
-// but kept for the panel-prop contract.
-export function Unreads({ client: _client }: { client: ApiClient | null }) {
+// off the reactively-computed list. Marking is store-only, so the panel takes no
+// api client.
+export function Unreads() {
   const conversations = useUnreadConversations();
   const markAllRead = useStore((s) => s.markAllRead);
   const markAllReadGlobal = useStore((s) => s.markAllReadGlobal);
@@ -109,14 +110,14 @@ export function Unreads({ client: _client }: { client: ApiClient | null }) {
           air
         </p>
         <div className="mt-3 flex items-center gap-1 text-xs">
-          <FilterTab label="All" count={conversations.length} active={filter === 'all'} onClick={() => setFilter('all')} />
-          <FilterTab
+          <CountTab label="All" count={conversations.length} active={filter === 'all'} onClick={() => setFilter('all')} />
+          <CountTab
             label="Channels"
             count={channelsAll.length}
             active={filter === 'channels'}
             onClick={() => setFilter('channels')}
           />
-          <FilterTab
+          <CountTab
             label="Direct & Rooms"
             count={directAll.length}
             active={filter === 'direct'}
@@ -153,44 +154,11 @@ export function Unreads({ client: _client }: { client: ApiClient | null }) {
   );
 }
 
-function FilterTab({
-  label,
-  count,
-  active,
-  onClick,
-}: {
-  label: string;
-  count: number;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex items-center gap-1.5 border-b-2 px-2 py-1 transition-colors',
-        active ? 'border-cs-accent text-cs-text' : 'border-transparent text-cs-text-muted hover:text-cs-text',
-      )}
-    >
-      {label}
-      <span
-        className={cn(
-          'rounded-full px-1.5 py-px font-mono text-[9px] tabular-nums',
-          active ? 'bg-cs-accent-soft/30 text-cs-text' : 'bg-cs-bg-3 text-cs-text-dim',
-        )}
-      >
-        {count}
-      </span>
-    </button>
-  );
-}
-
 // Channels and rooms carry a per-message sender name (encoded as a `name:`
 // prefix); 1:1 conversations don't — every received message is from the peer.
 function previewSender(conversation: UnreadConversation, fromPublicKeyHex: string | undefined): string {
   if (conversation.kind === 'channel' || conversation.contactKind === 'room') {
-    return deriveSenderName(fromPublicKeyHex) || 'unknown';
+    return senderDisplayName(fromPublicKeyHex) || 'unknown';
   }
   return conversation.name;
 }

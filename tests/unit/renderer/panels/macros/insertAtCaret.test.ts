@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { spliceAtCaret } from '@/panels/macros/lib/insertAtCaret';
+import { spliceAtCaret, varTag } from '@/panels/macros/lib/insertAtCaret';
 
 describe('spliceAtCaret', () => {
   it('inserts at a collapsed caret and advances the caret past the insert', () => {
@@ -18,5 +18,12 @@ describe('spliceAtCaret', () => {
     const res = spliceAtCaret('hi ', 3, 3, '{{ snr }}');
     expect(res.value).toBe('hi {{ snr }}');
     expect(res.caret).toBe(12);
+  });
+});
+
+describe('varTag', () => {
+  it('wraps a variable or path in a spaced output tag', () => {
+    expect(varTag('snr')).toBe('{{ snr }}');
+    expect(varTag('paths.first.hops')).toBe('{{ paths.first.hops }}');
   });
 });

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { firstPathStats } from '../../../shared/messagePath';
+import { isRealPubkey } from '../../../shared/sender';
 import type { Message } from '../../../shared/types';
 import { KeyValueRow } from '../../components/ui/KeyValueRow';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
@@ -16,7 +17,7 @@ export function MessageInfoPopover({ message, senderName, open, onOpenChange, ch
   const isSelf = message.fromPublicKeyHex === undefined;
   const { hops } = firstPathStats(message);
   const pk = message.fromPublicKeyHex;
-  const showPk = pk != null && pk !== 'unknown' && !pk.startsWith('name:');
+  const showPk = isRealPubkey(pk);
   const rssi = message.meta?.rssi;
   const snr = message.meta?.snr;
   const pathHops = message.meta?.paths?.[0]?.hops ?? [];

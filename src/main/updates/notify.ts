@@ -1,3 +1,4 @@
+import { errorMessage } from '../../shared/errors';
 import type { UpdateChannel, UpdateState } from '../../shared/types';
 import { type GitHubRelease, isNewer, normalizeTag, pickLatest } from './version';
 
@@ -30,6 +31,6 @@ export async function checkNotify(channel: UpdateChannel, currentVersion: string
     }
     return { ...base, status: 'up-to-date', lastCheckedAt };
   } catch (err) {
-    return { ...base, status: 'error', error: (err as Error).message, lastCheckedAt: deps.now() };
+    return { ...base, status: 'error', error: errorMessage(err), lastCheckedAt: deps.now() };
   }
 }

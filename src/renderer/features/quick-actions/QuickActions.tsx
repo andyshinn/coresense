@@ -1,6 +1,6 @@
 import { Settings2 } from 'lucide-react';
 import type { Owner } from '../../../shared/types';
-import type { ApiClient } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { useStore } from '../../lib/store';
 import { QUICK_ACTIONS_BY_ID, type QuickActionDef } from './catalog';
 import { DEFAULT_QUICK_ACTION_IDS, type QuickActionId } from './ids';
@@ -9,14 +9,14 @@ import { sanitizeQuickActionIds } from './sanitize';
 
 interface Props {
   owner: Owner | null;
-  client: ApiClient | null;
   /** Override the persisted ids (used by the settings-tab live preview). */
   idsOverride?: QuickActionId[];
 }
 
 /** The owner-card quick-action block: a primary button + up to three secondary
  *  icon buttons, rendered from the user's configured ids. */
-export function QuickActions({ owner, client, idsOverride }: Props) {
+export function QuickActions({ owner, idsOverride }: Props) {
+  const client = useApiClient();
   const persisted = useStore((s) => s.appSettings.quickActions);
   const connected = useStore((s) => s.transportState === 'connected');
   const setActiveKey = useStore((s) => s.setActiveKey);

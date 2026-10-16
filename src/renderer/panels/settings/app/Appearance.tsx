@@ -1,11 +1,11 @@
 import { Sun } from 'lucide-react';
-import type { AppSettings as AppSettingsType, IdentityColorMode } from '../../../../shared/types';
+import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { Row, Select } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../radio/shared';
+import { saveApp } from '../save';
 import { useSettingsSection } from '../useSectionDraft';
-import { saveApp } from './shared';
 
 const THEME_OPTIONS = [
   { value: 'auto', label: 'Auto (system)' },
@@ -35,7 +35,8 @@ const eqAppearance = (a: AppSettingsType, b: AppSettingsType) =>
   a.timeFormat === b.timeFormat &&
   a.identityColorMode === b.identityColorMode;
 
-export function AppearanceSection({ client }: SectionProps) {
+export function AppearanceSection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.appSettings);
   // The theme is the one control here that is NOT part of the saved draft: it
   // lives in ui state (ui-state.json), which is what App.tsx actually applies
@@ -44,7 +45,7 @@ export function AppearanceSection({ client }: SectionProps) {
   // when the theme is changed from outside this panel. See issue #22.
   const themePref = useStore((s) => s.ui.themePref);
   const setThemePref = useStore((s) => s.setThemePref);
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'app-appearance',
     saved,
     eq: eqAppearance,
@@ -63,14 +64,11 @@ export function AppearanceSection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="app-appearance"
+      {...sectionProps}
       icon={Sun}
       title="Appearance"
       description="Visual preferences for the app window."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client}
-      onSave={save}
     >
       <Row
         label="Theme"
@@ -90,7 +88,7 @@ export function AppearanceSection({ client }: SectionProps) {
           <Select
             value={draft.identityColorMode}
             options={IDENTITY_COLOR_OPTIONS}
-            onChange={(mode) => setDraft((s) => ({ ...s, identityColorMode: mode as IdentityColorMode }))}
+            onChange={(identityColorMode) => setDraft((s) => ({ ...s, identityColorMode }))}
           />
         }
       />

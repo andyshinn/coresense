@@ -1,6 +1,7 @@
 export type PacketInputKind = 'hex' | 'base64' | 'uri';
 
-const isHexBody = (s: string) => s.length >= 2 && s.length % 2 === 0 && /^[0-9a-f]+$/i.test(s);
+/** A non-empty, whole-byte, hex-only string (no separators). */
+export const isHexBody = (s: string) => s.length >= 2 && s.length % 2 === 0 && /^[0-9a-f]+$/i.test(s);
 
 // Sane upper bound on decoded packet size — nothing on the wire is remotely
 // this large, and it protects the dialog (and the decoder libs it feeds) from

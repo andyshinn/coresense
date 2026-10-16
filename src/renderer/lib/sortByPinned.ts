@@ -1,3 +1,5 @@
+import type { Channel } from '../../shared/types';
+
 /** Returns a sorted copy applying tiers: unread → pinned (then pinnedOrder) → order asc → label (localeCompare, case-insensitive). */
 export function sortByPinned<T>(
   items: readonly T[],
@@ -31,5 +33,24 @@ export function sortByPinned<T>(
       if (ao !== bo) return ao - bo;
     }
     return label(a).localeCompare(label(b));
+  });
+}
+
+/** Channel sort: unread → pinned (then pinnedOrder) → order asc → name. Shared
+ *  by the left nav and the ⌘1-9 channel shortcuts so both number channels the
+ *  same way. */
+export function sortChannels(
+  items: Channel[],
+  pinSet: Set<string>,
+  pinnedOrder: string[],
+  unreadByKey: Record<string, number> | null,
+): Channel[] {
+  return sortByPinned(items, {
+    key: (c) => c.key,
+    isPinned: (c) => pinSet.has(c.key),
+    pinnedOrder,
+    isUnread: unreadByKey ? (c) => (unreadByKey[c.key] ?? 0) > 0 : undefined,
+    order: (c) => c.order ?? undefined,
+    label: (c) => c.name,
   });
 }

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { type ApiClient, api } from '../lib/api';
+import { api } from '../lib/api';
+import { useApiClient } from '../lib/apiClientContext';
 import { notify } from '../lib/notify';
 
 /** Shared behaviour behind the two "re-read the radio's contacts" affordances —
@@ -13,7 +14,8 @@ import { notify } from '../lib/notify';
  *
  *  Nothing is returned but the busy flag: the refreshed rows arrive over the
  *  websocket, so the toast is the whole user-visible result. */
-export function useContactRefresh(client: ApiClient | null): { refreshing: boolean; refresh: () => Promise<void> } {
+export function useContactRefresh(): { refreshing: boolean; refresh: () => Promise<void> } {
+  const client = useApiClient();
   const [refreshing, setRefreshing] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -27,7 +29,7 @@ export function useContactRefresh(client: ApiClient | null): { refreshing: boole
       if (res.skipped) notify.info('Radio is already syncing contacts');
       else notify.success(`Re-read ${res.count ?? 0} contact${res.count === 1 ? '' : 's'} from the radio`);
     } catch (err) {
-      notify.error(`Contact refresh failed: ${(err as Error).message}`, err);
+      notify.failure('Contact refresh', err);
     } finally {
       setRefreshing(false);
     }

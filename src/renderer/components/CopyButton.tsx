@@ -1,6 +1,6 @@
 import { Check } from 'lucide-react';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { copyToClipboard } from './ContextMenu';
+import { copyToClipboard } from '../lib/clipboard';
 import { Popover, PopoverAnchor, PopoverContent } from './ui/popover';
 
 // How long the "Copied!" confirmation stays up after a successful copy.

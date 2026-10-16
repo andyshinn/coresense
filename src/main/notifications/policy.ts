@@ -1,3 +1,4 @@
+import { isChannelKey, isContactKey } from '../../shared/conversationKey';
 import type { AppSettings, ContactKind, Message } from '../../shared/types';
 
 export type Kind = 'directMessage' | 'channelMention' | 'channelMessage' | 'repeaterAlert' | 'sensorAlert';
@@ -17,12 +18,12 @@ export function mentionsOwner(body: string, ownerName: string): boolean {
 }
 
 export function classify(m: Message, ownerName: string | undefined, contactKind: ContactKind | undefined): Kind {
-  if (m.key.startsWith('c:')) {
+  if (isContactKey(m.key)) {
     if (contactKind === 'repeater') return 'repeaterAlert';
     if (contactKind === 'sensor') return 'sensorAlert';
     return 'directMessage';
   }
-  if (m.key.startsWith('ch:')) {
+  if (isChannelKey(m.key)) {
     if (ownerName && mentionsOwner(m.body, ownerName)) return 'channelMention';
     return 'channelMessage';
   }

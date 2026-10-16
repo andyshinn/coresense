@@ -1,10 +1,12 @@
 import { Buffer } from 'node:buffer';
-import { type Models, type Ports, Transports } from '@andyshinn/meshcore-ts';
+import { type Models, type Ports, Protocol, Transports } from '@andyshinn/meshcore-ts';
 import noble, { type Characteristic, type Peripheral } from '@stoprocent/noble';
+import { errorMessage } from '../../shared/errors';
 import type { BleDevice } from '../../shared/types';
 import { emit } from '../events/bus';
 import { child } from '../log';
-import { parseCompanionFrame } from './companionFrame';
+import { withTimeout } from '../util/async';
+import { toRawPacket } from './rawPacket';
 import type { ITransport } from './types';
 
 const logger = child('transport:ble');
@@ -274,7 +276,7 @@ export class BleTransport implements ITransport {
     try {
       noble.stop();
     } catch (err) {
-      logger.warn(`noble.stop() threw: ${(err as Error).message}`);
+      logger.warn(`noble.stop() threw: ${errorMessage(err)}`);
     }
   }
 
@@ -382,7 +384,7 @@ export class BleTransport implements ITransport {
   };
 
   private onData = (data: Buffer, _isNotification: boolean) => {
-    const parsed = parseCompanionFrame(data);
+    const parsed = Protocol.parseCompanionFrame(data);
     const fullHex = data.toString('hex');
     if (!parsed) {
       logger.trace(`BLE_RX ${data.length}B (unparsed) hex=${fullHex}`);
@@ -397,32 +399,7 @@ export class BleTransport implements ITransport {
         `BLE_RX ${data.length}B mesh snr=${parsed.snr} rssi=${parsed.rssi} bytes=${parsed.meshBytes.length} hex=${fullHex}`,
       );
     }
-    const fullBytes = [...data];
-    if (parsed.kind === 'mesh') {
-      emit.packet({
-        timestamp: Date.now(),
-        transportType: 'ble',
-        kind: 'mesh',
-        hex: fullHex,
-        bytes: fullBytes,
-        payloadHex: parsed.meshHex,
-        payloadBytes: [...parsed.meshBytes],
-        snr: parsed.snr,
-        rssi: parsed.rssi,
-      });
-    } else {
-      emit.packet({
-        timestamp: Date.now(),
-        transportType: 'ble',
-        kind: 'companion',
-        hex: fullHex,
-        bytes: fullBytes,
-        payloadHex: parsed.payloadHex,
-        payloadBytes: [...parsed.payloadBytes],
-        code: parsed.code,
-        codeName: parsed.codeName,
-      });
-    }
+    emit.packet(toRawPacket(data, parsed, { timestamp: Date.now(), transportType: 'ble' }));
     this.libDataCb?.(Uint8Array.from(data));
   };
 
@@ -460,8 +437,8 @@ export class BleTransport implements ITransport {
       this.reconnectTimer = null;
       if (this.userDisconnected) return;
       this.connect(deviceId).catch((err) => {
-        logger.warn(`reconnect to ${deviceId} failed: ${(err as Error).message}`);
-        emit.error(`Reconnect to ${deviceId} failed: ${(err as Error).message}`);
+        logger.warn(`reconnect to ${deviceId} failed: ${errorMessage(err)}`);
+        emit.error(`Reconnect to ${deviceId} failed: ${errorMessage(err)}`);
         // connect() may have left peripheral set if it failed mid-way; clean
         // up so the next attempt starts fresh.
         this.peripheral = null;
@@ -486,7 +463,7 @@ export class BleTransport implements ITransport {
     try {
       p.disconnect(noop);
     } catch (err) {
-      logger.warn(`forced disconnect threw: ${(err as Error).message}`);
+      logger.warn(`forced disconnect threw: ${errorMessage(err)}`);
     }
     // Drive the disconnect path synchronously in case noble's callback
     // doesn't fire either.
@@ -497,22 +474,4 @@ export class BleTransport implements ITransport {
 function normalizeUuid(uuid: string): string {
   // noble normalises UUIDs to lowercase no-dashes.
   return uuid.toLowerCase().replace(/-/g, '');
-}
-
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(`${label} timed out after ${ms}ms`));
-    }, ms);
-    p.then(
-      (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      (err) => {
-        clearTimeout(timer);
-        reject(err);
-      },
-    );
-  });
 }

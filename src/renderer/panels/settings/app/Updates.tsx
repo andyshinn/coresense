@@ -3,11 +3,11 @@ import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { Row, Select, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../radio/shared';
+import { saveApp } from '../save';
 import { useSettingsSection } from '../useSectionDraft';
-import { saveApp } from './shared';
 
 const CHANNEL_OPTIONS = [
   { value: 'stable', label: 'Stable' },
@@ -27,10 +27,11 @@ const STATUS_LABEL: Record<string, string> = {
   error: 'Check failed',
 };
 
-export function UpdatesSection({ client }: SectionProps) {
+export function UpdatesSection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.appSettings);
   const updateState = useStore((s) => s.updateState);
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setGroup, dirty, sectionProps } = useSettingsSection({
     id: 'app-updates',
     saved,
     eq: eqUpdates,
@@ -39,8 +40,6 @@ export function UpdatesSection({ client }: SectionProps) {
 
   const u = draft.updates;
   const s0 = saved.updates;
-  const setU = (patch: Partial<AppSettingsType['updates']>) =>
-    setDraft((s) => ({ ...s, updates: { ...s.updates, ...patch } }));
 
   const onCheck = () => {
     if (!client) return;
@@ -50,7 +49,7 @@ export function UpdatesSection({ client }: SectionProps) {
         else if (r.updateState?.status === 'up-to-date') notify.info('You are up to date');
         else if (r.updateState?.status === 'error') notify.error(r.updateState.error ?? 'Update check failed');
       },
-      (err) => notify.error(`Update check failed: ${(err as Error).message}`, err),
+      (err) => notify.failure('Update check', err),
     );
   };
 
@@ -66,27 +65,26 @@ export function UpdatesSection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="app-updates"
+      {...sectionProps}
       icon={ArrowUpCircle}
       title="Updates"
       description="Choose an update channel and check for new versions."
       footnote={silentRestartHint}
-      dirty={dirty}
-      saving={saving}
       canSave={!!client}
-      onSave={save}
     >
       <Row
         label="Update channel"
         description="Stable ships tested releases. Development tracks pre-release builds."
         changed={u.channel !== s0.channel}
-        control={<Select value={u.channel} options={CHANNEL_OPTIONS} onChange={(channel) => setU({ channel })} />}
+        control={
+          <Select value={u.channel} options={CHANNEL_OPTIONS} onChange={(channel) => setGroup('updates', { channel })} />
+        }
       />
       <Row
         label="Automatically check for updates"
         description="Check in the background about once an hour."
         changed={u.autoCheck !== s0.autoCheck}
-        control={<Toggle checked={u.autoCheck} onChange={(v) => setU({ autoCheck: v })} />}
+        control={<Toggle checked={u.autoCheck} onChange={(v) => setGroup('updates', { autoCheck: v })} />}
       />
       <Row
         label="Status"

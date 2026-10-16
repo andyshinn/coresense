@@ -3,12 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // vi.mock factories are hoisted above the file body, so the doubles they close
 // over have to be hoisted with them.
-const { getAdvertPath, notify } = vi.hoisted(() => ({
-  getAdvertPath: vi.fn(),
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
+const { getAdvertPath } = vi.hoisted(() => ({ getAdvertPath: vi.fn() }));
 
-vi.mock('@/lib/notify', () => ({ notify }));
+vi.mock('@/lib/notify', () => import('../support/notifyMock'));
 vi.mock('@/lib/api', async () => {
   // ApiError is a real class the hook instanceof-checks; only the calls are doubled.
   const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
@@ -23,6 +20,9 @@ import { useStore } from '@/lib/store';
 import { ContactDetail } from '@/shell/rightrail/sections/ContactDetail';
 import { resetAdvertPathMemo } from '../../src/renderer/hooks/useAdvertPath';
 import type { DiscoveredContact } from '../../src/shared/contacts/discovered';
+import { TEST_CLIENT as client } from '../support/apiClient';
+import { notify, resetNotifyMock } from '../support/notifyMock';
+import { renderWithClient } from '../support/renderWithClient';
 
 // #45 item 7: the rail shows two hop counts. `hops` is the LEARNED OUTBOUND
 // route (out_path_len) and the new one is what the radio counted on the last
@@ -30,7 +30,6 @@ import type { DiscoveredContact } from '../../src/shared/contacts/discovered';
 // questions, so the rail has to say which is which.
 
 const PK = 'd4'.repeat(32);
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 
 function makeRow(publicKeyHex: string, over: Partial<DiscoveredContact> = {}): DiscoveredContact {
   return {
@@ -65,9 +64,7 @@ const button = () => screen.getByRole('button', { name: 'Measure heard hops' }) 
 
 beforeEach(() => {
   getAdvertPath.mockReset();
-  notify.success.mockReset();
-  notify.info.mockReset();
-  notify.error.mockReset();
+  resetNotifyMock();
   // One automatic measurement per pubkey per session is module state.
   resetAdvertPathMemo();
   vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -80,7 +77,7 @@ afterEach(() => {
 describe('ContactDetail hop rows', () => {
   it('labels the two hop counts by direction and renders both', () => {
     seed({ hops: 1, observedHops: 4 });
-    render(<ContactDetail publicKeyHex={PK} client={null} showPath={false} />);
+    render(<ContactDetail publicKeyHex={PK} showPath={false} />);
 
     expect(rowValue('Path hops (out)')).toBe('1 hop');
     expect(rowValue('Heard hops (in)')).toContain('4 hops');
@@ -90,7 +87,7 @@ describe('ContactDetail hop rows', () => {
   // nobody has measured would be inventing a fact.
   it('says "not measured" rather than reusing the outbound wording', () => {
     seed({ hops: undefined });
-    render(<ContactDetail publicKeyHex={PK} client={null} showPath={false} />);
+    render(<ContactDetail publicKeyHex={PK} showPath={false} />);
 
     expect(rowValue('Path hops (out)')).toBe('Flood');
     expect(rowValue('Heard hops (in)')).toContain('not measured');
@@ -100,7 +97,7 @@ describe('ContactDetail hop rows', () => {
   // would blank.
   it('renders a zero-hop measurement as a value, not as unmeasured', () => {
     seed({ observedHops: 0 });
-    render(<ContactDetail publicKeyHex={PK} client={null} showPath={false} />);
+    render(<ContactDetail publicKeyHex={PK} showPath={false} />);
 
     const value = rowValue('Heard hops (in)');
     expect(value).toContain('0 hops');
@@ -109,7 +106,7 @@ describe('ContactDetail hop rows', () => {
 
   it('does not reach for the radio when there is no client', () => {
     seed();
-    render(<ContactDetail publicKeyHex={PK} client={null} showPath={false} />);
+    render(<ContactDetail publicKeyHex={PK} showPath={false} />);
 
     expect(button().disabled).toBe(true);
     vi.advanceTimersByTime(5_000);
@@ -121,7 +118,7 @@ describe('ContactDetail measure button', () => {
   it('asks the radio and reports the hop count', async () => {
     seed();
     getAdvertPath.mockResolvedValue({ cached: true, hops: 3, pathHex: 'aabbcc' });
-    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
 
     fireEvent.click(button());
 
@@ -133,7 +130,7 @@ describe('ContactDetail measure button', () => {
   it('names a direct reception rather than reporting a bare zero', async () => {
     seed();
     getAdvertPath.mockResolvedValue({ cached: true, hops: 0, pathHex: '' });
-    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
 
     fireEvent.click(button());
 
@@ -145,7 +142,7 @@ describe('ContactDetail measure button', () => {
   it('explains a miss without calling it a failure', async () => {
     seed();
     getAdvertPath.mockResolvedValue({ cached: false });
-    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
 
     fireEvent.click(button());
 
@@ -160,7 +157,7 @@ describe('ContactDetail measure button', () => {
   it('separates "no path cached" from "nothing cached"', async () => {
     seed();
     getAdvertPath.mockResolvedValue({ cached: false, reason: 'noPath', recvTimestampUnix: 1_760_000_000 });
-    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
 
     fireEvent.click(button());
 
@@ -172,8 +169,8 @@ describe('ContactDetail measure button', () => {
 
   it('tells the user to add a discovered-only contact to the radio first', async () => {
     seed({ onRadio: false });
-    getAdvertPath.mockRejectedValue(new ApiError('contact is not on the radio', 422, 'NOT_ON_RADIO'));
-    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    getAdvertPath.mockRejectedValue(new ApiError('contact is not on the radio', 422, 'not_on_radio'));
+    renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
 
     fireEvent.click(button());
 
@@ -186,7 +183,7 @@ describe('ContactDetail measure button', () => {
   it('surfaces a disconnected radio as an error', async () => {
     seed();
     getAdvertPath.mockRejectedValue(new ApiError('no radio attached', 503, null));
-    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
 
     fireEvent.click(button());
 
@@ -198,7 +195,7 @@ describe('ContactDetail measure button', () => {
     seed();
     let finish!: (v: unknown) => void;
     getAdvertPath.mockReturnValue(new Promise((r) => (finish = r)));
-    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
 
     fireEvent.click(button());
     await waitFor(() => expect(button().disabled).toBe(true));
@@ -215,7 +212,7 @@ describe('ContactDetail automatic measurement', () => {
   it('measures once the rail has settled on a contact, silently', async () => {
     seed();
     getAdvertPath.mockResolvedValue({ cached: false });
-    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
 
     expect(getAdvertPath).not.toHaveBeenCalled();
     vi.advanceTimersByTime(600);
@@ -230,9 +227,9 @@ describe('ContactDetail automatic measurement', () => {
   // Clicking down a contact list must not be one radio command per row.
   it('does not measure a contact the rail only passed through', () => {
     seed();
-    const { rerender, unmount } = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    const { rerender, unmount } = renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
     vi.advanceTimersByTime(200);
-    rerender(<ContactDetail publicKeyHex={'e5'.repeat(32)} client={client} showPath={false} />);
+    rerender(<ContactDetail publicKeyHex={'e5'.repeat(32)} showPath={false} />);
     vi.advanceTimersByTime(200);
     unmount();
     vi.advanceTimersByTime(1_000);
@@ -245,12 +242,12 @@ describe('ContactDetail automatic measurement', () => {
     // A miss the radio itself reported: that is an answer, and it spends the
     // attempt.
     getAdvertPath.mockResolvedValue({ cached: false, fromCache: false });
-    const first = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    const first = renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
     vi.advanceTimersByTime(600);
     await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));
     first.unmount();
 
-    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
     vi.advanceTimersByTime(600);
 
     expect(getAdvertPath).toHaveBeenCalledTimes(1);
@@ -269,7 +266,7 @@ describe('ContactDetail automatic measurement — a spent attempt must have happ
   it('re-measures after an automatic attempt the radio never answered', async () => {
     seed();
     getAdvertPath.mockRejectedValueOnce(new ApiError('no radio attached', 503, null));
-    const first = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    const first = renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
     vi.advanceTimersByTime(600);
     await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));
     // Still silent: an automatic pass must not toast about a radio that is not
@@ -279,7 +276,7 @@ describe('ContactDetail automatic measurement — a spent attempt must have happ
 
     // The radio is up now. The contact has not used its attempt.
     getAdvertPath.mockResolvedValue({ cached: true, hops: 2, pathHex: 'aabb' });
-    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
     vi.advanceTimersByTime(600);
 
     await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(2));
@@ -293,13 +290,13 @@ describe('ContactDetail automatic measurement — a spent attempt must have happ
   it('re-measures after a miss the server answered from its cooldown, not the radio', async () => {
     seed();
     getAdvertPath.mockResolvedValueOnce({ cached: false, fromCache: true });
-    const first = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    const first = renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
     vi.advanceTimersByTime(600);
     await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));
     first.unmount();
 
     getAdvertPath.mockResolvedValue({ cached: true, hops: 2, pathHex: 'aabb', fromCache: false });
-    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
     vi.advanceTimersByTime(600);
 
     await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(2));
@@ -307,8 +304,8 @@ describe('ContactDetail automatic measurement — a spent attempt must have happ
 
   it('re-measures a contact that was not on the radio when we first asked', async () => {
     seed({ onRadio: false });
-    getAdvertPath.mockRejectedValueOnce(new ApiError('contact is not on the radio', 422, 'NOT_ON_RADIO'));
-    const first = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    getAdvertPath.mockRejectedValueOnce(new ApiError('contact is not on the radio', 422, 'not_on_radio'));
+    const first = renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
     vi.advanceTimersByTime(600);
     await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));
     first.unmount();
@@ -317,7 +314,7 @@ describe('ContactDetail automatic measurement — a spent attempt must have happ
     // really got is still available.
     seed({ onRadio: true });
     getAdvertPath.mockResolvedValue({ cached: false });
-    render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
     vi.advanceTimersByTime(600);
 
     await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(2));
@@ -329,14 +326,14 @@ describe('ContactDetail automatic measurement — a spent attempt must have happ
     // A command the radio is still chewing on — up to the lib's 5s timeout.
     let finish!: (v: unknown) => void;
     getAdvertPath.mockReturnValueOnce(new Promise((r) => (finish = r)));
-    const view = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    const view = renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
     vi.advanceTimersByTime(600);
     await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));
 
     // Same component instance, new focus: the rail renders ContactDetail at a
     // stable tree position and only changes the prop.
     getAdvertPath.mockResolvedValue({ cached: false });
-    view.rerender(<ContactDetail publicKeyHex={OTHER} client={client} showPath={false} />);
+    view.rerender(<ContactDetail publicKeyHex={OTHER} showPath={false} />);
     vi.advanceTimersByTime(600);
 
     await waitFor(() => expect(getAdvertPath).toHaveBeenCalledWith(client, `c:${OTHER}`, { force: false }));
@@ -348,14 +345,14 @@ describe('ContactDetail automatic measurement — a spent attempt must have happ
     seed();
     let finish!: (v: unknown) => void;
     getAdvertPath.mockReturnValueOnce(new Promise((r) => (finish = r)));
-    const view = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    const view = renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
     vi.advanceTimersByTime(600);
     await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));
 
     // Focus moves to OTHER and back before the first command comes home. OTHER
     // must not have been marked measured by an attempt that never ran.
     getAdvertPath.mockResolvedValue({ cached: false });
-    view.rerender(<ContactDetail publicKeyHex={OTHER} client={client} showPath={false} />);
+    view.rerender(<ContactDetail publicKeyHex={OTHER} showPath={false} />);
     vi.advanceTimersByTime(600);
     await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(2));
     finish({ cached: true, hops: 1 });
@@ -370,11 +367,11 @@ describe('ContactDetail automatic measurement — a spent attempt must have happ
     seedPair(OTHER);
     let finish!: (v: unknown) => void;
     getAdvertPath.mockReturnValueOnce(new Promise((r) => (finish = r)));
-    const view = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
+    const view = renderWithClient(<ContactDetail publicKeyHex={PK} showPath={false} />);
     vi.advanceTimersByTime(600);
     await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));
 
-    view.rerender(<ContactDetail publicKeyHex={OTHER} client={client} showPath={false} />);
+    view.rerender(<ContactDetail publicKeyHex={OTHER} showPath={false} />);
     getAdvertPath.mockResolvedValue({ cached: true, hops: 3, pathHex: 'aabbcc' });
     fireEvent.click(button());
 

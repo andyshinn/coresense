@@ -146,6 +146,10 @@ export function createWsMessageHandler(deps: WsMessageHandlerDeps): (msg: WsMess
         }
         break;
       }
+      default:
+        // Compile-time exhaustiveness: a WsMessage type added without a case
+        // here fails to typecheck instead of being silently dropped.
+        msg satisfies never;
     }
   };
 }

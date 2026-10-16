@@ -1,10 +1,11 @@
-import { app, autoUpdater, shell } from 'electron';
+import { app, autoUpdater } from 'electron';
 import { updateElectronApp } from 'update-electron-app';
 import { APP_VERSION } from '../build-info';
 import { bus, emit } from '../events/bus';
 import { child } from '../log';
+import { openExternal } from '../runtime/shell';
 import { stateHolder } from '../state/holder';
-import { createUpdateController, setUpdatesController, type UpdateController } from './controller';
+import { createUpdateController, setUpdatesController, type UpdateController, type UpdatesLogger } from './controller';
 import { checkNotify } from './notify';
 import { createSilentUpdater } from './silent';
 
@@ -12,12 +13,20 @@ import { createSilentUpdater } from './silent';
 // for the updater. Everything it wires is dependency-injected and unit-tested.
 export function startUpdates(): void {
   const log = child('updates');
-  const logger = { info: (m: string) => log.info(m), warn: (m: string) => log.warn(m), error: (m: string) => log.error(m) };
+  // update-electron-app swaps this in for `console` and calls `log()` (with
+  // several args) during init; without it init threw and the silent updater
+  // never started (issue #55). Its chatter goes to debug.
+  const logger: UpdatesLogger = {
+    log: (...args: unknown[]) => log.debug(...args),
+    info: (m) => log.info(m),
+    warn: (m) => log.warn(m),
+    error: (m) => log.error(m),
+  };
   let controllerRef: UpdateController | null = null;
 
   const silent = createSilentUpdater({
-    autoUpdater: autoUpdater as unknown as Parameters<typeof createSilentUpdater>[0]['autoUpdater'],
-    updateElectronApp: updateElectronApp as unknown as Parameters<typeof createSilentUpdater>[0]['updateElectronApp'],
+    autoUpdater,
+    updateElectronApp,
     isPackaged: () => app.isPackaged,
     isMas: () => Boolean(process.mas),
     logger,
@@ -30,7 +39,7 @@ export function startUpdates(): void {
     getSettings: () => stateHolder().getAppSettings().updates,
     silent,
     checkNotify: (channel, current) => checkNotify(channel, current, { fetch: globalThis.fetch, now: () => Date.now() }),
-    openExternal: (url) => void shell.openExternal(url),
+    openExternal,
     emitState: (s) => emit.updateState(s),
     logger,
   });

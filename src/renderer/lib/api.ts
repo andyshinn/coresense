@@ -1,10 +1,41 @@
-import type { DiscoveredContact } from '../../shared/contacts/discovered';
+import type {
+  AddBlockRulesResponse,
+  AdvertPathResponse,
+  ApiKeyPresenceResponse,
+  BlockRulePatch,
+  BlockRuleResponse,
+  ContactPathRequest,
+  DiscoveredContactsResponse,
+  MacroPatch,
+  MacroRenderRequest,
+  MacroResponse,
+  NewBlockRule,
+  NewMacro,
+  OkResponse,
+  PushChannelResponse,
+  RadioSettingsRequest,
+  RefreshContactsResponse,
+  RepeaterAclResponse,
+  RepeaterCliResponse,
+  RepeaterLocalStatsResponse,
+  RepeaterLocalStatsSubtype,
+  RepeaterLoginResponse,
+  RepeaterNeighboursRequest,
+  RepeaterNeighboursResponse,
+  RepeaterOwnerResponse,
+  RepeaterSessionResponse,
+  RepeaterTraceRequest,
+  RepeaterTraceResponse,
+  SendMessageResponse,
+  UpdateCheckResponse,
+} from '../../shared/api/contract';
 import type { MacroManifest, MacroTemplate, RenderResult, ValidateResult } from '../../shared/macros/types';
 import type {
   AppSettings,
   AutoAddConfig,
   BlockRule,
   Capabilities,
+  Channel,
   ChannelActivity,
   ChannelStats,
   Contact,
@@ -12,14 +43,6 @@ import type {
   GpsConfig,
   MapSettings,
   Message,
-  RadioSettings,
-  RepeaterAclEntry,
-  RepeaterAdminSession,
-  RepeaterLocalStats,
-  RepeaterLoginResult,
-  RepeaterNeighboursPage,
-  RepeaterOwnerInfo,
-  RepeaterTrace,
   SearchOptions,
   SearchResults,
   ServerStatus,
@@ -27,7 +50,6 @@ import type {
   TelemetryPolicy,
   TileCacheInfo,
   UiState,
-  UpdateState,
 } from '../../shared/types';
 
 export interface ApiClient {
@@ -48,9 +70,9 @@ export function parseServerError(body: string): string | null {
 }
 
 /** Thrown by `request()` on a non-2xx response. Carries the HTTP status and the
- *  server's `code` field (when present) so callers classify without re-parsing
- *  status text — the repeater CLI route sets `code: 'cli_timeout'` vs
- *  `'transport'` for the transcript's four failure kinds (§5.4). */
+ *  server's `code` field (an ApiErrorCode, when present) so callers classify
+ *  without re-parsing status text — e.g. the repeater CLI route's
+ *  `cli_timeout` / `cli_superseded` / `transport` (§5.4). */
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string | null;
@@ -72,11 +94,18 @@ export function parseServerErrorCode(body: string): string | null {
   }
 }
 
+/** Build an API path, percent-encoding every interpolated value:
+ *  apiPath`/api/contacts/${key}/path`. Conversation keys can hold '/', '%' and
+ *  spaces, so an unencoded one would address a different route. */
+export function apiPath(strings: TemplateStringsArray, ...values: Array<string | number>): string {
+  return strings.reduce((out, s, i) => out + s + (i < values.length ? encodeURIComponent(values[i]) : ''), '');
+}
+
 async function request<T>(client: ApiClient, path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${client.baseUrl}${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       Authorization: `Bearer ${client.apiKey}`,
       ...(init.headers ?? {}),
     },
@@ -92,6 +121,21 @@ async function request<T>(client: ApiClient, path: string, init: RequestInit = {
   return res.json() as Promise<T>;
 }
 
+const get = <T>(c: ApiClient, path: string) => request<T>(c, path);
+
+const withBody =
+  (method: 'POST' | 'PUT' | 'DELETE') =>
+  <T>(c: ApiClient, path: string, body?: unknown, init: RequestInit = {}) =>
+    request<T>(c, path, { ...init, method, body: body === undefined ? undefined : JSON.stringify(body) });
+
+const post = withBody('POST');
+const put = withBody('PUT');
+const del = withBody('DELETE');
+
+/** The repeater-admin commands that are a bare POST to /api/repeater/:key/<action>. */
+const repeaterPost = <T>(c: ApiClient, key: string, action: string, body?: unknown, init?: RequestInit) =>
+  post<T>(c, `${apiPath`/api/repeater/${key}`}/${action}`, body, init);
+
 export async function fetchCapabilities(baseUrl: string): Promise<Capabilities> {
   const res = await fetch(`${baseUrl}/api/capabilities`);
   if (!res.ok) throw new Error(`Capabilities probe failed: ${res.status}`);
@@ -99,304 +143,104 @@ export async function fetchCapabilities(baseUrl: string): Promise<Capabilities> 
 }
 
 export const api = {
-  status: (c: ApiClient) => request<ServerStatus>(c, '/api/status'),
-  snapshot: (c: ApiClient) => request<StateSnapshot>(c, '/api/state/snapshot'),
-  scan: (c: ApiClient) => request<{ ok: true }>(c, '/api/transport/scan', { method: 'POST' }),
-  connect: (c: ApiClient, deviceId: string) =>
-    request<{ ok: true }>(c, '/api/transport/connect', {
-      method: 'POST',
-      body: JSON.stringify({ deviceId }),
-    }),
-  disconnect: (c: ApiClient) => request<{ ok: true }>(c, '/api/transport/disconnect', { method: 'POST' }),
-  putUiState: (c: ApiClient, state: UiState) =>
-    request<{ ok: true }>(c, '/api/ui-state', {
-      method: 'PUT',
-      body: JSON.stringify(state),
-    }),
+  status: (c: ApiClient) => get<ServerStatus>(c, '/api/status'),
+  snapshot: (c: ApiClient) => get<StateSnapshot>(c, '/api/state/snapshot'),
+  scan: (c: ApiClient) => post<OkResponse>(c, '/api/transport/scan'),
+  connect: (c: ApiClient, deviceId: string) => post<OkResponse>(c, '/api/transport/connect', { deviceId }),
+  disconnect: (c: ApiClient) => post<OkResponse>(c, '/api/transport/disconnect'),
+  putUiState: (c: ApiClient, state: UiState) => put<OkResponse>(c, '/api/ui-state', state),
   /** Persist one conversation's composer draft. Empty text deletes the entry.
    *  The key travels in the body — conversation keys can contain '%'. */
-  putDraft: (c: ApiClient, key: string, text: string) =>
-    request<{ ok: true }>(c, '/api/drafts', {
-      method: 'PUT',
-      body: JSON.stringify({ key, text }),
-    }),
-  putAppSettings: (c: ApiClient, settings: AppSettings) =>
-    request<{ ok: true }>(c, '/api/settings/app', {
-      method: 'PUT',
-      body: JSON.stringify(settings),
-    }),
-  putRadioSettings: (c: ApiClient, settings: RadioSettings & { pushToDevice?: boolean }) =>
-    request<{ ok: true }>(c, '/api/settings/radio', {
-      method: 'PUT',
-      body: JSON.stringify(settings),
-    }),
-  addBlockRules: (c: ApiClient, rules: Array<Omit<BlockRule, 'id' | 'createdAt' | 'matchCount'>>) =>
-    request<{ rules: BlockRule[] }>(c, '/api/blocks', {
-      method: 'POST',
-      body: JSON.stringify({ rules }),
-    }).then((r) => r.rules),
-  updateBlockRule: (c: ApiClient, id: string, patch: Partial<Omit<BlockRule, 'id' | 'createdAt'>>) =>
-    request<{ rule: BlockRule }>(c, `/api/blocks/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(patch),
-    }).then((r) => r.rule),
-  removeBlockRule: (c: ApiClient, id: string) =>
-    request<{ ok: true }>(c, `/api/blocks/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    }),
+  putDraft: (c: ApiClient, key: string, text: string) => put<OkResponse>(c, '/api/drafts', { key, text }),
+  putAppSettings: (c: ApiClient, settings: AppSettings) => put<OkResponse>(c, '/api/settings/app', settings),
+  putRadioSettings: (c: ApiClient, settings: RadioSettingsRequest) => put<OkResponse>(c, '/api/settings/radio', settings),
+  addBlockRules: (c: ApiClient, rules: NewBlockRule[]) =>
+    post<AddBlockRulesResponse>(c, '/api/blocks', { rules }).then((r) => r.rules),
+  updateBlockRule: (c: ApiClient, id: string, patch: BlockRulePatch): Promise<BlockRule> =>
+    put<BlockRuleResponse>(c, apiPath`/api/blocks/${id}`, patch).then((r) => r.rule),
+  removeBlockRule: (c: ApiClient, id: string) => del<OkResponse>(c, apiPath`/api/blocks/${id}`),
   putDeviceIdentity: (c: ApiClient, identity: Partial<DeviceIdentity>) =>
-    request<{ ok: true }>(c, '/api/device/identity', {
-      method: 'PUT',
-      body: JSON.stringify(identity),
-    }),
-  putAutoAddConfig: (c: ApiClient, cfg: AutoAddConfig) =>
-    request<{ ok: true }>(c, '/api/device/auto-add', {
-      method: 'PUT',
-      body: JSON.stringify(cfg),
-    }),
-  putTelemetryPolicy: (c: ApiClient, policy: TelemetryPolicy) =>
-    request<{ ok: true }>(c, '/api/device/telemetry-policy', {
-      method: 'PUT',
-      body: JSON.stringify(policy),
-    }),
-  putGpsConfig: (c: ApiClient, cfg: GpsConfig) =>
-    request<{ ok: true }>(c, '/api/device/gps', {
-      method: 'PUT',
-      body: JSON.stringify(cfg),
-    }),
-  refreshDevice: (c: ApiClient) => request<{ ok: true }>(c, '/api/device/refresh', { method: 'POST' }),
-  rebootDevice: (c: ApiClient) => request<{ ok: true }>(c, '/api/device/reboot', { method: 'POST' }),
+    put<OkResponse>(c, '/api/device/identity', identity),
+  putAutoAddConfig: (c: ApiClient, cfg: AutoAddConfig) => put<OkResponse>(c, '/api/device/auto-add', cfg),
+  putTelemetryPolicy: (c: ApiClient, policy: TelemetryPolicy) => put<OkResponse>(c, '/api/device/telemetry-policy', policy),
+  putGpsConfig: (c: ApiClient, cfg: GpsConfig) => put<OkResponse>(c, '/api/device/gps', cfg),
+  refreshDevice: (c: ApiClient) => post<OkResponse>(c, '/api/device/refresh'),
+  rebootDevice: (c: ApiClient) => post<OkResponse>(c, '/api/device/reboot'),
   // Reply to a `requestQuit` broadcast — tells main it's safe to quit now.
-  confirmQuit: (c: ApiClient) => request<{ ok: true }>(c, '/api/app/quit', { method: 'POST' }),
+  confirmQuit: (c: ApiClient) => post<OkResponse>(c, '/api/app/quit'),
   // Restart the entire app — used after proxy settings (port/bind/enabled/mdns)
   // change, since the bridge listeners are bound at startup.
-  relaunchApp: (c: ApiClient) => request<{ ok: true }>(c, '/api/app/relaunch', { method: 'POST' }),
-  putMapSettings: (c: ApiClient, settings: MapSettings) =>
-    request<{ ok: true }>(c, '/api/settings/map', {
-      method: 'PUT',
-      body: JSON.stringify(settings),
-    }),
+  relaunchApp: (c: ApiClient) => post<OkResponse>(c, '/api/app/relaunch'),
+  putMapSettings: (c: ApiClient, settings: MapSettings) => put<OkResponse>(c, '/api/settings/map', settings),
   setProtomapsApiKey: (c: ApiClient, key: string) =>
-    request<{ ok: true; hasKey: true }>(c, '/api/map/api-key', {
-      method: 'POST',
-      body: JSON.stringify({ key }),
-    }),
-  clearProtomapsApiKey: (c: ApiClient) => request<{ ok: true; hasKey: false }>(c, '/api/map/api-key', { method: 'DELETE' }),
-  getTileCacheInfo: (c: ApiClient) => request<TileCacheInfo>(c, '/api/map/tile-cache'),
-  clearTileCache: (c: ApiClient) => request<TileCacheInfo>(c, '/api/map/tile-cache', { method: 'DELETE' }),
-  openTileCacheFolder: (c: ApiClient) => request<{ ok: true }>(c, '/api/map/tile-cache/open', { method: 'POST' }),
+    post<OkResponse & ApiKeyPresenceResponse>(c, '/api/map/api-key', { key }),
+  clearProtomapsApiKey: (c: ApiClient) => del<OkResponse & ApiKeyPresenceResponse>(c, '/api/map/api-key'),
+  getTileCacheInfo: (c: ApiClient) => get<TileCacheInfo>(c, '/api/map/tile-cache'),
+  clearTileCache: (c: ApiClient) => del<TileCacheInfo>(c, '/api/map/tile-cache'),
+  openTileCacheFolder: (c: ApiClient) => post<OkResponse>(c, '/api/map/tile-cache/open'),
   /** `around` centres the returned window on that message id, for scrolling to
    *  a search hit older than the default trailing window. */
   getMessages: (c: ApiClient, key: string, opts: { around?: string } = {}) =>
-    request<Message[]>(
-      c,
-      `/api/messages/${encodeURIComponent(key)}${opts.around ? `?around=${encodeURIComponent(opts.around)}` : ''}`,
-    ),
-  getChannelStats: (c: ApiClient, key: string) => request<ChannelStats>(c, `/api/channels/${encodeURIComponent(key)}/stats`),
-  getChannelActivity: (c: ApiClient, key: string) =>
-    request<ChannelActivity>(c, `/api/channels/${encodeURIComponent(key)}/activity`),
+    get<Message[]>(c, apiPath`/api/messages/${key}` + (opts.around ? apiPath`?around=${opts.around}` : '')),
+  getChannelStats: (c: ApiClient, key: string) => get<ChannelStats>(c, apiPath`/api/channels/${key}/stats`),
+  getChannelActivity: (c: ApiClient, key: string) => get<ChannelActivity>(c, apiPath`/api/channels/${key}/activity`),
   sendMessage: (c: ApiClient, key: string, body: string) =>
-    request<{ ok: true; id: string }>(c, `/api/messages/${encodeURIComponent(key)}`, {
-      method: 'POST',
-      body: JSON.stringify({ body }),
-    }),
-  deleteMessage: (c: ApiClient, key: string, id: string) =>
-    request<{ ok: true }>(c, `/api/messages/${encodeURIComponent(key)}/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    }),
+    post<SendMessageResponse>(c, apiPath`/api/messages/${key}`, { body }),
+  deleteMessage: (c: ApiClient, key: string, id: string) => del<OkResponse>(c, apiPath`/api/messages/${key}/${id}`),
   pushChannelToDevice: (c: ApiClient, key: string) =>
-    request<{ ok: true; idx: number }>(c, `/api/channels/${encodeURIComponent(key)}/push-to-device`, {
-      method: 'POST',
-    }),
+    post<PushChannelResponse>(c, apiPath`/api/channels/${key}/push-to-device`),
   removeChannelFromDevice: (c: ApiClient, key: string) =>
-    request<{ ok: true }>(c, `/api/channels/${encodeURIComponent(key)}/remove-from-device`, {
-      method: 'POST',
-    }),
-  reorderChannels: (c: ApiClient, keys: string[]) =>
-    request<{ ok: true }>(c, '/api/channels/reorder', {
-      method: 'POST',
-      body: JSON.stringify({ keys }),
-    }),
-  putChannel: (c: ApiClient, channel: import('../../shared/types').Channel) =>
-    request<{ ok: true }>(c, `/api/channels/${encodeURIComponent(channel.key)}`, {
-      method: 'PUT',
-      body: JSON.stringify(channel),
-    }),
-  deleteChannel: (c: ApiClient, key: string) =>
-    request<{ ok: true }>(c, `/api/channels/${encodeURIComponent(key)}`, { method: 'DELETE' }),
-  putContact: (c: ApiClient, contact: Contact) =>
-    request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(contact.key)}`, {
-      method: 'PUT',
-      body: JSON.stringify(contact),
-    }),
-  deleteContact: (c: ApiClient, key: string) =>
-    request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}`, { method: 'DELETE' }),
-  sendAdvert: (c: ApiClient, flood = true) =>
-    request<{ ok: true }>(c, '/api/transport/advert', {
-      method: 'POST',
-      body: JSON.stringify({ flood }),
-    }),
-  repeaterStatus: (c: ApiClient, key: string) =>
-    request<{ ok: true }>(c, `/api/repeater/${encodeURIComponent(key)}/status`, {
-      method: 'POST',
-    }),
-  repeaterTelemetry: (c: ApiClient, key: string) =>
-    request<{ ok: true }>(c, `/api/repeater/${encodeURIComponent(key)}/telemetry`, {
-      method: 'POST',
-    }),
-  repeaterSession: (c: ApiClient, key: string) =>
-    request<{ session: RepeaterAdminSession | null }>(c, `/api/repeater/${encodeURIComponent(key)}/session`),
+    post<OkResponse>(c, apiPath`/api/channels/${key}/remove-from-device`),
+  reorderChannels: (c: ApiClient, keys: string[]) => post<OkResponse>(c, '/api/channels/reorder', { keys }),
+  putChannel: (c: ApiClient, channel: Channel) => put<OkResponse>(c, apiPath`/api/channels/${channel.key}`, channel),
+  deleteChannel: (c: ApiClient, key: string) => del<OkResponse>(c, apiPath`/api/channels/${key}`),
+  putContact: (c: ApiClient, contact: Contact) => put<OkResponse>(c, apiPath`/api/contacts/${contact.key}`, contact),
+  deleteContact: (c: ApiClient, key: string) => del<OkResponse>(c, apiPath`/api/contacts/${key}`),
+  sendAdvert: (c: ApiClient, flood = true) => post<OkResponse>(c, '/api/transport/advert', { flood }),
+  repeaterStatus: (c: ApiClient, key: string) => repeaterPost<OkResponse>(c, key, 'status'),
+  repeaterTelemetry: (c: ApiClient, key: string) => repeaterPost<OkResponse>(c, key, 'telemetry'),
+  repeaterSession: (c: ApiClient, key: string) => get<RepeaterSessionResponse>(c, apiPath`/api/repeater/${key}/session`),
   repeaterLogin: (c: ApiClient, key: string, password: string) =>
-    request<{
-      ok: true;
-      session: RepeaterAdminSession | null;
-      login: RepeaterLoginResult & {
-        mode: 'local' | 'remote';
-        effective: 'direct' | 'flood' | 'path';
-      };
-    }>(c, `/api/repeater/${encodeURIComponent(key)}/login`, {
-      method: 'POST',
-      body: JSON.stringify({ password }),
-    }),
-  setContactPath: (c: ApiClient, key: string, body: { outPathHex: string; preferDirect?: boolean }) =>
-    request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/path`, {
-      method: 'PUT',
-      body: JSON.stringify(body),
-    }),
-  resetContactPath: (c: ApiClient, key: string) =>
-    request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/path`, {
-      method: 'DELETE',
-    }),
+    repeaterPost<RepeaterLoginResponse>(c, key, 'login', { password }),
+  setContactPath: (c: ApiClient, key: string, body: ContactPathRequest) =>
+    put<OkResponse>(c, apiPath`/api/contacts/${key}/path`, body),
+  resetContactPath: (c: ApiClient, key: string) => del<OkResponse>(c, apiPath`/api/contacts/${key}/path`),
   /** Ask the radio for its cached INBOUND advert path for one contact (#45 item
-   *  7). `cached: false` is the ordinary "the radio hasn't heard this node
-   *  lately" answer, not a failure. A measurement is persisted server-side and
-   *  arrives as a `discovered` websocket push, so the response body is for the
-   *  toast, not for rendering. `force` skips the server's re-ask cooldown and is
-   *  for an explicit user action only.
-   *
-   *  `reason: 'noPath'` narrows that `cached: false`: the radio DOES hold an
-   *  entry for this node, it just cached the flood / no-path sentinel instead
-   *  of a path, so there is a reception time (which may have advanced the row's
-   *  Last heard) but no hop count. Absent on a plain miss.
-   *
-   *  `fromCache` is on every answer except `noPath`. With `cached: false` and
-   *  `fromCache: true` the radio was NOT asked — the request fell inside the
-   *  server's cooldown and the mirror has no measurement — so it is not the
-   *  radio's "nothing cached", only the absence of anything better. A forced
-   *  request never gets one. */
+   *  7). A measurement is persisted server-side and arrives as a `discovered`
+   *  websocket push, so the response body is for the toast, not for rendering.
+   *  `force` skips the server's re-ask cooldown and is for an explicit user
+   *  action only. See AdvertPathResponse for what each answer means. */
   getAdvertPath: (c: ApiClient, key: string, opts: { force?: boolean } = {}) =>
-    request<{
-      cached: boolean;
-      reason?: 'noPath';
-      hops?: number;
-      pathHex?: string;
-      recvTimestampUnix?: number;
-      fromCache?: boolean;
-    }>(c, `/api/contacts/${encodeURIComponent(key)}/advert-path${opts.force ? '?force=1' : ''}`, { method: 'POST' }),
-  fetchDiscovered: (c: ApiClient) => request<DiscoveredContact[]>(c, `/api/discovered-contacts`),
-  /** Ask the radio to re-enumerate its contact store. The refreshed rows arrive
-   *  over the websocket (`contacts`/`discovered`), not in this response — the
-   *  body is just the count the radio delivered, or `skipped` when a handshake
-   *  sync was already walking the same stream. */
-  refreshContacts: (c: ApiClient) =>
-    request<{ ok: true; count?: number; skipped?: boolean }>(c, '/api/contacts/refresh', { method: 'POST' }),
-  addToRadio: (c: ApiClient, key: string) =>
-    request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/add-to-radio`, {
-      method: 'POST',
-    }),
-  removeFromRadio: (c: ApiClient, key: string) =>
-    request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/remove-from-radio`, {
-      method: 'POST',
-    }),
+    post<AdvertPathResponse>(c, apiPath`/api/contacts/${key}/advert-path` + (opts.force ? '?force=1' : '')),
+  fetchDiscovered: (c: ApiClient) => get<DiscoveredContactsResponse>(c, '/api/discovered-contacts'),
+  /** Ask the radio to re-enumerate its contact store; see RefreshContactsResponse. */
+  refreshContacts: (c: ApiClient) => post<RefreshContactsResponse>(c, '/api/contacts/refresh'),
+  addToRadio: (c: ApiClient, key: string) => post<OkResponse>(c, apiPath`/api/contacts/${key}/add-to-radio`),
+  removeFromRadio: (c: ApiClient, key: string) => post<OkResponse>(c, apiPath`/api/contacts/${key}/remove-from-radio`),
   setFavourite: (c: ApiClient, key: string, favourite: boolean) =>
-    request<{ ok: true }>(c, `/api/contacts/${encodeURIComponent(key)}/favourite`, {
-      method: 'PUT',
-      body: JSON.stringify({ favourite }),
-    }),
-  clearDiscovered: (c: ApiClient) => request<{ ok: true }>(c, `/api/discovered-contacts/clear`, { method: 'POST' }),
-  setPathHashMode: (c: ApiClient, size: 1 | 2 | 4) =>
-    request<{ ok: true }>(c, '/api/radio/path-hash-mode', {
-      method: 'PUT',
-      body: JSON.stringify({ size }),
-    }),
-  repeaterLogout: (c: ApiClient, key: string) =>
-    request<{ ok: true }>(c, `/api/repeater/${encodeURIComponent(key)}/logout`, {
-      method: 'POST',
-    }),
-  repeaterAcl: (c: ApiClient, key: string) =>
-    request<{ ok: true; entries: RepeaterAclEntry[] }>(c, `/api/repeater/${encodeURIComponent(key)}/acl`, {
-      method: 'POST',
-    }),
-  repeaterNeighbours: (
-    c: ApiClient,
-    key: string,
-    opts: { count?: number; offset?: number; orderBy?: number; prefixLen?: number } = {},
-  ) =>
-    request<{ ok: true; page: RepeaterNeighboursPage }>(c, `/api/repeater/${encodeURIComponent(key)}/neighbours`, {
-      method: 'POST',
-      body: JSON.stringify(opts),
-    }),
-  repeaterOwner: (c: ApiClient, key: string) =>
-    request<{ ok: true; info: RepeaterOwnerInfo }>(c, `/api/repeater/${encodeURIComponent(key)}/owner`, {
-      method: 'POST',
-    }),
+    put<OkResponse>(c, apiPath`/api/contacts/${key}/favourite`, { favourite }),
+  clearDiscovered: (c: ApiClient) => post<OkResponse>(c, '/api/discovered-contacts/clear'),
+  repeaterLogout: (c: ApiClient, key: string) => repeaterPost<OkResponse>(c, key, 'logout'),
+  repeaterAcl: (c: ApiClient, key: string) => repeaterPost<RepeaterAclResponse>(c, key, 'acl'),
+  repeaterNeighbours: (c: ApiClient, key: string, opts: RepeaterNeighboursRequest = {}) =>
+    repeaterPost<RepeaterNeighboursResponse>(c, key, 'neighbours', opts),
+  repeaterOwner: (c: ApiClient, key: string) => repeaterPost<RepeaterOwnerResponse>(c, key, 'owner'),
   repeaterCli: (c: ApiClient, key: string, command: string, opts: { expectReply?: boolean; signal?: AbortSignal } = {}) =>
-    request<{ ok: true; reply: string } | { ok: true; sent: true }>(c, `/api/repeater/${encodeURIComponent(key)}/cli`, {
-      method: 'POST',
-      body: JSON.stringify({ command, expectReply: opts.expectReply }),
-      signal: opts.signal,
-    }),
-  repeaterTrace: (c: ApiClient, key: string, payload: { tag: number; authCode?: number; flags?: number; pathHex: string }) =>
-    request<{ ok: true; trace: RepeaterTrace }>(c, `/api/repeater/${encodeURIComponent(key)}/trace`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  repeaterLocalStats: (c: ApiClient, subtype: 'CORE' | 'RADIO' | 'PACKETS') =>
-    request<{ ok: true; stats: RepeaterLocalStats }>(c, '/api/repeater/local/stats', {
-      method: 'POST',
-      body: JSON.stringify({ subtype }),
-    }),
-  search: (c: ApiClient, opts: SearchOptions) =>
-    request<SearchResults>(c, '/api/search', {
-      method: 'POST',
-      body: JSON.stringify(opts),
-    }),
-  checkForUpdates: (c: ApiClient) =>
-    request<{ ok: true; updateState: UpdateState }>(c, '/api/updates/check', { method: 'POST' }),
-  installUpdate: (c: ApiClient) => request<{ ok: true }>(c, '/api/updates/install', { method: 'POST' }),
-  getMacros: (c: ApiClient) => request<MacroTemplate[]>(c, '/api/macros'),
-  getMacroManifest: (c: ApiClient) => request<MacroManifest>(c, '/api/macros/manifest'),
-  addMacro: (
-    c: ApiClient,
-    input: Pick<MacroTemplate, 'name' | 'template' | 'scope'> & Partial<Pick<MacroTemplate, 'channelKey' | 'contactKey'>>,
-  ) =>
-    request<{ macro: MacroTemplate }>(c, '/api/macros', { method: 'POST', body: JSON.stringify(input) }).then(
-      (r) => r.macro,
-    ),
-  updateMacro: (
-    c: ApiClient,
-    id: string,
-    patch: Partial<Pick<MacroTemplate, 'name' | 'template' | 'scope' | 'channelKey' | 'contactKey'>>,
-  ) =>
-    request<{ macro: MacroTemplate }>(c, `/api/macros/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(patch),
-    }).then((r) => r.macro),
-  deleteMacro: (c: ApiClient, id: string) =>
-    request<{ ok: true }>(c, `/api/macros/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  validateMacro: (c: ApiClient, template: string) =>
-    request<ValidateResult>(c, '/api/macros/validate', { method: 'POST', body: JSON.stringify({ template }) }),
-  renderMacro: (
-    c: ApiClient,
-    body: {
-      macroId?: string;
-      template?: string;
-      mode: 'reply' | 'send';
-      messageId?: string;
-      contactKey?: string;
-      channelKey?: string;
-      placeholder?: string;
-    },
-  ) => request<RenderResult>(c, '/api/macros/render', { method: 'POST', body: JSON.stringify(body) }),
-  clearPackets: (c: ApiClient) => request<{ ok: true }>(c, '/api/packets/clear', { method: 'POST' }),
+    repeaterPost<RepeaterCliResponse>(c, key, 'cli', { command, expectReply: opts.expectReply }, { signal: opts.signal }),
+  repeaterTrace: (c: ApiClient, key: string, payload: RepeaterTraceRequest) =>
+    repeaterPost<RepeaterTraceResponse>(c, key, 'trace', payload),
+  repeaterLocalStats: (c: ApiClient, subtype: RepeaterLocalStatsSubtype) =>
+    post<RepeaterLocalStatsResponse>(c, '/api/repeater/local/stats', { subtype }),
+  search: (c: ApiClient, opts: SearchOptions) => post<SearchResults>(c, '/api/search', opts),
+  checkForUpdates: (c: ApiClient) => post<UpdateCheckResponse>(c, '/api/updates/check'),
+  installUpdate: (c: ApiClient) => post<OkResponse>(c, '/api/updates/install'),
+  getMacros: (c: ApiClient) => get<MacroTemplate[]>(c, '/api/macros'),
+  getMacroManifest: (c: ApiClient) => get<MacroManifest>(c, '/api/macros/manifest'),
+  addMacro: (c: ApiClient, input: NewMacro) => post<MacroResponse>(c, '/api/macros', input).then((r) => r.macro),
+  updateMacro: (c: ApiClient, id: string, patch: MacroPatch) =>
+    put<MacroResponse>(c, apiPath`/api/macros/${id}`, patch).then((r) => r.macro),
+  deleteMacro: (c: ApiClient, id: string) => del<OkResponse>(c, apiPath`/api/macros/${id}`),
+  validateMacro: (c: ApiClient, template: string) => post<ValidateResult>(c, '/api/macros/validate', { template }),
+  renderMacro: (c: ApiClient, body: MacroRenderRequest) => post<RenderResult>(c, '/api/macros/render', body),
+  clearPackets: (c: ApiClient) => post<OkResponse>(c, '/api/packets/clear'),
 };

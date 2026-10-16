@@ -1,10 +1,12 @@
 import { BellOff, Copy, Minus, PinIcon, PinOff, Plus, Trash2 } from 'lucide-react';
+import type { ActiveKey } from '../../../shared/keys';
 import type { Channel } from '../../../shared/types';
-import { copyToClipboard, menuItem, menuSeparator } from '../../components/ContextMenu';
-import { type ApiClient, api } from '../../lib/api';
+import { ContextMenu, type ContextMenuEntry, menuItem, menuSeparator } from '../../components/ContextMenu';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
+import { copyToClipboard } from '../../lib/clipboard';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
-import { type ContextMenuEntry, EntryContextMenu } from './contextMenu';
 
 /** State payload for a positioned channel context menu. */
 export interface ChannelMenuState {
@@ -17,17 +19,16 @@ export interface ChannelMenuState {
 /** Right-click menu for a channel row — pin/mute/copy + add/remove from device + delete. */
 export function ChannelContextMenu({
   state,
-  client,
   isPinned,
   onTogglePin,
   onClose,
 }: {
   state: ChannelMenuState;
-  client: ApiClient | null;
   isPinned: boolean;
-  onTogglePin: (key: string) => void;
+  onTogglePin: (key: ActiveKey) => void;
   onClose: () => void;
 }) {
+  const client = useApiClient();
   const { channel, onDevice, x, y } = state;
   const transport = useStore((s) => s.transportState);
   const connected = transport === 'connected';
@@ -44,7 +45,7 @@ export function ChannelContextMenu({
         try {
           await api.putChannel(client, { ...channel, muted: !channel.muted });
         } catch (err) {
-          notify.error(`Mute toggle failed: ${(err as Error).message}`, err);
+          notify.failure('Mute toggle', err);
         }
       },
       { icon: BellOff, disabled: !client },
@@ -62,7 +63,7 @@ export function ChannelContextMenu({
               await api.removeChannelFromDevice(client, channel.key);
               notify.success(`Removed "${channel.name}" from device`);
             } catch (err) {
-              notify.error(`Remove failed: ${(err as Error).message}`, err);
+              notify.failure('Remove', err);
             }
           },
           { icon: Minus, disabled: !connected || !client },
@@ -75,7 +76,7 @@ export function ChannelContextMenu({
               const res = await api.pushChannelToDevice(client, channel.key);
               notify.success(`Added "${channel.name}" to device (slot ${res.idx})`);
             } catch (err) {
-              notify.error(`Add failed: ${(err as Error).message}`, err);
+              notify.failure('Add', err);
             }
           },
           { icon: Plus, disabled: !connected || !client },
@@ -89,12 +90,12 @@ export function ChannelContextMenu({
           await api.deleteChannel(client, channel.key);
           notify.success(`Deleted "${channel.name}" from app`);
         } catch (err) {
-          notify.error(`Delete failed: ${(err as Error).message}`, err);
+          notify.failure('Delete', err);
         }
       },
       { icon: Trash2, danger: true, disabled: !client },
     ),
   ];
 
-  return <EntryContextMenu x={x} y={y} items={items} onClose={onClose} />;
+  return <ContextMenu x={x} y={y} items={items} onClose={onClose} />;
 }

@@ -3,28 +3,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // vi.mock factories are hoisted above the file body, so the doubles they close
 // over have to be hoisted with them.
-const { refreshContacts, notify } = vi.hoisted(() => ({
-  refreshContacts: vi.fn(),
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
+const { refreshContacts } = vi.hoisted(() => ({ refreshContacts: vi.fn() }));
 
 // The panel tree (ContactManager → Toolbar/ContactRows) touches the api client
 // and notify at module scope; stub both so only the refresh path is live.
-vi.mock('@/lib/notify', () => ({ notify }));
+vi.mock('@/lib/notify', () => import('../support/notifyMock'));
 vi.mock('@/lib/api', () => ({
   api: { refreshContacts, addToRadio: vi.fn(), removeFromRadio: vi.fn(), clearDiscovered: vi.fn() },
 }));
 
 import { ContactManager } from '@/panels/contacts/ContactManager';
+import { TEST_CLIENT as client } from '../support/apiClient';
+import { notify, resetNotifyMock } from '../support/notifyMock';
+import { renderWithClient } from '../support/renderWithClient';
 
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 const button = () => screen.getByRole('button', { name: 'Refresh contacts from radio' }) as HTMLButtonElement;
 
 beforeEach(() => {
   refreshContacts.mockReset();
-  notify.success.mockReset();
-  notify.info.mockReset();
-  notify.error.mockReset();
+  resetNotifyMock();
 });
 
 // #45 item 6: before this the only way to re-read the radio's contact store was
@@ -32,7 +29,7 @@ beforeEach(() => {
 describe('ContactManager refresh button', () => {
   it('asks the server to re-read the radio and reports the count', async () => {
     refreshContacts.mockResolvedValue({ ok: true, count: 42 });
-    render(<ContactManager client={client} />);
+    renderWithClient(<ContactManager />);
 
     fireEvent.click(button());
 
@@ -43,7 +40,7 @@ describe('ContactManager refresh button', () => {
   it('disables itself while the walk is in flight', async () => {
     let resolve!: (v: { ok: true; count: number }) => void;
     refreshContacts.mockReturnValue(new Promise((r) => (resolve = r)));
-    render(<ContactManager client={client} />);
+    renderWithClient(<ContactManager />);
 
     fireEvent.click(button());
     await waitFor(() => expect(button().disabled).toBe(true));
@@ -57,18 +54,21 @@ describe('ContactManager refresh button', () => {
   });
 
   it('is disabled with no server connection', () => {
-    render(<ContactManager client={null} />);
+    render(<ContactManager />);
     expect(button().disabled).toBe(true);
   });
 
   it('surfaces a failure as an error rather than a silent no-op', async () => {
     refreshContacts.mockRejectedValue(new Error('no radio attached'));
-    render(<ContactManager client={client} />);
+    renderWithClient(<ContactManager />);
 
     fireEvent.click(button());
 
     await waitFor(() =>
-      expect(notify.error).toHaveBeenCalledWith('Contact refresh failed: no radio attached', expect.anything()),
+      expect(notify.failure).toHaveBeenCalledWith(
+        'Contact refresh',
+        expect.objectContaining({ message: 'no radio attached' }),
+      ),
     );
     expect(notify.success).not.toHaveBeenCalled();
   });
@@ -77,7 +77,7 @@ describe('ContactManager refresh button', () => {
   // the same stream; claiming "re-read 0 contacts" there would be a lie.
   it('reports a skipped refresh as info, not success', async () => {
     refreshContacts.mockResolvedValue({ ok: true, skipped: true });
-    render(<ContactManager client={client} />);
+    renderWithClient(<ContactManager />);
 
     fireEvent.click(button());
 

@@ -1,32 +1,7 @@
 import type { ILogObjMeta } from 'tslog';
 import { Logger } from 'tslog';
-import type { LogEntry, LogLevel } from '../../shared/types';
-
-// ---------------------------------------------------------------------------
-// Level mapping (renderer-local — do not import from main)
-// ---------------------------------------------------------------------------
-
-const LEVEL_ID_TO_NAME: Record<number, LogLevel> = {
-  0: 'silly',
-  1: 'trace',
-  2: 'debug',
-  3: 'info',
-  4: 'warn',
-  5: 'error',
-  6: 'fatal',
-};
-
-const LEVEL_NAME_TO_ID: Record<LogLevel, number> = {
-  silly: 0,
-  trace: 1,
-  debug: 2,
-  info: 3,
-  warn: 4,
-  error: 5,
-  fatal: 6,
-};
-
-const VALID_LEVELS = new Set<string>(Object.keys(LEVEL_NAME_TO_ID));
+import { type LogLevel, logLevelId, resolveLogLevel } from '../../shared/logLevels';
+import type { LogEntry } from '../../shared/types';
 
 // ---------------------------------------------------------------------------
 // Logger
@@ -45,7 +20,7 @@ export const log = new Logger({ name: 'renderer', minLevel: 2 });
 // ---------------------------------------------------------------------------
 //
 // The store registers a sink via setRendererLogSink() once it's created. We
-// keep this indirection so logger.ts never imports the store (store.ts already
+// keep this indirection so logger.ts never imports the store (the store already
 // imports this module for setRendererLogLevel — a direct back-import would be a
 // circular dependency). Until a sink is registered, renderer logs still reach
 // the DevTools console; they just aren't buffered for the panel.
@@ -78,8 +53,7 @@ log.attachTransport((logObj: unknown) => {
     };
 
     const levelId = meta.logLevelId;
-    const rawName = meta.logLevelName?.toLowerCase();
-    const level: LogLevel = VALID_LEVELS.has(rawName) ? (rawName as LogLevel) : (LEVEL_ID_TO_NAME[levelId] ?? 'info');
+    const level = resolveLogLevel(meta.logLevelName, levelId);
 
     // Build logger name: join parent names + own name
     const nameParts: string[] = [];
@@ -133,5 +107,5 @@ log.attachTransport((logObj: unknown) => {
 // ---------------------------------------------------------------------------
 
 export function setRendererLogLevel(level: LogLevel): void {
-  log.settings.minLevel = LEVEL_NAME_TO_ID[level];
+  log.settings.minLevel = logLevelId(level);
 }

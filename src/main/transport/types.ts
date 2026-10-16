@@ -1,13 +1,15 @@
+import type { Ports } from '@andyshinn/meshcore-ts';
+
 export interface ITransport {
-  readonly type: 'ble' | 'serial';
+  readonly type: 'ble';
   // The lib Transport the MeshCoreSession consumes. Every transport exposes the
   // lib Transport the session is built over.
-  readonly libTransport: import('@andyshinn/meshcore-ts').Ports.Transport;
+  readonly libTransport: Ports.Transport;
   connect(deviceId: string): Promise<void>;
   disconnect(): Promise<void>;
   scan?(): Promise<void>;
   stopScan?(): Promise<void>;
-  sendBytes?(bytes: Buffer): Promise<void>;
+  sendBytes(bytes: Buffer): Promise<void>;
   // Optional teardown invoked at app shutdown. Distinct from disconnect()
   // because it may release native resources that can't be re-initialized.
   shutdown?(): Promise<void>;

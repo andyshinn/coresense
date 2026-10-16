@@ -1,16 +1,6 @@
 import type { Capabilities } from './capabilities';
 import { DELIMITER, MAX_BODY, MENTION_SUFFIX } from './config';
 
-// Mirror of the renderer's deriveSenderName (src/renderer/lib/utils.ts): channel
-// messages carry no pubkey, so the origin node's display name is encoded as
-// fromPublicKeyHex = "name:<name>". Kept as a local copy to avoid a
-// renderer→main import; the logic is trivial and stable.
-export function channelSenderName(fromPublicKeyHex: string | undefined): string {
-  if (!fromPublicKeyHex || fromPublicKeyHex === 'unknown') return '';
-  if (fromPublicKeyHex.startsWith('name:')) return fromPublicKeyHex.slice(5);
-  return `${fromPublicKeyHex.slice(0, 8)}…`;
-}
-
 export function truncateBody(body: string): string {
   return body.length > MAX_BODY ? `${body.slice(0, MAX_BODY - 3)}…` : body;
 }

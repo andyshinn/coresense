@@ -1,8 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createSender } from '../../../src/main/messaging/sendMessage';
+import type { Message } from '../../../src/shared/types';
 
-function harness(over: { channelOk?: boolean; channelHash?: number; timestampUnix?: number } = {}) {
-  const inserted: unknown[] = [];
+/** Let the fire-and-forget DM send's promise chain run to the end. */
+const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+function harness(
+  over: {
+    channelOk?: boolean;
+    channelHash?: number;
+    timestampUnix?: number;
+    dmResult?: { ok: boolean; error?: string };
+  } = {},
+) {
+  const inserted: Message[] = [];
   const states: Array<{ id: string; state: string }> = [];
   const registered: unknown[] = [];
   const session = {
@@ -11,23 +22,26 @@ function harness(over: { channelOk?: boolean; channelHash?: number; timestampUni
       channelHash: over.channelHash,
       timestampUnix: over.timestampUnix,
     })),
-    sendDmTextWithRetry: vi.fn(async () => ({ ok: true })),
+    sendDmTextWithRetry: vi.fn(async () => over.dmResult ?? { ok: true }),
     registerChannelSend: vi.fn((p: unknown) => registered.push(p)),
   };
   const holder = {
-    insertMessage: (m: unknown) => inserted.push(m),
+    insertMessage: (m: Message) => inserted.push(m),
     setMessageState: (id: string, state: string) => states.push({ id, state }),
     getMessagesForKey: () => inserted,
   };
+  const emitMessageState = vi.fn();
+  const logError = vi.fn();
   const send = createSender({
     getSession: () => session,
     getHolder: () => holder,
     emitMessages: vi.fn(),
-    emitMessageState: vi.fn(),
+    emitMessageState,
     now: () => 1000,
     genId: () => 'local-test',
+    logError,
   });
-  return { send, session, inserted, states, registered };
+  return { send, session, inserted, states, registered, emitMessageState, logError };
 }
 
 describe('createSender', () => {
@@ -82,10 +96,28 @@ describe('createSender', () => {
       logError,
     });
     await send('c:abcd', 'yo');
-    // The .catch runs on a microtask after the fire-and-forget DM send rejects.
-    await Promise.resolve();
-    await Promise.resolve();
+    // The .catch runs a few microtasks after the fire-and-forget DM send settles.
+    await settle();
     expect(states).toContainEqual({ id: 'local-test', state: 'failed' });
     expect(logError).toHaveBeenCalledWith(expect.stringContaining('local-test'));
+  });
+
+  it('DM: logs and marks failed when the retry send resolves {ok:false}', async () => {
+    // The lib resolves (rather than rejects) for an unknown contact or one
+    // without a full 32B key, and emits no messageState of its own — so the
+    // row would sit in 'sending' forever unless the sender fails it.
+    const h = harness({ dmResult: { ok: false, error: 'unknown contact c:abcd' } });
+    await h.send('c:abcd', 'yo');
+    await settle();
+    expect(h.states).toEqual([{ id: 'local-test', state: 'failed' }]);
+    expect(h.emitMessageState).toHaveBeenCalledWith('local-test', 'failed');
+    expect(h.logError).toHaveBeenCalledWith(expect.stringContaining('unknown contact c:abcd'));
+  });
+
+  it('DM: leaves the row alone when the retry send resolves ok', async () => {
+    const h = harness();
+    await h.send('c:abcd', 'yo');
+    await settle();
+    expect(h.states).toEqual([]);
   });
 });

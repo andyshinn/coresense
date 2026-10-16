@@ -1,10 +1,11 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { Kbd } from '@/components/ui/kbd';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { clamp } from '../../../../shared/math';
 import type { CliCommand } from '../../../../shared/repeater-cli/catalog';
 import type { RadioSettings } from '../../../../shared/types';
 import { CliDetail } from './CliDetail';
+import { KbdHints } from './KbdHints';
 import { cliRoundTrip } from './lib/airtime';
 import type { CliParse } from './lib/parse';
 import { type CliSuggestion, groupSuggestions } from './lib/suggest';
@@ -12,6 +13,10 @@ import { type CliSuggestion, groupSuggestions } from './lib/suggest';
 const DETAIL_W = 250;
 const DETAIL_MIN = 560; // below this the two-pane detail folds to inline
 const LIST_MAX_H = 302;
+// Palette width follows the room right of the prompt, inside these bounds.
+const PALETTE_MIN_W = 380;
+const PALETTE_MAX_W = 660;
+const PALETTE_EDGE_GAP = 20; // kept clear of the window's right edge
 
 // Stable id for the listbox so Task 4's prompt input can own the authoritative
 // aria-activedescendant/aria-controls pair (the FOCUSED element must own it).
@@ -112,7 +117,7 @@ function useWidth(anchor: React.RefObject<HTMLDivElement | null>): number {
       const el = anchor.current;
       if (!el) return;
       const available = window.innerWidth - el.getBoundingClientRect().left;
-      setWidth(Math.max(380, Math.min(660, available - 20)));
+      setWidth(clamp(available - PALETTE_EDGE_GAP, PALETTE_MIN_W, PALETTE_MAX_W));
     };
     measure();
     window.addEventListener('resize', measure);
@@ -167,10 +172,7 @@ function Row({
       </span>
       <span className="flex shrink-0 items-center gap-1">
         {item.meta && item.kind !== 'command' ? (
-          <span
-            className="rounded-sm bg-cs-bg-3 px-1 font-mono uppercase tracking-wider text-cs-text-muted"
-            style={{ fontSize: 9, lineHeight: '15px' }}
-          >
+          <span className="rounded-sm bg-cs-bg-3 px-1 font-mono text-[9px] uppercase leading-[15px] tracking-wider text-cs-text-muted">
             {item.meta}
           </span>
         ) : null}
@@ -178,8 +180,10 @@ function Row({
           <span
             key={c.key}
             title={c.title}
-            className={cn('shrink-0 rounded-sm px-1 font-mono uppercase tracking-wider', c.className)}
-            style={{ fontSize: 9, lineHeight: '15px' }}
+            className={cn(
+              'shrink-0 rounded-sm px-1 font-mono text-[9px] uppercase leading-[15px] tracking-wider',
+              c.className,
+            )}
           >
             {c.label}
           </span>
@@ -251,18 +255,14 @@ export function CliPalette({
           <span className="font-mono text-[10px] tabular-nums text-cs-text-dim">{items.length}</span>
           <span className="flex-1" />
           <span className="flex items-center gap-2.5 text-[10px] text-cs-text-dim">
-            <span>
-              <Kbd>↹</Kbd> complete
-            </span>
-            <span>
-              <Kbd>↑↓</Kbd> move
-            </span>
-            <span>
-              <Kbd>↵</Kbd> run
-            </span>
-            <span>
-              <Kbd>esc</Kbd> dismiss
-            </span>
+            <KbdHints
+              items={[
+                ['↹', 'complete'],
+                ['↑↓', 'move'],
+                ['↵', 'run'],
+                ['esc', 'dismiss'],
+              ]}
+            />
           </span>
         </div>
         <div className="flex">

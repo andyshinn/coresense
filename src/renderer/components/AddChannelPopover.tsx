@@ -1,8 +1,11 @@
 import { Hash, Key, Plus, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
+import { channelKey } from '../../shared/conversationKey';
+import { errorMessage } from '../../shared/errors';
 import type { Channel } from '../../shared/types';
-import { type ApiClient, api } from '../lib/api';
+import { api } from '../lib/api';
+import { useApiClient } from '../lib/apiClientContext';
 import { notify } from '../lib/notify';
 import { generate16ByteHex } from '../lib/randomSecret';
 import { useStore } from '../lib/store';
@@ -50,7 +53,6 @@ function PickerRow({ icon, title, subtitle, disabled, disabledHint, onClick }: P
 }
 
 interface Props {
-  client: ApiClient | null;
   onClose: () => void;
 }
 
@@ -74,14 +76,15 @@ function validateName(name: string, channels: Channel[]): string | null {
   const trimmed = name.trim();
   if (trimmed.length === 0) return 'Name is required';
   if (trimmed.length > 32) return 'Name must be 32 characters or fewer';
-  const key = `ch:${trimmed}`;
+  const key = channelKey(trimmed);
   if (channels.some((c) => c.key === key)) {
     return `A channel named "${trimmed}" already exists`;
   }
   return null;
 }
 
-export function AddChannelPopover({ client, onClose }: Props) {
+export function AddChannelPopover({ onClose }: Props) {
+  const client = useApiClient();
   const channels = useStore((s) => s.channels);
   const transport = useStore((s) => s.transportState);
   const setActiveKey = useStore((s) => s.setActiveKey);
@@ -112,7 +115,7 @@ export function AddChannelPopover({ client, onClose }: Props) {
     try {
       await api.putChannel(client, channel);
     } catch (err) {
-      throw new Error(`Couldn't save channel: ${(err as Error).message}`);
+      throw new Error(`Couldn't save channel: ${errorMessage(err)}`, { cause: err });
     }
     try {
       const res = await api.pushChannelToDevice(client, channel.key);
@@ -126,7 +129,7 @@ export function AddChannelPopover({ client, onClose }: Props) {
         // Rollback itself failing is non-fatal — the next radio enumeration
         // will reconcile.
       }
-      throw new Error(`Couldn't push to device: ${(pushErr as Error).message}`);
+      throw new Error(`Couldn't push to device: ${errorMessage(pushErr)}`, { cause: pushErr });
     }
   }
 
@@ -165,7 +168,7 @@ export function AddChannelPopover({ client, onClose }: Props) {
               const channel: Channel = { key: 'ch:Public', name: 'Public', kind: 'public', createdAt: Date.now() };
               await submit(channel, 'Public');
             } catch (err) {
-              setView({ ...next, submitting: false, error: (err as Error).message });
+              setView({ ...next, submitting: false, error: errorMessage(err) });
             }
           }}
         />
@@ -208,7 +211,7 @@ export function AddChannelPopover({ client, onClose }: Props) {
     setView({ ...formView, submitting: true, error: null });
 
     const name = formView.name.trim();
-    const key = `ch:${name}`;
+    const key = channelKey(name);
     let channel: Channel;
     if (formView.type === 'create-private') {
       channel = { key, name, kind: 'private', secretHex: generate16ByteHex(), createdAt: Date.now() };
@@ -224,7 +227,7 @@ export function AddChannelPopover({ client, onClose }: Props) {
     try {
       await submit(channel, name);
     } catch (err) {
-      setView({ ...formView, submitting: false, error: (err as Error).message });
+      setView({ ...formView, submitting: false, error: errorMessage(err) });
     }
   }
 

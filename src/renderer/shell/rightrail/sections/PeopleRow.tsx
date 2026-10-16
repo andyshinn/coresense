@@ -2,6 +2,7 @@ import { MessageSquare, UserPlus } from 'lucide-react';
 import { memo, type ReactNode, useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { DAY_MS, MINUTE_MS, WEEK_MS } from '../../../../shared/time';
 import type { TimeFormatPref } from '../../../../shared/types';
 import { IDENTITY_NEUTRAL_VAR, identityDotVar } from '../../../lib/contactColor';
 import { useStore } from '../../../lib/store';
@@ -9,17 +10,13 @@ import { fmtDateTime, fmtTime, fmtTimePrecise } from '../../../lib/time';
 import { cn } from '../../../lib/utils';
 import { fmtAge, fmtCount, type RosterRow, volumeWidth } from './peopleModel';
 
-const MIN = 60_000;
-const HOUR = 60 * MIN;
-const DAY = 24 * HOUR;
-
 /** The absolute timestamp behind the compact age, one rung per ladder step. */
 export function fmtAgeAbsolute(ts: number, now: number, pref: TimeFormatPref): string {
   if (!Number.isFinite(ts) || ts <= 0) return 'Never';
   const elapsed = Math.max(0, now - ts);
-  if (elapsed < MIN) return fmtTimePrecise(ts, pref);
-  if (elapsed < DAY) return fmtTime(ts, pref);
-  if (elapsed < 7 * DAY) return `${new Date(ts).toLocaleDateString(undefined, { weekday: 'short' })} ${fmtTime(ts, pref)}`;
+  if (elapsed < MINUTE_MS) return fmtTimePrecise(ts, pref);
+  if (elapsed < DAY_MS) return fmtTime(ts, pref);
+  if (elapsed < WEEK_MS) return `${new Date(ts).toLocaleDateString(undefined, { weekday: 'short' })} ${fmtTime(ts, pref)}`;
   return fmtDateTime(ts, pref);
 }
 

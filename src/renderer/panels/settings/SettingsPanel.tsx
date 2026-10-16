@@ -2,7 +2,6 @@ import { Cog, Radio, Settings, ShieldOff, Wrench, Zap } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { ApiKeySection } from '../../components/settings/ApiKeySection';
 import { MapKeySection } from '../../components/settings/MapKeySection';
-import type { ApiClient } from '../../lib/api';
 import { type SettingsSectionMeta, type SettingsTab, useStore } from '../../lib/store';
 import {
   AppearanceSection,
@@ -43,7 +42,7 @@ const TAB_SECTIONS: Record<SettingsTab, SettingsSectionMeta[]> = {
     { id: 'app-composer', title: 'Composer', tab: 'app' },
     { id: 'app-notifications', title: 'Notifications', tab: 'app' },
     { id: 'app-toasts', title: 'Toasts', tab: 'app' },
-    { id: 'app-proxy', title: 'TCP / WS Proxy', tab: 'app' },
+    { id: 'app-proxy', title: 'TCP Proxy', tab: 'app' },
     { id: 'app-api-key', title: 'API Access', tab: 'app' },
     { id: 'app-behavior', title: 'Behavior', tab: 'app' },
     { id: 'app-logs', title: 'Logs', tab: 'app' },
@@ -72,12 +71,11 @@ const TAB_SECTIONS: Record<SettingsTab, SettingsSectionMeta[]> = {
 };
 
 interface Props {
-  client: ApiClient | null;
   initialTab?: SettingsTab;
   initialSection?: string;
 }
 
-export function SettingsPanel({ client, initialTab, initialSection }: Props) {
+export function SettingsPanel({ initialTab, initialSection }: Props) {
   const activeTab = useStore((s) => s.settingsUi.activeTab);
   const dirtyById = useStore((s) => s.settingsUi.dirtyById);
   const pendingScrollSectionId = useStore((s) => s.settingsUi.pendingScrollSectionId);
@@ -136,14 +134,14 @@ export function SettingsPanel({ client, initialTab, initialSection }: Props) {
     clearScrollRequest();
   }, [pendingScrollSectionId, clearScrollRequest]);
 
-  const tabDirty = (tab: SettingsTab) => Object.entries(dirtyById).some(([id, v]) => v && id.startsWith(`${tab}-`));
+  const tabDirty = (tab: SettingsTab) => TAB_SECTIONS[tab].some((s) => dirtyById[s.id]);
 
   const pillTabs: PillTab<SettingsTab>[] = [
     { id: 'app', label: 'Application Settings', icon: Cog, dirty: tabDirty('app') },
     { id: 'quickActions', label: 'Quick Actions', icon: Zap, dirty: tabDirty('quickActions') },
     { id: 'radio', label: 'Radio Settings', icon: Radio, dirty: tabDirty('radio') },
     { id: 'blocked', label: 'Blocked', icon: ShieldOff, dirty: tabDirty('blocked') },
-    { id: 'extra', label: 'Extra Tools', icon: Wrench },
+    { id: 'extra', label: 'Extra Tools', icon: Wrench, dirty: tabDirty('extra') },
   ];
 
   return (
@@ -161,36 +159,36 @@ export function SettingsPanel({ client, initialTab, initialSection }: Props) {
       </header>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-7 pb-10">
-        {activeTab === 'app' && <AppTab client={client} />}
-        {activeTab === 'quickActions' && <QuickActionsTab client={client} />}
-        {activeTab === 'radio' && <RadioTab client={client} />}
-        {activeTab === 'blocked' && <BlockedTab client={client} />}
-        {activeTab === 'extra' && <ExtraTab client={client} />}
+        {activeTab === 'app' && <AppTab />}
+        {activeTab === 'quickActions' && <QuickActionsTab />}
+        {activeTab === 'radio' && <RadioTab />}
+        {activeTab === 'blocked' && <BlockedTab />}
+        {activeTab === 'extra' && <ExtraTab />}
       </div>
 
-      <UnsavedChangesDialog client={client} />
+      <UnsavedChangesDialog />
     </div>
   );
 }
 
-function AppTab({ client }: { client: ApiClient | null }) {
+function AppTab() {
   return (
     <>
-      <AppearanceSection client={client} />
-      <ComposerSection client={client} />
-      <NotificationsSection client={client} />
-      <ToastsSection client={client} />
-      <ProxySection client={client} />
-      <ApiKeySection client={client} />
-      <BehaviorSection client={client} />
-      <LoggingSection client={client} />
-      <MapKeySection client={client} />
-      <UpdatesSection client={client} />
+      <AppearanceSection />
+      <ComposerSection />
+      <NotificationsSection />
+      <ToastsSection />
+      <ProxySection />
+      <ApiKeySection />
+      <BehaviorSection />
+      <LoggingSection />
+      <MapKeySection />
+      <UpdatesSection />
     </>
   );
 }
 
-function RadioTab({ client }: { client: ApiClient | null }) {
+function RadioTab() {
   const connected = useStore((s) => s.transportState === 'connected');
   return (
     <>
@@ -199,29 +197,29 @@ function RadioTab({ client }: { client: ApiClient | null }) {
           No radio connected — radio changes save app-side only and apply on next connect.
         </div>
       )}
-      <PublicInfoSection client={client} />
-      <RadioSection client={client} />
-      <ExperimentalSection client={client} />
+      <PublicInfoSection />
+      <RadioSection />
+      <ExperimentalSection />
       <IdentityKeySection />
       <BluetoothSection />
-      <ContactSettingsSection client={client} />
-      <MessageSection client={client} />
-      <PositionSection client={client} />
-      <TelemetrySection client={client} />
-      <DeviceInfoSection client={client} />
+      <ContactSettingsSection />
+      <MessageSection />
+      <PositionSection />
+      <TelemetrySection />
+      <DeviceInfoSection />
     </>
   );
 }
 
-function BlockedTab({ client }: { client: ApiClient | null }) {
-  return <BlockedSection client={client} />;
+function BlockedTab() {
+  return <BlockedSection />;
 }
 
-function ExtraTab({ client }: { client: ApiClient | null }) {
+function ExtraTab() {
   return (
     <>
       <PacketLogSection />
-      <MaintenanceSection client={client} />
+      <MaintenanceSection />
       <ImportExportSection />
       <DangerZoneSection />
     </>

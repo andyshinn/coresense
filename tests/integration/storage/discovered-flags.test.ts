@@ -1,5 +1,6 @@
 import type { Models } from '@andyshinn/meshcore-ts';
 import { describe, expect, it } from 'vitest';
+import { openDb } from '../../../src/main/storage/db';
 import { discoveredStore } from '../../../src/main/storage/discoveredContacts';
 import { countDiscoveredWrites } from '../../support/sql-counter';
 
@@ -147,5 +148,44 @@ describe('discoveredStore.reconcileOnRadio', () => {
 
     expect(discoveredStore.get(record(0).publicKeyHex)?.on_radio).toBe(1);
     expect(discoveredStore.get(record(1).publicKeyHex)?.on_radio).toBe(1);
+  });
+
+  // Regression: the blanket clear and the per-row sets used to run as separate
+  // auto-committed statements, so a failure part-way left the whole pool
+  // reading off-radio. Now it is one transaction.
+  it('is atomic: a failure part-way leaves every row as it was', () => {
+    seed(3);
+    discoveredStore.applyRadioFlags(flagsFor(3, true, false));
+
+    const db = openDb();
+    const originalPrepare = db.prepare.bind(db);
+    let sets = 0;
+    (db as { prepare: (sql: string) => unknown }).prepare = (sql: string) => {
+      const stmt = originalPrepare(sql);
+      if (!sql.includes('SET on_radio = 1')) return stmt;
+      return {
+        run: (...args: Parameters<typeof stmt.run>) => {
+          if (++sets === 2) throw new Error('disk full');
+          return stmt.run(...args);
+        },
+      };
+    };
+    try {
+      expect(() => discoveredStore.reconcileOnRadio([record(0).publicKeyHex, record(1).publicKeyHex])).toThrow('disk full');
+    } finally {
+      (db as { prepare: unknown }).prepare = originalPrepare;
+    }
+
+    for (let i = 0; i < 3; i++) expect(discoveredStore.get(record(i).publicKeyHex)?.on_radio).toBe(1);
+  });
+});
+
+describe('discoveredStore.isOnRadio', () => {
+  it('reports the stored flag, and null (not false) when there is no row', () => {
+    expect(discoveredStore.isOnRadio(record(0).publicKeyHex)).toBeNull();
+    seed(1);
+    expect(discoveredStore.isOnRadio(record(0).publicKeyHex)).toBe(false);
+    discoveredStore.setOnRadio(record(0).publicKeyHex, true);
+    expect(discoveredStore.isOnRadio(record(0).publicKeyHex)).toBe(true);
   });
 });

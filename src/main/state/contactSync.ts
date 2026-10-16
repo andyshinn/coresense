@@ -1,5 +1,6 @@
 import type { Models } from '@andyshinn/meshcore-ts';
 import { advTypeToKind } from '../../shared/contacts/discovered';
+import { contactKey, isContactKey, pubkeyFromKey } from '../../shared/conversationKey';
 import type { Contact } from '../../shared/types';
 import { emit } from '../events/bus';
 import { coalesce } from '../events/coalesce';
@@ -67,7 +68,8 @@ export async function flushContactSyncEmits(): Promise<void> {
  *  since meshcore-ts 0.8.0 is understood to mean the radio REFUSED to store the
  *  node. So on-radio membership has to be established separately, below. */
 export function ingestObservedContact(record: Models.ContactRecord, source: Models.ContactSource): void {
-  const existingRow = discoveredStore.get(record.publicKeyHex);
+  // null = no row yet, i.e. a first sighting.
+  const storedOnRadio = discoveredStore.isOnRadio(record.publicKeyHex);
   // Membership, cheapest reliable answer first:
   //   - a bulk sync is the radio listing its own store, so 'sync' is on-radio;
   //   - otherwise ask the contact list, which the library has ALREADY updated:
@@ -83,8 +85,8 @@ export function ingestObservedContact(record: Models.ContactRecord, source: Mode
     stateHolder()
       .getContacts()
       .some((c) => c.publicKeyHex === record.publicKeyHex) ||
-    existingRow?.on_radio === 1;
-  const isNewDiscovery = source === 'advert' && existingRow === null;
+    storedOnRadio === true;
+  const isNewDiscovery = source === 'advert' && storedOnRadio === null;
 
   // `heardLive` is our-clock reception, not membership: a 0x8a advert is a
   // fully demodulated frame, so we demonstrably heard the node transmit even
@@ -100,7 +102,7 @@ export function ingestObservedContact(record: Models.ContactRecord, source: Mode
 
   if (isNewDiscovery) {
     emit.contactDiscovered({
-      key: `c:${record.publicKeyHex}`,
+      key: contactKey(record.publicKeyHex),
       name: record.name || record.publicKeyHex.slice(0, 12),
       kind: advTypeToKind(record.type),
     });
@@ -128,7 +130,7 @@ const FULL_PUBKEY_HEX = /^[0-9a-f]{64}$/i;
  *  advert path uses, so a burst of inbound traffic collapses to one push. */
 export function noteHeard(keyOrPubkey: string | undefined): void {
   if (!keyOrPubkey) return;
-  const pubkey = keyOrPubkey.startsWith('c:') ? keyOrPubkey.slice(2) : keyOrPubkey;
+  const pubkey = pubkeyFromKey(keyOrPubkey);
   if (!FULL_PUBKEY_HEX.test(pubkey)) return;
   if (discoveredStore.markHeard(pubkey, Date.now())) scheduleDiscoveredEmit();
 }
@@ -139,12 +141,55 @@ export function noteHeard(keyOrPubkey: string | undefined): void {
 export function applyLibContacts(libContacts: Models.Contact[]): void {
   const holder = stateHolder();
   const prev = new Map(holder.getContacts().map((c) => [c.key, c]));
-  const merged: Contact[] = libContacts.map((c) => {
-    const old = prev.get(c.key);
-    return old ? { ...c, pinned: old.pinned, muted: old.muted } : c;
+  // The library builds every contact key as `c:<pubkey>`; the guard narrows the
+  // type and would drop anything else rather than store it.
+  const merged = libContacts.flatMap((c): Contact[] => {
+    const { key } = c;
+    if (!isContactKey(key)) return [];
+    const old = prev.get(key);
+    return [old ? { ...c, key, pinned: old.pinned, muted: old.muted } : { ...c, key }];
   });
   holder.setContacts(merged);
   // The holder is updated synchronously above; only the broadcast is coalesced,
   // so anything reading state via the holder still sees the latest list.
   scheduleContactsEmit();
+}
+
+/** Write a hand-set (or reset) out-path through to the discovered mirror.
+ *
+ *  meshcore-ts's setContactPath/resetContactPath write the radio and then their
+ *  own in-memory contact map; they emit neither `contactObserved` nor
+ *  `discovered`, so nothing reaches coresense's sqlite mirror. The Contact
+ *  Manager reads its hop count from that mirror — and so does the rail, since
+ *  resolveContact prefers the discovered row's `hops` — which left both showing
+ *  the pre-edit value until the next full GET_CONTACTS.
+ *
+ *  The byte is repacked exactly as the firmware stores it, `((hashSize - 1) <<
+ *  6) | hopCount` (see shared/contacts/discovered.ts), using the same radio
+ *  path-hash mode the library validated the path length against before writing
+ *  the frame.
+ *
+ *  An EMPTY `outPathHex` means different things to the two callers, and the
+ *  mirror has to match whichever frame actually went out — otherwise the next
+ *  refresh silently flips the hop cell under the user:
+ *    - PUT with no hops → encodeAddUpdateContact writes `out_path_len = 0`
+ *      (`path.length === 0 ? 0 : …`), i.e. a known ZERO-HOP route.
+ *    - DELETE → CMD_RESET_PATH, which clears the stored route back to
+ *      OUT_PATH_UNKNOWN (0xFF), i.e. no route at all and the radio floods. */
+export function mirrorOutPath(contactKey: string, outPathHex: string, opts: { emptyMeans: 'direct' | 'unknown' }): void {
+  const pubkey = pubkeyFromKey(contactKey);
+  if (outPathHex.length === 0) {
+    discoveredStore.setOutPath(pubkey, opts.emptyMeans === 'unknown' ? 0xff : 0x00, '');
+    scheduleDiscoveredEmit();
+    return;
+  }
+  const hashSize = stateHolder().getRadioSettings().pathHashMode;
+  const hops = outPathHex.length / 2 / hashSize;
+  // The library rejects a path that isn't a whole number of hops, so this is
+  // belt-and-braces: writing a fractional or out-of-range hop count would pack
+  // a byte hopsFromOutPathLen can't read back. Leaving the row alone is strictly
+  // better than corrupting it.
+  if (!Number.isInteger(hops) || hops < 0 || hops > 0x3f) return;
+  discoveredStore.setOutPath(pubkey, ((hashSize - 1) << 6) | hops, outPathHex);
+  scheduleDiscoveredEmit();
 }

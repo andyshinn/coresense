@@ -1,4 +1,5 @@
 import { cellHops, type DiscoveredContact } from '../../shared/contacts/discovered';
+import { DAY_MS, HOUR_MS, WEEK_MS } from '../../shared/time';
 import type { CmHeard, CmSortField, CmStateTab, ContactManagerState } from './store';
 
 export interface CmCounts {
@@ -11,10 +12,6 @@ export interface CmView {
   rows: DiscoveredContact[];
   counts: CmCounts;
 }
-
-const HOUR_MS = 3_600_000;
-const DAY_MS = 86_400_000;
-const WEEK_MS = 604_800_000;
 
 function heardWithin(c: DiscoveredContact, heard: CmHeard, nowMs: number): boolean {
   if (heard === 'any') return true;

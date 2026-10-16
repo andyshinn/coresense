@@ -1,12 +1,12 @@
 import type { Message } from '../../shared/types';
 import { dayKey } from '../lib/time';
 
-export type DateItem = { kind: 'date'; id: string; ts: number };
-export type DividerItem = { kind: 'divider'; id: string };
-export type MessageItem = { kind: 'msg'; m: Message };
-export type Item = DateItem | DividerItem | MessageItem;
+export type DateListItem = { kind: 'date'; id: string; ts: number };
+export type DividerListItem = { kind: 'divider'; id: string };
+export type MsgListItem = { kind: 'msg'; m: Message };
+export type Item = DateListItem | DividerListItem | MsgListItem;
 
-export const UNREAD_DIVIDER: DividerItem = { kind: 'divider', id: '__unread__' };
+export const UNREAD_DIVIDER: DividerListItem = { kind: 'divider', id: '__unread__' };
 
 let dividerSeq = 0;
 
@@ -29,12 +29,12 @@ let dividerSeq = 0;
  * so heals a stale entry on its own — which is why buildItems can stay pure and
  * keep the constant id.
  */
-export function freshUnreadDivider(): DividerItem {
+export function freshUnreadDivider(): DividerListItem {
   dividerSeq += 1;
   return { kind: 'divider', id: `__unread__#${dividerSeq}` };
 }
 
-function dateItem(ts: number): DateItem {
+function dateItem(ts: number): DateListItem {
   return { kind: 'date', id: `date-${dayKey(ts)}`, ts };
 }
 

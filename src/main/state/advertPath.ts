@@ -1,10 +1,27 @@
+import { contactKey, pubkeyFromKey } from '../../shared/conversationKey';
+import { errorMessage } from '../../shared/errors';
+import { DAY_MS } from '../../shared/time';
 import { child } from '../log';
-import { protocolSession } from '../protocol';
+import type { SessionAdapter } from '../protocol/sessionAdapter';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { transportManager } from '../transport/manager';
 import { scheduleDiscoveredEmit } from './contactSync';
 
 const log = child('contacts');
+
+type AdvertPathSession = Pick<SessionAdapter, 'getAdvertPath' | 'hasRadioContact'>;
+
+let protocolSession: () => AdvertPathSession = () => {
+  throw new Error('protocol session not wired');
+};
+
+/** protocol/index.ts hands over its session getter at load. Injected rather
+ *  than imported because the session's own event wiring (adapterEvents) imports
+ *  this module, and importing protocol/index back would close a cycle. Both
+ *  call sites already turn a throw into a 'failed' status. */
+export function wireAdvertPathSession(get: () => AdvertPathSession): void {
+  protocolSession = get;
+}
 
 /** How long a measurement is reused before we ask the radio again.
  *
@@ -35,7 +52,7 @@ export const ADVERT_PATH_COOLDOWN_MS = 60_000;
  *  fast clock would otherwise park last_heard_ms ahead of now and, because the
  *  column only ever moves forward, silently block every REAL reception after
  *  it. */
-export const MAX_OBSERVED_HEARD_AGE_MS = 7 * 86_400_000;
+export const MAX_OBSERVED_HEARD_AGE_MS = 7 * DAY_MS;
 
 export type AdvertPathResult =
   /** A real answer. `fromCache` means it came from the sqlite mirror under the
@@ -91,8 +108,6 @@ export function resetAdvertPathState(): void {
   lastAsked.clear();
 }
 
-const toPubkey = (keyOrPubkey: string) => (keyOrPubkey.startsWith('c:') ? keyOrPubkey.slice(2) : keyOrPubkey);
-
 /** Answer from the sqlite mirror, without touching the radio.
  *
  *  Only `measured` and `notCached` can come out of it: neither a miss nor the
@@ -101,16 +116,9 @@ const toPubkey = (keyOrPubkey: string) => (keyOrPubkey.startsWith('c:') ? keyOrP
  *  what the radio last said — and the miss is flagged `fromCache` so nobody
  *  mistakes it for the radio's answer. */
 function stored(pubkey: string): AdvertPathResult {
-  const row = discoveredStore.get(pubkey);
-  // >= 0, not truthiness: 0 hops is a measurement, not a miss.
-  if (!row || row.observed_hops < 0) return { status: 'notCached', fromCache: true };
-  return {
-    status: 'measured',
-    hops: row.observed_hops,
-    pathHex: row.observed_path_hex,
-    recvUnix: row.observed_at_unix,
-    fromCache: true,
-  };
+  const observed = discoveredStore.getObservedPath(pubkey);
+  if (!observed) return { status: 'notCached', fromCache: true };
+  return { status: 'measured', ...observed, fromCache: true };
 }
 
 /** A radio-reported advert reception time as an our-clock ms value, or null when
@@ -175,7 +183,7 @@ async function ask(pubkey: string, key: string): Promise<AdvertPathResult> {
     // advert sampler, the rail) wait out the cooldown; the button forces past
     // it.
     if (!p) {
-      if (transportManager.getState().state !== 'connected') {
+      if (!transportManager.isConnected()) {
         return { status: 'failed', message: 'radio link dropped before it answered' };
       }
       return { status: 'notCached', fromCache: false };
@@ -207,8 +215,8 @@ async function ask(pubkey: string, key: string): Promise<AdvertPathResult> {
   } catch (err) {
     // A dropped link or a radio that never replied. Degrade to an honest status
     // rather than a rejection — every caller here is a UI affordance.
-    log.debug(`advert path ${pubkey.slice(0, 12)} failed: ${(err as Error).message}`);
-    return { status: 'failed', message: (err as Error).message };
+    log.debug(`advert path ${pubkey.slice(0, 12)} failed: ${errorMessage(err)}`);
+    return { status: 'failed', message: errorMessage(err) };
   }
 }
 
@@ -222,10 +230,10 @@ async function ask(pubkey: string, key: string): Promise<AdvertPathResult> {
  *
  *  Never rejects. Everything the radio can do wrong is a status. */
 export async function fetchAdvertPath(keyOrPubkey: string, opts: { force?: boolean } = {}): Promise<AdvertPathResult> {
-  const pubkey = toPubkey(keyOrPubkey);
-  const key = `c:${pubkey}`;
+  const pubkey = pubkeyFromKey(keyOrPubkey);
+  const key = contactKey(pubkey);
 
-  if (transportManager.getState().state !== 'connected') return { status: 'offline' };
+  if (!transportManager.isConnected()) return { status: 'offline' };
 
   const running = inFlight.get(pubkey);
   if (running) return running;
@@ -244,7 +252,7 @@ export async function fetchAdvertPath(keyOrPubkey: string, opts: { force?: boole
   try {
     if (!protocolSession().hasRadioContact(key)) return { status: 'notOnRadio' };
   } catch (err) {
-    return { status: 'failed', message: (err as Error).message };
+    return { status: 'failed', message: errorMessage(err) };
   }
 
   const p = ask(pubkey, key);

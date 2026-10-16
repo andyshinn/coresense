@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ApiError } from '../../../../../../src/renderer/lib/api';
 import { settlePatchForError, settlePatchForReply } from '../../../../../../src/renderer/panels/repeater-admin/cli/lib/send';
 
 describe('settlePatchForReply', () => {
@@ -38,8 +39,8 @@ describe('settlePatchForReply', () => {
 });
 
 describe('settlePatchForError', () => {
-  it('reads superseded off the message before the transport code', () => {
-    const err = Object.assign(new Error('superseded by newer CLI command'), { code: 'transport' });
+  it('maps a cli_superseded code to a superseded error', () => {
+    const err = new ApiError('superseded by newer CLI command', 503, 'cli_superseded');
     expect(settlePatchForError(err, 5)).toEqual({
       state: 'error',
       error: { kind: 'superseded', message: 'superseded by newer CLI command' },
@@ -48,7 +49,7 @@ describe('settlePatchForError', () => {
   });
 
   it('maps a cli_timeout code to a timeout state', () => {
-    const err = Object.assign(new Error('CLI command timed out after 30000ms'), { code: 'cli_timeout' });
+    const err = new ApiError('CLI command timed out after 30000ms', 504, 'cli_timeout');
     expect(settlePatchForError(err, 5)).toEqual({
       state: 'timeout',
       error: { kind: 'timeout', message: 'CLI command timed out after 30000ms' },
@@ -57,7 +58,7 @@ describe('settlePatchForError', () => {
   });
 
   it('maps everything else to transport', () => {
-    const err = Object.assign(new Error('device offline'), { code: 'transport' });
+    const err = new ApiError('device offline', 503, 'transport');
     expect(settlePatchForError(err, 5)).toEqual({
       state: 'error',
       error: { kind: 'transport', message: 'device offline' },

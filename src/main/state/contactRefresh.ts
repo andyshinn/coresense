@@ -1,3 +1,4 @@
+import { errorMessage } from '../../shared/errors';
 import { child } from '../log';
 import { protocolSession } from '../protocol';
 import { transportManager } from '../transport/manager';
@@ -51,7 +52,7 @@ export type ContactRefreshResult =
 let pending = false;
 
 export async function refreshContacts(): Promise<ContactRefreshResult> {
-  if (transportManager.getState().state !== 'connected') return { status: 'offline' };
+  if (!transportManager.isConnected()) return { status: 'offline' };
   // A walk is already running: ours, another caller's, or the handshake's.
   if (pending || isContactWalkInFlight()) return { status: 'skipped' };
   // Cheap early out for the handshake's walk before its first frame lands.
@@ -68,7 +69,7 @@ export async function refreshContacts(): Promise<ContactRefreshResult> {
     return { status: 'ok', count: list.length };
   } catch (err) {
     endContactWalk();
-    return { status: 'failed', message: (err as Error).message };
+    return { status: 'failed', message: errorMessage(err) };
   } finally {
     pending = false;
   }

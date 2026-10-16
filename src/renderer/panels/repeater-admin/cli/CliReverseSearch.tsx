@@ -1,4 +1,4 @@
-import { Kbd } from '@/components/ui/kbd';
+import { KbdHints } from './KbdHints';
 import type { CliHistoryEntry } from './lib/persistence';
 
 export interface CliReverseSearchProps {
@@ -52,18 +52,15 @@ export function CliReverseSearch({ query, match, index, total }: CliReverseSearc
         </span>
       ) : null}
       <span className="flex min-w-0 shrink items-center gap-2 overflow-hidden text-[10px] text-cs-text-dim">
-        <span className="whitespace-nowrap">
-          <Kbd>⌃R</Kbd> older
-        </span>
-        <span className="whitespace-nowrap">
-          <Kbd>↵</Kbd> run
-        </span>
-        <span className="whitespace-nowrap">
-          <Kbd>→</Kbd> edit
-        </span>
-        <span className="whitespace-nowrap">
-          <Kbd>⌃G</Kbd> abort
-        </span>
+        <KbdHints
+          itemClassName="whitespace-nowrap"
+          items={[
+            ['⌃R', 'older'],
+            ['↵', 'run'],
+            ['→', 'edit'],
+            ['⌃G', 'abort'],
+          ]}
+        />
       </span>
     </div>
   );

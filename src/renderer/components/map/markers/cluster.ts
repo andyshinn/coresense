@@ -1,5 +1,6 @@
 import Supercluster from 'supercluster';
-import { type Contact, type ContactKind, hasValidFix } from '../../../../shared/types';
+import { hasValidFix, haversineMeters } from '../../../../shared/geo';
+import type { Contact, ContactKind } from '../../../../shared/types';
 
 export interface ContactPoint {
   contact: Contact;
@@ -35,16 +36,30 @@ export interface PointFeatureProps {
 
 export type TypeBreakdown = Record<ContactKind, number>;
 
-const EARTH_RADIUS_M = 6_371_008.8;
+const SITE_KEY_PREFIX = 'site:';
+const SITE_KEY_SEPARATOR = '|';
 
-function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const toRad = (x: number) => (x * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
+/** A site's stable key: its sorted member contact keys, so the same group gets
+ *  the same key whatever order the contacts arrive in. */
+export function siteKeyFor(members: ReadonlyArray<Pick<Contact, 'key'>>): string {
+  return `${SITE_KEY_PREFIX}${members
+    .map((m) => m.key)
+    .sort()
+    .join(SITE_KEY_SEPARATOR)}`;
+}
+
+/** The member contact keys encoded in a `siteKeyFor` key. */
+export function parseSiteKey(key: string): string[] {
+  const raw = key.startsWith(SITE_KEY_PREFIX) ? key.slice(SITE_KEY_PREFIX.length) : key;
+  return raw.split(SITE_KEY_SEPARATOR);
+}
+
+/** Centroid of a set of fixes as the simple lng/lat average — good enough at
+ *  the 10m scale sites group within. */
+export function centroidOf(fixes: ReadonlyArray<{ gpsLat: number; gpsLon: number }>): { lng: number; lat: number } {
+  const lng = fixes.reduce((s, m) => s + m.gpsLon, 0) / fixes.length;
+  const lat = fixes.reduce((s, m) => s + m.gpsLat, 0) / fixes.length;
+  return { lng, lat };
 }
 
 // Greedy co-location grouping. O(n²) in worst case but n is the number of
@@ -57,12 +72,12 @@ export function groupByColocation(contacts: Contact[], meters: number): GroupedI
 
   for (const c of sources) {
     if (assigned.has(c.key)) continue;
-    const members: Contact[] = [c];
+    const members = [c];
     assigned.add(c.key);
     if (meters > 0) {
       for (const other of sources) {
         if (assigned.has(other.key)) continue;
-        const d = haversineMeters({ lat: c.gpsLat, lng: c.gpsLon }, { lat: other.gpsLat, lng: other.gpsLon });
+        const d = haversineMeters({ lat: c.gpsLat, lon: c.gpsLon }, { lat: other.gpsLat, lon: other.gpsLon });
         if (d <= meters) {
           members.push(other);
           assigned.add(other.key);
@@ -72,12 +87,7 @@ export function groupByColocation(contacts: Contact[], meters: number): GroupedI
     if (members.length === 1) {
       out.push({ kind: 'single', contact: c, lng: c.gpsLon, lat: c.gpsLat });
     } else {
-      // Centroid of the site is the simple lng/lat average — good enough at
-      // the 10m scale this groups within.
-      const lng = members.reduce((s, m) => s + (m.gpsLon ?? 0), 0) / members.length;
-      const lat = members.reduce((s, m) => s + (m.gpsLat ?? 0), 0) / members.length;
-      const key = `site:${[...members.map((m) => m.key)].sort().join('|')}`;
-      out.push({ kind: 'site', site: { key, centroid: { lng, lat }, members } });
+      out.push({ kind: 'site', site: { key: siteKeyFor(members), centroid: centroidOf(members), members } });
     }
   }
   return out;
@@ -133,13 +143,4 @@ export function buildClusterIndex(items: GroupedItem[]): Supercluster<PointFeatu
   });
   index.load(features);
   return index;
-}
-
-export function totalsByKind(items: GroupedItem[]): TypeBreakdown {
-  const out = emptyBreakdown();
-  for (const item of items) {
-    if (item.kind === 'single') out[item.contact.kind] += 1;
-    else for (const m of item.site.members) out[m.kind] += 1;
-  }
-  return out;
 }

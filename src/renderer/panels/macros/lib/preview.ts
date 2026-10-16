@@ -1,6 +1,6 @@
 import type { Liquid } from 'liquidjs';
-import { createMacroEngine, renderTemplate } from '../../../../shared/macros';
-import type { DistanceUnit, MacroContext } from '../../../../shared/macros/types';
+import { MACRO_PLACEHOLDER, renderTemplate } from '../../../../shared/macros';
+import type { MacroContext } from '../../../../shared/macros/types';
 
 /** MeshCore text-frame character budget. */
 export const MSG_LIMIT = 132;
@@ -28,13 +28,7 @@ export interface PreviewResult {
 
 /** Render a template against a sample context using the real shared engine. */
 export function renderPreview(engine: Liquid, template: string, context: MacroContext): PreviewResult {
-  const res = renderTemplate(engine, template, context as unknown as Record<string, unknown>, { placeholder: '?' });
+  const res = renderTemplate(engine, template, context, { placeholder: MACRO_PLACEHOLDER });
   if (res.ok) return { text: res.text, length: res.text.length, error: null };
   return { text: null, length: null, error: res.error.message };
-}
-
-/** Build a Liquid engine for the renderer's preview, honouring the user's
- *  distance-unit preference. */
-export function previewEngine(unit: DistanceUnit): Liquid {
-  return createMacroEngine({ defaultDistanceUnit: unit });
 }

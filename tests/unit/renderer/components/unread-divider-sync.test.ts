@@ -7,7 +7,7 @@ import {
   type Item,
   UNREAD_DIVIDER,
 } from '../../../../src/renderer/components/messageListItems';
-import { shouldShowUnread } from '../../../../src/renderer/hooks/useUnreads';
+import { shouldShowUnread } from '../../../../src/renderer/lib/unreads';
 import type { Message } from '../../../../src/shared/types';
 
 const T0 = new Date('2026-07-25T12:00:00').getTime();

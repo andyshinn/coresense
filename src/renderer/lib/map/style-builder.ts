@@ -1,6 +1,6 @@
 import { layers } from '@protomaps/basemaps';
 import type { StyleSpecification } from 'maplibre-gl';
-import type { MapSettings, TileManifest } from '../../../shared/types';
+import type { TileManifest } from '../../../shared/types';
 import { coresenseFlavor } from './flavors';
 import { pmtilesUrl } from './pmtiles-protocol';
 
@@ -49,7 +49,7 @@ function applyShieldTextOverrides(
   });
 }
 
-export const ONLINE_LAYER_SUFFIX = '_online';
+const ONLINE_LAYER_SUFFIX = '_online';
 
 // Protomaps layers we never render. `address_label` is the house-number / unit
 // label layer that lights up around z=15 — useful for general-purpose maps,
@@ -70,13 +70,15 @@ const ONLINE_CAMERA_MAX_ZOOM = 18;
 export interface BuildStyleOptions {
   baseUrl: string;
   manifest: TileManifest;
-  settings: MapSettings;
-  /** Resolved app theme; takes precedence over `settings.styleTheme` so the
+  /** Resolved app theme; takes precedence over `MapSettings.styleTheme` so the
    *  map always tracks the app's light/dark setting. */
   theme: 'light' | 'dark';
+  /** Whether the online tile fallback is available
+   *  (`MapSettings.hasProtomapsApiKey`). */
+  onlineTiles: boolean;
 }
 
-export function buildStyle({ baseUrl, manifest, settings, theme }: BuildStyleOptions): StyleSpecification {
+export function buildStyle({ baseUrl, manifest, theme, onlineTiles }: BuildStyleOptions): StyleSpecification {
   if (!manifest.basemap) {
     throw new Error('buildStyle requires a basemap in the manifest');
   }
@@ -107,7 +109,7 @@ export function buildStyle({ baseUrl, manifest, settings, theme }: BuildStyleOpt
   // cutoff render from online, layers below from the bundled extract.
   // Presence of the API key is the only gate; main strips the proxied request
   // when no key exists.
-  if (settings.hasProtomapsApiKey) {
+  if (onlineTiles) {
     const cutoff = manifest.basemap.maxZoom;
     // Cap each bundled layer so MapLibre doesn't try to over-zoom the PMTiles
     // (which has no tiles past maxZoom).
@@ -133,7 +135,7 @@ export function buildStyle({ baseUrl, manifest, settings, theme }: BuildStyleOpt
 /** Cap the map's maxZoom based on whether online fallback can extend coverage.
  *  When the online source is in use we lift the camera ceiling above the tile
  *  maxzoom so MapLibre overzooms — vector geometry stays sharp under scaling. */
-export function maxZoomForSettings(manifest: TileManifest, settings: MapSettings): number {
+export function maxZoomFor(manifest: TileManifest, onlineTiles: boolean): number {
   const bundled = manifest.basemap?.maxZoom ?? 0;
-  return settings.hasProtomapsApiKey ? ONLINE_CAMERA_MAX_ZOOM : bundled;
+  return onlineTiles ? ONLINE_CAMERA_MAX_ZOOM : bundled;
 }

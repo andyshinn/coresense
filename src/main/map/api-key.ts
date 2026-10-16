@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { errorMessage } from '../../shared/errors';
 import { child } from '../log';
 import { secretStore } from '../runtime/secretStore';
 import { userDataDir } from '../runtime/userData';
@@ -35,7 +36,7 @@ export async function getApiKey(): Promise<string | null> {
     const cipher = await readFile(path);
     return secretStore().decryptString(cipher);
   } catch (err) {
-    log.error(`failed to read api-key blob: ${(err as Error).message}`);
+    log.error(`failed to read api-key blob: ${errorMessage(err)}`);
     return null;
   }
 }

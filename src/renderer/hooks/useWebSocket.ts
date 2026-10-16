@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { WsMessage } from '../../shared/types';
+import { log } from '../lib/logger';
 
 interface UseWebSocketArgs {
   url: string | null;
@@ -34,11 +35,22 @@ export function useWebSocket({ url, onMessage, onOpen, onClose }: UseWebSocketAr
         onOpenRef.current?.();
       });
       socket.addEventListener('message', (ev) => {
+        let parsed: WsMessage;
         try {
-          const parsed = JSON.parse(ev.data as string) as WsMessage;
+          parsed = JSON.parse(ev.data as string) as WsMessage;
+        } catch (err) {
+          log.warn('ws: dropped malformed message', err);
+          return;
+        }
+        // Dispatch outside the parse try: a handler that throws (a store
+        // action, the menu handler, notify) is a bug, not malformed input, and
+        // used to be swallowed by the same bare catch without a trace.
+        try {
           onMessageRef.current(parsed);
-        } catch {
-          // ignore malformed
+        } catch (err) {
+          // `parsed` is only asserted to be a WsMessage: a `null` frame would
+          // make `parsed.type` throw here and escape the listener.
+          log.error('ws: handler failed', (parsed as { type?: unknown } | null)?.type, err);
         }
       });
       socket.addEventListener('close', () => {

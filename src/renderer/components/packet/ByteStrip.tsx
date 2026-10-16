@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
-import { fieldColorVar, type InspectField } from '../../lib/packetInspect';
+import { type BreakdownScope, fieldColorVar, type InspectField } from '../../lib/packetInspect';
 
 const hx = (b: number) => b.toString(16).toUpperCase().padStart(2, '0');
 
 interface Props {
   bytes: number[];
   fields: InspectField[];
-  scope: string;
+  scope: BreakdownScope;
   hovered: string | null;
   setHovered: (id: string | null) => void;
 }
