@@ -71,7 +71,10 @@ const config: ForgeConfig = {
     // The Vite plugin's default ignore excludes everything outside /.vite, but
     // we need /node_modules for the native module (@stoprocent/noble) that
     // cannot be bundled by Rollup. AutoUnpackNativesPlugin moves the .node
-    // binaries out of app.asar at package time.
+    // binaries out of app.asar at package time. Forge prunes devDependencies
+    // before this runs, so what ships is the closure of package.json
+    // `dependencies`: only the main-process externals in vite.main.config.mts.
+    // Everything Vite bundles is a devDependency (see RELEASING.md).
     ignore: (file: string) => {
       if (!file) return false;
       if (file.startsWith('/.vite')) return false;
