@@ -1,5 +1,15 @@
 import type { Hono } from 'hono';
-import type { ApiErrorBody } from '../../../shared/api/contract';
+import type {
+  ApiErrorBody,
+  RepeaterAclResponse,
+  RepeaterCliResponse,
+  RepeaterLocalStatsResponse,
+  RepeaterLoginResponse,
+  RepeaterNeighboursResponse,
+  RepeaterOwnerResponse,
+  RepeaterSessionResponse,
+  RepeaterTraceResponse,
+} from '../../../shared/api/contract';
 import {
   localStatsBodySchema,
   repeaterCliBodySchema,
@@ -37,7 +47,7 @@ export function registerRepeaterRoutes(api: Hono): void {
   // round-trip and returns the parsed result inline (5-30s typical).
   api.get('/api/repeater/:key/session', (c) => {
     const key = c.req.param('key');
-    return c.json({ session: adminSessions.getSession(key) });
+    return c.json({ session: adminSessions.getSession(key) } satisfies RepeaterSessionResponse);
   });
 
   api.post('/api/repeater/:key/login', async (c) => {
@@ -45,7 +55,7 @@ export function registerRepeaterRoutes(api: Hono): void {
     const body = await readJson(c, repeaterLoginBodySchema);
     try {
       const result = await protocolSession().repeaterLogin(key, body.password);
-      return c.json({ ok: true, session: adminSessions.getSession(key), login: result });
+      return c.json({ ok: true, session: adminSessions.getSession(key), login: result } satisfies RepeaterLoginResponse);
     } catch (err) {
       return fail503(c, err);
     }
@@ -65,7 +75,7 @@ export function registerRepeaterRoutes(api: Hono): void {
     const key = c.req.param('key');
     try {
       const entries = await protocolSession().repeaterRequestAcl(key);
-      return c.json({ ok: true, entries });
+      return c.json({ ok: true, entries } satisfies RepeaterAclResponse);
     } catch (err) {
       return fail503(c, err);
     }
@@ -76,7 +86,7 @@ export function registerRepeaterRoutes(api: Hono): void {
     const body = await readJson(c, repeaterNeighboursBodySchema, { optional: true });
     try {
       const page = await protocolSession().repeaterRequestNeighbours(key, body);
-      return c.json({ ok: true, page });
+      return c.json({ ok: true, page } satisfies RepeaterNeighboursResponse);
     } catch (err) {
       return fail503(c, err);
     }
@@ -86,7 +96,7 @@ export function registerRepeaterRoutes(api: Hono): void {
     const key = c.req.param('key');
     try {
       const info = await protocolSession().repeaterRequestOwnerInfo(key);
-      return c.json({ ok: true, info });
+      return c.json({ ok: true, info } satisfies RepeaterOwnerResponse);
     } catch (err) {
       return fail503(c, err);
     }
@@ -105,12 +115,12 @@ export function registerRepeaterRoutes(api: Hono): void {
         expectReply,
         signal: c.req.raw.signal,
       });
-      if (!expectReply) return c.json({ ok: true, sent: true }, 202);
+      if (!expectReply) return c.json({ ok: true, sent: true } satisfies RepeaterCliResponse, 202);
       // The reply packet came from this repeater — the lib correlates pending
       // CLI sends by the sender's pubkey prefix, so a resolved reply is a real
       // reception from `key` and not a guess (#45 item 9).
       noteHeard(key);
-      return c.json({ ok: true, reply }, 200);
+      return c.json({ ok: true, reply } satisfies RepeaterCliResponse, 200);
     } catch (err) {
       // Coerce defensively: a non-Error rejection (thrown string, or an object
       // without a string `.message`) would make `.includes(...)` throw and mask
@@ -147,7 +157,7 @@ export function registerRepeaterRoutes(api: Hono): void {
       // trace. Attribution is therefore only as good as that assertion, which
       // is why it lives here rather than in the decode path (#45 item 9).
       noteHeard(key);
-      return c.json({ ok: true, trace });
+      return c.json({ ok: true, trace } satisfies RepeaterTraceResponse);
     } catch (err) {
       return fail503(c, err);
     }
@@ -157,7 +167,7 @@ export function registerRepeaterRoutes(api: Hono): void {
     const { subtype = 'CORE' } = await readJson(c, localStatsBodySchema, { optional: true });
     try {
       const stats = await protocolSession().repeaterGetLocalStats(subtype);
-      return c.json({ ok: true, stats });
+      return c.json({ ok: true, stats } satisfies RepeaterLocalStatsResponse);
     } catch (err) {
       return fail503(c, err);
     }

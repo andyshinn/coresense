@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+import type { UpdateCheckResponse } from '../../../shared/api/contract';
 import type { BridgeStatus, Capabilities, ServerStatus } from '../../../shared/types';
 import { APP_VERSION, GIT_SHA } from '../../build-info';
 import { currentPath, folderPath } from '../../logging/fileSink';
@@ -76,7 +77,7 @@ export function registerAppRoutes(api: Hono, deps: RoutesDeps): void {
 
   api.post('/api/updates/check', async (c) => {
     const updateState = await updatesController().check();
-    return c.json({ ok: true, updateState });
+    return c.json({ ok: true, updateState } satisfies UpdateCheckResponse);
   });
 
   api.post('/api/updates/install', (c) => {

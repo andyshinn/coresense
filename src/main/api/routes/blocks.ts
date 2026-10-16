@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+import type { AddBlockRulesResponse, BlockRuleResponse } from '../../../shared/api/contract';
 import { addBlockRulesBodySchema, blockRulePatchSchema } from '../../../shared/api/schemas';
 import { stateHolder } from '../../state/holder';
 import { readJson } from '../body';
@@ -10,7 +11,7 @@ export function registerBlockRoutes(api: Hono): void {
     const body = await readJson(c, addBlockRulesBodySchema);
     const holder = stateHolder();
     const inserted = holder.addBlockRules(body.rules);
-    return c.json({ rules: inserted });
+    return c.json({ rules: inserted } satisfies AddBlockRulesResponse);
   });
 
   // PUT /api/blocks/:id — edit pattern / note / tsFrom / enabled.
@@ -19,7 +20,7 @@ export function registerBlockRoutes(api: Hono): void {
     const patch = await readJson(c, blockRulePatchSchema);
     const updated = stateHolder().updateBlockRule(id, patch);
     if (!updated) return c.json({ error: 'not found' }, 404);
-    return c.json({ rule: updated });
+    return c.json({ rule: updated } satisfies BlockRuleResponse);
   });
 
   // DELETE /api/blocks/:id — remove the rule entirely.

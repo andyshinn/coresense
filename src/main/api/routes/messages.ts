@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+import type { SendMessageResponse } from '../../../shared/api/contract';
 import { searchOptionsSchema, sendMessageBodySchema } from '../../../shared/api/schemas';
 import { conversationKind, isChannelKey } from '../../../shared/conversationKey';
 import { emit } from '../../events/bus';
@@ -29,7 +30,7 @@ export function registerMessageRoutes(api: Hono): void {
     if (isChannelKey(key)) {
       return result.ok ? c.json({ ok: true, id: result.id }) : c.json({ error: result.error }, 503);
     }
-    return c.json({ ok: true, id: result.id });
+    return c.json({ ok: true, id: result.id } satisfies SendMessageResponse);
   });
 
   // Local-only. MeshCore has no retract primitive, so unlike DELETE

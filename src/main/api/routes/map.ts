@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+import type { ApiKeyPresenceResponse, OkResponse } from '../../../shared/api/contract';
 import { apiKeyBodySchema, mapSettingsBodySchema } from '../../../shared/api/schemas';
 import type { MapSettings } from '../../../shared/types';
 import { emit } from '../../events/bus';
@@ -51,7 +52,7 @@ export function registerMapRoutes(api: Hono): void {
       return fail503(c, err);
     }
     applyApiKeyPresence(true);
-    return c.json({ ok: true, hasKey: true });
+    return c.json({ ok: true, hasKey: true } satisfies OkResponse & ApiKeyPresenceResponse);
   });
 
   api.get('/api/map/api-key', (c) => c.json({ hasKey: hasApiKey() }));
@@ -59,6 +60,6 @@ export function registerMapRoutes(api: Hono): void {
   api.delete('/api/map/api-key', async (c) => {
     await clearApiKey();
     applyApiKeyPresence(false);
-    return c.json({ ok: true, hasKey: false });
+    return c.json({ ok: true, hasKey: false } satisfies OkResponse & ApiKeyPresenceResponse);
   });
 }

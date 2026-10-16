@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+import type { MacroResponse } from '../../../shared/api/contract';
 import {
   macroPatchBodySchema,
   newMacroBodySchema,
@@ -34,7 +35,7 @@ export function registerMacroRoutes(api: Hono): void {
       contactKey: body.contactKey,
     });
     emit.macros(macrosStore.list());
-    return c.json({ macro });
+    return c.json({ macro } satisfies MacroResponse);
   });
 
   api.put('/api/macros/:id', async (c) => {
@@ -44,7 +45,7 @@ export function registerMacroRoutes(api: Hono): void {
     const updated = macrosStore.update(id, patch);
     if (!updated) return c.json({ error: 'not found' }, 404);
     emit.macros(macrosStore.list());
-    return c.json({ macro: updated });
+    return c.json({ macro: updated } satisfies MacroResponse);
   });
 
   api.delete('/api/macros/:id', (c) => {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, api, parseServerError, parseServerErrorCode } from '@/lib/api';
+import { ApiError, api, apiPath, parseServerError, parseServerErrorCode } from '@/lib/api';
 
 const client = { baseUrl: 'http://x', apiKey: 'k' };
 
@@ -88,5 +88,34 @@ describe('repeaterCli', () => {
       code: 'cli_timeout',
       message: 'no reply',
     });
+  });
+});
+
+describe('apiPath', () => {
+  it('percent-encodes every interpolated value and nothing else', () => {
+    expect(apiPath`/api/channels/${'ch:100% Club'}/stats`).toBe('/api/channels/ch%3A100%25%20Club/stats');
+    expect(apiPath`/api/messages/${'c:ab/cd'}/${7}`).toBe('/api/messages/c%3Aab%2Fcd/7');
+    expect(apiPath`/api/status`).toBe('/api/status');
+  });
+});
+
+describe('request headers', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const headersOf = (fetchMock: ReturnType<typeof vi.fn<typeof fetch>>) =>
+    (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+
+  it('sends a JSON Content-Type only with a body', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response('{"ok":true}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.refreshDevice(client);
+    expect(headersOf(fetchMock)['Content-Type']).toBeUndefined();
+    expect(headersOf(fetchMock).Authorization).toBe('Bearer k');
+
+    fetchMock.mockClear();
+    await api.sendAdvert(client, false);
+    expect(headersOf(fetchMock)['Content-Type']).toBe('application/json');
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({ flood: false });
   });
 });

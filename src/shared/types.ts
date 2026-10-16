@@ -1172,7 +1172,6 @@ export interface RepeaterTraceHop {
 }
 
 export interface RepeaterTrace {
-  pubKeyPrefixHex: string;
   tagHex: string;
   authHex: string;
   flags: number;

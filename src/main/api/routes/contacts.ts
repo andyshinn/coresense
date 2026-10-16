@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import type { ApiErrorBody } from '../../../shared/api/contract';
+import type { AdvertPathResponse, ApiErrorBody, RefreshContactsResponse } from '../../../shared/api/contract';
 import { contactPathBodySchema, contactSchema, favouriteBodySchema } from '../../../shared/api/schemas';
 import { pubkeyFromKey } from '../../../shared/conversationKey';
 import { emit } from '../../events/bus';
@@ -69,9 +69,9 @@ export function registerContactRoutes(api: Hono): void {
       case 'failed':
         return c.json({ error: res.message }, 503);
       case 'skipped':
-        return c.json({ ok: true, skipped: true });
+        return c.json({ ok: true, skipped: true } satisfies RefreshContactsResponse);
       default:
-        return c.json({ ok: true, count: res.count });
+        return c.json({ ok: true, count: res.count } satisfies RefreshContactsResponse);
     }
   });
 
@@ -145,7 +145,7 @@ export function registerContactRoutes(api: Hono): void {
         // contact". The row is left exactly as it was. `fromCache: true` is a
         // miss served from the cooldown without asking the radio, which the
         // rail's automatic measurement must not count as the radio's answer.
-        return c.json({ cached: false, fromCache: res.fromCache });
+        return c.json({ cached: false, fromCache: res.fromCache } satisfies AdvertPathResponse);
       case 'noPath':
         // Also 200 and also `cached: false` — `cached` answers "is there a hop
         // count", and there is not — but tagged, because this is not the miss
@@ -153,7 +153,7 @@ export function registerContactRoutes(api: Hono): void {
         // time real enough to have advanced its last-heard, and only the path
         // is the 0xFF flood sentinel. Telling the user "no recent advert path"
         // while the rail's Last heard moves under them would contradict itself.
-        return c.json({ cached: false, reason: 'noPath', recvTimestampUnix: res.recvUnix });
+        return c.json({ cached: false, reason: 'noPath', recvTimestampUnix: res.recvUnix } satisfies AdvertPathResponse);
       default:
         return c.json({
           cached: true,
@@ -161,7 +161,7 @@ export function registerContactRoutes(api: Hono): void {
           pathHex: res.pathHex,
           recvTimestampUnix: res.recvUnix,
           fromCache: res.fromCache,
-        });
+        } satisfies AdvertPathResponse);
     }
   });
 

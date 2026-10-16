@@ -136,10 +136,14 @@ export interface RefreshContactsResponse extends OkResponse {
  *  `fromCache: true` the radio was NOT asked — the request fell inside the
  *  server's cooldown and the mirror has no measurement. A forced request never
  *  gets one. */
-export type AdvertPathResponse =
-  | { cached: true; hops: number; pathHex: string; recvTimestampUnix: number; fromCache: boolean }
-  | { cached: false; fromCache: boolean }
-  | { cached: false; reason: 'noPath'; recvTimestampUnix: number };
+export interface AdvertPathResponse {
+  cached: boolean;
+  reason?: 'noPath';
+  hops?: number;
+  pathHex?: string;
+  recvTimestampUnix?: number;
+  fromCache?: boolean;
+}
 
 export interface UpdateCheckResponse extends OkResponse {
   updateState: UpdateState;
@@ -165,8 +169,9 @@ export interface RepeaterNeighboursResponse extends OkResponse {
   page: RepeaterNeighboursPage;
 }
 
+/** `info` is null when the repeater answered without owner info. */
 export interface RepeaterOwnerResponse extends OkResponse {
-  info: RepeaterOwnerInfo;
+  info: RepeaterOwnerInfo | null;
 }
 
 /** 200 with the reply, or 202 `sent` when the request opted out of waiting. */

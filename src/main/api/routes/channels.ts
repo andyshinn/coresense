@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+import type { PushChannelResponse } from '../../../shared/api/contract';
 import { channelSchema, reorderChannelsBodySchema } from '../../../shared/api/schemas';
 import { isChannelKey } from '../../../shared/conversationKey';
 import { pushChannelToDevice, removeChannelFromDevice } from '../../channels/deviceSlots';
@@ -67,7 +68,7 @@ export function registerChannelRoutes(api: Hono): void {
       case 'rejected':
         return c.json({ error: res.message }, 503);
       default:
-        return c.json({ ok: true, idx: res.idx });
+        return c.json({ ok: true, idx: res.idx } satisfies PushChannelResponse);
     }
   });
 
