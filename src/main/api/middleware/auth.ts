@@ -36,6 +36,7 @@ export function getApiKey(): string {
   cachedKey = apiKey;
   // A direct write, deliberately not the tslog logger: its file sink would
   // persist the secret (docs/SECURITY_HARDENING_PLAN.md §5).
+  // biome-ignore lint/suspicious/noConsole: printed to the terminal on purpose; the logger would write the key to disk.
   console.log(
     [
       '',

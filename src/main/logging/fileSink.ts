@@ -57,6 +57,7 @@ export function write(entry: LogEntry): void {
       }
       await fs.appendFile(filePath, line, 'utf8');
     } catch (err) {
+      // biome-ignore lint/suspicious/noConsole: this is the logger's own file sink, so a failure here cannot be logged through it.
       console.error('[fileSink] write error:', err);
     }
   });
@@ -89,10 +90,12 @@ function maybePrune(folder: string): void {
             await fs.unlink(fullPath);
           }
         } catch (innerErr) {
+          // biome-ignore lint/suspicious/noConsole: this is the logger's own file sink, so a failure here cannot be logged through it.
           console.error('[fileSink] prune stat/unlink error:', innerErr);
         }
       }
     } catch (err) {
+      // biome-ignore lint/suspicious/noConsole: this is the logger's own file sink, so a failure here cannot be logged through it.
       console.error('[fileSink] prune readdir error:', err);
     }
   })();

@@ -2,12 +2,26 @@ import { contactKey, pubkeyFromKey } from '../../shared/conversationKey';
 import { errorMessage } from '../../shared/errors';
 import { DAY_MS } from '../../shared/time';
 import { child } from '../log';
-import { protocolSession } from '../protocol';
+import type { SessionAdapter } from '../protocol/sessionAdapter';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { transportManager } from '../transport/manager';
 import { scheduleDiscoveredEmit } from './contactSync';
 
 const log = child('contacts');
+
+type AdvertPathSession = Pick<SessionAdapter, 'getAdvertPath' | 'hasRadioContact'>;
+
+let protocolSession: () => AdvertPathSession = () => {
+  throw new Error('protocol session not wired');
+};
+
+/** protocol/index.ts hands over its session getter at load. Injected rather
+ *  than imported because the session's own event wiring (adapterEvents) imports
+ *  this module, and importing protocol/index back would close a cycle. Both
+ *  call sites already turn a throw into a 'failed' status. */
+export function wireAdvertPathSession(get: () => AdvertPathSession): void {
+  protocolSession = get;
+}
 
 /** How long a measurement is reused before we ask the radio again.
  *

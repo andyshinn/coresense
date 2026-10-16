@@ -1,9 +1,19 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.5/schema.json",
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
-  "files": { "ignoreUnknown": true, "includes": ["**", "!docs", "!.claude", "!.design-sync", "!.design-ref"] },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": ["**", "!docs", "!.claude", "!.design-sync", "!.design-ref"]
+  },
   "css": {
-    "parser": { "cssModules": true, "tailwindDirectives": true }
+    "parser": {
+      "cssModules": true,
+      "tailwindDirectives": true
+    }
   },
   "formatter": {
     "enabled": true,
@@ -24,7 +34,9 @@
     "rules": {
       "preset": "recommended",
       "suspicious": {
-        "noExplicitAny": "warn"
+        "noExplicitAny": "warn",
+        "noImportCycles": "error",
+        "noConsole": "warn"
       },
       "correctness": {
         "noUnusedVariables": "warn",
@@ -35,6 +47,82 @@
   },
   "assist": {
     "enabled": true,
-    "actions": { "source": { "organizeImports": "on" } }
-  }
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/renderer/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/main/**", "electron", "node:*"],
+                    "message": "The renderer runs in the browser sandbox: reach the main process through the HTTP/WS API or the preload bridge, and put shared code in src/shared."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/main/**", "src/preload.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/renderer/**", "@/**"],
+                    "message": "Main and preload must not import renderer code; move what both sides need into src/shared."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/shared/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/main/**", "**/renderer/**", "@/**", "electron", "node:*"],
+                    "message": "src/shared is loaded by both processes, so it may only import other src/shared modules and process-neutral packages."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["scripts/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    }
+  ]
 }

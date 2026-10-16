@@ -1,3 +1,4 @@
+import { wireAdvertPathSession } from '../state/advertPath';
 import { transportManager } from '../transport/manager';
 import { SessionAdapter } from './sessionAdapter';
 
@@ -9,6 +10,8 @@ export function protocolSession(): SessionAdapter {
   }
   return _session;
 }
+
+wireAdvertPathSession(protocolSession);
 
 /** Test seam: inject a SessionAdapter double, or pass null to drop the lazy
  *  singleton so the next protocolSession() rebuilds it. Mirrors the
