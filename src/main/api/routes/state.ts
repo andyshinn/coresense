@@ -1,9 +1,9 @@
 import type { Hono } from 'hono';
 import { clampRetention } from '../../../shared/packetLog';
 import type { StateSnapshot, UiState } from '../../../shared/types';
-import { emit } from '../../events/bus';
 import { macrosStore } from '../../macros/store';
 import { protocolSession } from '../../protocol';
+import { commit } from '../../state/commit';
 import { stateHolder } from '../../state/holder';
 import { discoveredStore } from '../../storage/discoveredContacts';
 import { packetStore } from '../../storage/packets';
@@ -63,8 +63,7 @@ export function registerStateRoutes(api: Hono, deps: RoutesDeps): void {
     const current = holder.getUiState().packetLog;
     const packetLog = body.packetLog === undefined ? current : clampRetention(body.packetLog);
     const next: UiState = { ...body, packetLog };
-    holder.setUiState(next);
-    emit.uiState(next);
+    commit.uiState(next);
     // A smaller stored history takes effect now. At 0 nothing is inserted, so
     // without this the old rows would linger and come back if it's raised again.
     if (packetLog.storedHistorySize < current.storedHistorySize) packetStore.prune(packetLog.storedHistorySize);

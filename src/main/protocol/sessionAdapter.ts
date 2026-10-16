@@ -1,9 +1,10 @@
-import { MeshCoreSession, Models, type Ports, Protocol } from '@andyshinn/meshcore-ts';
+import { MeshCoreSession, type Models, type Ports, Protocol } from '@andyshinn/meshcore-ts';
 import { pubkeyFromKey } from '../../shared/conversationKey';
 import { adminSessions } from '../bridge/adminSession';
 import { child } from '../log';
 import { stateHolder } from '../state/holder';
 import { wireSessionEvents } from './adapterEvents';
+import { type LibAutoAddFlags, toLibAutoAdd } from './autoAddMapping';
 
 const APP_NAME = 'coresense';
 const APP_VERSION = 1;
@@ -77,18 +78,7 @@ export class SessionAdapter {
    *  honouring a stored `mode` would let our copy suppress a re-sync that a
    *  radio reporting bit 0 clear has already justified. */
   private seedAutoAddConfig(): void {
-    const cfg = stateHolder().getAutoAddConfig();
-    this.session.state.setAutoAddConfig({
-      ...Models.DEFAULT_AUTO_ADD_CONFIG,
-      mode: cfg.mode,
-      chat: cfg.chat,
-      repeater: cfg.repeater,
-      room: cfg.room,
-      sensor: cfg.sensor,
-      overwriteOldest: cfg.overwriteOldest,
-      radioMaxHops: cfg.radioMaxHops,
-      manualAddContacts: cfg.manualAddContacts,
-    });
+    this.session.state.setAutoAddConfig(toLibAutoAdd(stateHolder().getAutoAddConfig()));
   }
 
   /** The library's AutoAddConfig mirror, verbatim.
@@ -120,15 +110,7 @@ export class SessionAdapter {
    *  `manualAddContacts` is deliberately NOT settable here: the library owns
    *  that byte (it is the one field it does maintain), and it is our only
    *  radio-confirmed reference for whether the mode bit still needs sending. */
-  mirrorAutoAddConfig(flags: {
-    mode: Models.AutoAddConfig['mode'];
-    chat: boolean;
-    repeater: boolean;
-    room: boolean;
-    sensor: boolean;
-    overwriteOldest: boolean;
-    radioMaxHops: number;
-  }): void {
+  mirrorAutoAddConfig(flags: LibAutoAddFlags): void {
     this.session.state.setAutoAddConfig({ ...this.session.state.getAutoAddConfig(), ...flags });
   }
 

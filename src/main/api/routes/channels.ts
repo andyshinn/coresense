@@ -1,8 +1,8 @@
 import type { Hono } from 'hono';
 import { isChannelKey } from '../../../shared/conversationKey';
 import type { Channel } from '../../../shared/types';
+import { pushChannelToDevice, removeChannelFromDevice } from '../../channels/deviceSlots';
 import { emit } from '../../events/bus';
-import { protocolSession } from '../../protocol';
 import { stateHolder } from '../../state/holder';
 
 export function registerChannelRoutes(api: Hono): void {
@@ -55,55 +55,34 @@ export function registerChannelRoutes(api: Hono): void {
     return c.json({ ok: true });
   });
 
-  // Push an app-stored channel to a free slot on the connected device. If the
-  // channel already has a confirmed `idx` (i.e. it's already on the device),
-  // we overwrite that slot — effectively an "edit in place".
+  // Device slot writes; see channels/deviceSlots.ts.
   api.post('/api/channels/:key/push-to-device', async (c) => {
     const key = c.req.param('key');
-    const holder = stateHolder();
-    const channel = holder.getChannels().find((ch) => ch.key === key);
-    if (!channel) return c.json({ error: `unknown channel ${key}` }, 404);
-    const session = protocolSession();
-    const presence = new Set(session.getDevicePresence());
-    const slotInUse = presence.has(key) && typeof channel.idx === 'number';
-    const idx = slotInUse ? (channel.idx as number) : session.pickFreeSlot();
-    if (idx === null) return c.json({ error: 'all 16 channel slots are in use' }, 409);
-    const secret = channel.secretHex ?? session.deriveSecret(channel.name);
-    const ok = await session.setChannel(idx, channel.name, secret);
-    if (!ok) return c.json({ error: 'radio rejected SET_CHANNEL or timed out' }, 503);
-    // Stamp the now-confirmed idx + derived secret onto our copy so future
-    // sends route to the right slot even before the next enumeration.
-    const updated = { ...channel, idx, secretHex: secret };
-    holder.upsertChannel(updated);
-    // Firmware doesn't push a CHANNEL_INFO back for SET — update local
-    // presence state ourselves so the renderer un-grays the channel
-    // immediately rather than waiting for the next reconnect enumeration.
-    session.markChannelPresent(updated);
-    emit.channels(holder.getChannels());
-    return c.json({ ok: true, idx });
+    const res = await pushChannelToDevice(key);
+    switch (res.status) {
+      case 'unknown':
+        return c.json({ error: `unknown channel ${key}` }, 404);
+      case 'noFreeSlot':
+        return c.json({ error: 'all 16 channel slots are in use' }, 409);
+      case 'rejected':
+        return c.json({ error: res.message }, 503);
+      default:
+        return c.json({ ok: true, idx: res.idx });
+    }
   });
 
-  // "Remove from device" — zero out the slot so the firmware's empty-key
-  // filter hides it on next enumeration. The channel stays in app storage
-  // (history is preserved). Caller can DELETE /api/channels/:key separately
-  // to forget it entirely.
   api.post('/api/channels/:key/remove-from-device', async (c) => {
     const key = c.req.param('key');
-    const holder = stateHolder();
-    const channel = holder.getChannels().find((ch) => ch.key === key);
-    if (!channel) return c.json({ error: `unknown channel ${key}` }, 404);
-    if (typeof channel.idx !== 'number') {
-      return c.json({ error: 'channel has no known device slot' }, 409);
+    const res = await removeChannelFromDevice(key);
+    switch (res.status) {
+      case 'unknown':
+        return c.json({ error: `unknown channel ${key}` }, 404);
+      case 'noSlot':
+        return c.json({ error: 'channel has no known device slot' }, 409);
+      case 'rejected':
+        return c.json({ error: res.message }, 503);
+      default:
+        return c.json({ ok: true });
     }
-    const session = protocolSession();
-    const ok = await session.setChannel(channel.idx, '', '00'.repeat(16));
-    if (!ok) return c.json({ error: 'radio rejected SET_CHANNEL or timed out' }, 503);
-    // Free the slot in the dispatch map + clear presence so the renderer
-    // grays the channel without waiting for the next enumeration.
-    session.markChannelAbsent(channel.idx);
-    // Forget the device slot — channel becomes "app-only" until pushed again.
-    holder.upsertChannel({ ...channel, idx: undefined });
-    emit.channels(holder.getChannels());
-    return c.json({ ok: true });
   });
 }

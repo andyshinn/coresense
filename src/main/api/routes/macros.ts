@@ -1,12 +1,10 @@
 import type { Hono } from 'hono';
 import { getManifest, validateTemplate } from '../../../shared/macros';
-import type { MacroContext, MacroRenderMode, MacroScope } from '../../../shared/macros/types';
+import type { MacroRenderMode, MacroScope } from '../../../shared/macros/types';
 import { emit } from '../../events/bus';
-import { buildReplyContext, buildSendContext } from '../../macros/contextBuilder';
+import { buildMacroContextForRequest } from '../../macros/requestContext';
 import { renderMacro } from '../../macros/service';
 import { macrosStore } from '../../macros/store';
-import { stateHolder } from '../../state/holder';
-import { messagesStore } from '../../storage/messages';
 
 export function registerMacroRoutes(api: Hono): void {
   // ----- Macros -----
@@ -80,33 +78,12 @@ export function registerMacroRoutes(api: Hono): void {
     if (!body || (!body.macroId && typeof body.template !== 'string')) {
       return c.json({ error: 'macroId or template required' }, 400);
     }
-    const holder = stateHolder();
-    const self = {
-      owner: holder.getOwner(),
-      deviceInfo: holder.getDeviceInfo(),
-      deviceIdentity: holder.getDeviceIdentity(),
-    };
-    const channelName = body.channelKey
-      ? (holder.getChannels().find((ch) => ch.key === body.channelKey)?.name ?? body.channelKey.replace(/^ch:/, ''))
-      : null;
-
-    let context: MacroContext;
-    if (body.mode === 'reply') {
-      const message = body.messageId ? messagesStore.findById(body.messageId) : null;
-      if (!message) return c.json({ error: 'message not found' }, 404);
-      const senderContact = message.fromPublicKeyHex
-        ? (holder.getContacts().find((ct) => ct.publicKeyHex === message.fromPublicKeyHex) ?? null)
-        : null;
-      const repeaters = holder.getContacts().filter((ct) => ct.kind === 'repeater');
-      context = buildReplyContext({ self, message, senderContact, channelName, repeaters });
-    } else {
-      const peerContact = body.contactKey ? (holder.getContacts().find((ct) => ct.key === body.contactKey) ?? null) : null;
-      context = buildSendContext({ self, peerContact, channelName });
-    }
-
+    // Check the macro before doing any lookups for its context.
     if (body.macroId && !macrosStore.list().some((m) => m.id === body.macroId)) {
       return c.json({ error: 'macro not found' }, 404);
     }
+    const context = buildMacroContextForRequest(body);
+    if (!context) return c.json({ error: 'message not found' }, 404);
     const result = renderMacro(body.macroId ?? (body.template as string), context, { placeholder: body.placeholder });
     return c.json(result);
   });

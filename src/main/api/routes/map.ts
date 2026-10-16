@@ -3,8 +3,18 @@ import type { MapSettings } from '../../../shared/types';
 import { emit } from '../../events/bus';
 import { clearApiKey, hasApiKey, setApiKey } from '../../map/api-key';
 import { clampTileCacheMaxBytes, getTileCache } from '../../map/tile-cache';
+import { commit } from '../../state/commit';
 import { stateHolder } from '../../state/holder';
 import { fail503 } from '../errors';
+
+/** A key was just stored or cleared: broadcast the server-owned presence flag
+ *  and reset the tile status, since a new key has not been rejected yet. */
+function applyApiKeyPresence(hasKey: boolean): void {
+  const holder = stateHolder();
+  commit.mapSettings({ ...holder.getMapSettings(), hasProtomapsApiKey: hasKey });
+  holder.setMapTileStatus({ keyConfigured: hasKey, keyRejected: false });
+  emit.mapTileStatus(holder.getMapTileStatus());
+}
 
 export function registerMapRoutes(api: Hono): void {
   // Map panel preferences. `hasProtomapsApiKey` is server-owned (derived from
@@ -23,9 +33,8 @@ export function registerMapRoutes(api: Hono): void {
       hasProtomapsApiKey: current.hasProtomapsApiKey,
       tileCacheMaxBytes: clampTileCacheMaxBytes(body.tileCacheMaxBytes),
     };
-    holder.setMapSettings(sanitized);
+    commit.mapSettings(sanitized);
     void getTileCache().setMaxBytes(sanitized.tileCacheMaxBytes);
-    emit.mapSettings(sanitized);
     return c.json({ ok: true });
   });
 
@@ -43,12 +52,7 @@ export function registerMapRoutes(api: Hono): void {
     } catch (err) {
       return fail503(c, err);
     }
-    const holder = stateHolder();
-    const next: MapSettings = { ...holder.getMapSettings(), hasProtomapsApiKey: true };
-    holder.setMapSettings(next);
-    emit.mapSettings(next);
-    holder.setMapTileStatus({ keyConfigured: true, keyRejected: false });
-    emit.mapTileStatus(holder.getMapTileStatus());
+    applyApiKeyPresence(true);
     return c.json({ ok: true, hasKey: true });
   });
 
@@ -56,12 +60,7 @@ export function registerMapRoutes(api: Hono): void {
 
   api.delete('/api/map/api-key', async (c) => {
     await clearApiKey();
-    const holder = stateHolder();
-    const next: MapSettings = { ...holder.getMapSettings(), hasProtomapsApiKey: false };
-    holder.setMapSettings(next);
-    emit.mapSettings(next);
-    holder.setMapTileStatus({ keyConfigured: false, keyRejected: false });
-    emit.mapTileStatus(holder.getMapTileStatus());
+    applyApiKeyPresence(false);
     return c.json({ ok: true, hasKey: false });
   });
 }
