@@ -1,4 +1,6 @@
+import { vi } from 'vitest';
 import { type BusEventMap, bus } from '../../src/main/events/bus';
+import { deferTeardown } from './teardown';
 
 export interface BusCapture<K extends keyof BusEventMap> {
   /** Every emit's argument list, in order. */
@@ -27,6 +29,21 @@ export function captureBus<K extends keyof BusEventMap>(event: K): BusCapture<K>
     last: () => calls.at(-1)?.[0],
     stop: () => {
       bus.off(event, listener);
+    },
+  };
+}
+
+/** Record the name of every event emitted on the bus from now on, for
+ *  asserting that a request broadcast nothing at all. Spies on `bus.emit`,
+ *  which every `emit.*` looks up per call; the integration project's global
+ *  afterEach restores it. 'log:entry' is left out: a log line is not a state
+ *  broadcast. */
+export function captureBusEvents(): { readonly names: Array<keyof BusEventMap> } {
+  const spy = vi.spyOn(bus, 'emit');
+  deferTeardown(() => spy.mockRestore());
+  return {
+    get names() {
+      return spy.mock.calls.map((args) => args[0]).filter((name) => name !== 'log:entry');
     },
   };
 }
