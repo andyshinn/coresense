@@ -1,8 +1,17 @@
 import type { Hono } from 'hono';
+import type { ApiErrorBody } from '../../../shared/api/contract';
+import {
+  localStatsBodySchema,
+  repeaterCliBodySchema,
+  repeaterLoginBodySchema,
+  repeaterNeighboursBodySchema,
+  repeaterTraceBodySchema,
+} from '../../../shared/api/schemas';
 import { errorMessage } from '../../../shared/errors';
 import { adminSessions } from '../../bridge/adminSession';
 import { protocolSession } from '../../protocol';
 import { noteHeard } from '../../state/contactSync';
+import { readJson } from '../body';
 import { fail503 } from '../errors';
 
 export function registerRepeaterRoutes(api: Hono): void {
@@ -33,12 +42,7 @@ export function registerRepeaterRoutes(api: Hono): void {
 
   api.post('/api/repeater/:key/login', async (c) => {
     const key = c.req.param('key');
-    const body = (await c.req.json().catch(() => null)) as {
-      password?: string;
-    } | null;
-    if (!body || typeof body.password !== 'string') {
-      return c.json({ error: 'password is required' }, 400);
-    }
+    const body = await readJson(c, repeaterLoginBodySchema);
     try {
       const result = await protocolSession().repeaterLogin(key, body.password);
       return c.json({ ok: true, session: adminSessions.getSession(key), login: result });
@@ -69,12 +73,7 @@ export function registerRepeaterRoutes(api: Hono): void {
 
   api.post('/api/repeater/:key/neighbours', async (c) => {
     const key = c.req.param('key');
-    const body = (await c.req.json().catch(() => ({}))) as {
-      count?: number;
-      offset?: number;
-      orderBy?: number;
-      prefixLen?: number;
-    };
+    const body = await readJson(c, repeaterNeighboursBodySchema, { optional: true });
     try {
       const page = await protocolSession().repeaterRequestNeighbours(key, body);
       return c.json({ ok: true, page });
@@ -95,10 +94,7 @@ export function registerRepeaterRoutes(api: Hono): void {
 
   api.post('/api/repeater/:key/cli', async (c) => {
     const key = c.req.param('key');
-    const body = (await c.req.json().catch(() => null)) as { command?: string; expectReply?: boolean } | null;
-    if (!body || typeof body.command !== 'string' || body.command.length === 0) {
-      return c.json({ error: 'command is required' }, 400);
-    }
+    const body = await readJson(c, repeaterCliBodySchema);
     // Defaults to a reply-expecting send; only an explicit false opts out.
     const expectReply = body.expectReply !== false;
     try {
@@ -120,28 +116,24 @@ export function registerRepeaterRoutes(api: Hono): void {
       // without a string `.message`) would make `.includes(...)` throw and mask
       // the real failure as an opaque 500.
       const message = errorMessage(err);
-      // The library rejects a lapsed reply with `CLI command timed out after
-      // <ms>ms` (§7.1). Everything else — transport drop, superseded-by-newer —
-      // is a transport-tier failure; the renderer re-reads the message to split
-      // superseded out (§5.4).
+      // Classified once, here, so the renderer switches on `code` alone. The
+      // library only reports these as message text: a lapsed reply rejects with
+      // `CLI command timed out after <ms>ms` (§7.1), and a newer command to the
+      // same repeater rejects the older one with `superseded by newer CLI
+      // command` (§5.4). Anything else is a transport-tier failure.
       if (message.includes('timed out after')) {
-        return c.json({ error: message, code: 'cli_timeout' }, 504);
+        return c.json({ error: message, code: 'cli_timeout' } satisfies ApiErrorBody, 504);
       }
-      return c.json({ error: message, code: 'transport' }, 503);
+      if (message.includes('superseded by newer CLI command')) {
+        return c.json({ error: message, code: 'cli_superseded' } satisfies ApiErrorBody, 503);
+      }
+      return c.json({ error: message, code: 'transport' } satisfies ApiErrorBody, 503);
     }
   });
 
   api.post('/api/repeater/:key/trace', async (c) => {
     const key = c.req.param('key');
-    const body = (await c.req.json().catch(() => null)) as {
-      tag?: number;
-      authCode?: number;
-      flags?: number;
-      pathHex?: string;
-    } | null;
-    if (!body || typeof body.tag !== 'number' || typeof body.pathHex !== 'string') {
-      return c.json({ error: 'tag and pathHex are required' }, 400);
-    }
+    const body = await readJson(c, repeaterTraceBodySchema);
     try {
       const trace = await protocolSession().repeaterTracePath({
         tag: body.tag,
@@ -162,13 +154,7 @@ export function registerRepeaterRoutes(api: Hono): void {
   });
 
   api.post('/api/repeater/local/stats', async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as {
-      subtype?: 'CORE' | 'RADIO' | 'PACKETS';
-    };
-    const subtype = body.subtype ?? 'CORE';
-    if (subtype !== 'CORE' && subtype !== 'RADIO' && subtype !== 'PACKETS') {
-      return c.json({ error: 'invalid subtype' }, 400);
-    }
+    const { subtype = 'CORE' } = await readJson(c, localStatsBodySchema, { optional: true });
     try {
       const stats = await protocolSession().repeaterGetLocalStats(subtype);
       return c.json({ ok: true, stats });

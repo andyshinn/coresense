@@ -1,8 +1,10 @@
 import { Errors } from '@andyshinn/meshcore-ts';
 import type { Context, ErrorHandler } from 'hono';
+import type { ApiErrorBody } from '../../shared/api/contract';
 import { errorMessage } from '../../shared/errors';
 import { child } from '../log';
 import { MacroValidationError } from '../macros/store';
+import { InvalidBodyError } from './body';
 
 const log = child('api');
 
@@ -23,9 +25,12 @@ export function knownErrorResponse(c: Context, err: unknown) {
   // The radio's contact store is full (overwrite-oldest off, or every slot is a
   // favourite). The message is user-facing.
   if (err instanceof Errors.ContactTableFullError) {
-    return c.json({ error: err.message, code: 'CONTACT_TABLE_FULL' }, 409);
+    return c.json({ error: err.message, code: 'contact_table_full' } satisfies ApiErrorBody, 409);
   }
   if (err instanceof MacroValidationError) return c.json({ error: 'invalid template', errors: err.errors }, 400);
+  if (err instanceof InvalidBodyError) {
+    return c.json({ error: err.message, code: 'invalid_body', issues: err.issues } satisfies ApiErrorBody, 400);
+  }
   return null;
 }
 
@@ -37,5 +42,5 @@ export const onApiError: ErrorHandler = (err, c) => {
   // Keep Hono's own contract for HTTPException (and anything shaped like it).
   if ('getResponse' in err) return err.getResponse();
   log.error(`${c.req.method} ${c.req.path} failed: ${errorMessage(err)}`, err);
-  return c.json({ error: errorMessage(err), code: 'internal' }, 500);
+  return c.json({ error: errorMessage(err), code: 'internal' } satisfies ApiErrorBody, 500);
 };

@@ -1,11 +1,11 @@
 import type { Context, Hono } from 'hono';
 import {
-  type AutoAddConfig,
-  type DeviceIdentity,
-  type GpsConfig,
-  isPathHashSize,
-  type TelemetryPolicy,
-} from '../../../shared/types';
+  autoAddConfigSchema,
+  deviceIdentityPatchSchema,
+  gpsConfigSchema,
+  pathHashModeBodySchema,
+  telemetryPolicySchema,
+} from '../../../shared/api/schemas';
 import {
   applyAutoAddConfig,
   applyDeviceIdentity,
@@ -16,6 +16,7 @@ import {
 import { protocolSession } from '../../protocol';
 import { stateHolder } from '../../state/holder';
 import { transportManager } from '../../transport/manager';
+import { readJson } from '../body';
 import { fail503 } from '../errors';
 
 function deviceWriteResponse(c: Context, res: DeviceWriteResult) {
@@ -26,29 +27,21 @@ export function registerDeviceRoutes(api: Hono): void {
   // ---- Device-side settings (parity with the official mobile app) ----
 
   api.put('/api/device/identity', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as Partial<DeviceIdentity> | null;
-    if (!body) return c.json({ error: 'invalid body' }, 400);
-    return deviceWriteResponse(c, await applyDeviceIdentity(body));
+    return deviceWriteResponse(c, await applyDeviceIdentity(await readJson(c, deviceIdentityPatchSchema)));
   });
 
   api.put('/api/device/auto-add', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as AutoAddConfig | null;
-    if (!body) return c.json({ error: 'invalid body' }, 400);
-    return deviceWriteResponse(c, await applyAutoAddConfig(body));
+    return deviceWriteResponse(c, await applyAutoAddConfig(await readJson(c, autoAddConfigSchema)));
   });
 
   api.get('/api/device/auto-add', (c) => c.json(stateHolder().getAutoAddConfig()));
 
   api.put('/api/device/telemetry-policy', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as TelemetryPolicy | null;
-    if (!body) return c.json({ error: 'invalid body' }, 400);
-    return deviceWriteResponse(c, await applyTelemetryPolicy(body));
+    return deviceWriteResponse(c, await applyTelemetryPolicy(await readJson(c, telemetryPolicySchema)));
   });
 
   api.put('/api/device/gps', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as GpsConfig | null;
-    if (!body) return c.json({ error: 'invalid body' }, 400);
-    return deviceWriteResponse(c, await applyGpsConfig(body));
+    return deviceWriteResponse(c, await applyGpsConfig(await readJson(c, gpsConfigSchema)));
   });
 
   // POST /api/device/refresh — issues DEVICE_QUERY + GET_BATT_AND_STORAGE +
@@ -76,11 +69,7 @@ export function registerDeviceRoutes(api: Hono): void {
 
   // Radio-wide path-hash mode (1, 2, or 3 bytes per hop).
   api.put('/api/radio/path-hash-mode', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as { size?: number } | null;
-    const size = body?.size;
-    if (!isPathHashSize(size)) {
-      return c.json({ error: 'size must be 1, 2, or 3' }, 400);
-    }
+    const { size } = await readJson(c, pathHashModeBodySchema);
     try {
       await protocolSession().setPathHashMode(size);
       return c.json({ ok: true });

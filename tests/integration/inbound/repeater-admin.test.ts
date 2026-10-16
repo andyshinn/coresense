@@ -319,16 +319,25 @@ describe('POST /api/repeater/:key/cli classification', () => {
     expect((await res.json()) as { code: string }).toMatchObject({ code: 'cli_timeout' });
   });
 
-  it('classifies any other failure (incl. superseded) as 503 transport', async () => {
+  it('classifies a superseded command as 503 cli_superseded', async () => {
     installCliStub(async () => {
       throw new Error('superseded by newer CLI command');
     });
     const res = await postCli({ command: 'get radio' });
     expect(res.status).toBe(503);
     expect((await res.json()) as { code: string; error: string }).toMatchObject({
-      code: 'transport',
+      code: 'cli_superseded',
       error: 'superseded by newer CLI command',
     });
+  });
+
+  it('classifies any other failure as 503 transport', async () => {
+    installCliStub(async () => {
+      throw new Error('link lost');
+    });
+    const res = await postCli({ command: 'get radio' });
+    expect(res.status).toBe(503);
+    expect((await res.json()) as { code: string; error: string }).toMatchObject({ code: 'transport', error: 'link lost' });
   });
 
   it('coerces a non-Error rejection to 503 transport instead of crashing on .message', async () => {

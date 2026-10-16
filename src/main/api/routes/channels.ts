@@ -1,9 +1,10 @@
 import type { Hono } from 'hono';
+import { channelSchema, reorderChannelsBodySchema } from '../../../shared/api/schemas';
 import { isChannelKey } from '../../../shared/conversationKey';
-import type { Channel } from '../../../shared/types';
 import { pushChannelToDevice, removeChannelFromDevice } from '../../channels/deviceSlots';
 import { emit } from '../../events/bus';
 import { stateHolder } from '../../state/holder';
+import { readJson } from '../body';
 
 export function registerChannelRoutes(api: Hono): void {
   // Conversation keys (`ch:<name>` / `c:<pubkeyHex>`) arrive percent-encoded and
@@ -24,8 +25,8 @@ export function registerChannelRoutes(api: Hono): void {
   });
   api.put('/api/channels/:key', async (c) => {
     const key = c.req.param('key');
-    const body = (await c.req.json().catch(() => null)) as Channel | null;
-    if (!body || body.key !== key) return c.json({ error: 'invalid body' }, 400);
+    const body = await readJson(c, channelSchema);
+    if (body.key !== key) return c.json({ error: 'body key does not match the path', code: 'invalid_body' }, 400);
     const holder = stateHolder();
     holder.upsertChannel(body);
     emit.channels(holder.getChannels());
@@ -42,8 +43,7 @@ export function registerChannelRoutes(api: Hono): void {
   // Reorder: renderer sends the full key array in desired order. We rewrite
   // each channel's `order` field by position. Unknown keys are ignored.
   api.post('/api/channels/reorder', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as { keys?: string[] } | null;
-    if (!body || !Array.isArray(body.keys)) return c.json({ error: 'invalid body' }, 400);
+    const body = await readJson(c, reorderChannelsBodySchema);
     const holder = stateHolder();
     const orderByKey = new Map(body.keys.map((k, i) => [k, i]));
     const next = holder.getChannels().map((ch) => {

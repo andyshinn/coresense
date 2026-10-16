@@ -205,7 +205,7 @@ describe('POST /api/contacts/:key/advert-path', () => {
     const res = await post();
 
     expect(res.status).toBe(422);
-    expect(await res.json()).toEqual({ error: 'contact is not on the radio', code: 'NOT_ON_RADIO' });
+    expect(await res.json()).toEqual({ error: 'contact is not on the radio', code: 'not_on_radio' });
     expect(getAdvertPath).not.toHaveBeenCalled();
   });
 

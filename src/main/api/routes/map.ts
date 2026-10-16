@@ -1,10 +1,12 @@
 import type { Hono } from 'hono';
+import { apiKeyBodySchema, mapSettingsBodySchema } from '../../../shared/api/schemas';
 import type { MapSettings } from '../../../shared/types';
 import { emit } from '../../events/bus';
 import { clearApiKey, hasApiKey, setApiKey } from '../../map/api-key';
 import { clampTileCacheMaxBytes, getTileCache } from '../../map/tile-cache';
 import { commit } from '../../state/commit';
 import { stateHolder } from '../../state/holder';
+import { readJson } from '../body';
 import { fail503 } from '../errors';
 
 /** A key was just stored or cleared: broadcast the server-owned presence flag
@@ -22,8 +24,7 @@ export function registerMapRoutes(api: Hono): void {
   // so the renderer can't fake it. The API key itself never travels through
   // this endpoint; see /api/map/api-key (Phase 4).
   api.put('/api/settings/map', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as MapSettings | null;
-    if (!body) return c.json({ error: 'invalid body' }, 400);
+    const body = await readJson(c, mapSettingsBodySchema);
     const holder = stateHolder();
     const current = holder.getMapSettings();
     // hasProtomapsApiKey is server-owned (derived from the encrypted blob's
@@ -43,10 +44,7 @@ export function registerMapRoutes(api: Hono): void {
   // returned by any endpoint. Renderer learns key presence via
   // MapSettings.hasProtomapsApiKey (broadcast after set/clear).
   api.post('/api/map/api-key', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as { key?: string } | null;
-    if (!body || typeof body.key !== 'string' || body.key.trim().length === 0) {
-      return c.json({ error: 'key is required' }, 400);
-    }
+    const body = await readJson(c, apiKeyBodySchema);
     try {
       await setApiKey(body.key);
     } catch (err) {

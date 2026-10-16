@@ -1,10 +1,16 @@
 import type { Hono } from 'hono';
+import {
+  macroPatchBodySchema,
+  newMacroBodySchema,
+  renderMacroBodySchema,
+  validateMacroBodySchema,
+} from '../../../shared/api/schemas';
 import { getManifest, validateTemplate } from '../../../shared/macros';
-import type { MacroRenderMode, MacroScope } from '../../../shared/macros/types';
 import { emit } from '../../events/bus';
 import { buildMacroContextForRequest } from '../../macros/requestContext';
 import { renderMacro } from '../../macros/service';
 import { macrosStore } from '../../macros/store';
+import { readJson } from '../body';
 
 export function registerMacroRoutes(api: Hono): void {
   // ----- Macros -----
@@ -13,22 +19,12 @@ export function registerMacroRoutes(api: Hono): void {
   api.get('/api/macros/manifest', (c) => c.json(getManifest()));
 
   api.post('/api/macros/validate', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as { template?: string } | null;
-    if (!body || typeof body.template !== 'string') return c.json({ error: 'template required' }, 400);
-    return c.json(validateTemplate(body.template));
+    const { template } = await readJson(c, validateMacroBodySchema);
+    return c.json(validateTemplate(template));
   });
 
   api.post('/api/macros', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as {
-      name?: string;
-      template?: string;
-      scope?: MacroScope;
-      channelKey?: string;
-      contactKey?: string;
-    } | null;
-    if (!body?.name || typeof body.template !== 'string' || !body.scope) {
-      return c.json({ error: 'name, template, scope required' }, 400);
-    }
+    const body = await readJson(c, newMacroBodySchema);
     // A MacroValidationError propagates to onApiError, which answers 400.
     const macro = macrosStore.add({
       name: body.name,
@@ -43,14 +39,7 @@ export function registerMacroRoutes(api: Hono): void {
 
   api.put('/api/macros/:id', async (c) => {
     const id = c.req.param('id');
-    const patch = (await c.req.json().catch(() => null)) as Partial<{
-      name: string;
-      template: string;
-      scope: MacroScope;
-      channelKey: string;
-      contactKey: string;
-    }> | null;
-    if (!patch) return c.json({ error: 'invalid body' }, 400);
+    const patch = await readJson(c, macroPatchBodySchema);
     // A MacroValidationError propagates to onApiError, which answers 400.
     const updated = macrosStore.update(id, patch);
     if (!updated) return c.json({ error: 'not found' }, 404);
@@ -66,25 +55,14 @@ export function registerMacroRoutes(api: Hono): void {
   });
 
   api.post('/api/macros/render', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as {
-      macroId?: string;
-      template?: string;
-      mode?: MacroRenderMode;
-      messageId?: string;
-      contactKey?: string;
-      channelKey?: string;
-      placeholder?: string;
-    } | null;
-    if (!body || (!body.macroId && typeof body.template !== 'string')) {
-      return c.json({ error: 'macroId or template required' }, 400);
-    }
+    const body = await readJson(c, renderMacroBodySchema);
     // Check the macro before doing any lookups for its context.
     if (body.macroId && !macrosStore.list().some((m) => m.id === body.macroId)) {
       return c.json({ error: 'macro not found' }, 404);
     }
     const context = buildMacroContextForRequest(body);
     if (!context) return c.json({ error: 'message not found' }, 404);
-    const result = renderMacro(body.macroId ?? (body.template as string), context, { placeholder: body.placeholder });
+    const result = renderMacro(body.macroId ?? body.template ?? '', context, { placeholder: body.placeholder });
     return c.json(result);
   });
 }

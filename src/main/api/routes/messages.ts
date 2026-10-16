@@ -1,10 +1,11 @@
 import type { Hono } from 'hono';
+import { searchOptionsSchema, sendMessageBodySchema } from '../../../shared/api/schemas';
 import { conversationKind, isChannelKey } from '../../../shared/conversationKey';
-import type { SearchOptions } from '../../../shared/types';
 import { emit } from '../../events/bus';
 import { sendMessage } from '../../messaging/sendMessage';
 import { stateHolder } from '../../state/holder';
 import { searchMessages } from '../../storage/search';
+import { readJson } from '../body';
 
 export function registerMessageRoutes(api: Hono): void {
   api.get('/api/messages/:key', (c) => {
@@ -23,10 +24,7 @@ export function registerMessageRoutes(api: Hono): void {
     if (conversationKind(key) === null) {
       return c.json({ error: 'key must be ch:<name> or c:<pubkey>' }, 400);
     }
-    const body = (await c.req.json().catch(() => null)) as { body?: string } | null;
-    if (!body || typeof body.body !== 'string' || body.body.length === 0) {
-      return c.json({ error: 'body is required' }, 400);
-    }
+    const body = await readJson(c, sendMessageBodySchema);
     const result = await sendMessage(key, body.body);
     if (isChannelKey(key)) {
       return result.ok ? c.json({ ok: true, id: result.id }) : c.json({ error: result.error }, 503);
@@ -57,10 +55,7 @@ export function registerMessageRoutes(api: Hono): void {
   // (potentially long) query body isn't URL-encoded into a GET. Synchronous —
   // even at 100k messages, FTS5 returns in single-digit ms.
   api.post('/api/search', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as SearchOptions | null;
-    if (!body || typeof body.query !== 'string' || (body.sort !== 'relevance' && body.sort !== 'recency')) {
-      return c.json({ error: 'query and sort are required' }, 400);
-    }
+    const body = await readJson(c, searchOptionsSchema);
     return c.json(searchMessages(body, stateHolder().getSearchBlockContext()));
   });
 }

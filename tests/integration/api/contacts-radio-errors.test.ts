@@ -12,12 +12,12 @@ function rejectingSession(err: unknown) {
 // Regression: routes used to test against coresense's own copies of these
 // classes, which the library never throws, so both mapped to a blanket 503.
 describe('contact radio routes map the library error classes', () => {
-  it('add-to-radio answers 409 CONTACT_TABLE_FULL for ContactTableFullError', async () => {
+  it('add-to-radio answers 409 contact_table_full for ContactTableFullError', async () => {
     rejectingSession(new Errors.ContactTableFullError());
     const res = await testRoutes().request('/api/contacts/c%3Adeadbeef/add-to-radio', { method: 'POST' });
     expect(res.status).toBe(409);
     const body = (await res.json()) as { error: string; code?: string };
-    expect(body.code).toBe('CONTACT_TABLE_FULL');
+    expect(body.code).toBe('contact_table_full');
     expect(body.error).toBe(new Errors.ContactTableFullError().message);
   });
 

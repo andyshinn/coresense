@@ -1,23 +1,13 @@
 import type { Hono } from 'hono';
-import type { BlockRuleType } from '../../../shared/types';
+import { addBlockRulesBodySchema, blockRulePatchSchema } from '../../../shared/api/schemas';
 import { stateHolder } from '../../state/holder';
+import { readJson } from '../body';
 
 export function registerBlockRoutes(api: Hono): void {
   // ----- Block rules -----
   // POST /api/blocks — bulk add (the dialog ticks N identifiers → N rules).
   api.post('/api/blocks', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as {
-      rules?: Array<{
-        type: BlockRuleType;
-        pattern: string;
-        tsFrom: number;
-        enabled: boolean;
-        note?: string;
-      }>;
-    } | null;
-    if (!body || !Array.isArray(body.rules) || body.rules.length === 0) {
-      return c.json({ error: 'rules required' }, 400);
-    }
+    const body = await readJson(c, addBlockRulesBodySchema);
     const holder = stateHolder();
     const inserted = holder.addBlockRules(body.rules);
     return c.json({ rules: inserted });
@@ -26,13 +16,7 @@ export function registerBlockRoutes(api: Hono): void {
   // PUT /api/blocks/:id — edit pattern / note / tsFrom / enabled.
   api.put('/api/blocks/:id', async (c) => {
     const id = c.req.param('id');
-    const patch = (await c.req.json().catch(() => null)) as Partial<{
-      pattern: string;
-      tsFrom: number;
-      enabled: boolean;
-      note: string;
-    }> | null;
-    if (!patch) return c.json({ error: 'invalid body' }, 400);
+    const patch = await readJson(c, blockRulePatchSchema);
     const updated = stateHolder().updateBlockRule(id, patch);
     if (!updated) return c.json({ error: 'not found' }, 404);
     return c.json({ rule: updated });

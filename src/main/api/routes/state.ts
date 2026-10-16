@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+import { draftBodySchema, uiStateBodySchema } from '../../../shared/api/schemas';
 import { clampRetention } from '../../../shared/packetLog';
 import type { StateSnapshot, UiState } from '../../../shared/types';
 import { macrosStore } from '../../macros/store';
@@ -8,6 +9,7 @@ import { stateHolder } from '../../state/holder';
 import { discoveredStore } from '../../storage/discoveredContacts';
 import { packetStore } from '../../storage/packets';
 import { transportManager } from '../../transport/manager';
+import { readJson } from '../body';
 import { buildTileManifest } from '../tiles';
 import { buildCapabilities, type RoutesDeps } from './app';
 
@@ -53,8 +55,7 @@ export function registerStateRoutes(api: Hono, deps: RoutesDeps): void {
   });
 
   api.put('/api/ui-state', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as UiState | null;
-    if (!body) return c.json({ error: 'invalid body' }, 400);
+    const body = await readJson(c, uiStateBodySchema);
     // Retention sizes main's packets-table prune and is synced to every client,
     // so never store or fan out a missing/garbage value a client sent. A client
     // that predates packetLog omits it entirely; keep the current retention rather
@@ -79,10 +80,7 @@ export function registerStateRoutes(api: Hono, deps: RoutesDeps): void {
   // which is the double-decode footgun fixed in c3ab086; see the note on the
   // `:key` routes in routes/channels.ts. Empty text deletes the entry.
   api.put('/api/drafts', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as { key?: unknown; text?: unknown } | null;
-    if (!body || typeof body.key !== 'string' || typeof body.text !== 'string') {
-      return c.json({ error: 'invalid body' }, 400);
-    }
+    const body = await readJson(c, draftBodySchema);
     const next = { ...stateHolder().getDrafts() };
     if (body.text) next[body.key] = body.text;
     else delete next[body.key];

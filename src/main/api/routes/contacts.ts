@@ -1,6 +1,7 @@
 import type { Hono } from 'hono';
+import type { ApiErrorBody } from '../../../shared/api/contract';
+import { contactPathBodySchema, contactSchema, favouriteBodySchema } from '../../../shared/api/schemas';
 import { pubkeyFromKey } from '../../../shared/conversationKey';
-import type { Contact } from '../../../shared/types';
 import { emit } from '../../events/bus';
 import { protocolSession } from '../../protocol';
 import { fetchAdvertPath } from '../../state/advertPath';
@@ -8,14 +9,15 @@ import { refreshContacts } from '../../state/contactRefresh';
 import { mirrorOutPath } from '../../state/contactSync';
 import { stateHolder } from '../../state/holder';
 import { discoveredStore } from '../../storage/discoveredContacts';
+import { readJson } from '../body';
 import { fail503, knownErrorResponse } from '../errors';
 
 export function registerContactRoutes(api: Hono): void {
   api.get('/api/contacts', (c) => c.json(stateHolder().getContacts()));
   api.put('/api/contacts/:key', async (c) => {
     const key = c.req.param('key');
-    const body = (await c.req.json().catch(() => null)) as Contact | null;
-    if (!body || body.key !== key) return c.json({ error: 'invalid body' }, 400);
+    const body = await readJson(c, contactSchema);
+    if (body.key !== key) return c.json({ error: 'body key does not match the path', code: 'invalid_body' }, 400);
     const holder = stateHolder();
     holder.upsertContact(body);
     emit.contacts(holder.getContacts());
@@ -101,10 +103,7 @@ export function registerContactRoutes(api: Hono): void {
   api.put('/api/contacts/:key/favourite', async (c) => {
     const key = c.req.param('key');
     const pubkey = pubkeyFromKey(key);
-    const body = (await c.req.json().catch(() => null)) as { favourite?: boolean } | null;
-    if (!body || typeof body.favourite !== 'boolean') {
-      return c.json({ error: 'favourite (boolean) required' }, 400);
-    }
+    const body = await readJson(c, favouriteBodySchema);
     try {
       await protocolSession().setContactFavourite(pubkey, body.favourite);
       return c.json({ ok: true });
@@ -137,7 +136,7 @@ export function registerContactRoutes(api: Hono): void {
         // 422, not 503: nothing is broken. The lib would have thrown resolving
         // the key through the radio's contact map, and reporting the ~60% of a
         // real pool that is discovered-only as "radio error" is a lie.
-        return c.json({ error: 'contact is not on the radio', code: 'NOT_ON_RADIO' }, 422);
+        return c.json({ error: 'contact is not on the radio', code: 'not_on_radio' } satisfies ApiErrorBody, 422);
       case 'failed':
         return c.json({ error: res.message }, 503);
       case 'notCached':
@@ -180,11 +179,7 @@ export function registerContactRoutes(api: Hono): void {
   // flag — no firmware write needed.
   api.put('/api/contacts/:key/path', async (c) => {
     const key = c.req.param('key');
-    const body = (await c.req.json().catch(() => null)) as {
-      outPathHex?: string;
-      preferDirect?: boolean;
-    } | null;
-    if (!body) return c.json({ error: 'body required' }, 400);
+    const body = await readJson(c, contactPathBodySchema);
     const outPathHex = (body.outPathHex ?? '').toLowerCase().replace(/[^0-9a-f]/g, '');
     try {
       if (typeof body.preferDirect === 'boolean') {

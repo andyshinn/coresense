@@ -168,7 +168,7 @@ describe('ContactDetail measure button', () => {
 
   it('tells the user to add a discovered-only contact to the radio first', async () => {
     seed({ onRadio: false });
-    getAdvertPath.mockRejectedValue(new ApiError('contact is not on the radio', 422, 'NOT_ON_RADIO'));
+    getAdvertPath.mockRejectedValue(new ApiError('contact is not on the radio', 422, 'not_on_radio'));
     render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
 
     fireEvent.click(button());
@@ -303,7 +303,7 @@ describe('ContactDetail automatic measurement — a spent attempt must have happ
 
   it('re-measures a contact that was not on the radio when we first asked', async () => {
     seed({ onRadio: false });
-    getAdvertPath.mockRejectedValueOnce(new ApiError('contact is not on the radio', 422, 'NOT_ON_RADIO'));
+    getAdvertPath.mockRejectedValueOnce(new ApiError('contact is not on the radio', 422, 'not_on_radio'));
     const first = render(<ContactDetail publicKeyHex={PK} client={client} showPath={false} />);
     vi.advanceTimersByTime(600);
     await waitFor(() => expect(getAdvertPath).toHaveBeenCalledTimes(1));

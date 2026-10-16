@@ -120,7 +120,7 @@ export function useAdvertPath(
         // The radio not storing this contact is a state, not a fault — the app
         // knows plenty of nodes the radio doesn't — and it is a state one click
         // on "Add to radio" changes, so it stays retryable.
-        if (err instanceof ApiError && err.code === 'NOT_ON_RADIO') {
+        if (err instanceof ApiError && err.code === 'not_on_radio') {
           if (!silent) notify.info('Add this contact to the radio before measuring its advert path');
           return 'retryable';
         }
