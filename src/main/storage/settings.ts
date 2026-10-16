@@ -130,7 +130,7 @@ const LAST_READ_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
  *
  *  Pure, and only ever called from the LOAD path. That is not a style choice:
  *  applyUiState merges read markers per key by MAX and never deletes
- *  (mergeLastRead in src/renderer/lib/store.ts), so a prune performed anywhere
+ *  (mergeLastRead in src/renderer/lib/store/ui.ts), so a prune performed anywhere
  *  a client has already hydrated — on save, on a timer, in removeContact — is
  *  undone by that client's next full-object PUT. */
 function pruneLastRead(
