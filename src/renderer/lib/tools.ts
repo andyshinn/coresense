@@ -1,25 +1,8 @@
 import type { LucideIcon } from 'lucide-react';
 import { Braces, Cog, FileText, Inbox, Map as MapIcon, Radio, ScrollText, Search, Users } from 'lucide-react';
+import type { ToolKey } from '../../shared/keys';
 
-/** Every tool destination, in command-palette order. */
-export const TOOL_KEYS = [
-  'tool:settings:app',
-  'tool:settings:radio',
-  // Legacy deep link: lands on the same tab as Radio Settings (see
-  // panels/settings/routing.ts). Kept so recent/pinned keys still resolve,
-  // and so it also stays listed as a palette alias ("Identity").
-  'tool:settings:identity',
-  'tool:search',
-  'tool:unreads',
-  'tool:packetlog',
-  'tool:logs',
-  'tool:map',
-  'tool:contacts',
-  'tool:macros',
-  'tool:bleconnect',
-] as const;
-
-export type ToolKey = (typeof TOOL_KEYS)[number];
+export { TOOL_KEYS, type ToolKey } from '../../shared/keys';
 
 export interface ToolDef {
   label: string;

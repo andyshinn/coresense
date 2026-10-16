@@ -1,3 +1,4 @@
+import type { ActiveKey } from '../../../shared/keys';
 import type { CoreState, SliceCreator } from './coreState';
 import type { SettingsPendingTarget, SettingsSectionMeta, SettingsTab, SettingsUiState } from './types';
 
@@ -22,8 +23,8 @@ export interface NavSlice {
   // UiState/persisted) — a restart starts fresh, and entries pointing at
   // channels/contacts that no longer exist would be misleading. navCurrent
   // is implicit: it equals ui.activeKey.
-  navPast: string[];
-  navFuture: string[];
+  navPast: ActiveKey[];
+  navFuture: ActiveKey[];
 
   // Settings panel UI (active tab, registered sections, dirty map, prompts)
   settingsUi: SettingsUiState;
@@ -32,7 +33,7 @@ export interface NavSlice {
   // by goBack/goForward themselves and by the few "restore previous view"
   // sites (Esc in the search input) that are conceptually an undo, not a
   // navigation. Default behaviour pushes history.
-  setActiveKey: (key: string, opts?: { skipHistory?: boolean }) => void;
+  setActiveKey: (key: ActiveKey, opts?: { skipHistory?: boolean }) => void;
   goBack: () => void;
   goForward: () => void;
 
@@ -65,8 +66,8 @@ const RECENT_KEYS_MAX = 10;
 // nav stacks (push prior key for forward nav; swap stacks for back/forward).
 function navStateUpdate(
   s: CoreState,
-  key: string,
-  historyDelta?: { navPast?: string[]; navFuture?: string[] },
+  key: ActiveKey,
+  historyDelta?: { navPast?: ActiveKey[]; navFuture?: ActiveKey[] },
 ): Partial<CoreState> {
   const recentKeys = [key, ...s.ui.recentKeys.filter((k) => k !== key)].slice(0, RECENT_KEYS_MAX);
   const out: Partial<CoreState> = {
@@ -91,7 +92,7 @@ function navStateUpdate(
 // dropped from the front of navPast when exceeded.
 const NAV_HISTORY_MAX = 50;
 
-function pushPast(past: string[], key: string): string[] {
+function pushPast(past: ActiveKey[], key: ActiveKey): ActiveKey[] {
   // Dedupe consecutive duplicates so repeated clicks on the same item don't
   // bloat the stack.
   if (past.length > 0 && past[past.length - 1] === key) return past;
@@ -106,7 +107,7 @@ function anyDirty(dirtyById: Record<string, boolean>): boolean {
 // Guard for setActiveKey, goBack and goForward: if the user is leaving the
 // Settings panel with unsaved section changes, stash the target and let the
 // panel raise the prompt instead of navigating. Null when the move may proceed.
-function guardLeaveSettings(s: CoreState, target: string): Partial<CoreState> | null {
+function guardLeaveSettings(s: CoreState, target: ActiveKey): Partial<CoreState> | null {
   const leavingSettings = s.ui.activeKey.startsWith('tool:settings') && !target.startsWith('tool:settings');
   if (!leavingSettings || !anyDirty(s.settingsUi.dirtyById)) return null;
   return { settingsUi: { ...s.settingsUi, pendingTarget: { kind: 'nav', key: target } } };

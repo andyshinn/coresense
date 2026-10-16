@@ -1,4 +1,5 @@
 import { conversationKind } from '../../shared/conversationKey';
+import { type ActiveKey, isActiveKey } from '../../shared/keys';
 import type { MenuAction } from '../../shared/types';
 import { api } from '../lib/api';
 import { getApiClient } from '../lib/apiClientContext';
@@ -15,8 +16,8 @@ export interface MenuActionHandlerDeps {
   cycleThemePref: () => void;
   toggleLeftNav: () => void;
   toggleRightRail: () => void;
-  togglePin: (key: string) => void;
-  setActiveKey: (key: string) => void;
+  togglePin: (key: ActiveKey) => void;
+  setActiveKey: (key: ActiveKey) => void;
 }
 
 /** Factory for the menu/keyboard action dispatcher used by App.tsx. */
@@ -30,14 +31,17 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
       case 'openPalette':
         useStore.getState().openPalette();
         break;
+      // The keys come from main over the websocket as plain strings.
       case 'focusKey':
-        setActiveKey(action.key);
+        if (isActiveKey(action.key)) setActiveKey(action.key);
         break;
       case 'focusMessage':
+        if (!isActiveKey(action.key)) break;
         setActiveKey(action.key);
         useStore.getState().setPendingJump(action.messageId);
         break;
       case 'focusFirstUnread': {
+        if (!isActiveKey(action.key)) break;
         setActiveKey(action.key);
         const st = useStore.getState();
         const msgs = st.messagesByKey[action.key] ?? [];

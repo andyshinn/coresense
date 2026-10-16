@@ -1,3 +1,4 @@
+import type { ActiveKey } from '../../../shared/keys';
 import {
   type ActivityWindowKey,
   DEFAULT_UI_STATE,
@@ -53,7 +54,7 @@ export interface UiSlice {
   recordMacroUse: (macroId: string) => void;
   setChannelActivityWindow: (w: ActivityWindowKey) => void;
   setThemePref: (mode: ThemePref) => void;
-  togglePin: (key: string) => void;
+  togglePin: (key: ActiveKey) => void;
   markRead: (key: string, ts: number) => void;
   markAllRead: (key: string) => void;
   markAllReadGlobal: () => void;

@@ -8,6 +8,7 @@
 // out; 'byName' colours everyone from the string we do have.
 
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
+import type { ContactKey } from '../../shared/conversationKey';
 import { parseSender } from '../../shared/sender';
 import type { Contact, IdentityColorMode } from '../../shared/types';
 
@@ -18,7 +19,7 @@ export interface ResolvedIdentity {
   name: string | null;
   pubkey: string | null;
   /** Route key for the contact page (`c:<pkhex>`), when saved. */
-  contactKey: string | null;
+  contactKey: ContactKey | null;
   source: IdentitySource;
   /** True when the name matched >1 discovered node — treated as unresolved. */
   ambiguous: boolean;

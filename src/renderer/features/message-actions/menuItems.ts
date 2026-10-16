@@ -1,4 +1,5 @@
 import { Copy, KeyRound, Radio, RotateCw, ShieldOff, Trash2, User, Waypoints } from 'lucide-react';
+import type { ContactKey } from '../../../shared/conversationKey';
 import { contactKey } from '../../../shared/conversationKey';
 import { parseSender } from '../../../shared/sender';
 import type { Message } from '../../../shared/types';
@@ -12,7 +13,7 @@ export interface BuildMessageMenuOpts {
   message: Message;
   isSelf: boolean;
   senderName: string | undefined;
-  onViewContact: (key: string) => void;
+  onViewContact: (key: ContactKey) => void;
   onBlock: (prefill: BlockSenderDialogPrefill) => void;
   onDelete: (message: Message) => void;
   onResend?: (m: Message) => void;

@@ -1,6 +1,6 @@
 import type { Models } from '@andyshinn/meshcore-ts';
 import { advTypeToKind } from '../../shared/contacts/discovered';
-import { contactKey, pubkeyFromKey } from '../../shared/conversationKey';
+import { contactKey, isContactKey, pubkeyFromKey } from '../../shared/conversationKey';
 import type { Contact } from '../../shared/types';
 import { emit } from '../events/bus';
 import { coalesce } from '../events/coalesce';
@@ -141,9 +141,13 @@ export function noteHeard(keyOrPubkey: string | undefined): void {
 export function applyLibContacts(libContacts: Models.Contact[]): void {
   const holder = stateHolder();
   const prev = new Map(holder.getContacts().map((c) => [c.key, c]));
-  const merged: Contact[] = libContacts.map((c) => {
-    const old = prev.get(c.key);
-    return old ? { ...c, pinned: old.pinned, muted: old.muted } : c;
+  // The library builds every contact key as `c:<pubkey>`; the guard narrows the
+  // type and would drop anything else rather than store it.
+  const merged = libContacts.flatMap((c): Contact[] => {
+    const { key } = c;
+    if (!isContactKey(key)) return [];
+    const old = prev.get(key);
+    return [old ? { ...c, key, pinned: old.pinned, muted: old.muted } : { ...c, key }];
   });
   holder.setContacts(merged);
   // The holder is updated synchronously above; only the broadcast is coalesced,

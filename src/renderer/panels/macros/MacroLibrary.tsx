@@ -6,6 +6,7 @@ import { useApiClient } from '@/lib/apiClientContext';
 import { notify } from '@/lib/notify';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
+import { channelNameFromKey } from '../../../shared/conversationKey';
 import { errorMessage } from '../../../shared/errors';
 import type { MacroTemplate } from '../../../shared/macros/types';
 import type { Channel, Contact } from '../../../shared/types';
@@ -18,7 +19,7 @@ function resolveScopeLabel(macro: MacroTemplate, channels: Channel[], contacts: 
   if (macro.scope === 'channel') {
     const ch = channels.find((c) => c.key === macro.channelKey);
     if (ch) return `#${ch.name.replace(/^#/, '')}`;
-    return macro.channelKey ? `#${macro.channelKey.replace(/^ch:/, '')}` : 'Channel';
+    return macro.channelKey ? `#${channelNameFromKey(macro.channelKey)}` : 'Channel';
   }
   const contact = contacts.find((c) => c.key === macro.contactKey);
   return contact?.name ?? 'Contact';

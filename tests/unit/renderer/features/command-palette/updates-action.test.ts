@@ -27,7 +27,7 @@ function checkForUpdatesAction() {
     transportState: 'idle' as const,
     owner: null,
     packetCount: 0,
-    activeKey: '',
+    activeKey: 'tool:packetlog',
     activeContact: undefined,
   });
   return items.find((i) => i.id === 'action:checkForUpdates');

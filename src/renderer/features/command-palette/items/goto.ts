@@ -1,4 +1,5 @@
 import { Hash, Inbox, MessageCircle, Radio } from 'lucide-react';
+import type { ActiveKey } from '../../../../shared/keys';
 import type { Channel, Contact, Message } from '../../../../shared/types';
 import { computeUnreadConversations } from '../../../lib/unreads';
 import type { PaletteItem } from '../types';
@@ -10,7 +11,7 @@ export interface BuildGotoArgs {
   activeKey: string;
   messagesByKey: Record<string, Message[]>;
   lastReadByKey: Record<string, number>;
-  setActiveKey: (key: string) => void;
+  setActiveKey: (key: ActiveKey) => void;
   close: () => void;
 }
 

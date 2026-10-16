@@ -15,6 +15,7 @@ import {
   Sun,
 } from 'lucide-react';
 import { conversationKind } from '../../../../shared/conversationKey';
+import type { ActiveKey } from '../../../../shared/keys';
 import type { Contact, Owner, TransportState } from '../../../../shared/types';
 import { type ApiClient, api } from '../../../lib/api';
 import type { LastDevice } from '../../../lib/lastDevice';
@@ -28,8 +29,8 @@ export interface BuildActionsArgs {
   cycleThemePref: () => void;
   toggleLeftNav: () => void;
   toggleRightRail: () => void;
-  togglePin: (key: string) => void;
-  setActiveKey: (key: string) => void;
+  togglePin: (key: ActiveKey) => void;
+  setActiveKey: (key: ActiveKey) => void;
   setAddChannelOpen: (open: boolean) => void;
   markAllRead: (key: string) => void;
   markAllReadGlobal: () => void;
@@ -38,7 +39,7 @@ export interface BuildActionsArgs {
   transportState: TransportState;
   owner: Owner | null;
   packetCount: number;
-  activeKey: string;
+  activeKey: ActiveKey;
   activeContact: Contact | undefined;
 }
 

@@ -1,4 +1,5 @@
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
+import type { ContactKey } from '../../shared/conversationKey';
 import { contactKey } from '../../shared/conversationKey';
 import type { Contact } from '../../shared/types';
 
@@ -9,7 +10,7 @@ import type { Contact } from '../../shared/types';
  *  node has no on-radio row. */
 export interface ResolvedContact {
   publicKeyHex: string;
-  key: string; // `c:${publicKeyHex}`
+  key: ContactKey;
   name: string;
   kind: DiscoveredContact['kind'];
   onRadio: boolean;

@@ -1,4 +1,6 @@
 import type { DiscoveredContact } from './contacts/discovered';
+import type { ChannelKey, ContactKey } from './conversationKey';
+import type { ActiveKey } from './keys';
 import type { LogLevel } from './logLevels';
 import type { DistanceUnit, MacroTemplate } from './macros/types';
 import { DEFAULT_QUICK_ACTION_IDS, type QuickActionId } from './quickActions';
@@ -82,7 +84,7 @@ export const DEFAULT_SYNC_PROGRESS: SyncProgress = {
 export type ChannelKind = 'public' | 'hashtag' | 'private';
 
 export interface Channel {
-  key: string; // 'ch:<name>'
+  key: ChannelKey;
   name: string;
   kind: ChannelKind;
   secretHex?: string;
@@ -114,7 +116,7 @@ export function isPathHashSize(n: unknown): n is PathHashSize {
 }
 
 export interface Contact {
-  key: string; // 'c:<publicKeyHex>'
+  key: ContactKey;
   publicKeyHex: string;
   name: string;
   kind: ContactKind;
@@ -916,8 +918,8 @@ export interface LogsSearch {
 export const DEFAULT_LOGS_SEARCH: LogsSearch = { loggerSubstring: '', textSubstring: '' };
 
 export interface UiState {
-  activeKey: string;
-  pinned: string[]; // keys in pin order (channel + contact keys)
+  activeKey: ActiveKey;
+  pinned: ActiveKey[]; // keys in pin order
   leftOpen: boolean;
   rightOpen: boolean;
   rightWidth: number;
@@ -962,7 +964,7 @@ export interface UiState {
   // Most-recently-visited keys, newest first. Drives the Cmd+K "Recent"
   // section. Capped at RECENT_KEYS_MAX entries; persisted across sessions
   // so a relaunch resumes the same jump list.
-  recentKeys: string[];
+  recentKeys: ActiveKey[];
   // Per-emoji usage counts driving quick-react auto-pinning. Account-global
   // (synced via applyUiState like pinned/recentKeys).
   emojiUsage: UsageMap;

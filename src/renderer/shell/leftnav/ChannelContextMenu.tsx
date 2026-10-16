@@ -1,4 +1,5 @@
 import { BellOff, Copy, Minus, PinIcon, PinOff, Plus, Trash2 } from 'lucide-react';
+import type { ActiveKey } from '../../../shared/keys';
 import type { Channel } from '../../../shared/types';
 import { ContextMenu, type ContextMenuEntry, menuItem, menuSeparator } from '../../components/ContextMenu';
 import { api } from '../../lib/api';
@@ -24,7 +25,7 @@ export function ChannelContextMenu({
 }: {
   state: ChannelMenuState;
   isPinned: boolean;
-  onTogglePin: (key: string) => void;
+  onTogglePin: (key: ActiveKey) => void;
   onClose: () => void;
 }) {
   const client = useApiClient();

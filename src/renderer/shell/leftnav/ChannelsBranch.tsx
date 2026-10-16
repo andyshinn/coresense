@@ -1,5 +1,6 @@
 import { Hash, Plus } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
+import type { ActiveKey } from '../../../shared/keys';
 import { AddChannelPopover } from '../../components/AddChannelPopover';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { SidebarMenuAction } from '../../components/ui/sidebar';
@@ -28,7 +29,7 @@ export function ChannelsBranch({
 }: {
   connected: boolean;
   activeKey: string;
-  pinned: string[];
+  pinned: ActiveKey[];
   pinSet: Set<string>;
   unreadByKey: Record<string, number>;
   /** Max rows before the Show-more affordance; `null` when uncapped or revealed. */

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { type ActiveKey, isActiveKey } from '../keys';
 import { LOG_LEVELS } from '../logLevels';
 import type { MacroTemplate } from '../macros/types';
 import { QUICK_ACTION_IDS } from '../quickActions';
@@ -110,12 +111,21 @@ export const mapSettingsSchema = exactly<MapSettings>()(
   }),
 );
 
+/** UiState keys are checked for shape, not membership: a client restored from
+ *  an older ui-state.json may still hold a tool key that no longer exists, and
+ *  refusing it would fail every later save. The renderer falls back from an
+ *  unknown tool key itself. */
+const activeKeySchema = z.custom<ActiveKey>(
+  (v) => typeof v === 'string' && isActiveKey(v),
+  'expected a ch:, c: or tool: key',
+);
+
 const usageMap = z.record(z.string(), z.object({ count: z.number(), lastUsedMs: z.number() }));
 
 export const uiStateSchema = exactly<UiState>()(
   z.object({
-    activeKey: z.string(),
-    pinned: z.array(z.string()),
+    activeKey: activeKeySchema,
+    pinned: z.array(activeKeySchema),
     leftOpen: z.boolean(),
     rightOpen: z.boolean(),
     rightWidth: z.number(),
@@ -134,7 +144,7 @@ export const uiStateSchema = exactly<UiState>()(
     selectedContactKey: z.string().nullable(),
     selectedSiteKey: z.string().nullable(),
     lastReadByKey: z.record(z.string(), z.number()),
-    recentKeys: z.array(z.string()),
+    recentKeys: z.array(activeKeySchema),
     emojiUsage: usageMap,
     macroUsage: usageMap,
     peopleRail: z.record(
@@ -172,9 +182,12 @@ export const telemetryPolicySchema = exactly<TelemetryPolicy>()(
 
 export const gpsConfigSchema = exactly<GpsConfig>()(z.object({ enabled: z.boolean(), intervalSec: z.number() }));
 
+const channelKeySchema = z.templateLiteral(['ch:', z.string()]);
+const contactKeySchema = z.templateLiteral(['c:', z.string()]);
+
 export const channelSchema = exactly<Channel>()(
   z.object({
-    key: z.string(),
+    key: channelKeySchema,
     name: z.string(),
     kind: z.enum(['public', 'hashtag', 'private']),
     secretHex: z.string().optional(),
@@ -188,7 +201,7 @@ export const channelSchema = exactly<Channel>()(
 
 export const contactSchema = exactly<Contact>()(
   z.object({
-    key: z.string(),
+    key: contactKeySchema,
     publicKeyHex: z.string(),
     name: z.string(),
     kind: contactKind,

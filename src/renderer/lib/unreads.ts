@@ -1,13 +1,14 @@
 // What "unread" means, as pure functions over store data. The React hooks that
 // subscribe to the store and memoise these live in hooks/useUnreads.ts; the
 // keyboard unread-nav and the palette call them directly.
+import type { ConversationKey } from '../../shared/keys';
 import type { Channel, ChannelKind, Contact, ContactKind, Message } from '../../shared/types';
 
 // One conversation (channel / DM / room) that has unread messages, with the
 // unread messages themselves attached so the Unreads panel can render previews
 // without re-scanning the store.
 export interface UnreadConversation {
-  key: string; // 'ch:*' | 'c:*'
+  key: ConversationKey;
   name: string;
   kind: 'channel' | 'contact';
   channelKind?: ChannelKind;
@@ -101,7 +102,7 @@ export function computeUnreadConversations(
     if (channel) {
       if (channel.muted) continue;
       out.push({
-        key,
+        key: channel.key,
         name: channel.name,
         kind: 'channel',
         channelKind: channel.kind,
@@ -115,7 +116,7 @@ export function computeUnreadConversations(
     if (contact) {
       if (contact.muted) continue;
       out.push({
-        key,
+        key: contact.key,
         name: contact.name,
         kind: 'contact',
         contactKind: contact.kind,

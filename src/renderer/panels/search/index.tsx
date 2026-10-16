@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { errorMessage } from '../../../shared/errors';
+import { isConversationKey } from '../../../shared/keys';
 import { parseSender } from '../../../shared/sender';
 import type { ConversationHit, MessageHit, SearchResults as SearchResultsPayload, SearchSort } from '../../../shared/types';
 import { api } from '../../lib/api';
@@ -177,13 +178,14 @@ export function SearchResults() {
 
   const onConversationClick = useCallback(
     (hit: ConversationHit) => {
-      setActiveKey(hit.key);
+      if (isConversationKey(hit.key)) setActiveKey(hit.key);
     },
     [setActiveKey],
   );
 
   const onMessageClick = useCallback(
     (hit: MessageHit) => {
+      if (!isConversationKey(hit.key)) return;
       setActiveKey(hit.key);
       setPendingJump(hit.id);
     },

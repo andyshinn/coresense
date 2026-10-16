@@ -1,4 +1,5 @@
 import { BellOff, Copy, Megaphone, PinIcon, PinOff, Trash2 } from 'lucide-react';
+import type { ActiveKey } from '../../../shared/keys';
 import type { Contact } from '../../../shared/types';
 import { ContextMenu, type ContextMenuEntry, menuItem, menuSeparator } from '../../components/ContextMenu';
 import { api } from '../../lib/api';
@@ -23,7 +24,7 @@ export function ContactContextMenu({
 }: {
   state: ContactMenuState;
   isPinned: boolean;
-  onTogglePin: (key: string) => void;
+  onTogglePin: (key: ActiveKey) => void;
   onClose: () => void;
 }) {
   const client = useApiClient();

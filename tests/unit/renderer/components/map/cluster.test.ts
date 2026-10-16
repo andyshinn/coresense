@@ -123,9 +123,9 @@ describe('site keys', () => {
   });
 
   it('is independent of member order and does not reorder the input', () => {
-    const members = [{ key: 'z' }, { key: 'a' }];
+    const members = [{ key: 'c:z' as const }, { key: 'c:a' as const }];
     expect(siteKeyFor(members)).toBe(siteKeyFor([...members].reverse()));
-    expect(members.map((m) => m.key)).toEqual(['z', 'a']);
+    expect(members.map((m) => m.key)).toEqual(['c:z', 'c:a']);
   });
 
   it('treats an unprefixed key as a bare member list', () => {

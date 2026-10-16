@@ -1,4 +1,5 @@
 import { type DragEvent, type MouseEvent, useRef, useState } from 'react';
+import type { ChannelKey } from '../../../shared/conversationKey';
 import type { Channel } from '../../../shared/types';
 import { SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '../../components/ui/sidebar';
 import { capList } from '../../lib/capList';
@@ -29,7 +30,7 @@ export function ChannelSubList({
   /** Max rows to render before the Show-more affordance; `null` when uncapped or revealed. */
   cap: number | null;
   onShowMore: () => void;
-  onSelect: (key: string) => void;
+  onSelect: (key: ChannelKey) => void;
   onReorder: (orderedKeys: string[]) => void;
   onContext: (channel: Channel, e: MouseEvent) => void;
 }) {
@@ -53,7 +54,7 @@ export function ChannelSubList({
     dragKey.current = null;
     setDragOver(null);
     if (!src || src === key) return;
-    const keys = channels.map((c) => c.key);
+    const keys: string[] = channels.map((c) => c.key);
     const from = keys.indexOf(src);
     const to = keys.indexOf(key);
     if (from === -1 || to === -1) return;

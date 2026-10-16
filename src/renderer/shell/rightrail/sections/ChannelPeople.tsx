@@ -1,4 +1,5 @@
 import { memo, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import type { ContactKey } from '../../../../shared/conversationKey';
 import type { Channel, ChannelStats, PeopleFilter, PeopleSort } from '../../../../shared/types';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { useChannelStats } from '../../../hooks/useChannelStats';
@@ -34,7 +35,7 @@ interface BodyProps {
   onQuery: (q: string) => void;
   onSort: (s: PeopleSort) => void;
   onFilter: (f: PeopleFilter) => void;
-  onOpenContact: (contactKey: string) => void;
+  onOpenContact: (contactKey: ContactKey) => void;
   /** Save a poster we have a pubkey for. Only ever called for rows whose
    *  UserPlus is enabled, i.e. `pubkey !== null && !inContacts && !blocked`. */
   onAddContact: (row: RosterRow) => void;

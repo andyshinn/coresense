@@ -1,5 +1,6 @@
 import { Users } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
+import type { ActiveKey } from '../../../shared/keys';
 import type { Contact, ContactKind } from '../../../shared/types';
 import { SidebarMenuButton, SidebarMenuItem, SidebarMenuSub } from '../../components/ui/sidebar';
 import { capList } from '../../lib/capList';
@@ -52,7 +53,7 @@ export function ContactsTree({
   onContactMenu,
 }: {
   activeKey: string;
-  pinned: string[];
+  pinned: ActiveKey[];
   pinSet: Set<string>;
   unreadByKey: Record<string, number>;
   /** Row cap for a branch's reveal key; `null` when uncapped or revealed. */

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { selectAnySettingsDirty, useStore } from '../../../../src/renderer/lib/store';
+import type { ActiveKey } from '../../../../src/shared/keys';
 import { DEFAULT_UI_STATE } from '../../../../src/shared/types';
 
 // Navigation and the Settings unsaved-changes guard share one slice because
@@ -9,7 +10,7 @@ import { DEFAULT_UI_STATE } from '../../../../src/shared/types';
 // guard firing; this file covers history, recents and the deferred commit.
 
 const initial = useStore.getState();
-const at = (activeKey: string) =>
+const at = (activeKey: ActiveKey) =>
   useStore.setState({ ui: { ...structuredClone(DEFAULT_UI_STATE), activeKey }, navPast: [], navFuture: [] });
 
 // zustand allocates a new root object even for a `{}` update, so "nothing
@@ -56,7 +57,7 @@ describe('setActiveKey', () => {
   });
 
   it('caps the back stack at 50, dropping the oldest', () => {
-    useStore.setState({ navPast: Array.from({ length: 50 }, (_, i) => `ch:${i}`) });
+    useStore.setState({ navPast: Array.from({ length: 50 }, (_, i): ActiveKey => `ch:${i}`) });
     useStore.getState().setActiveKey('ch:a');
     const past = useStore.getState().navPast;
     expect(past).toHaveLength(50);
@@ -65,7 +66,7 @@ describe('setActiveKey', () => {
   });
 
   it('moves the key to the front of recents, deduped and capped at 10', () => {
-    const recents = Array.from({ length: 10 }, (_, i) => `ch:${i}`);
+    const recents = Array.from({ length: 10 }, (_, i): ActiveKey => `ch:${i}`);
     useStore.setState({ ui: { ...useStore.getState().ui, recentKeys: recents } });
     useStore.getState().setActiveKey('ch:5');
     expect(useStore.getState().ui.recentKeys).toEqual(['ch:5', ...recents.filter((k) => k !== 'ch:5')]);

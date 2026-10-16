@@ -5,6 +5,7 @@
 // environment: 'node'.
 
 import type { DiscoveredContact } from '../../../../shared/contacts/discovered';
+import type { ContactKey } from '../../../../shared/conversationKey';
 import { DAY_MS, MINUTE_MS } from '../../../../shared/time';
 import type { ChannelSenderStat, Contact, PeopleFilter, PeopleRailPrefs, PeopleSort } from '../../../../shared/types';
 import { discoveredNameIndex, type IdentitySource, resolveIdentity } from '../../../lib/identity';
@@ -18,7 +19,7 @@ export interface RosterRow {
   id: string;
   name: string;
   pubkey: string | null;
-  contactKey: string | null;
+  contactKey: ContactKey | null;
   source: IdentitySource;
   ambiguous: boolean;
   blocked: boolean;

@@ -2,6 +2,7 @@
 // can import their own types without reading past the store's actions, and so
 // the store itself never has to import a panel module. The store's index
 // re-exports them, so `from '../lib/store'` imports work.
+import type { ActiveKey } from '../../../shared/keys';
 import type { ContactKind, RawPacket, RepeaterNeighboursPage, SearchCategory } from '../../../shared/types';
 import type { NeighbourSortKey } from '../neighbours';
 
@@ -91,7 +92,7 @@ export interface SettingsSectionMeta {
 }
 
 // Where the user was trying to go when a dirty section blocked them.
-export type SettingsPendingTarget = { kind: 'nav'; key: string } | { kind: 'tab'; tab: SettingsTab } | { kind: 'quit' };
+export type SettingsPendingTarget = { kind: 'nav'; key: ActiveKey } | { kind: 'tab'; tab: SettingsTab } | { kind: 'quit' };
 
 export interface SettingsUiState {
   activeTab: SettingsTab;

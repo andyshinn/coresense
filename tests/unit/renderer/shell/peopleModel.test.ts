@@ -13,6 +13,7 @@ import {
   toRosterRows,
   volumeWidth,
 } from '../../../../src/renderer/shell/rightrail/sections/peopleModel';
+import type { Contact } from '../../../../src/shared/types';
 
 const NOW = new Date('2026-07-25T14:30:00').getTime();
 const MIN = 60_000;
@@ -238,7 +239,7 @@ describe('toRosterRows', () => {
   });
 
   it('marks a saved poster as a contact', () => {
-    const contacts = [{ key: 'c:abc', publicKeyHex: 'abc', name: 'alice', kind: 'chat' as const }];
+    const contacts: Contact[] = [{ key: 'c:abc', publicKeyHex: 'abc', name: 'alice', kind: 'chat' }];
     const [r] = toRosterRows([{ fromPk: 'name:alice', count: 3, lastTs: NOW }], contacts, []);
     expect(r).toMatchObject({
       inContacts: true,

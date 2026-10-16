@@ -3,7 +3,9 @@ import { MARKER_TYPES, shapeMarkup } from './MarkerShape';
 
 /** The contact fields a marker renders from. A full Contact satisfies it, so
  *  overlays plotting non-contacts (repeater neighbours) can build one honestly. */
-export type MarkerSubject = Pick<Contact, 'key' | 'name' | 'kind'>;
+/** What a marker draws. `key` is a contact key, or `nb:<prefix>` for a
+ *  neighbour that isn't a contact. */
+export type MarkerSubject = Pick<Contact, 'name' | 'kind'> & { key: string };
 
 export interface MarkerState {
   selected: boolean;
