@@ -975,6 +975,14 @@ export interface UiState {
   peopleRail: Record<string, PeopleRailPrefs>;
 }
 
+/** The UiState fields a `uiState` broadcast may lack. Main relays whatever a
+ *  client PUT (filling in only a missing packetLog), so a legacy or partial
+ *  producer can omit these; the renderer's applyUiState coalesces each one. */
+type UiStateUpdateOptional = 'lastReadByKey' | 'emojiUsage' | 'macroUsage' | 'packetLog';
+
+/** UiState as a `uiState` broadcast carries it — see UiStateUpdateOptional. */
+export type UiStateUpdate = Omit<UiState, UiStateUpdateOptional> & Partial<Pick<UiState, UiStateUpdateOptional>>;
+
 export const PACKET_LOG_BOUNDS = {
   liveBufferSize: { min: 200, max: 20_000 },
   storedHistorySize: { min: 0, max: 200_000 },
@@ -1256,7 +1264,7 @@ export type WsMessage =
   | { type: 'gpsConfig'; payload: GpsConfig }
   | { type: 'deviceInfo'; payload: DeviceInfo }
   | { type: 'deviceCapabilities'; payload: DeviceCapabilities }
-  | { type: 'uiState'; payload: UiState }
+  | { type: 'uiState'; payload: UiStateUpdate }
   // Authoritative window focus, sourced from BrowserWindow focus/blur events in
   // main. The renderer gates view-driven auto-mark-read on this so messages
   // arriving while the window is backgrounded stay unread (and their

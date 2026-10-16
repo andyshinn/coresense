@@ -13,9 +13,12 @@ export function updateMapSettings(client: ApiClient | null, patch: Partial<MapSe
   const { mapSettings: prev, applyMapSettings } = useStore.getState();
   const next: MapSettings = { ...prev, ...patch };
   applyMapSettings(next);
+  // applyMapSettings stores a copy (merged over the defaults), so "has a newer
+  // write replaced ours?" compares against what it stored, not `next`.
+  const applied = useStore.getState().mapSettings;
   if (!client) return;
   api.putMapSettings(client, next).catch((err: unknown) => {
-    if (useStore.getState().mapSettings === next) applyMapSettings(prev);
+    if (useStore.getState().mapSettings === applied) applyMapSettings(prev);
     notify.failure('Saving map settings', err);
   });
 }

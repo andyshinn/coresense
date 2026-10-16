@@ -215,7 +215,7 @@ export function SearchResults() {
   const changeSort = useCallback(
     (next: SearchSort) => {
       setSort(next);
-      if (client && appSettings.search?.defaultSort !== next) {
+      if (client && appSettings.search.defaultSort !== next) {
         void api
           .putAppSettings(client, {
             ...appSettings,

@@ -127,7 +127,9 @@ export const createSettingsSlice: SliceCreator<SettingsSlice> = (set) => ({
   applyGpsConfig: (cfg) => set(() => ({ gpsConfig: cfg })),
   applyDeviceInfo: (info) => set(() => ({ deviceInfo: info })),
   applyDeviceCapabilities: (caps) => set(() => ({ deviceCapabilities: caps })),
-  applyMapSettings: (settings) => set(() => ({ mapSettings: settings })),
+  // Over the defaults, as hydrate does, so a broadcast from a main that
+  // predates a MapSettings field still leaves that field with a usable value.
+  applyMapSettings: (settings) => set(() => ({ mapSettings: { ...DEFAULT_MAP_SETTINGS, ...settings } })),
   applyMapManifest: (manifest) => set(() => ({ mapManifest: manifest })),
   applyMapTileStatus: (status) => set(() => ({ mapTileStatus: status })),
 });

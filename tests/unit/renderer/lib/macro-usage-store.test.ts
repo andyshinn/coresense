@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useStore } from '../../../../src/renderer/lib/store';
-import { DEFAULT_UI_STATE, type UiState } from '../../../../src/shared/types';
+import { DEFAULT_UI_STATE, type UiStateUpdate } from '../../../../src/shared/types';
 
 describe('recordMacroUse', () => {
   beforeEach(() => {
@@ -44,8 +44,8 @@ describe('applyUiState merges macroUsage (account-global)', () => {
 
   it('tolerates a payload that omits macroUsage (legacy/partial producer)', () => {
     useStore.setState({ ui: { ...DEFAULT_UI_STATE, macroUsage: { mac_7f: { count: 1, lastUsedMs: 1 } } } });
-    const legacy: UiState = { ...DEFAULT_UI_STATE };
-    delete (legacy as { macroUsage?: unknown }).macroUsage;
+    const legacy: UiStateUpdate = { ...DEFAULT_UI_STATE };
+    delete legacy.macroUsage;
     expect(() => useStore.getState().applyUiState(legacy)).not.toThrow();
     expect(useStore.getState().ui.macroUsage).toEqual({});
   });

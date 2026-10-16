@@ -5,6 +5,7 @@ import {
   type PeopleRailPrefs,
   type ThemePref,
   type UiState,
+  type UiStateUpdate,
   type UsageMap,
 } from '../../../shared/types';
 import { recordUsage } from '../frecency';
@@ -32,7 +33,7 @@ export interface UiSlice {
   /** Merge the account-global subset of a remote UiState broadcast (unread
    *  markers, pinned, theme pref, recents). Window-local fields are ignored so
    *  another client's pane layout / active conversation can't clobber ours. */
-  applyUiState: (state: UiState) => void;
+  applyUiState: (state: UiStateUpdate) => void;
 
   // UI mutators (also persisted to main via api.putUiState; see App.tsx)
   /** Pick a contact. `keepSite: true` preserves any currently-selected
@@ -78,7 +79,7 @@ function arraysEqual(a: string[], b: string[]): boolean {
  * change" and avoid allocating a new `ui` — which is what stops a synced client
  * from bouncing its own echo back forever.
  */
-function mergeLastRead(mine: Record<string, number>, incoming: Record<string, number>): Record<string, number> {
+function mergeLastRead(mine: Record<string, number>, incoming: Record<string, number> | undefined): Record<string, number> {
   let out: Record<string, number> | null = null;
   for (const [key, ts] of Object.entries(incoming ?? {})) {
     if (ts > (mine[key] ?? 0)) {

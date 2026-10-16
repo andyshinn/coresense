@@ -15,10 +15,35 @@ import { groupMessagesByKey } from './conversations';
 import type { SliceCreator } from './coreState';
 import { mergeHydratedPackets, migratePacketLogFilter } from './packets';
 
+/** Snapshot fields hydrate falls back to a default for. The current main
+ *  always sends them, which is why StateSnapshot keeps them required (main's
+ *  route is type-checked to include them). But during development a newer
+ *  renderer can load against an older main that predates some of them, and
+ *  hydrate tolerates that rather than crashing on boot. */
+type DevSkewField =
+  | 'syncProgress'
+  | 'channelPresence'
+  | 'discoveredContacts'
+  | 'macros'
+  | 'deviceIdentity'
+  | 'autoAddConfig'
+  | 'telemetryPolicy'
+  | 'gpsConfig'
+  | 'deviceInfo'
+  | 'deviceCapabilities'
+  | 'mapTileStatus'
+  | 'drafts'
+  | 'packets';
+
+/** The snapshot as hydrate accepts it: a StateSnapshot whose DevSkewField
+ *  members may be absent. Only those top-level fields — nested objects are
+ *  taken as typed (mapSettings is merged over its defaults regardless). */
+export type HydrateSnapshot = Omit<StateSnapshot, DevSkewField> & Partial<Pick<StateSnapshot, DevSkewField>>;
+
 /** Loading the boot snapshot. The one action that writes every slice. */
 export interface HydrateSlice {
   // Hydration helpers
-  hydrate: (snapshot: StateSnapshot) => void;
+  hydrate: (snapshot: HydrateSnapshot) => void;
 }
 
 export const createHydrateSlice: SliceCreator<HydrateSlice> = (set) => ({
@@ -52,13 +77,14 @@ export const createHydrateSlice: SliceCreator<HydrateSlice> = (set) => ({
       mapManifest: snapshot.mapManifest,
       mapTileStatus: snapshot.mapTileStatus ?? DEFAULT_MAP_TILE_STATUS,
       ui: { ...snapshot.uiState, packetLogFilter: migratePacketLogFilter(snapshot.uiState.packetLogFilter) },
-      // `??` for the same reason the fields above use it: an older main
-      // serving a newer renderer during dev has no drafts in its snapshot.
+      // `??` for the same reason the fields above use it (see DevSkewField):
+      // an older main serving a newer renderer during dev has no drafts in its
+      // snapshot.
       drafts: snapshot.drafts ?? {},
       packets: mergeHydratedPackets(snapshot.packets ?? [], s.packets, snapshot.uiState.packetLog.liveBufferSize),
       // Seed in-session sort from the persisted default so an existing user
       // preference takes effect immediately on launch.
-      searchSort: snapshot.appSettings.search?.defaultSort ?? 'recency',
+      searchSort: snapshot.appSettings.search.defaultSort,
     }));
   },
 });
