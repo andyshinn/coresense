@@ -3,9 +3,9 @@ import type { PathHashSize, RadioSettings } from '../../../../shared/types';
 import { NumberSelect, Row } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 const eq = (a: RadioSettings, b: RadioSettings) => a.pathHashMode === b.pathHashMode;
@@ -16,7 +16,8 @@ const PATH_HASH_OPTIONS = [
   { value: 3, label: '3-byte (max ~21 hops)' },
 ] satisfies { value: PathHashSize; label: string }[];
 
-export function ExperimentalSection({ client }: SectionProps) {
+export function ExperimentalSection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.radioSettings);
   const connected = useStore((s) => s.transportState === 'connected');
 

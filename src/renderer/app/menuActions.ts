@@ -1,6 +1,7 @@
 import { conversationKind } from '../../shared/conversationKey';
 import type { MenuAction } from '../../shared/types';
 import { api } from '../lib/api';
+import { getApiClient } from '../lib/apiClientContext';
 import { loadLastDevice } from '../lib/lastDevice';
 import { notify } from '../lib/notify';
 import { selectAnySettingsDirty, selectIsConnected, useStore } from '../lib/store';
@@ -8,9 +9,9 @@ import { firstUnreadMessageId } from '../lib/utils';
 import { flushDrafts } from './useDraftsPersistence';
 import { flushUiState } from './useUiStatePersistence';
 
+/** The client is not a dep: actions that call the API read the current one
+ *  from getApiClient() when they run, so the handler never holds a stale one. */
 export interface MenuActionHandlerDeps {
-  baseUrl: string | null;
-  apiKey: string | null;
   cycleThemePref: () => void;
   toggleLeftNav: () => void;
   toggleRightRail: () => void;
@@ -20,7 +21,7 @@ export interface MenuActionHandlerDeps {
 
 /** Factory for the menu/keyboard action dispatcher used by App.tsx. */
 export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: MenuAction) => void {
-  const { baseUrl, apiKey, cycleThemePref, toggleLeftNav, toggleRightRail, togglePin, setActiveKey } = deps;
+  const { cycleThemePref, toggleLeftNav, toggleRightRail, togglePin, setActiveKey } = deps;
   return (action: MenuAction) => {
     switch (action.kind) {
       case 'cycleTheme':
@@ -61,14 +62,15 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         // Main deferred a quit/close. If a Settings section is dirty, raise
         // the unsaved-changes dialog; otherwise tell main it's safe to quit.
         const st = useStore.getState();
+        const client = getApiClient();
         if (selectAnySettingsDirty(st)) {
           st.setPendingTarget({ kind: 'quit' });
-        } else if (baseUrl && apiKey) {
+        } else if (client) {
           // Last boundary: main quits ~immediately after confirmQuit, so get
           // any coalesced ui change and any unwritten draft onto disk first.
           void (async () => {
             await Promise.all([flushUiState(), flushDrafts()]);
-            await api.confirmQuit({ baseUrl, apiKey });
+            await api.confirmQuit(client);
           })();
         }
         break;
@@ -79,8 +81,9 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         break;
       }
       case 'sendAdvert': {
-        if (!baseUrl || !apiKey) break;
-        void api.sendAdvert({ baseUrl, apiKey }).then(
+        const client = getApiClient();
+        if (!client) break;
+        void api.sendAdvert(client).then(
           () => notify.success('Self-advert sent'),
           (err) => notify.failure('Advert', err),
         );
@@ -90,7 +93,8 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         setActiveKey('tool:packetlog');
         break;
       case 'reconnect': {
-        if (!baseUrl || !apiKey) break;
+        const client = getApiClient();
+        if (!client) break;
         const last = loadLastDevice();
         if (!last) {
           notify.error('No previous device to reconnect to');
@@ -98,13 +102,14 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         }
         const ts = useStore.getState().transportState;
         if (ts !== 'idle' && ts !== 'error') break; // already connected/connecting
-        void api.connect({ baseUrl, apiKey }, last.id).catch((err) => notify.failure('Reconnect', err));
+        void api.connect(client, last.id).catch((err) => notify.failure('Reconnect', err));
         break;
       }
       case 'toggleRepeat': {
-        if (!baseUrl || !apiKey) break;
+        const client = getApiClient();
+        if (!client) break;
         const rs = useStore.getState().radioSettings;
-        void api.putRadioSettings({ baseUrl, apiKey }, { ...rs, repeatMode: !rs.repeatMode }).then(
+        void api.putRadioSettings(client, { ...rs, repeatMode: !rs.repeatMode }).then(
           () => notify.success(`Repeat mode ${rs.repeatMode ? 'disabled' : 'enabled'}`),
           (err) => notify.failure('Repeat toggle', err),
         );
@@ -140,8 +145,9 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         setActiveKey('tool:contacts');
         break;
       case 'disconnect': {
-        if (!baseUrl || !apiKey) break;
-        void api.disconnect({ baseUrl, apiKey }).catch((err) => notify.failure('Disconnect', err));
+        const client = getApiClient();
+        if (!client) break;
+        void api.disconnect(client).catch((err) => notify.failure('Disconnect', err));
         break;
       }
       default:

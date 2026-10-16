@@ -3,9 +3,9 @@ import type { AutoAddConfig } from '../../../../shared/types';
 import { NumberInput, Row, Select, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 const eqAutoAdd = (a: AutoAddConfig, b: AutoAddConfig) =>
@@ -19,7 +19,8 @@ const eqAutoAdd = (a: AutoAddConfig, b: AutoAddConfig) =>
   a.autoRefreshContacts === b.autoRefreshContacts &&
   a.showPublicKeys === b.showPublicKeys;
 
-export function ContactSettingsSection({ client }: SectionProps) {
+export function ContactSettingsSection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.autoAddConfig);
   const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'radio-contacts',

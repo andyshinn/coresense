@@ -5,14 +5,11 @@ import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
-import { type ApiClient, api } from '../../../lib/api';
+import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
 import { fmtDateTime } from '../../../lib/time';
-
-interface Props {
-  client: ApiClient | null;
-}
 
 function ruleTypeLabel(t: BlockRule['type']): string {
   switch (t) {
@@ -34,7 +31,8 @@ function shortPattern(r: BlockRule): string {
   return r.pattern;
 }
 
-export function BlockedSection({ client }: Props) {
+export function BlockedSection() {
+  const client = useApiClient();
   const rules = useStore((s) => s.blockRules);
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
   const [filter, setFilter] = useState('');
@@ -134,7 +132,7 @@ export function BlockedSection({ client }: Props) {
           </table>
         )}
 
-        {showAdd && <BlockSenderDialog client={client} open prefill={{}} onClose={() => setShowAdd(false)} />}
+        {showAdd && <BlockSenderDialog open prefill={{}} onClose={() => setShowAdd(false)} />}
       </div>
     </SettingsSection>
   );

@@ -4,7 +4,8 @@ import type { SyncProgress, TransportState } from '../../../shared/types';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Progress } from '../../components/ui/progress';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '../../components/ui/sidebar';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { loadLastDevice } from '../../lib/lastDevice';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
@@ -34,18 +35,17 @@ const SYNC_DONE_FADE_MS = 800;
 
 /** Sidebar footer row showing transport state, sync progress, and a reconnect-to-last-device shortcut. */
 export function ConnectionFooter({
-  client,
   state,
   sync,
   onClick,
   active,
 }: {
-  client: ApiClient | null;
   state: TransportState;
   sync: SyncProgress;
   onClick: () => void;
   active: boolean;
 }) {
+  const client = useApiClient();
   const updateState = useStore((s) => s.updateState);
   const updatePending = updateState && (updateState.status === 'available' || updateState.status === 'downloaded');
   const onInstall = () => {

@@ -30,7 +30,7 @@ const hasDirtyDot = (el: HTMLElement) => el.querySelector('.bg-cs-warn') !== nul
 
 describe('SettingsPanel tab pills', () => {
   it('marks the Extra Tools pill dirty while the Packet Log section has an unsaved edit', () => {
-    render(<SettingsPanel client={null} initialTab="extra" />);
+    render(<SettingsPanel initialTab="extra" />);
     expect(hasDirtyDot(extraPill())).toBe(false);
 
     // Live buffer is the Extra tab's first spinbutton (see packet-log-settings.test).

@@ -4,7 +4,8 @@ import { type DiscoveredContact, formatHopsCell, formatLastHeard, hopsCellTitle 
 import type { ContactKind } from '../../../shared/types';
 import { BlockSenderDialog } from '../../components/BlockSenderDialog';
 import { Checkbox } from '../../components/ui/checkbox';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { copyToClipboard } from '../../lib/clipboard';
 import { notify } from '../../lib/notify';
 import type { CmSortField } from '../../lib/store';
@@ -70,7 +71,8 @@ export function HopChip({ hops, observedHops }: { hops?: number; observedHops?: 
   );
 }
 
-export function RowActions({ c, client }: { c: DiscoveredContact; client: ApiClient | null }) {
+export function RowActions({ c }: { c: DiscoveredContact }) {
+  const client = useApiClient();
   const [blockOpen, setBlockOpen] = useState(false);
 
   async function addToRadio(e: React.MouseEvent) {
@@ -140,12 +142,7 @@ export function RowActions({ c, client }: { c: DiscoveredContact; client: ApiCli
         <Ban className="size-3.5" aria-hidden="true" />
       </button>
       {blockOpen && (
-        <BlockSenderDialog
-          client={client}
-          open
-          prefill={{ pubkey: c.publicKeyHex, name: c.name }}
-          onClose={() => setBlockOpen(false)}
-        />
+        <BlockSenderDialog open prefill={{ pubkey: c.publicKeyHex, name: c.name }} onClose={() => setBlockOpen(false)} />
       )}
     </div>
   );
@@ -193,7 +190,7 @@ function onActivateKey(activate: () => void) {
   };
 }
 
-export function TableView({ rows, client }: { rows: DiscoveredContact[]; client: ApiClient | null }) {
+export function TableView({ rows }: { rows: DiscoveredContact[] }) {
   const selected = useStore((s) => s.contactManager.selected);
   const focusKey = useStore((s) => s.contactManager.focusKey);
   const showKeys = useStore((s) => s.contactManager.showKeys);
@@ -299,7 +296,7 @@ export function TableView({ rows, client }: { rows: DiscoveredContact[]; client:
                 <StatusPill c={c} />
               </td>
               <td className={cn('px-2', pad)}>
-                <RowActions c={c} client={client} />
+                <RowActions c={c} />
               </td>
             </tr>
           );
@@ -309,7 +306,7 @@ export function TableView({ rows, client }: { rows: DiscoveredContact[]; client:
   );
 }
 
-export function ListRow({ c, client }: { c: DiscoveredContact; client: ApiClient | null }) {
+export function ListRow({ c }: { c: DiscoveredContact }) {
   const selected = useStore((s) => s.contactManager.selected);
   const focusKey = useStore((s) => s.contactManager.focusKey);
   const showKeys = useStore((s) => s.contactManager.showKeys);
@@ -354,7 +351,7 @@ export function ListRow({ c, client }: { c: DiscoveredContact; client: ApiClient
         </div>
       </div>
       <StatusPill c={c} />
-      <RowActions c={c} client={client} />
+      <RowActions c={c} />
     </div>
   );
 }

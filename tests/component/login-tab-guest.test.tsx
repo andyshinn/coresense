@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // LoginTab calls api.repeaterLogin and notify on submit — stub both.
@@ -24,6 +24,7 @@ vi.mock('../../src/renderer/lib/api', () => ({
 import { LoginTab } from '../../src/renderer/panels/repeater-admin/LoginTab';
 import type { Contact } from '../../src/shared/types';
 import { TEST_CLIENT as client } from '../support/apiClient';
+import { renderWithClient } from '../support/renderWithClient';
 
 // A flood-routed repeater (no out_path yet) — the case the guest login bootstraps.
 const floodRepeater: Contact = {
@@ -38,20 +39,20 @@ afterEach(() => repeaterLogin.mockClear());
 
 describe('LoginTab — guest (empty-password) login', () => {
   it('leaves the login button enabled with a blank password', () => {
-    render(<LoginTab contact={floodRepeater} client={client} session={null} onSession={() => {}} />);
+    renderWithClient(<LoginTab contact={floodRepeater} session={null} onSession={() => {}} />);
     const button = screen.getByRole('button', { name: /Log In/i }) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
   });
 
   it('submits an empty password as a guest login', async () => {
-    render(<LoginTab contact={floodRepeater} client={client} session={null} onSession={() => {}} />);
+    renderWithClient(<LoginTab contact={floodRepeater} session={null} onSession={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /Log In/i }));
     await waitFor(() => expect(repeaterLogin).toHaveBeenCalledTimes(1));
     expect(repeaterLogin).toHaveBeenCalledWith(client, floodRepeater.key, '');
   });
 
   it('labels the button as a guest login while the password is blank', () => {
-    render(<LoginTab contact={floodRepeater} client={client} session={null} onSession={() => {}} />);
+    renderWithClient(<LoginTab contact={floodRepeater} session={null} onSession={() => {}} />);
     expect(screen.getByRole('button', { name: /Guest/i })).toBeTruthy();
   });
 });

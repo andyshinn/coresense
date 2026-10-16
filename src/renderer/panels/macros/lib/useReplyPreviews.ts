@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { ApiClient } from '@/lib/api';
+import { useApiClient } from '@/lib/apiClientContext';
 import type { MacroTemplate } from '../../../../shared/macros/types';
 import { renderMacroSafe } from './inchat';
 
@@ -17,12 +17,8 @@ export type PreviewState =
  *  across opens, because reply context holds time-varying values
  *  (`received_ago`, `peer_last_seen`) and a stale preview would disagree with
  *  the text actually inserted. */
-export function useReplyPreviews(
-  client: ApiClient | null,
-  messageId: string,
-  macros: MacroTemplate[],
-  open: boolean,
-): Record<string, PreviewState> {
+export function useReplyPreviews(messageId: string, macros: MacroTemplate[], open: boolean): Record<string, PreviewState> {
+  const client = useApiClient();
   const [previews, setPreviews] = useState<Record<string, PreviewState>>({});
   // Stable string projection of the macro set — `macros` is a fresh array on
   // every render, so it can't be an effect dependency directly.

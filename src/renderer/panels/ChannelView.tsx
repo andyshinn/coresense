@@ -5,7 +5,8 @@ import type { Channel } from '../../shared/types';
 import { Composer, type ComposerHandle } from '../components/Composer';
 import { MessageList } from '../components/MessageList';
 import { useJumpBackfill } from '../hooks/useJumpBackfill';
-import { type ApiClient, api } from '../lib/api';
+import { api } from '../lib/api';
+import { useApiClient } from '../lib/apiClientContext';
 import { notify } from '../lib/notify';
 import { useStore } from '../lib/store';
 
@@ -22,10 +23,10 @@ const EMPTY_MESSAGES: never[] = [];
 
 interface Props {
   channel: Channel;
-  client: ApiClient | null;
 }
 
-export function ChannelView({ channel, client }: Props) {
+export function ChannelView({ channel }: Props) {
+  const client = useApiClient();
   const contacts = useStore((s) => s.contacts);
   const messages = useStore((s) => s.messagesByKey[channel.key]) ?? EMPTY_MESSAGES;
   const selectedId = useStore((s) => s.selectedMessageId);
@@ -65,7 +66,7 @@ export function ChannelView({ channel, client }: Props) {
 
   // A search hit older than the trailing window above has no row to scroll to
   // until this pulls the history around it.
-  useJumpBackfill(client, channel.key, pendingJumpMid);
+  useJumpBackfill(channel.key, pendingJumpMid);
 
   const onSend = useCallback(
     async (body: string) => {
@@ -151,7 +152,6 @@ export function ChannelView({ channel, client }: Props) {
           onReply={handleReply}
           onReact={handleReact}
           onMacro={handleMacro}
-          client={client}
           jumpToId={pendingJumpMid}
           onJumpConsumed={() => setPendingJump(null)}
         />
@@ -171,7 +171,6 @@ export function ChannelView({ channel, client }: Props) {
         autoFocus={appSettings.composer.autoFocus}
         disabled={composerDisabled}
         draftKey={channel.key}
-        client={client}
       />
     </div>
   );

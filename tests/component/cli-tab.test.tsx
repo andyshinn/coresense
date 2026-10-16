@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useStore } from '@/lib/store';
 import { CliTab } from '@/panels/repeater-admin/CliTab';
 import { EMPTY_REBOOT } from '@/panels/repeater-admin/cli/RebootPending';
 import type { Contact } from '../../src/shared/types';
 import { DEFAULT_RADIO_SETTINGS } from '../../src/shared/types';
+import { renderWithClient } from '../support/renderWithClient';
 
 const repeaterCli = vi.fn();
 vi.mock('@/lib/api', () => ({
@@ -14,10 +15,9 @@ vi.mock('@/lib/api', () => ({
 const contact: Contact = { key: 'c:abc', publicKeyHex: 'abc123', name: 'Repeater A', kind: 'repeater' } as Contact;
 
 function renderTab(over: Partial<React.ComponentProps<typeof CliTab>> = {}) {
-  return render(
+  return renderWithClient(
     <CliTab
       contact={contact}
-      client={{} as never}
       session={{ role: 'admin', mode: 'x' } as never}
       sessionChecked
       pending={EMPTY_REBOOT}

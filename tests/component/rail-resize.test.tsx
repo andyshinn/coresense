@@ -52,7 +52,7 @@ import { RAIL_COLLAPSE_WIDTH } from '@/shell/rightrail/railWidth';
 import { ChannelPeopleSection } from '@/shell/rightrail/sections/ChannelPeople';
 import { PEOPLE_ROW_CAP } from '@/shell/rightrail/sections/peopleModel';
 import type { Channel, ChannelSenderStat, ChannelStats, Contact } from '../../src/shared/types';
-import { TEST_CLIENT as client } from '../support/apiClient';
+import { renderWithClient } from '../support/renderWithClient';
 
 const ROSTER_SIZE = 120;
 
@@ -90,9 +90,9 @@ function setWidth(w: number) {
 }
 
 async function mountSection() {
-  const view = render(
+  const view = renderWithClient(
     <TooltipProvider>
-      <ChannelPeopleSection channel={ch} client={client} />
+      <ChannelPeopleSection channel={ch} />
     </TooltipProvider>,
   );
   await waitFor(() => expect(screen.getByText('person-0')).toBeTruthy());

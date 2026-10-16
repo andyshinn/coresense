@@ -4,9 +4,9 @@ import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { NumberInput, Row, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { useStore } from '../../../lib/store';
 import { saveApp } from '../save';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 const eqProxy = (a: AppSettingsType, b: AppSettingsType) => {
@@ -15,7 +15,8 @@ const eqProxy = (a: AppSettingsType, b: AppSettingsType) => {
   return x.enabled === y.enabled && x.bindAll === y.bindAll && x.port === y.port && x.mdns === y.mdns;
 };
 
-export function ProxySection({ client }: SectionProps) {
+export function ProxySection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.appSettings);
   const bridge = useStore((s) => s.bridge);
   // The app's own API port. The bridge binds before the API server does, so a

@@ -18,7 +18,8 @@ import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { KeyValueRow } from '../../../components/ui/KeyValueRow';
 import { useContactRefresh } from '../../../hooks/useContactRefresh';
-import { type ApiClient, api } from '../../../lib/api';
+import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { deriveContactView } from '../../../lib/contactManagerView';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
@@ -63,7 +64,8 @@ function SubHeader({ children }: { children: React.ReactNode }) {
   return <div className="font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">{children}</div>;
 }
 
-function BulkActions({ client }: { client: ApiClient | null }) {
+function BulkActions() {
+  const client = useApiClient();
   const selected = useStore((s) => s.contactManager.selected);
   const clearCmSelected = useStore((s) => s.clearCmSelected);
   const n = selected.length;
@@ -167,13 +169,14 @@ const PRUNE_OPTIONS: Array<{ label: string; ms: number }> = [
   { label: '6 months', ms: 180 * DAY_MS },
 ];
 
-function ListActions({ client }: { client: ApiClient | null }) {
+function ListActions() {
+  const client = useApiClient();
   const discovered = useStore((s) => s.discovered);
   const cm = useStore((s) => s.contactManager);
   const blockRulesCount = useStore((s) => s.blockRules.length);
   const [showClear, setShowClear] = useState(false);
   const [showBlock, setShowBlock] = useState(false);
-  const { refreshing, refresh: refreshFromRadio } = useContactRefresh(client);
+  const { refreshing, refresh: refreshFromRadio } = useContactRefresh();
 
   const view = deriveContactView(discovered, cm, Date.now());
   const rows = view.rows;
@@ -312,7 +315,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
         onCancel={() => setShowClear(false)}
       />
 
-      {showBlock && <BlockSenderDialog client={client} open prefill={{}} onClose={() => setShowBlock(false)} />}
+      {showBlock && <BlockSenderDialog open prefill={{}} onClose={() => setShowBlock(false)} />}
     </div>
   );
 }
@@ -320,12 +323,12 @@ function ListActions({ client }: { client: ApiClient | null }) {
 /** Contextual right-rail body for the Contact Manager: bulk actions when rows
  *  are selected, the focused contact's detail when a single row is focused,
  *  otherwise list-wide actions. */
-export function ContactManagerRailBody({ client }: { client: ApiClient | null }) {
+export function ContactManagerRailBody() {
   const selected = useStore((s) => s.contactManager.selected);
   const focusKey = useStore((s) => s.contactManager.focusKey);
   const setCmFocus = useStore((s) => s.setCmFocus);
 
-  if (selected.length > 0) return <BulkActions client={client} />;
+  if (selected.length > 0) return <BulkActions />;
   if (focusKey) {
     return (
       <div className="space-y-2">
@@ -337,11 +340,11 @@ export function ContactManagerRailBody({ client }: { client: ApiClient | null })
           <ChevronLeft className="size-3.5" aria-hidden="true" />
           Back to list actions
         </button>
-        <ContactDetail publicKeyHex={focusKey} client={client} />
+        <ContactDetail publicKeyHex={focusKey} />
       </div>
     );
   }
-  return <ListActions client={client} />;
+  return <ListActions />;
 }
 
 const AUTO_ADD_KINDS: Array<{ key: ContactKind; label: string }> = [

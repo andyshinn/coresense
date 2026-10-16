@@ -2,15 +2,16 @@ import { Bell } from 'lucide-react';
 import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { NumberInput, Row, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { useStore } from '../../../lib/store';
 import { saveApp } from '../save';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 const eqToasts = (a: AppSettingsType, b: AppSettingsType) =>
   a.toasts.enabled === b.toasts.enabled && a.toasts.durationSec === b.toasts.durationSec;
 
-export function ToastsSection({ client }: SectionProps) {
+export function ToastsSection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.appSettings);
   const { draft, setGroup, sectionProps } = useSettingsSection({
     id: 'app-toasts',

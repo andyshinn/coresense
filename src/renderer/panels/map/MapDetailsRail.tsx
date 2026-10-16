@@ -1,22 +1,17 @@
 import { useMemo } from 'react';
 import { parseSiteKey } from '../../components/map/markers/cluster';
-import type { ApiClient } from '../../lib/api';
 import { useStore } from '../../lib/store';
 import { ControlsCard } from './ControlsCard';
 import { MapLegend } from './MapLegend';
 import { NodeInfoCard } from './NodeInfoCard';
 import { SiteInfoCard } from './SiteInfoCard';
 
-interface Props {
-  client: ApiClient | null;
-}
-
 // Right-rail content for the Map view. Three modes:
 //   * Controls (default) — search, filters, sliders, layer toggles.
 //   * Node card — when the user selects a single contact marker.
 //   * Site card — when the user selects a co-located group marker.
 // The legend is sticky to the bottom across all modes.
-export function MapDetailsRail({ client }: Props) {
+export function MapDetailsRail() {
   const contacts = useStore((s) => s.contacts);
   const selectedContactKey = useStore((s) => s.ui.selectedContactKey);
   const selectedSiteKey = useStore((s) => s.ui.selectedSiteKey);
@@ -45,7 +40,7 @@ export function MapDetailsRail({ client }: Props) {
         ) : selectedSite ? (
           <SiteInfoCard site={selectedSite} />
         ) : (
-          <ControlsCard client={client} />
+          <ControlsCard />
         )}
       </div>
       <MapLegend />

@@ -3,13 +3,13 @@ import { formatHops } from '../../../shared/contacts/discovered';
 import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { RelativeTime } from '../../components/RelativeTime';
 import { useBusyAction } from '../../hooks/useBusyAction';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { notify } from '../../lib/notify';
 import { ACL_ROLE_LABEL, formatPermissions } from './aclRole';
 
 interface Props {
   contact: Contact;
-  client: ApiClient | null;
   session: RepeaterAdminSession | null;
   onSession: (s: RepeaterAdminSession | null) => void;
 }
@@ -34,7 +34,8 @@ function deriveLoginLabel(contact: Contact, isGuest: boolean): string {
   return `${isGuest ? 'Log In as Guest' : 'Log In'} · ${deriveReach(contact)}`;
 }
 
-export function LoginTab({ contact, client, session, onSession }: Props) {
+export function LoginTab({ contact, session, onSession }: Props) {
+  const client = useApiClient();
   const [password, setPassword] = useState('');
   const [login, busy] = useBusyAction(async () => {
     if (!client) return;

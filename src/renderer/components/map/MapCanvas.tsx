@@ -30,6 +30,8 @@ const defaultOverlays = (map: MapLibreMap | null) => (
 );
 
 interface MapCanvasProps {
+  // A prop rather than useApiClient(): the map can't exist without a client,
+  // so the parents (MapView, NeighboursTab) gate on it and hand it down narrowed.
   client: ApiClient;
   manifest: TileManifest;
   settings: MapSettings;

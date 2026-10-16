@@ -1,7 +1,7 @@
 import { RefreshCw } from 'lucide-react';
 import { useMemo } from 'react';
 import { useContactRefresh } from '../../hooks/useContactRefresh';
-import type { ApiClient } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { deriveContactView } from '../../lib/contactManagerView';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
@@ -11,8 +11,9 @@ import { Toolbar } from './Toolbar';
 
 /** Re-read the radio's contact store on demand — the user's lever for "the
  *  radio knows someone the app doesn't" short of a reconnect (#45 item 6). */
-function RefreshButton({ client }: { client: ApiClient | null }) {
-  const { refreshing, refresh } = useContactRefresh(client);
+function RefreshButton() {
+  const client = useApiClient();
+  const { refreshing, refresh } = useContactRefresh();
   return (
     <button
       type="button"
@@ -27,7 +28,7 @@ function RefreshButton({ client }: { client: ApiClient | null }) {
   );
 }
 
-export function ContactManager({ client }: { client: ApiClient | null }) {
+export function ContactManager() {
   const discovered = useStore((s) => s.discovered);
   const cm = useStore((s) => s.contactManager);
   const view = useMemo(() => deriveContactView(discovered, cm, Date.now()), [discovered, cm]);
@@ -40,7 +41,7 @@ export function ContactManager({ client }: { client: ApiClient | null }) {
           <p className="font-mono text-[10px] text-cs-text-dim">discovered node adverts</p>
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <RefreshButton client={client} />
+          <RefreshButton />
           <CapacityMeter />
         </div>
       </header>
@@ -50,11 +51,11 @@ export function ContactManager({ client }: { client: ApiClient | null }) {
         {view.rows.length === 0 ? (
           <div className="px-5 py-12 text-center text-[13px] text-cs-text-dim">No contacts match these filters.</div>
         ) : cm.layout === 'table' ? (
-          <TableView rows={view.rows} client={client} />
+          <TableView rows={view.rows} />
         ) : (
           <div>
             {view.rows.map((c) => (
-              <ListRow key={c.publicKeyHex} c={c} client={client} />
+              <ListRow key={c.publicKeyHex} c={c} />
             ))}
           </div>
         )}

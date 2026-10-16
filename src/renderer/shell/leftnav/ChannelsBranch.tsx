@@ -3,7 +3,8 @@ import { useCallback, useMemo } from 'react';
 import { AddChannelPopover } from '../../components/AddChannelPopover';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { SidebarMenuAction } from '../../components/ui/sidebar';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 import { EmptySubHint } from './atoms';
@@ -15,7 +16,6 @@ import { sortChannels } from './sorting';
 /** The "Channels" branch: its add-channel popover and the sorted, capped,
  *  drag-reorderable channel list. */
 export function ChannelsBranch({
-  client,
   connected,
   activeKey,
   pinned,
@@ -26,7 +26,6 @@ export function ChannelsBranch({
   onChannelMenu,
   onBranchMenu,
 }: {
-  client: ApiClient | null;
   connected: boolean;
   activeKey: string;
   pinned: string[];
@@ -39,6 +38,7 @@ export function ChannelsBranch({
   /** Right-click on the branch row itself (only offered while connected). */
   onBranchMenu: (x: number, y: number) => void;
 }) {
+  const client = useApiClient();
   const channels = useStore((s) => s.channels);
   const channelPresence = useStore((s) => s.channelPresence);
   const hideUnsynced = useStore((s) => s.appSettings.hideUnsyncedChannels);
@@ -136,7 +136,7 @@ export function ChannelsBranch({
           e.preventDefault();
         }}
       >
-        <AddChannelPopover client={client} onClose={() => setAddChannelOpen(false)} />
+        <AddChannelPopover onClose={() => setAddChannelOpen(false)} />
       </PopoverContent>
     </Popover>
   );

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CLI_SETTER_BY_KEY, isGetter, isSetter } from '../../../shared/repeater-cli/catalog';
 import type { Contact, RepeaterAdminSession } from '../../../shared/types';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { useStore } from '../../lib/store';
 import { type CliGuest, CliPrompt } from './cli/CliPrompt';
 import type { FollowUp } from './cli/CliRow';
@@ -15,7 +16,6 @@ import { armReboot, markRebootSent, type RebootPendingState, RebootStrip } from 
 
 interface Props {
   contact: Contact;
-  client: ApiClient | null;
   session: RepeaterAdminSession | null;
   sessionChecked: boolean;
   pending: RebootPendingState;
@@ -26,7 +26,8 @@ const CLI_TIMEOUT_MS = 30_000;
 let seq = 0;
 const newId = () => `cli-${Date.now().toString(36)}-${(seq++).toString(36)}`;
 
-export function CliTab({ contact, client, session, sessionChecked, pending, onPending }: Props) {
+export function CliTab({ contact, session, sessionChecked, pending, onPending }: Props) {
+  const client = useApiClient();
   const radioSettings = useStore((s) => s.radioSettings);
   const setRepeaterAdminTab = useStore((s) => s.setRepeaterAdminTab);
   const hops = Math.max(1, contact.hops ?? 1);

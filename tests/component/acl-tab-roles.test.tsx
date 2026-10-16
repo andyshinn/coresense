@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 // The four ACL roles the repeater can report. Before meshcore-ts 0.8.0 the
@@ -21,7 +21,7 @@ vi.mock('../../src/renderer/lib/api', () => ({
 
 import { AclTab } from '../../src/renderer/panels/repeater-admin/AclTab';
 import type { Contact } from '../../src/shared/types';
-import { TEST_CLIENT as client } from '../support/apiClient';
+import { renderWithClient } from '../support/renderWithClient';
 
 const repeater: Contact = {
   key: `c:${'aa'.repeat(32)}`,
@@ -32,7 +32,7 @@ const repeater: Contact = {
 
 describe('AclTab — role column', () => {
   it('names all four roles, including the two isAdmin/isGuest cannot express', async () => {
-    render(<AclTab contact={repeater} client={client} disabled={false} />);
+    renderWithClient(<AclTab contact={repeater} disabled={false} />);
     fireEvent.click(screen.getByRole('button', { name: /Refresh ACL/i }));
     await waitFor(() => expect(repeaterAcl).toHaveBeenCalled());
 

@@ -2,9 +2,9 @@ import { SlidersHorizontal } from 'lucide-react';
 import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { NumberInput, Row, Select, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { useStore } from '../../../lib/store';
 import { saveApp } from '../save';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 const CONTACT_GROUPING_OPTIONS = [
@@ -31,7 +31,8 @@ const eqBehavior = (a: AppSettingsType, b: AppSettingsType) =>
   a.unreadsPreview.limit === b.unreadsPreview.limit &&
   a.commandPalette.hintWeightPct === b.commandPalette.hintWeightPct;
 
-export function BehaviorSection({ client }: SectionProps) {
+export function BehaviorSection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.appSettings);
   const { draft, setDraft, setGroup, sectionProps } = useSettingsSection({
     id: 'app-behavior',

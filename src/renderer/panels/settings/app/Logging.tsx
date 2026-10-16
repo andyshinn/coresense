@@ -4,9 +4,9 @@ import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { CopyButton } from '../../../components/CopyButton';
 import { Row, Select, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { useStore } from '../../../lib/store';
 import { saveApp } from '../save';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 const LEVEL_OPTIONS = LOG_LEVELS.map((level) => ({ value: level, label: level }));
@@ -17,7 +17,8 @@ const BTN =
 const eq = (a: AppSettingsType['logging'], b: AppSettingsType['logging']) =>
   a.fileEnabled === b.fileEnabled && a.level === b.level;
 
-export function LoggingSection({ client }: SectionProps) {
+export function LoggingSection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.appSettings.logging);
   const capabilities = useStore((s) => s.capabilities);
 

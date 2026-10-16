@@ -1,7 +1,8 @@
 import { BellOff, Copy, Megaphone, PinIcon, PinOff, Trash2 } from 'lucide-react';
 import type { Contact } from '../../../shared/types';
 import { ContextMenu, type ContextMenuEntry, menuItem, menuSeparator } from '../../components/ContextMenu';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { copyToClipboard } from '../../lib/clipboard';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
@@ -16,17 +17,16 @@ export interface ContactMenuState {
 /** Right-click menu for a contact row — open/pin/mute + copy key + self-advert + remove. */
 export function ContactContextMenu({
   state,
-  client,
   isPinned,
   onTogglePin,
   onClose,
 }: {
   state: ContactMenuState;
-  client: ApiClient | null;
   isPinned: boolean;
   onTogglePin: (key: string) => void;
   onClose: () => void;
 }) {
+  const client = useApiClient();
   const { contact, x, y } = state;
   const transport = useStore((s) => s.transportState);
   const connected = transport === 'connected';

@@ -18,7 +18,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { Check, GripVertical, Plus, RotateCcw, Save, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { Contact, IdentityColorMode, PathHashSize } from '../../../shared/types';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { notify } from '../../lib/notify';
 import { splitHopsHex } from '../../lib/packetPath';
 import { useStore } from '../../lib/store';
@@ -40,10 +41,10 @@ interface Hop {
 
 interface Props {
   contact: Contact;
-  client: ApiClient | null;
 }
 
-export function SetPathEditor({ contact, client }: Props) {
+export function SetPathEditor({ contact }: Props) {
+  const client = useApiClient();
   const radioPathHashMode = useStore((s) => s.radioSettings.pathHashMode);
   const contacts = useStore((s) => s.contacts);
   const identityMode = useStore((s) => s.appSettings.identityColorMode ?? 'byKey');

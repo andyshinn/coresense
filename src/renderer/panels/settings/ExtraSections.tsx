@@ -3,9 +3,9 @@ import { useState } from 'react';
 import { Row } from '../../components/settings/Field';
 import { SettingsSection } from '../../components/settings/SettingsSection';
 import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
-import type { SectionProps } from './types';
 import { useDeviceRefresh } from './useDeviceRefresh';
 
 // The Extra Tools tab's action sections — device-level maintenance actions.
@@ -18,10 +18,11 @@ const disabledBtn =
 const dangerBtn =
   'cursor-not-allowed rounded border border-cs-danger/40 bg-cs-danger/10 px-2 py-0.5 text-[12px] text-cs-text-dim opacity-60';
 
-export function MaintenanceSection({ client }: SectionProps) {
+export function MaintenanceSection() {
+  const client = useApiClient();
   const connected = useStore((s) => s.transportState === 'connected');
   const [rebootBusy, setRebootBusy] = useState(false);
-  const { refresh, canRefresh } = useDeviceRefresh(client);
+  const { refresh, canRefresh } = useDeviceRefresh();
 
   const reboot = async () => {
     if (!client) return;

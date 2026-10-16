@@ -12,7 +12,7 @@ vi.mock('@/lib/api', async (orig) => {
 import { __resetChannelStatsCacheForTests, useChannelStats } from '@/hooks/useChannelStats';
 import { useStore } from '@/lib/store';
 import type { Message } from '../../src/shared/types';
-import { TEST_CLIENT as client } from '../support/apiClient';
+import { renderHookWithClient } from '../support/renderWithClient';
 
 const stats = (count: number): ChannelStats => ({
   count,
@@ -43,14 +43,14 @@ beforeEach(() => {
 describe('useChannelStats', () => {
   it('fetches on mount and returns stats', async () => {
     getChannelStats.mockResolvedValue(stats(3));
-    const { result } = renderHook(() => useChannelStats('ch:X', client));
+    const { result } = renderHookWithClient(() => useChannelStats('ch:X'));
     await waitFor(() => expect(result.current.stats?.count).toBe(3));
     expect(getChannelStats).toHaveBeenCalledTimes(1);
   });
 
   it('refetches when messagesByKey[key] changes', async () => {
     getChannelStats.mockResolvedValue(stats(3));
-    renderHook(() => useChannelStats('ch:X', client));
+    renderHookWithClient(() => useChannelStats('ch:X'));
     await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(1));
     act(() => useStore.setState({ messagesByKey: { 'ch:X': [msg('m1')] } }));
     await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(2));
@@ -72,7 +72,7 @@ describe('useChannelStats', () => {
     useStore.setState({
       messagesByKey: { 'ch:X': transcript(), 'dm:Y': [msg('d1', 5000, 'dm:Y')] },
     });
-    renderHook(() => useChannelStats('ch:X', client));
+    renderHookWithClient(() => useChannelStats('ch:X'));
     await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(1));
 
     // Exactly what applyMessageState('d1', 'ack') produces: every key's
@@ -98,7 +98,7 @@ describe('useChannelStats', () => {
   it("refetches when a mid-array message's ts is revised", async () => {
     getChannelStats.mockResolvedValue(stats(3));
     useStore.setState({ messagesByKey: { 'ch:X': transcript() } });
-    renderHook(() => useChannelStats('ch:X', client));
+    renderHookWithClient(() => useChannelStats('ch:X'));
     await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(1));
 
     act(() => useStore.setState({ messagesByKey: { 'ch:X': [msg('m1', 1000), msg('m2', 2500), msg('m3', 3000)] } }));
@@ -109,7 +109,7 @@ describe('useChannelStats', () => {
   it("refetches when the last message's ts is revised", async () => {
     getChannelStats.mockResolvedValue(stats(3));
     useStore.setState({ messagesByKey: { 'ch:X': transcript() } });
-    renderHook(() => useChannelStats('ch:X', client));
+    renderHookWithClient(() => useChannelStats('ch:X'));
     await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(1));
 
     act(() => useStore.setState({ messagesByKey: { 'ch:X': [msg('m1', 1000), msg('m2', 2000), msg('m3', 4000)] } }));
@@ -121,7 +121,7 @@ describe('useChannelStats', () => {
   it('refetches when the transcript is reordered', async () => {
     getChannelStats.mockResolvedValue(stats(3));
     useStore.setState({ messagesByKey: { 'ch:X': transcript() } });
-    renderHook(() => useChannelStats('ch:X', client));
+    renderHookWithClient(() => useChannelStats('ch:X'));
     await waitFor(() => expect(getChannelStats).toHaveBeenCalledTimes(1));
 
     act(() => useStore.setState({ messagesByKey: { 'ch:X': [msg('m2', 2000), msg('m1', 1000), msg('m3', 3000)] } }));
@@ -133,25 +133,25 @@ describe('useChannelStats', () => {
   // served to a caller now pointed at a different one.
   it('does not serve a cached promise from a different client', async () => {
     getChannelStats.mockResolvedValueOnce(stats(3));
-    const first = renderHook(() => useChannelStats('ch:X', client));
+    const first = renderHookWithClient(() => useChannelStats('ch:X'));
     await waitFor(() => expect(first.result.current.stats?.count).toBe(3));
 
     const otherClient = { baseUrl: 'http://y', apiKey: 'k2' };
     getChannelStats.mockResolvedValueOnce(stats(7));
-    const second = renderHook(() => useChannelStats('ch:X', otherClient));
+    const second = renderHookWithClient(() => useChannelStats('ch:X'), otherClient);
     await waitFor(() => expect(second.result.current.stats?.count).toBe(7));
     expect(getChannelStats).toHaveBeenCalledTimes(2);
   });
 
   it('does not fetch without a client', () => {
-    renderHook(() => useChannelStats('ch:X', null));
+    renderHook(() => useChannelStats('ch:X'));
     expect(getChannelStats).not.toHaveBeenCalled();
   });
 
   it('shares one request between two hook instances on the same channel', async () => {
     getChannelStats.mockResolvedValue(stats(3));
-    const a = renderHook(() => useChannelStats('ch:X', client));
-    const b = renderHook(() => useChannelStats('ch:X', client));
+    const a = renderHookWithClient(() => useChannelStats('ch:X'));
+    const b = renderHookWithClient(() => useChannelStats('ch:X'));
     await waitFor(() => expect(a.result.current.stats?.count).toBe(3));
     await waitFor(() => expect(b.result.current.stats?.count).toBe(3));
     expect(getChannelStats).toHaveBeenCalledTimes(1);
@@ -159,12 +159,12 @@ describe('useChannelStats', () => {
 
   it('does not cache a rejected request, so the next render retries', async () => {
     getChannelStats.mockRejectedValueOnce(new Error('boom'));
-    const { result, unmount } = renderHook(() => useChannelStats('ch:X', client));
+    const { result, unmount } = renderHookWithClient(() => useChannelStats('ch:X'));
     await waitFor(() => expect(result.current.error).toBe('boom'));
     unmount();
 
     getChannelStats.mockResolvedValueOnce(stats(5));
-    const retry = renderHook(() => useChannelStats('ch:X', client));
+    const retry = renderHookWithClient(() => useChannelStats('ch:X'));
     await waitFor(() => expect(retry.result.current.stats?.count).toBe(5));
     expect(getChannelStats).toHaveBeenCalledTimes(2);
   });

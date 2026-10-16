@@ -7,12 +7,12 @@ vi.mock('../../src/renderer/lib/notify', () => import('../support/notifyMock'));
 
 import { createMenuActionHandler } from '../../src/renderer/app/menuActions';
 import { api } from '../../src/renderer/lib/api';
+import { setApiClient } from '../../src/renderer/lib/apiClientContext';
 import { useStore } from '../../src/renderer/lib/store';
+import { TEST_CLIENT } from '../support/apiClient';
 import { notify } from '../support/notifyMock';
 
 const deps = () => ({
-  baseUrl: 'http://x',
-  apiKey: 'k',
   cycleThemePref: vi.fn(),
   toggleLeftNav: vi.fn(),
   toggleRightRail: vi.fn(),
@@ -26,6 +26,8 @@ describe('File menu actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useStore.setState({ addChannelOpen: false, transportState: 'idle' });
+    // App's ApiClientProvider mirrors its client into this holder.
+    setApiClient(TEST_CLIENT);
   });
 
   it('newChannel opens the add-channel popover when a radio is connected', () => {
@@ -48,7 +50,22 @@ describe('File menu actions', () => {
 
   it('disconnect asks main to drop the radio', () => {
     createMenuActionHandler(deps())({ kind: 'disconnect' });
-    expect(api.disconnect).toHaveBeenCalledWith({ baseUrl: 'http://x', apiKey: 'k' });
+    expect(api.disconnect).toHaveBeenCalledWith(TEST_CLIENT);
+  });
+
+  it('disconnect does nothing before a client exists', () => {
+    setApiClient(null);
+    createMenuActionHandler(deps())({ kind: 'disconnect' });
+    expect(api.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('reads the client when the action runs, not when the handler is built', () => {
+    setApiClient(null);
+    const handle = createMenuActionHandler(deps());
+    const later = { baseUrl: 'http://y', apiKey: 'k2' };
+    setApiClient(later);
+    handle({ kind: 'disconnect' });
+    expect(api.disconnect).toHaveBeenCalledWith(later);
   });
 
   it('disconnect reports a failure', async () => {

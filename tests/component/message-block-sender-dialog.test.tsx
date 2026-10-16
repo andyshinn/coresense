@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { TEST_CLIENT as client } from '../support/apiClient';
 import { notify } from '../support/notifyMock';
+import { renderWithClient } from '../support/renderWithClient';
 
 const addBlockRules = vi.fn();
 vi.mock('@/lib/api', () => ({ api: { addBlockRules: (...a: unknown[]) => addBlockRules(...a) } }));
@@ -17,7 +17,7 @@ beforeEach(() => {
 describe('BlockSenderDialog', () => {
   it('turns each checked prefill identifier into one rule, in table order', async () => {
     const onClose = vi.fn();
-    render(<BlockSenderDialog client={client} open prefill={{ name: 'Bob', pubkey: 'aa11' }} onClose={onClose} />);
+    renderWithClient(<BlockSenderDialog open prefill={{ name: 'Bob', pubkey: 'aa11' }} onClose={onClose} />);
 
     // Key prefix wasn't prefilled, so its row is disabled and contributes nothing.
     const boxes = screen.getAllByRole('checkbox');
@@ -37,7 +37,7 @@ describe('BlockSenderDialog', () => {
 
   it('unchecking an identifier drops its rule', async () => {
     const onClose = vi.fn();
-    render(<BlockSenderDialog client={client} open prefill={{ name: 'Bob', pubkey: 'aa11' }} onClose={onClose} />);
+    renderWithClient(<BlockSenderDialog open prefill={{ name: 'Bob', pubkey: 'aa11' }} onClose={onClose} />);
     fireEvent.click(screen.getAllByRole('checkbox')[0]);
     fireEvent.click(screen.getByRole('button', { name: 'Block' }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
@@ -47,14 +47,14 @@ describe('BlockSenderDialog', () => {
   it('reports a failed submit through notify.failure', async () => {
     const err = new Error('boom');
     addBlockRules.mockRejectedValue(err);
-    render(<BlockSenderDialog client={client} open prefill={{ name: 'Bob' }} onClose={() => {}} />);
+    renderWithClient(<BlockSenderDialog open prefill={{ name: 'Bob' }} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: 'Block' }));
     await waitFor(() => expect(notify.failure).toHaveBeenCalledWith('Block', err));
   });
 
   // Uses the danger token like the rest of the app, not a raw Tailwind red.
   it('flags an invalid regex in the danger colour', () => {
-    render(<BlockSenderDialog client={client} open prefill={{}} onClose={() => {}} />);
+    renderWithClient(<BlockSenderDialog open prefill={{}} onClose={() => {}} />);
     fireEvent.click(screen.getAllByRole('checkbox')[3]);
     fireEvent.change(screen.getByPlaceholderText('^Bob.*$'), { target: { value: '(' } });
     expect(screen.getByText('Invalid regex').className).toContain('text-cs-danger');

@@ -3,7 +3,6 @@ import { isChannelKey } from '../../../shared/conversationKey';
 import type { MessageHit } from '../../../shared/types';
 import { RelativeTime } from '../../components/RelativeTime';
 import { DeleteConfirmPopover } from '../../features/message-actions/DeleteConfirmPopover';
-import type { ApiClient } from '../../lib/api';
 import { useStore } from '../../lib/store';
 
 export function SearchMessageRow({
@@ -11,14 +10,12 @@ export function SearchMessageRow({
   channelName,
   senderName,
   onClick,
-  client,
   onDeleted,
 }: {
   hit: MessageHit;
   channelName: string | undefined;
   senderName: string;
   onClick: () => void;
-  client: ApiClient | null;
   onDeleted: (id: string) => void;
 }) {
   const setPendingDeleteMessageId = useStore((s) => s.setPendingDeleteMessageId);
@@ -71,7 +68,6 @@ export function SearchMessageRow({
         messageId={hit.id}
         conversationKey={hit.key}
         preview={hit.body}
-        client={client}
         onDeleted={() => onDeleted(hit.id)}
       />
     </li>

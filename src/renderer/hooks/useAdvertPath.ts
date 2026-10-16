@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { contactKey } from '../../shared/conversationKey';
 import { errorMessage } from '../../shared/errors';
-import { type ApiClient, ApiError, api } from '../lib/api';
+import { ApiError, api } from '../lib/api';
+import { useApiClient } from '../lib/apiClientContext';
 import { notify } from '../lib/notify';
 
 /** How long a contact has to stay focused before an automatic measurement
@@ -81,10 +82,10 @@ function describeMiss(reason: 'noPath' | undefined): string {
  *  arrives as a `discovered` push, so the row re-renders from the store like
  *  every other contact field. */
 export function useAdvertPath(
-  client: ApiClient | null,
   publicKeyHex: string | null,
   opts: { auto?: boolean } = {},
 ): { measuring: boolean; measure: () => Promise<void> } {
+  const client = useApiClient();
   const auto = opts.auto ?? false;
   // Which pubkeys this hook has outstanding. A ref, not the state below: the
   // websocket push that follows a successful measurement re-renders this

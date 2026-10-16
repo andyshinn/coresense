@@ -10,7 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 import { getSectionHandle } from './sectionHandles';
@@ -18,7 +19,8 @@ import { getSectionHandle } from './sectionHandles';
 // Raised when the user tries to leave the Settings panel, switch tabs, or quit
 // the app while a section has unsaved changes. "Save all" commits every dirty
 // section, "Discard" reverts them, "Cancel" stays put.
-export function UnsavedChangesDialog({ client }: { client: ApiClient | null }) {
+export function UnsavedChangesDialog() {
+  const client = useApiClient();
   const pendingTarget = useStore((s) => s.settingsUi.pendingTarget);
   const dirtyById = useStore((s) => s.settingsUi.dirtyById);
   const sections = useStore((s) => s.settingsUi.sections);

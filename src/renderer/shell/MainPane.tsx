@@ -2,7 +2,6 @@ import { lazy, Suspense } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { isChannelKey, isContactKey } from '../../shared/conversationKey';
 import { logError, PanelErrorFallback } from '../components/errors/ErrorFallback';
-import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
 // Placeholder is small and used as a fallback — keep eager.
 import { PlaceholderPanel } from '../panels/PlaceholderPanel';
@@ -23,7 +22,6 @@ const ContactManager = lazy(() => import('../panels/contacts/ContactManager').th
 const MacrosPanel = lazy(() => import('../panels/macros/MacrosPanel').then((m) => ({ default: m.MacrosPanel })));
 
 interface MainPaneProps {
-  client: ApiClient | null;
   onScan: () => void;
   onConnect: (deviceId: string) => Promise<void> | void;
   onDisconnect: () => Promise<void> | void;
@@ -43,7 +41,7 @@ export function MainPane(props: MainPaneProps) {
   );
 }
 
-function MainPaneInner({ client, onScan, onConnect, onDisconnect, renderPacketLog }: MainPaneProps) {
+function MainPaneInner({ onScan, onConnect, onDisconnect, renderPacketLog }: MainPaneProps) {
   const activeKey = useStore((s) => s.ui.activeKey);
   const transportState = useStore((s) => s.transportState);
   const connectedDeviceId = useStore((s) => s.connectedDeviceId);
@@ -75,25 +73,25 @@ function MainPaneInner({ client, onScan, onConnect, onDisconnect, renderPacketLo
   if (activeKey === 'tool:settings' || activeKey.startsWith('tool:settings:')) {
     // Decode the legacy "tool:settings:<id>" deep links so older menu items
     // still land on the right tab inside the new SettingsPanel.
-    return <SettingsPanel client={client} initialTab={tabFromActiveKey(activeKey)} />;
+    return <SettingsPanel initialTab={tabFromActiveKey(activeKey)} />;
   }
   if (activeKey === 'tool:map') {
-    return <MapView client={client} />;
+    return <MapView />;
   }
   if (activeKey === 'tool:logs') {
     return <LogsPanel />;
   }
   if (activeKey === 'tool:search') {
-    return <SearchResults client={client} />;
+    return <SearchResults />;
   }
   if (activeKey === 'tool:unreads') {
     return <Unreads />;
   }
   if (activeKey === 'tool:contacts') {
-    return <ContactManager client={client} />;
+    return <ContactManager />;
   }
   if (activeKey === 'tool:macros') {
-    return <MacrosPanel client={client} />;
+    return <MacrosPanel />;
   }
 
   if (isChannelKey(activeKey)) {
@@ -106,7 +104,7 @@ function MainPaneInner({ client, onScan, onConnect, onDisconnect, renderPacketLo
         />
       );
     }
-    return <ChannelView channel={ch} client={client} />;
+    return <ChannelView channel={ch} />;
   }
   if (isContactKey(activeKey)) {
     const contact = contacts.find((c) => c.key === activeKey);
@@ -119,9 +117,9 @@ function MainPaneInner({ client, onScan, onConnect, onDisconnect, renderPacketLo
       );
     }
     if (contact.kind === 'repeater' || contact.kind === 'sensor') {
-      return <RepeaterAdmin contact={contact} client={client} />;
+      return <RepeaterAdmin contact={contact} />;
     }
-    return <DMView contact={contact} client={client} />;
+    return <DMView contact={contact} />;
   }
 
   return <PlaceholderPanel title="CoreSense" description="Pick a channel, contact, or tool from the left to begin." />;

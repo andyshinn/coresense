@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { errorMessage } from '../../shared/errors';
 import type { ChannelStats, Message } from '../../shared/types';
 import { type ApiClient, api } from '../lib/api';
+import { useApiClient } from '../lib/apiClientContext';
 import { useStore } from '../lib/store';
 
 // One request per (client, channel, stats-version). The header count and the
@@ -83,10 +84,8 @@ export function __resetChannelStatsCacheForTests(): void {
 
 /** Fetches channel stats lazily (the rail only mounts a section's body when it
  *  is expanded) and refetches whenever this channel's message list changes. */
-export function useChannelStats(
-  key: string,
-  client: ApiClient | null,
-): { stats: ChannelStats | null; loading: boolean; error: string | null } {
+export function useChannelStats(key: string): { stats: ChannelStats | null; loading: boolean; error: string | null } {
+  const client = useApiClient();
   const messages = useStore((s) => s.messagesByKey[key]);
   const version = useMemo(() => statsVersion(messages), [messages]);
   const [stats, setStats] = useState<ChannelStats | null>(null);

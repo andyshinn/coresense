@@ -30,7 +30,7 @@ describe('UnsavedChangesDialog', () => {
     const err = new Error('disk full');
     registerSectionHandle('app-a', { save: vi.fn(async () => Promise.reject(err)), reset: vi.fn() });
 
-    render(<UnsavedChangesDialog client={null} />);
+    render(<UnsavedChangesDialog />);
     fireEvent.click(screen.getByRole('button', { name: 'Save all' }));
 
     await waitFor(() => expect(failure).toHaveBeenCalledWith('Save', err));
@@ -46,7 +46,7 @@ describe('UnsavedChangesDialog', () => {
     const save = vi.fn(async () => {});
     registerSectionHandle('app-a', { save, reset: vi.fn() });
 
-    render(<UnsavedChangesDialog client={null} />);
+    render(<UnsavedChangesDialog />);
     fireEvent.click(screen.getByRole('button', { name: 'Save all' }));
 
     await waitFor(() => expect(useStore.getState().settingsUi.activeTab).toBe('radio'));

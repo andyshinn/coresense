@@ -2,14 +2,13 @@ import { Info } from 'lucide-react';
 import { Row } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../types';
 import { useDeviceRefresh } from '../useDeviceRefresh';
 
-export function DeviceInfoSection({ client }: SectionProps) {
+export function DeviceInfoSection() {
   const info = useStore((s) => s.deviceInfo);
   const channels = useStore((s) => s.channels.length);
   const contacts = useStore((s) => s.contacts.length);
-  const { refresh, canRefresh } = useDeviceRefresh(client);
+  const { refresh, canRefresh } = useDeviceRefresh();
 
   const storagePct = info.storageTotalKb > 0 ? Math.round((info.storageUsedKb / info.storageTotalKb) * 100) : 0;
 

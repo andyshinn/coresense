@@ -1,7 +1,8 @@
 import { ArrowRight } from 'lucide-react';
 import { errorMessage } from '../../../shared/errors';
 import type { Contact, PathHashSize, PathLearnedEvent } from '../../../shared/types';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { notify } from '../../lib/notify';
 import { splitHopsHex } from '../../lib/packetPath';
 import { Button } from '../ui/button';
@@ -11,7 +12,6 @@ import { Separator } from '../ui/separator';
 interface Props {
   event: PathLearnedEvent | null;
   contact: Contact | null;
-  client: ApiClient | null;
   onClose: () => void;
 }
 
@@ -20,7 +20,8 @@ function formatHops(hex: string, hashSize: PathHashSize): string {
   return hops.length === 0 ? 'Flood' : hops.join(' → ');
 }
 
-export function PathLearnedDialog({ event, contact, client, onClose }: Props) {
+export function PathLearnedDialog({ event, contact, onClose }: Props) {
+  const client = useApiClient();
   const open = event !== null;
   const name = contact?.name ?? event?.contactKey ?? 'this contact';
   const hashSize = event?.newOutPathHashSize ?? 2;

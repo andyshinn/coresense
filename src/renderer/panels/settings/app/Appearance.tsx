@@ -2,9 +2,9 @@ import { Sun } from 'lucide-react';
 import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { Row, Select } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { useStore } from '../../../lib/store';
 import { saveApp } from '../save';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 const THEME_OPTIONS = [
@@ -35,7 +35,8 @@ const eqAppearance = (a: AppSettingsType, b: AppSettingsType) =>
   a.timeFormat === b.timeFormat &&
   a.identityColorMode === b.identityColorMode;
 
-export function AppearanceSection({ client }: SectionProps) {
+export function AppearanceSection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.appSettings);
   // The theme is the one control here that is NOT part of the saved draft: it
   // lives in ui state (ui-state.json), which is what App.tsx actually applies

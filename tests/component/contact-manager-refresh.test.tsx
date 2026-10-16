@@ -15,6 +15,7 @@ vi.mock('@/lib/api', () => ({
 import { ContactManager } from '@/panels/contacts/ContactManager';
 import { TEST_CLIENT as client } from '../support/apiClient';
 import { notify, resetNotifyMock } from '../support/notifyMock';
+import { renderWithClient } from '../support/renderWithClient';
 
 const button = () => screen.getByRole('button', { name: 'Refresh contacts from radio' }) as HTMLButtonElement;
 
@@ -28,7 +29,7 @@ beforeEach(() => {
 describe('ContactManager refresh button', () => {
   it('asks the server to re-read the radio and reports the count', async () => {
     refreshContacts.mockResolvedValue({ ok: true, count: 42 });
-    render(<ContactManager client={client} />);
+    renderWithClient(<ContactManager />);
 
     fireEvent.click(button());
 
@@ -39,7 +40,7 @@ describe('ContactManager refresh button', () => {
   it('disables itself while the walk is in flight', async () => {
     let resolve!: (v: { ok: true; count: number }) => void;
     refreshContacts.mockReturnValue(new Promise((r) => (resolve = r)));
-    render(<ContactManager client={client} />);
+    renderWithClient(<ContactManager />);
 
     fireEvent.click(button());
     await waitFor(() => expect(button().disabled).toBe(true));
@@ -53,13 +54,13 @@ describe('ContactManager refresh button', () => {
   });
 
   it('is disabled with no server connection', () => {
-    render(<ContactManager client={null} />);
+    render(<ContactManager />);
     expect(button().disabled).toBe(true);
   });
 
   it('surfaces a failure as an error rather than a silent no-op', async () => {
     refreshContacts.mockRejectedValue(new Error('no radio attached'));
-    render(<ContactManager client={client} />);
+    renderWithClient(<ContactManager />);
 
     fireEvent.click(button());
 
@@ -76,7 +77,7 @@ describe('ContactManager refresh button', () => {
   // the same stream; claiming "re-read 0 contacts" there would be a lie.
   it('reports a skipped refresh as info, not success', async () => {
     refreshContacts.mockResolvedValue({ ok: true, skipped: true });
-    render(<ContactManager client={client} />);
+    renderWithClient(<ContactManager />);
 
     fireEvent.click(button());
 

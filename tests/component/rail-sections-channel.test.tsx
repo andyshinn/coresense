@@ -13,7 +13,7 @@ const data = (over: Partial<RailData> = {}): RailData => ({
   cardPublicKeyHex: null,
   ...over,
 });
-const actions = { clearMentionedContact: () => {}, client: null };
+const actions = { clearMentionedContact: () => {} };
 
 describe('sectionsFor channel view', () => {
   it('returns the four channel sections in order', () => {

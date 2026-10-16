@@ -1,7 +1,8 @@
 import { BellOff, Copy, Minus, PinIcon, PinOff, Plus, Trash2 } from 'lucide-react';
 import type { Channel } from '../../../shared/types';
 import { ContextMenu, type ContextMenuEntry, menuItem, menuSeparator } from '../../components/ContextMenu';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { copyToClipboard } from '../../lib/clipboard';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
@@ -17,17 +18,16 @@ export interface ChannelMenuState {
 /** Right-click menu for a channel row — pin/mute/copy + add/remove from device + delete. */
 export function ChannelContextMenu({
   state,
-  client,
   isPinned,
   onTogglePin,
   onClose,
 }: {
   state: ChannelMenuState;
-  client: ApiClient | null;
   isPinned: boolean;
   onTogglePin: (key: string) => void;
   onClose: () => void;
 }) {
+  const client = useApiClient();
   const { channel, onDevice, x, y } = state;
   const transport = useStore((s) => s.transportState);
   const connected = transport === 'connected';

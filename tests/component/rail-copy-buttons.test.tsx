@@ -55,7 +55,7 @@ describe('rail copy buttons', () => {
       blocked: false,
     };
     useStore.setState({ discovered: [row], contacts: [] });
-    render(<ContactDetail publicKeyHex={PK} client={null} showPath={false} />);
+    render(<ContactDetail publicKeyHex={PK} showPath={false} />);
 
     fireEvent.click(screen.getByTitle(`${PK} — click to copy`));
 

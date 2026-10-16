@@ -3,7 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import type { RadioSettings } from '../../shared/types';
 import { flushDrafts } from '../app/useDraftsPersistence';
 import { loraAirtimeMs } from '../lib/airtime';
-import type { ApiClient } from '../lib/api';
+import { useApiClient } from '../lib/apiClientContext';
 import { shouldSendOnKey } from '../lib/composerKeys';
 import { mentionedNames } from '../lib/messageContent';
 import { MAX_MESSAGE_LENGTH } from '../lib/messageLimits';
@@ -35,15 +35,15 @@ interface Props {
   // When true, focus the textarea on mount and whenever the conversation
   // (draftKey) changes, so the user can start typing immediately on navigate.
   autoFocus?: boolean;
-  // API client + conversation target, used by the `/` macro popover to render a
-  // macro to plain text before it replaces the input.
-  client?: ApiClient | null;
 }
 
 export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
-  { onSend, disabled, returnToSend, radioSettings, placeholder = 'Send a message…', draftKey, autoFocus, client },
+  { onSend, disabled, returnToSend, radioSettings, placeholder = 'Send a message…', draftKey, autoFocus },
   ref,
 ) {
+  // API client, used with the conversation target (draftKey) by the `/` macro
+  // popover to render a macro to plain text before it replaces the input.
+  const client = useApiClient();
   const draft = useStore((s) => (draftKey ? (s.drafts[draftKey] ?? '') : ''));
   const setDraft = useStore((s) => s.setDraft);
   const [localValue, setLocalValue] = useState('');
@@ -191,7 +191,6 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           <ComposerMacroPopover
             ref={macroRef}
             query={value.slice(1)}
-            client={client ?? null}
             targetKey={draftKey}
             onExpand={(text) => {
               setValue(text);

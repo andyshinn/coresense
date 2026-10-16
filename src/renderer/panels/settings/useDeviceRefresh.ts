@@ -1,11 +1,13 @@
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 
 // Re-requests the radio's device snapshot (DEVICE_QUERY + GET_BATT_AND_STORAGE +
 // GET_AUTO_ADD_CONFIG + GPS custom vars). Shared by the Refresh rows in Radio →
 // Device Info and Extra → Maintenance.
-export function useDeviceRefresh(client: ApiClient | null) {
+export function useDeviceRefresh() {
+  const client = useApiClient();
   const connected = useStore((s) => s.transportState === 'connected');
 
   const refresh = async () => {

@@ -6,7 +6,7 @@ import { useStore } from '@/lib/store';
 import { RAIL_COLLAPSE_WIDTH as COLLAPSE_WIDTH } from '@/shell/rightrail/railWidth';
 import { ActivityBody, ChannelActivitySection } from '@/shell/rightrail/sections/channel-activity';
 import type { ActivityWindow, ActivityWindowKey, Channel, ChannelActivity } from '../../src/shared/types';
-import { TEST_CLIENT as client } from '../support/apiClient';
+import { renderWithClient } from '../support/renderWithClient';
 
 const NOW = 1_700_000_000_000;
 const midnight = (() => {
@@ -214,9 +214,9 @@ describe('ChannelActivitySection', () => {
     act(() => {
       useStore.setState((s) => ({ ui: { ...s.ui, rightWidth: COLLAPSE_WIDTH + 100 } }));
     });
-    render(
+    renderWithClient(
       <TooltipProvider>
-        <ChannelActivitySection channel={channel} client={client} />
+        <ChannelActivitySection channel={channel} />
       </TooltipProvider>,
     );
     await waitFor(() => expect(screen.getByLabelText('Last 24 hours')).toBeTruthy());

@@ -3,9 +3,9 @@ import type { TelemetryMode, TelemetryPolicy } from '../../../../shared/types';
 import { NumberSelect, Row } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 const TELEMETRY_MODE_OPTIONS = [
@@ -16,7 +16,8 @@ const TELEMETRY_MODE_OPTIONS = [
 
 const eqTelemetry = (a: TelemetryPolicy, b: TelemetryPolicy) => a.base === b.base && a.loc === b.loc && a.env === b.env;
 
-export function TelemetrySection({ client }: SectionProps) {
+export function TelemetrySection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.telemetryPolicy);
   const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'radio-telemetry',

@@ -3,7 +3,8 @@ import type { Channel, ChannelStats, PeopleFilter, PeopleSort } from '../../../.
 import { Skeleton } from '../../../components/ui/skeleton';
 import { useChannelStats } from '../../../hooks/useChannelStats';
 import { useNowTick } from '../../../hooks/useNowTick';
-import { type ApiClient, api } from '../../../lib/api';
+import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { capList } from '../../../lib/capList';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
@@ -214,14 +215,8 @@ function usePeopleView(channelKey: string): { sort: PeopleSort; filter: PeopleFi
  *  Memoised because the rail evaluates `trailing={section.trailing?.()}` outside
  *  the Collapsible's open guard, so this re-derives the roster even while the
  *  People section is collapsed — once per drag frame, before the memo. */
-export const ChannelPeopleCount = memo(function ChannelPeopleCount({
-  channel,
-  client,
-}: {
-  channel: Channel;
-  client: ApiClient | null;
-}) {
-  const { stats } = useChannelStats(channel.key, client);
+export const ChannelPeopleCount = memo(function ChannelPeopleCount({ channel }: { channel: Channel }) {
+  const { stats } = useChannelStats(channel.key);
   const contacts = useStore((s) => s.contacts);
   const discovered = useStore((s) => s.discovered);
   const { filter, query } = usePeopleFilter(channel.key);
@@ -241,14 +236,9 @@ export const ChannelPeopleCount = memo(function ChannelPeopleCount({
   );
 });
 
-export const ChannelPeopleSection = memo(function ChannelPeopleSection({
-  channel,
-  client,
-}: {
-  channel: Channel;
-  client: ApiClient | null;
-}) {
-  const { stats } = useChannelStats(channel.key, client);
+export const ChannelPeopleSection = memo(function ChannelPeopleSection({ channel }: { channel: Channel }) {
+  const client = useApiClient();
+  const { stats } = useChannelStats(channel.key);
   // A boolean, not `s.ui.rightWidth` — see railIsWide. Subscribing to the px
   // value here would re-render this section (and therefore the whole roster) on
   // every drag frame no matter how many memo boundaries sit below it.

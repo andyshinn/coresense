@@ -9,6 +9,7 @@ import { useStore } from '@/lib/store';
 import type { Message } from '../../src/shared/types';
 import { TEST_CLIENT as client } from '../support/apiClient';
 import { notify } from '../support/notifyMock';
+import { renderWithClient } from '../support/renderWithClient';
 
 const msg = (id: string): Message => ({ id, key: 'ch:x', fromPublicKeyHex: 'a3f9', body: id, ts: 0, state: 'received' });
 
@@ -80,14 +81,14 @@ describe('store.setPendingDeleteMessageId', () => {
 describe('DeleteConfirmPopover', () => {
   it('renders nothing until its message is staged', () => {
     useStore.setState({ pendingDeleteMessageId: null });
-    render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={client} />);
+    renderWithClient(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" />);
     expect(screen.queryByTestId('confirm-delete-message')).toBeNull();
   });
 
   it('deletes through the API when confirmed', async () => {
     const spy = vi.spyOn(api, 'deleteMessage').mockResolvedValue({ ok: true });
     useStore.setState({ pendingDeleteMessageId: 'b' });
-    render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={client} />);
+    renderWithClient(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" />);
     fireEvent.click(await screen.findByTestId('confirm-delete-message'));
     expect(spy).toHaveBeenCalledWith(client, 'ch:x', 'b');
   });
@@ -95,7 +96,7 @@ describe('DeleteConfirmPopover', () => {
   it('does not delete when cancelled, and unstages the message', async () => {
     const spy = vi.spyOn(api, 'deleteMessage').mockResolvedValue({ ok: true });
     useStore.setState({ pendingDeleteMessageId: 'b' });
-    render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={client} />);
+    renderWithClient(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" />);
     fireEvent.click(await screen.findByTestId('cancel-delete-message'));
     expect(spy).not.toHaveBeenCalled();
     expect(useStore.getState().pendingDeleteMessageId).toBeNull();
@@ -103,7 +104,7 @@ describe('DeleteConfirmPopover', () => {
 
   it('says the delete is local only', async () => {
     useStore.setState({ pendingDeleteMessageId: 'b' });
-    render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={client} />);
+    renderWithClient(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" />);
     const panel = await screen.findByTestId('delete-confirm-panel');
     expect(panel.textContent).toMatch(/this device only/i);
   });
@@ -111,7 +112,7 @@ describe('DeleteConfirmPopover', () => {
   it('reports an error instead of silently doing nothing when there is no client', async () => {
     const spy = vi.spyOn(api, 'deleteMessage').mockResolvedValue({ ok: true });
     useStore.setState({ pendingDeleteMessageId: 'b' });
-    render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={null} />);
+    render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" />);
     fireEvent.click(await screen.findByTestId('confirm-delete-message'));
     expect(spy).not.toHaveBeenCalled();
     expect(notify.error).toHaveBeenCalled();
@@ -122,7 +123,7 @@ describe('DeleteConfirmPopover', () => {
   // staged and the confirm would re-open unbidden on the next mount.
   it('unstages the message when a staged confirmation unmounts', async () => {
     useStore.setState({ pendingDeleteMessageId: 'b' });
-    const { unmount } = render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={client} />);
+    const { unmount } = renderWithClient(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" />);
     await screen.findByTestId('delete-confirm-panel');
     unmount();
     expect(useStore.getState().pendingDeleteMessageId).toBeNull();
@@ -130,7 +131,7 @@ describe('DeleteConfirmPopover', () => {
 
   it('leaves a different message staged when an unrelated row unmounts', () => {
     useStore.setState({ pendingDeleteMessageId: 'b' });
-    const { unmount } = render(<DeleteConfirmPopover messageId="c" conversationKey="ch:x" preview="c" client={client} />);
+    const { unmount } = renderWithClient(<DeleteConfirmPopover messageId="c" conversationKey="ch:x" preview="c" />);
     unmount();
     expect(useStore.getState().pendingDeleteMessageId).toBe('b');
   });
@@ -141,7 +142,7 @@ describe('DeleteConfirmPopover', () => {
       messagesByKey: { 'ch:x': [msg('a'), msg('b'), msg('c')] },
       pendingDeleteMessageId: 'b',
     });
-    render(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" client={client} />);
+    renderWithClient(<DeleteConfirmPopover messageId="b" conversationKey="ch:x" preview="b" />);
     fireEvent.click(await screen.findByTestId('confirm-delete-message'));
     await vi.waitFor(() => expect(api.deleteMessage).toHaveBeenCalled());
     expect(useStore.getState().messagesByKey['ch:x'].map((m) => m.id)).toEqual(['a', 'b', 'c']);
@@ -152,7 +153,7 @@ describe('search result delete', () => {
   it('exposes a delete affordance per hit and stages it', async () => {
     const { SearchMessageRow } = await import('@/panels/search/MessageRow');
     useStore.setState({ pendingDeleteMessageId: null });
-    render(
+    renderWithClient(
       <SearchMessageRow
         hit={{
           id: 'h1',
@@ -166,7 +167,6 @@ describe('search result delete', () => {
         channelName="x"
         senderName="nate"
         onClick={() => {}}
-        client={client}
         onDeleted={() => {}}
       />,
     );
@@ -179,13 +179,12 @@ describe('search result delete', () => {
     const spy = vi.spyOn(api, 'deleteMessage').mockResolvedValue({ ok: true });
     const onDeleted = vi.fn();
     useStore.setState({ pendingDeleteMessageId: 'h1' });
-    render(
+    renderWithClient(
       <SearchMessageRow
         hit={{ id: 'h1', key: 'ch:x', ts: 0, fromPublicKeyHex: null, body: 'found me', snippet: 'found me', score: 1 }}
         channelName="x"
         senderName="nate"
         onClick={() => {}}
-        client={client}
         onDeleted={onDeleted}
       />,
     );

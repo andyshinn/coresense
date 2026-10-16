@@ -1,7 +1,6 @@
 import { Loader2 } from 'lucide-react';
 import { parseSender } from '../../../shared/sender';
 import type { ConversationHit, MessageHit } from '../../../shared/types';
-import type { ApiClient } from '../../lib/api';
 import { EmptyState, Section } from './atoms';
 import { ConversationRow } from './ConversationRow';
 import { shortPk } from './format';
@@ -31,7 +30,6 @@ interface Props {
   ownerName: string;
   canLoadMore: boolean;
   loadingMore: boolean;
-  client: ApiClient | null;
   onLoadMore: () => void;
   onConversationClick: (hit: ConversationHit) => void;
   onMessageClick: (hit: MessageHit) => void;
@@ -52,7 +50,6 @@ export function ResultsList({
   ownerName,
   canLoadMore,
   loadingMore,
-  client,
   onLoadMore,
   onConversationClick,
   onMessageClick,
@@ -108,7 +105,6 @@ export function ResultsList({
                         : ownerName
                     }
                     onClick={() => onMessageClick(hit)}
-                    client={client}
                     onDeleted={onDeleted}
                   />
                 ))}

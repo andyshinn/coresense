@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // NeighboursTab (imported by the RepeaterAdmin index) transitively pulls in
@@ -32,7 +32,7 @@ vi.mock('../../src/renderer/lib/api', () => ({
 import { useStore } from '../../src/renderer/lib/store';
 import { RepeaterAdmin } from '../../src/renderer/panels/repeater-admin';
 import type { Contact } from '../../src/shared/types';
-import { TEST_CLIENT as client } from '../support/apiClient';
+import { renderWithClient } from '../support/renderWithClient';
 
 const repeaterA: Contact = {
   key: `c:${'aa'.repeat(32)}`,
@@ -54,7 +54,7 @@ afterEach(() => {
 
 describe('RepeaterAdmin — switching repeaters clears the previous one’s tab data', () => {
   it('does not show repeater A’s fetched owner info after switching to repeater B', async () => {
-    const { rerender } = render(<RepeaterAdmin contact={repeaterA} client={client} />);
+    const { rerender } = renderWithClient(<RepeaterAdmin contact={repeaterA} />);
 
     // Go to the Owner tab and fetch A's owner info.
     fireEvent.click(screen.getByRole('button', { name: 'Owner' }));
@@ -63,7 +63,7 @@ describe('RepeaterAdmin — switching repeaters clears the previous one’s tab 
 
     // Switch the panel to a different repeater in the same slot (prop change,
     // no remount from the parent) — exactly what the left-nav does.
-    rerender(<RepeaterAdmin contact={repeaterB} client={client} />);
+    rerender(<RepeaterAdmin contact={repeaterB} />);
 
     // The stale owner info from A must be gone; B hasn't been fetched yet.
     expect(screen.queryByText('A-FW-1.0')).toBeNull();

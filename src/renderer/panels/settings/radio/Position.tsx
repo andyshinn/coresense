@@ -3,14 +3,15 @@ import type { GpsConfig } from '../../../../shared/types';
 import { NumberInput, Row, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 const eqGps = (a: GpsConfig, b: GpsConfig) => a.enabled === b.enabled && a.intervalSec === b.intervalSec;
 
-export function PositionSection({ client }: SectionProps) {
+export function PositionSection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.gpsConfig);
   const connected = useStore((s) => s.transportState === 'connected');
   const { draft, setDraft, sectionProps } = useSettingsSection({

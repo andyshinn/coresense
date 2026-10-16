@@ -13,6 +13,7 @@ import { CommandPalette } from './features/command-palette';
 import { ShortcutsHelpDialog } from './features/help-overlay';
 import { useWebSocket } from './hooks/useWebSocket';
 import { type ApiClient, api, fetchCapabilities } from './lib/api';
+import { ApiClientProvider } from './lib/apiClientContext';
 import { loadApiKey, saveApiKey } from './lib/apiKey';
 import { notify } from './lib/notify';
 import { dispatchShortcut } from './lib/shortcut-dispatch';
@@ -107,15 +108,13 @@ export function App() {
   const handleMenuAction = useMemo(
     () =>
       createMenuActionHandler({
-        baseUrl,
-        apiKey,
         cycleThemePref,
         toggleLeftNav,
         toggleRightRail,
         togglePin,
         setActiveKey,
       }),
-    [cycleThemePref, toggleLeftNav, toggleRightRail, togglePin, setActiveKey, baseUrl, apiKey],
+    [cycleThemePref, toggleLeftNav, toggleRightRail, togglePin, setActiveKey],
   );
 
   useEffect(() => {
@@ -141,6 +140,9 @@ export function App() {
     })();
   }, []);
 
+  // Built once here and provided to the whole tree by ApiClientProvider below;
+  // components read it with useApiClient(), the menu-action handler with
+  // getApiClient(). App itself sits above the provider, so it uses this value.
   const client: ApiClient | null = useMemo(() => (baseUrl && apiKey ? { baseUrl, apiKey } : null), [baseUrl, apiKey]);
 
   useEffect(() => {
@@ -236,31 +238,32 @@ export function App() {
   }
 
   return (
-    <AppShell client={client}>
-      <Toaster richColors closeButton position="bottom-right" />
-      <CommandPalette client={client} cycleThemePref={cycleThemePref} />
-      <ShortcutsHelpDialog />
-      <PacketDecoderDialog />
-      <PathLearnedDialogHost client={client} />
-      <div className="flex h-full flex-1 flex-col">
-        <div className="flex-1 overflow-hidden">
-          <Suspense fallback={null}>
-            <MainPane
-              client={client}
-              onScan={handleScan}
-              onConnect={handleConnect}
-              onDisconnect={handleDisconnect}
-              renderPacketLog={() => (
-                <Suspense fallback={null}>
-                  <PacketLogHost />
-                </Suspense>
-              )}
-            />
-          </Suspense>
-        </div>
+    <ApiClientProvider client={client}>
+      <AppShell>
+        <Toaster richColors closeButton position="bottom-right" />
+        <CommandPalette cycleThemePref={cycleThemePref} />
+        <ShortcutsHelpDialog />
+        <PacketDecoderDialog />
+        <PathLearnedDialogHost />
+        <div className="flex h-full flex-1 flex-col">
+          <div className="flex-1 overflow-hidden">
+            <Suspense fallback={null}>
+              <MainPane
+                onScan={handleScan}
+                onConnect={handleConnect}
+                onDisconnect={handleDisconnect}
+                renderPacketLog={() => (
+                  <Suspense fallback={null}>
+                    <PacketLogHost />
+                  </Suspense>
+                )}
+              />
+            </Suspense>
+          </div>
 
-        <StatusBarHost port={port} />
-      </div>
-    </AppShell>
+          <StatusBarHost port={port} />
+        </div>
+      </AppShell>
+    </ApiClientProvider>
   );
 }

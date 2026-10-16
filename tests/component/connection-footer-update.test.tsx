@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/renderer/lib/api', () => ({
@@ -11,14 +11,13 @@ import { api } from '../../src/renderer/lib/api';
 import { useStore } from '../../src/renderer/lib/store';
 import { ConnectionFooter } from '../../src/renderer/shell/leftnav/ConnectionFooter';
 import type { UpdateState } from '../../src/shared/types';
-import { TEST_CLIENT } from '../support/apiClient';
 import { notify } from '../support/notifyMock';
+import { renderWithClient } from '../support/renderWithClient';
 
 function renderFooter() {
-  return render(
+  return renderWithClient(
     <SidebarProvider>
       <ConnectionFooter
-        client={TEST_CLIENT}
         state="connected"
         sync={{ phase: 'idle', channels: { done: 0, total: 0 }, contacts: { done: 0, total: 0 } }}
         onClick={() => {}}

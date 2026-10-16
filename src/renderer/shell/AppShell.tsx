@@ -1,7 +1,6 @@
 import { PanelRightOpen } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { SidebarInset, SidebarProvider } from '../components/ui/sidebar';
-import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
 import { LeftNav } from './leftnav';
 import { RightRail } from './rightrail';
@@ -14,10 +13,9 @@ interface AppShellProps {
   // When false (e.g. the API-key gate), render only TitleBar + children with
   // no left/right panes. Lets the gate take the whole window.
   showShell?: boolean;
-  client?: ApiClient | null;
 }
 
-export function AppShell({ title, children, showShell = true, client = null }: AppShellProps) {
+export function AppShell({ title, children, showShell = true }: AppShellProps) {
   const leftOpen = useStore((s) => s.ui.leftOpen);
   const rightOpen = useStore((s) => s.ui.rightOpen);
   const toggleLeftNav = useStore((s) => s.toggleLeftNav);
@@ -54,9 +52,9 @@ export function AppShell({ title, children, showShell = true, client = null }: A
         }}
         className="flex-1 overflow-hidden"
       >
-        <LeftNav client={client} />
+        <LeftNav />
         <SidebarInset className="flex flex-1 flex-col overflow-hidden bg-cs-bg">{children}</SidebarInset>
-        {rightOpen && <RightRail client={client} />}
+        {rightOpen && <RightRail />}
       </SidebarProvider>
     </div>
   );

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 // LoginTab imports notify + api at module scope; stub both so mounting is inert.
@@ -9,7 +9,7 @@ vi.mock('../../src/renderer/lib/api', () => ({
 
 import { LoginTab } from '../../src/renderer/panels/repeater-admin/LoginTab';
 import type { Contact } from '../../src/shared/types';
-import { TEST_CLIENT as client } from '../support/apiClient';
+import { renderWithClient } from '../support/renderWithClient';
 
 function repeater(overrides: Partial<Contact>): Contact {
   return {
@@ -29,13 +29,13 @@ function typePassword() {
 
 describe('LoginTab — reach label mirrors meshcore_py effective', () => {
   it('labels a known 0-hop route as Direct', () => {
-    render(<LoginTab contact={repeater({ hops: 0 })} client={client} session={null} onSession={() => {}} />);
+    renderWithClient(<LoginTab contact={repeater({ hops: 0 })} session={null} onSession={() => {}} />);
     typePassword();
     expect(screen.getByRole('button', { name: 'Log In · Direct' })).toBeTruthy();
   });
 
   it('labels an unknown out_path (hops undefined) as Flood', () => {
-    render(<LoginTab contact={repeater({ hops: undefined })} client={client} session={null} onSession={() => {}} />);
+    renderWithClient(<LoginTab contact={repeater({ hops: undefined })} session={null} onSession={() => {}} />);
     typePassword();
     expect(screen.getByRole('button', { name: 'Log In · Flood' })).toBeTruthy();
   });

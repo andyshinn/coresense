@@ -3,7 +3,6 @@ import { type ReactNode, useMemo } from 'react';
 import { isChannelKey, isContactKey, pubkeyFromKey } from '../../../shared/conversationKey';
 import { Collapsible } from '../../components/Collapsible';
 import { PacketDetailsRail } from '../../components/packet/PacketDetailsRail';
-import type { ApiClient } from '../../lib/api';
 import { resolveNeighbourPublicKey } from '../../lib/neighbours';
 import { useStore } from '../../lib/store';
 import { MapDetailsRail } from '../../panels/map/MapDetailsRail';
@@ -14,12 +13,12 @@ import { type RailData, sectionsFor } from './sectionsFor';
 
 /** Views whose rail is a fully custom pane rather than the Collapsible section
  *  stack. One lookup both renders the pane and skips building the sections. */
-const CUSTOM_RAILS: Readonly<Record<string, (client: ApiClient | null) => ReactNode>> = {
+const CUSTOM_RAILS: Readonly<Record<string, () => ReactNode>> = {
   // The Map view's right pane is a fully custom layout (search,
   // filters, last-heard slider, layer toggles, legend, or a node /
   // site card on selection) — bypass the standard Collapsible
   // sections so it matches the design's spec sheet.
-  'tool:map': (client) => <MapDetailsRail client={client} />,
+  'tool:map': () => <MapDetailsRail />,
   // Same rationale as the map bypass above: the packet log's right
   // pane is a fully custom byte-level breakdown, not a stack of
   // collapsible label/value sections.
@@ -33,12 +32,8 @@ const CUSTOM_RAILS: Readonly<Record<string, (client: ApiClient | null) => ReactN
   'tool:macros': () => <MacroReferenceRail />,
 };
 
-interface RightRailProps {
-  client: ApiClient | null;
-}
-
 /** Collapsible detail rail on the right edge; orchestrates per-view section sets. */
-export function RightRail({ client }: RightRailProps) {
+export function RightRail() {
   const activeKey = useStore((s) => s.ui.activeKey);
   const rightWidth = useStore((s) => s.ui.rightWidth);
   const openSections = useStore((s) => s.ui.openRailSections);
@@ -112,9 +107,8 @@ export function RightRail({ client }: RightRailProps) {
         ? []
         : sectionsFor(activeKey, data, {
             clearMentionedContact: () => setSelectedContact(null),
-            client,
           }),
-    [activeKey, customRail, data, setSelectedContact, client],
+    [activeKey, customRail, data, setSelectedContact],
   );
 
   return (
@@ -140,7 +134,7 @@ export function RightRail({ client }: RightRailProps) {
 
       <div className="flex-1 overflow-hidden">
         {customRail ? (
-          customRail(client)
+          customRail()
         ) : (
           <div className="h-full overflow-y-auto py-1">
             {sections.map((section) => {

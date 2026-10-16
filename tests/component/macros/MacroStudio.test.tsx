@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/notify', () => import('../../support/notifyMock'));
@@ -8,7 +8,7 @@ import { useStore } from '@/lib/store';
 import { MacroStudio, QUICK_VARS } from '@/panels/macros/MacroStudio';
 import { MACRO_VARIABLES } from '../../../src/shared/macros';
 import type { MacroTemplate } from '../../../src/shared/macros/types';
-import { TEST_CLIENT as client } from '../../support/apiClient';
+import { renderWithClient } from '../../support/renderWithClient';
 
 const existing: MacroTemplate = {
   id: 'm1',
@@ -26,25 +26,25 @@ beforeEach(() => {
 
 describe('MacroStudio', () => {
   it('shows a Create action and an empty editor for a new macro', () => {
-    render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
+    renderWithClient(<MacroStudio macro={null} onClose={vi.fn()} />);
     expect((screen.getByTestId('macro-editor') as HTMLTextAreaElement).value).toBe('');
     expect(screen.getByRole('button', { name: /create macro/i })).toBeTruthy();
   });
 
   it('loads an existing macro into the editor and name field', () => {
-    render(<MacroStudio client={client} macro={existing} onClose={vi.fn()} />);
+    renderWithClient(<MacroStudio macro={existing} onClose={vi.fn()} />);
     expect((screen.getByTestId('macro-editor') as HTMLTextAreaElement).value).toBe(existing.template);
     expect((screen.getByTestId('macro-name') as HTMLInputElement).value).toBe('Signal report');
   });
 
   it('updates the rendered char count as the template changes', () => {
-    render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
+    renderWithClient(<MacroStudio macro={null} onClose={vi.fn()} />);
     fireEvent.change(screen.getByTestId('macro-editor'), { target: { value: 'hello' } });
     expect(screen.getByTestId('char-count').textContent).toContain('5');
   });
 
   it('inserts a variable from a quick chip at the caret', () => {
-    render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
+    renderWithClient(<MacroStudio macro={null} onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'sender_name' }));
     expect((screen.getByTestId('macro-editor') as HTMLTextAreaElement).value).toBe('{{ sender_name }}');
   });
@@ -57,12 +57,12 @@ describe('MacroStudio', () => {
       expect(v, `${name} should be a manifest variable`).toBeDefined();
       expect(v?.populated, `${name} should be populated`).not.toBe(false);
     }
-    render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
+    renderWithClient(<MacroStudio macro={null} onClose={vi.fn()} />);
     expect(screen.queryByRole('button', { name: 'rssi' })).toBeNull();
   });
 
   it('opens a variable autocomplete from a {{ tag and inserts the choice', async () => {
-    render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
+    renderWithClient(<MacroStudio macro={null} onClose={vi.fn()} />);
     fireEvent.change(screen.getByTestId('macro-editor'), {
       target: { value: '{{ peer_l', selectionStart: 9, selectionEnd: 9 },
     });
@@ -71,7 +71,7 @@ describe('MacroStudio', () => {
   });
 
   it('keeps the ArrowDown-selected autocomplete item instead of snapping back to the top', () => {
-    render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
+    renderWithClient(<MacroStudio macro={null} onClose={vi.fn()} />);
     const editor = screen.getByTestId('macro-editor');
     fireEvent.change(editor, { target: { value: '{{ ', selectionStart: 3, selectionEnd: 3 } });
 
@@ -89,7 +89,7 @@ describe('MacroStudio', () => {
   });
 
   it('links the LiquidJS label to the docs', () => {
-    render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
+    renderWithClient(<MacroStudio macro={null} onClose={vi.fn()} />);
     const link = screen.getByRole('link', { name: /liquidjs/i }) as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe('https://liquidjs.com/');
     expect(link.getAttribute('target')).toBe('_blank');
@@ -97,7 +97,7 @@ describe('MacroStudio', () => {
   });
 
   it('disables Save when the template is invalid', () => {
-    render(<MacroStudio client={client} macro={existing} onClose={vi.fn()} />);
+    renderWithClient(<MacroStudio macro={existing} onClose={vi.fn()} />);
     fireEvent.change(screen.getByTestId('macro-editor'), { target: { value: '{{ not_a_real_var }}' } });
     expect((screen.getByRole('button', { name: /save macro/i }) as HTMLButtonElement).disabled).toBe(true);
   });
@@ -105,7 +105,7 @@ describe('MacroStudio', () => {
   it('saves an edited macro through updateMacro and closes', async () => {
     const spy = vi.spyOn(api, 'updateMacro').mockResolvedValue({ ...existing, name: 'Signal' });
     const onClose = vi.fn();
-    render(<MacroStudio client={client} macro={existing} onClose={onClose} />);
+    renderWithClient(<MacroStudio macro={existing} onClose={onClose} />);
     fireEvent.change(screen.getByTestId('macro-name'), { target: { value: 'Signal' } });
     fireEvent.click(screen.getByRole('button', { name: /save macro/i }));
     await waitFor(() => expect(spy).toHaveBeenCalled());
@@ -124,7 +124,7 @@ describe('MacroStudio', () => {
       updatedAt: 2,
     });
     const onClose = vi.fn();
-    render(<MacroStudio client={client} macro={null} onClose={onClose} />);
+    renderWithClient(<MacroStudio macro={null} onClose={onClose} />);
     fireEvent.change(screen.getByTestId('macro-name'), { target: { value: 'Beacon' } });
     fireEvent.change(screen.getByTestId('macro-editor'), { target: { value: '{{ my_name }}' } });
     fireEvent.click(screen.getByRole('button', { name: /create macro/i }));
@@ -134,7 +134,7 @@ describe('MacroStudio', () => {
   });
 
   it('renders the editor and the preview in a single stacked column', () => {
-    const { container } = render(<MacroStudio client={client} macro={existing} onClose={vi.fn()} />);
+    const { container } = renderWithClient(<MacroStudio macro={existing} onClose={vi.fn()} />);
     expect(screen.getByTestId('macro-editor')).toBeTruthy();
     expect(screen.getByTestId('preview-output')).toBeTruthy();
     // No two-column grid: the body is a flex column.
@@ -146,7 +146,7 @@ describe('MacroStudio', () => {
   });
 
   it('shows a non-blocking warning for an unknown filter key, and still allows saving', () => {
-    render(<MacroStudio client={client} macro={existing} onClose={vi.fn()} />);
+    renderWithClient(<MacroStudio macro={existing} onClose={vi.fn()} />);
     fireEvent.change(screen.getByTestId('macro-name'), { target: { value: 'Path' } });
     fireEvent.change(screen.getByTestId('macro-editor'), {
       target: { value: '{{ paths.first.hops | map: "pubkey" }}' },
@@ -157,7 +157,7 @@ describe('MacroStudio', () => {
   });
 
   it('shows no warnings panel for a clean template', () => {
-    render(<MacroStudio client={client} macro={existing} onClose={vi.fn()} />);
+    renderWithClient(<MacroStudio macro={existing} onClose={vi.fn()} />);
     fireEvent.change(screen.getByTestId('macro-editor'), {
       target: { value: '{{ paths.first.hops | map: "short_id" }}' },
     });
@@ -165,7 +165,7 @@ describe('MacroStudio', () => {
   });
 
   it('derives the preview caption from the sample context instead of hardcoding it', () => {
-    render(<MacroStudio client={client} macro={existing} onClose={vi.fn()} />);
+    renderWithClient(<MacroStudio macro={existing} onClose={vi.fn()} />);
     fireEvent.click(screen.getByTestId('preview-mode-reply'));
     const caption = screen.getByTestId('preview-caption').textContent ?? '';
     expect(caption).toContain('Alice');
@@ -177,7 +177,7 @@ describe('MacroStudio', () => {
   });
 
   it('wraps the quick-var chips in a hover-card trigger', () => {
-    const { container } = render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
+    const { container } = renderWithClient(<MacroStudio macro={null} onClose={vi.fn()} />);
     expect(container.querySelectorAll('[data-slot="hover-card-trigger"]').length).toBeGreaterThan(0);
     // The chip still inserts on click.
     fireEvent.click(screen.getByRole('button', { name: 'sender_name' }));
@@ -186,7 +186,7 @@ describe('MacroStudio', () => {
 
   it('opens the rail once on mount, and a preview-mode toggle never re-opens it', () => {
     useStore.setState((s) => ({ ui: { ...s.ui, rightOpen: false } }));
-    const { unmount } = render(<MacroStudio client={client} macro={null} onClose={vi.fn()} />);
+    const { unmount } = renderWithClient(<MacroStudio macro={null} onClose={vi.fn()} />);
     expect(useStore.getState().ui.rightOpen).toBe(true);
     expect(useStore.getState().macroStudioBridge).not.toBeNull();
     expect(useStore.getState().macroStudioPreviewMode).toBe('send');

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { type Contact, hasValidFix } from '../../shared/types';
-import type { ApiClient } from '../lib/api';
+import { useApiClient } from '../lib/apiClientContext';
 import { resolveNeighbours, sortNeighbours } from '../lib/neighbours';
 import { useStore } from '../lib/store';
 
@@ -11,7 +11,8 @@ import { useStore } from '../lib/store';
  *  verdict (which the list uses to group rows on/off the map), and the same
  *  resolved, sorted, count-sliced rows. The slice's page and selection belong
  *  to `nb.forKey`; for any other repeater they read as empty. */
-export function useNeighbourView(contact: Contact, client: ApiClient | null) {
+export function useNeighbourView(contact: Contact) {
+  const client = useApiClient();
   const contacts = useStore((s) => s.contacts);
   const discovered = useStore((s) => s.discovered);
   const manifest = useStore((s) => s.mapManifest);

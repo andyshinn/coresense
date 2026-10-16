@@ -12,7 +12,6 @@ import {
   SidebarRail,
 } from '../../components/ui/sidebar';
 import { useUnreadByKey } from '../../hooks/useUnreads';
-import type { ApiClient } from '../../lib/api';
 import { useStore } from '../../lib/store';
 import { ChannelContextMenu, type ChannelMenuState } from './ChannelContextMenu';
 import { ChannelsBranch } from './ChannelsBranch';
@@ -24,10 +23,6 @@ import { OwnerCard } from './OwnerCard';
 import { ToolsGroup } from './ToolsGroup';
 import { UnreadsNavItem } from './UnreadsNavItem';
 
-interface LeftNavProps {
-  client: ApiClient | null;
-}
-
 /** The one context menu the nav can have open at a time. */
 type NavMenu =
   | { kind: 'channel'; state: ChannelMenuState }
@@ -35,7 +30,7 @@ type NavMenu =
   | { kind: 'channelsRow'; x: number; y: number };
 
 /** Primary sidebar — owner card, channel/contact tree, tools, and connection footer. */
-export function LeftNav({ client }: LeftNavProps) {
+export function LeftNav() {
   const owner = useStore((s) => s.owner);
   const pinned = useStore((s) => s.ui.pinned);
   const activeKey = useStore((s) => s.ui.activeKey);
@@ -76,7 +71,7 @@ export function LeftNav({ client }: LeftNavProps) {
   return (
     <Sidebar collapsible="icon" aria-label="Primary navigation">
       <SidebarHeader>
-        <OwnerCard owner={owner} client={client} />
+        <OwnerCard owner={owner} />
       </SidebarHeader>
 
       <SidebarContent className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -92,7 +87,6 @@ export function LeftNav({ client }: LeftNavProps) {
               />
             )}
             <ChannelsBranch
-              client={client}
               connected={connected}
               activeKey={activeKey}
               pinned={pinned}
@@ -120,7 +114,6 @@ export function LeftNav({ client }: LeftNavProps) {
 
       <SidebarFooter>
         <ConnectionFooter
-          client={client}
           state={transport}
           sync={syncProgress}
           onClick={() => setActiveKey('tool:bleconnect')}
@@ -133,7 +126,6 @@ export function LeftNav({ client }: LeftNavProps) {
       {menu?.kind === 'channel' && (
         <ChannelContextMenu
           state={menu.state}
-          client={client}
           isPinned={pinSet.has(menu.state.channel.key)}
           onTogglePin={togglePin}
           onClose={closeMenu}
@@ -142,7 +134,6 @@ export function LeftNav({ client }: LeftNavProps) {
       {menu?.kind === 'contact' && (
         <ContactContextMenu
           state={menu.state}
-          client={client}
           isPinned={pinSet.has(menu.state.contact.key)}
           onTogglePin={togglePin}
           onClose={closeMenu}

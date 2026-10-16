@@ -1,17 +1,18 @@
 import type { Contact } from '../../../shared/types';
 import { RelativeTime } from '../../components/RelativeTime';
 import { useBusyAction } from '../../hooks/useBusyAction';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 import { TabToolbar } from './TabToolbar';
 
 interface Props {
   contact: Contact;
-  client: ApiClient | null;
 }
 
-export function StatusTab({ contact, client }: Props) {
+export function StatusTab({ contact }: Props) {
+  const client = useApiClient();
   const status = useStore((s) => s.repeaterStatusByKey[contact.key]);
   const [onRefresh, busy] = useBusyAction(async () => {
     if (!client) return;

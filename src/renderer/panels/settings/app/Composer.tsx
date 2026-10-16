@@ -2,15 +2,16 @@ import { Send } from 'lucide-react';
 import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { Row, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { useStore } from '../../../lib/store';
 import { saveApp } from '../save';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 const eqComposer = (a: AppSettingsType, b: AppSettingsType) =>
   a.composer.returnToSend === b.composer.returnToSend && a.composer.autoFocus === b.composer.autoFocus;
 
-export function ComposerSection({ client }: SectionProps) {
+export function ComposerSection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.appSettings);
   const { draft, setGroup, sectionProps } = useSettingsSection({
     id: 'app-composer',

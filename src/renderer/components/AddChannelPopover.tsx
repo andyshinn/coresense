@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { channelKey } from '../../shared/conversationKey';
 import { errorMessage } from '../../shared/errors';
 import type { Channel } from '../../shared/types';
-import { type ApiClient, api } from '../lib/api';
+import { api } from '../lib/api';
+import { useApiClient } from '../lib/apiClientContext';
 import { notify } from '../lib/notify';
 import { generate16ByteHex } from '../lib/randomSecret';
 import { useStore } from '../lib/store';
@@ -52,7 +53,6 @@ function PickerRow({ icon, title, subtitle, disabled, disabledHint, onClick }: P
 }
 
 interface Props {
-  client: ApiClient | null;
   onClose: () => void;
 }
 
@@ -83,7 +83,8 @@ function validateName(name: string, channels: Channel[]): string | null {
   return null;
 }
 
-export function AddChannelPopover({ client, onClose }: Props) {
+export function AddChannelPopover({ onClose }: Props) {
+  const client = useApiClient();
   const channels = useStore((s) => s.channels);
   const transport = useStore((s) => s.transportState);
   const setActiveKey = useStore((s) => s.setActiveKey);

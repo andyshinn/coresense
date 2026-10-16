@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
-import type { ApiClient } from '@/lib/api';
+import { useApiClient } from '@/lib/apiClientContext';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import type { MacroTemplate } from '../../../../shared/macros/types';
@@ -19,7 +19,6 @@ export interface ComposerMacroPopoverHandle {
 interface ComposerMacroPopoverProps {
   /** Text typed after the leading `/`. */
   query: string;
-  client: ApiClient | null;
   /** The conversation key the composer targets (`ch:…` / `c:…`). */
   targetKey?: string;
   /** Called with the rendered text to drop into the composer. */
@@ -30,7 +29,8 @@ interface ComposerMacroPopoverProps {
 /** Slash-command macro picker shown above the composer. Selecting a macro
  *  expands it to plain text (send context) and replaces the composer input. */
 export const ComposerMacroPopover = forwardRef<ComposerMacroPopoverHandle, ComposerMacroPopoverProps>(
-  function ComposerMacroPopover({ query, client, targetKey, onExpand, onClose }, ref) {
+  function ComposerMacroPopover({ query, targetKey, onExpand, onClose }, ref) {
+    const client = useApiClient();
     const macros = useStore((s) => s.macros);
     const items = useMemo(() => filterMacros(macros, query, 'all'), [macros, query]);
     const [sel, setSel] = useState(0);

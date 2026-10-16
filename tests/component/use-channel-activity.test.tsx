@@ -1,8 +1,9 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useChannelActivity } from '@/hooks/useChannelActivity';
 import { useStore } from '@/lib/store';
 import type { ChannelActivity } from '../../src/shared/types';
+import { renderHookWithClient } from '../support/renderWithClient';
 
 const emptyWindow = (len: number) => ({ buckets: new Array(len).fill(0), total: 0, prevTotal: 0, startMs: 0 });
 const payload = (): ChannelActivity => ({
@@ -19,22 +20,20 @@ vi.mock('@/lib/api', () => ({
   },
 }));
 
-const client = {} as never;
-
 describe('useChannelActivity', () => {
   beforeEach(() => {
     getChannelActivity.mockClear();
   });
 
   it('fetches on mount and exposes the payload', async () => {
-    const { result } = renderHook(() => useChannelActivity('ch:Test', client));
+    const { result } = renderHookWithClient(() => useChannelActivity('ch:Test'));
     await waitFor(() => expect(result.current.activity).toBeTruthy());
     expect(result.current.loading).toBe(false);
     expect(result.current.activity?.windows['30d'].buckets).toHaveLength(30);
   });
 
   it('refetches when the channel message list changes', async () => {
-    renderHook(() => useChannelActivity('ch:Test', client));
+    renderHookWithClient(() => useChannelActivity('ch:Test'));
     await waitFor(() => expect(getChannelActivity).toHaveBeenCalledTimes(1));
     act(() => {
       useStore.setState((s) => ({ messagesByKey: { ...s.messagesByKey, 'ch:Test': [] } }));
@@ -49,7 +48,7 @@ describe('useChannelActivity', () => {
         'c:dm': [{ id: 'd1', key: 'c:dm', body: 'yo', ts: 2, state: 'sending' }],
       },
     });
-    renderHook(() => useChannelActivity('ch:Test', client));
+    renderHookWithClient(() => useChannelActivity('ch:Test'));
     await waitFor(() => expect(getChannelActivity).toHaveBeenCalledTimes(1));
     // Used to rebuild every key's array, so the channel's list changed identity
     // and the histogram refetched on every DM delivery-state transition.
@@ -61,7 +60,7 @@ describe('useChannelActivity', () => {
 
   it('surfaces a fetch error', async () => {
     getChannelActivity.mockRejectedValueOnce(new Error('boom'));
-    const { result } = renderHook(() => useChannelActivity('ch:Test', client));
+    const { result } = renderHookWithClient(() => useChannelActivity('ch:Test'));
     await waitFor(() => expect(result.current.error).toBe('boom'));
     expect(result.current.loading).toBe(false);
   });
@@ -69,7 +68,7 @@ describe('useChannelActivity', () => {
   it('keeps the refresh timer on its own schedule when messages arrive', async () => {
     vi.useFakeTimers();
     try {
-      renderHook(() => useChannelActivity('ch:Test', client));
+      renderHookWithClient(() => useChannelActivity('ch:Test'));
       await vi.waitFor(() => expect(getChannelActivity).toHaveBeenCalledTimes(1));
 
       // Four minutes in, a message push forces its own refetch.
@@ -99,7 +98,7 @@ describe('useChannelActivity', () => {
     vi.useFakeTimers();
     try {
       const before = vi.getTimerCount();
-      const { unmount } = renderHook(() => useChannelActivity('ch:Test', client));
+      const { unmount } = renderHookWithClient(() => useChannelActivity('ch:Test'));
       // The hook owns exactly one long-lived interval while mounted.
       expect(vi.getTimerCount()).toBeGreaterThan(before);
       unmount();

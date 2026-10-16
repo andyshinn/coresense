@@ -2,7 +2,8 @@ import { ArrowLeft, Check, Info } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
-import { type ApiClient, api } from '@/lib/api';
+import { api } from '@/lib/api';
+import { useApiClient } from '@/lib/apiClientContext';
 import { notify } from '@/lib/notify';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -23,12 +24,12 @@ const SCOPES: { value: MacroScope; label: string }[] = [
 ];
 
 interface MacroStudioProps {
-  client: ApiClient | null;
   macro: MacroTemplate | null;
   onClose: () => void;
 }
 
-export function MacroStudio({ client, macro, onClose }: MacroStudioProps) {
+export function MacroStudio({ macro, onClose }: MacroStudioProps) {
+  const client = useApiClient();
   const st = useStudio(macro);
   const channels = useStore((s) => s.channels);
   const contacts = useStore((s) => s.contacts);

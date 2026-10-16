@@ -6,7 +6,6 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/
 import { SidebarMenu, SidebarMenuItem } from '../../components/ui/sidebar';
 import { Identicon } from '../../features/quick-actions/Identicon';
 import { QuickActions } from '../../features/quick-actions/QuickActions';
-import type { ApiClient } from '../../lib/api';
 import { formatVoltage, lipoPercent } from '../../lib/battery';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
@@ -14,7 +13,7 @@ import { OwnerCardPopover } from './OwnerCardPopover';
 
 /** Header identity card — identicon, name, battery, instrument rail, and the
  *  user's configured quick actions. Hovering the header reveals full radio detail. */
-export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiClient | null }) {
+export function OwnerCard({ owner }: { owner: Owner | null }) {
   const deviceInfo = useStore((s) => s.deviceInfo);
   const pathHashMode = useStore((s) => s.radioSettings.pathHashMode);
   const transport = useStore((s) => s.transportState);
@@ -85,7 +84,7 @@ export function OwnerCard({ owner, client }: { owner: Owner | null; client: ApiC
               </div>
 
               {/* Configurable quick actions */}
-              <QuickActions owner={owner} client={client} />
+              <QuickActions owner={owner} />
             </div>
           </div>
           <HoverCardContent align="start" side="right" sideOffset={8} className="w-72 p-3">

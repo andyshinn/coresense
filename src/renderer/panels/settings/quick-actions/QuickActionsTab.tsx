@@ -9,9 +9,9 @@ import { MAX_QUICK_ACTIONS, type QuickActionId } from '../../../features/quick-a
 import { QuickActions } from '../../../features/quick-actions/QuickActions';
 import { sanitizeQuickActionIds } from '../../../features/quick-actions/sanitize';
 import { addSlot, availableToAdd, moveSlot, removeSlot, setSlot } from '../../../features/quick-actions/slots';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { useStore } from '../../../lib/store';
 import { saveApp } from '../save';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 const eqQuickActions = (a: AppSettingsType, b: AppSettingsType) =>
@@ -61,7 +61,8 @@ function ActionPicker({
   );
 }
 
-export function QuickActionsTab({ client }: SectionProps) {
+export function QuickActionsTab() {
+  const client = useApiClient();
   const saved = useStore((s) => s.appSettings);
   const owner = useStore((s) => s.owner);
   const { draft, setDraft, sectionProps } = useSettingsSection({
@@ -169,7 +170,7 @@ export function QuickActionsTab({ client }: SectionProps) {
         <span className="font-mono text-[9px] uppercase tracking-wide text-cs-text-dim">Preview</span>
         <div className="mt-1.5 w-56 rounded-lg border border-cs-border bg-cs-bg-2 p-2">
           <div className="pointer-events-none">
-            <QuickActions owner={owner} client={client} idsOverride={slots} />
+            <QuickActions owner={owner} idsOverride={slots} />
           </div>
         </div>
       </div>

@@ -1,6 +1,5 @@
 import type { Channel, Contact, Message } from '../../../shared/types';
 import { SetPathEditor } from '../../components/path/SetPathEditor';
-import type { ApiClient } from '../../lib/api';
 import type { RepeaterAdminTab } from '../../lib/store';
 import { SettingsJumpRail } from '../SettingsJumpRail';
 import { Placeholder } from './atoms';
@@ -52,7 +51,7 @@ export interface RailData {
 export function sectionsFor(
   activeKey: string,
   data: RailData,
-  actions: { clearMentionedContact: () => void; client: ApiClient | null },
+  actions: { clearMentionedContact: () => void },
 ): RailSection[] {
   // The Logs panel uses the rail for filter controls and actions.
   if (activeKey === 'tool:logs') {
@@ -97,7 +96,7 @@ export function sectionsFor(
         id: 'rail.cm.actions',
         label: 'Actions',
         defaultOpen: true,
-        body: () => <ContactManagerRailBody client={actions.client} />,
+        body: () => <ContactManagerRailBody />,
       },
       {
         id: 'rail.cm.discovery',
@@ -169,7 +168,7 @@ export function sectionsFor(
             id: 'rail.repeater.neighbours',
             label: 'Neighbours',
             defaultOpen: true,
-            body: () => <NeighboursRailBody contact={contact} client={actions.client} />,
+            body: () => <NeighboursRailBody contact={contact} />,
           },
         ]
       : [];
@@ -186,13 +185,13 @@ export function sectionsFor(
               id: 'rail.channel.info',
               label: 'Channel info',
               defaultOpen: baseDefaultOpen,
-              body: () => <ChannelInfoSection channel={ch} client={actions.client} />,
+              body: () => <ChannelInfoSection channel={ch} />,
             },
             {
               id: 'rail.channel.activity',
               label: 'Activity',
               defaultOpen: false,
-              body: () => <ChannelActivitySection channel={ch} client={actions.client} />,
+              body: () => <ChannelActivitySection channel={ch} />,
             },
             {
               id: 'rail.channel.share',
@@ -205,8 +204,8 @@ export function sectionsFor(
               label: 'People',
               defaultOpen: false,
               bare: true,
-              body: () => <ChannelPeopleSection channel={ch} client={actions.client} />,
-              trailing: () => <ChannelPeopleCount channel={ch} client={actions.client} />,
+              body: () => <ChannelPeopleSection channel={ch} />,
+              trailing: () => <ChannelPeopleCount channel={ch} />,
             },
           ]
         : [
@@ -214,7 +213,7 @@ export function sectionsFor(
               id: 'rail.channel.info',
               label: 'Channel info',
               defaultOpen: baseDefaultOpen,
-              body: () => <ChannelInfoSection channel={null} client={actions.client} />,
+              body: () => <ChannelInfoSection channel={null} />,
             },
           ];
       return [...mentionedSections, ...messageSections, ...channelSections];
@@ -228,14 +227,14 @@ export function sectionsFor(
           id: 'rail.contact.card',
           label: 'Contact card',
           defaultOpen: baseDefaultOpen,
-          body: () => <ContactDetail publicKeyHex={data.cardPublicKeyHex} client={actions.client} showPath={false} />,
+          body: () => <ContactDetail publicKeyHex={data.cardPublicKeyHex} showPath={false} />,
         },
         {
           id: 'rail.contact.path',
           label: 'Path',
           body: () =>
             contact && contact.publicKeyHex.length >= 64 ? (
-              <SetPathEditor contact={contact} client={actions.client} />
+              <SetPathEditor contact={contact} />
             ) : (
               <Placeholder label="path editor needs a full public key (waiting on advert)" />
             ),

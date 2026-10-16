@@ -39,7 +39,7 @@ function seed(over: { grouping?: 'nested' | 'top-level'; limit?: number } = {}) 
 const renderNav = () =>
   render(
     <SidebarProvider>
-      <LeftNav client={null} />
+      <LeftNav />
     </SidebarProvider>,
   );
 

@@ -143,7 +143,6 @@ function view(over: Partial<React.ComponentProps<typeof MessageList>> = {}) {
       style="rich"
       lastReadMs={0}
       onMarkRead={() => {}}
-      client={null}
       {...over}
     />
   );

@@ -1,14 +1,16 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 vi.mock('@/lib/notify', () => import('../support/notifyMock'));
 
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { MessageQuickBar } from '@/features/message-actions/MessageQuickBar';
+import type { ApiClient } from '@/lib/api';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { DEFAULT_UI_STATE, type Message } from '../../src/shared/types';
-import { TEST_CLIENT as client } from '../support/apiClient';
+import { TEST_CLIENT } from '../support/apiClient';
+import { renderWithClient } from '../support/renderWithClient';
 
 const other: Message = { id: 'm1', key: 'ch:x', fromPublicKeyHex: 'a3f9', body: 'hi', ts: 0, state: 'received' };
 const mine: Message = { id: 'm2', key: 'ch:x', body: 'yo', ts: 0, state: 'sent' };
@@ -17,11 +19,12 @@ const mine: Message = { id: 'm2', key: 'ch:x', body: 'yo', ts: 0, state: 'sent' 
 // which requires an ancestor TooltipProvider (supplied in the real app by
 // AppShell's SidebarProvider). Isolated component tests need to supply that
 // context explicitly.
-function renderBar(props: React.ComponentProps<typeof MessageQuickBar>) {
-  return render(
+function renderBar(props: React.ComponentProps<typeof MessageQuickBar>, client: ApiClient | null = TEST_CLIENT) {
+  return renderWithClient(
     <TooltipProvider>
       <MessageQuickBar {...props} />
     </TooltipProvider>,
+    { client },
   );
 }
 
@@ -29,7 +32,6 @@ const base = {
   message: other,
   isSelf: false,
   senderName: 'K5TH',
-  client,
   onReact: () => {},
   onReply: () => {},
   onBlock: () => {},
@@ -86,7 +88,7 @@ describe('MessageQuickBar', () => {
   });
 
   test('without a client, the macro cluster is omitted (nothing can render)', () => {
-    renderBar({ ...base, client: null });
+    renderBar(base, null);
     expect(screen.queryByRole('button', { name: 'All macros' })).toBeNull();
     // The rest of the bar is unaffected.
     expect(screen.getByRole('button', { name: 'Reply' })).toBeTruthy();

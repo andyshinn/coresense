@@ -3,10 +3,10 @@ import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { Row, Select, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
 import { saveApp } from '../save';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 const CHANNEL_OPTIONS = [
@@ -27,7 +27,8 @@ const STATUS_LABEL: Record<string, string> = {
   error: 'Check failed',
 };
 
-export function UpdatesSection({ client }: SectionProps) {
+export function UpdatesSection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.appSettings);
   const updateState = useStore((s) => s.updateState);
   const { draft, setGroup, dirty, sectionProps } = useSettingsSection({

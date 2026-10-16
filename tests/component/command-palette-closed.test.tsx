@@ -19,7 +19,7 @@ describe('CommandPalette while closed', () => {
   });
 
   it('builds no items and ignores incoming packets until it opens', () => {
-    render(<CommandPalette client={null} cycleThemePref={() => {}} />);
+    render(<CommandPalette cycleThemePref={() => {}} />);
     act(() => {
       useStore.setState({ packets: [packet(1)] });
       useStore.setState({ packets: [packet(1), packet(2)] });

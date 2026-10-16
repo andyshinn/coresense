@@ -51,7 +51,6 @@ function renderList() {
         lastReadMs={0}
         onMarkRead={() => {}}
         onReact={() => {}}
-        client={null}
       />
     </TooltipProvider>,
   );

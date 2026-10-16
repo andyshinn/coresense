@@ -3,6 +3,7 @@ import type { RadioSettings } from '../../../../shared/types';
 import { NumberInput, NumberSelect, Row, Select, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
 import {
@@ -12,7 +13,6 @@ import {
   RADIO_PRESETS,
   SPREADING_FACTOR_OPTIONS,
 } from '../presets';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 // pathHashMode is owned by the Experimental section — exclude it here so a
@@ -30,7 +30,8 @@ const PRESET_OPTIONS = [
   ...RADIO_PRESETS.map((p) => ({ value: p.id, label: p.label })),
 ];
 
-export function RadioSection({ client }: SectionProps) {
+export function RadioSection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.radioSettings);
   const connected = useStore((s) => s.transportState === 'connected');
   const caps = useStore((s) => s.deviceCapabilities);

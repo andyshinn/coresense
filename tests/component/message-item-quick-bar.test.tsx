@@ -3,7 +3,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { MessageItem } from '@/components/MessageItem';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { Message } from '../../src/shared/types';
-import { TEST_CLIENT as client } from '../support/apiClient';
+import { renderWithClient } from '../support/renderWithClient';
 
 const message: Message = { id: 'm1', key: 'ch:x', fromPublicKeyHex: 'a3f9', body: 'hi', ts: 0, state: 'received' };
 const mine = (over: Partial<Message> = {}): Message => ({
@@ -17,7 +17,7 @@ const mine = (over: Partial<Message> = {}): Message => ({
 
 describe('MessageItem quick bar', () => {
   test('interactive rows render the quick bar (Reply present for others)', () => {
-    render(
+    renderWithClient(
       <TooltipProvider>
         <MessageItem
           message={message}
@@ -25,7 +25,6 @@ describe('MessageItem quick bar', () => {
           style="rich"
           senderName="K5TH"
           timeFormat="24h"
-          client={client}
           onSelect={() => {}}
           onReply={() => {}}
           onReact={() => {}}
@@ -36,8 +35,8 @@ describe('MessageItem quick bar', () => {
     expect(screen.getByRole('button', { name: 'Reply' })).toBeTruthy();
   });
 
-  test('passes its client through, so the macro cluster is reachable', () => {
-    render(
+  test('with a client provided, the macro cluster is reachable', () => {
+    renderWithClient(
       <TooltipProvider>
         <MessageItem
           message={message}
@@ -45,7 +44,6 @@ describe('MessageItem quick bar', () => {
           style="rich"
           senderName="K5TH"
           timeFormat="24h"
-          client={client}
           onSelect={() => {}}
           onReply={() => {}}
           onReact={() => {}}
@@ -82,7 +80,7 @@ describe('MessageItem quick bar', () => {
   // The bar is revealed by :hover, and the right-click that opens the menu
   // leaves the cursor inside the row — so without this the two overlap.
   test('the quick bar is gone while the row context menu is open', () => {
-    const { rerender } = render(
+    const { rerender } = renderWithClient(
       <TooltipProvider>
         <MessageItem
           message={message}
@@ -90,7 +88,6 @@ describe('MessageItem quick bar', () => {
           style="rich"
           senderName="K5TH"
           timeFormat="24h"
-          client={client}
           contextMenuOpen
           onSelect={() => {}}
           onReply={() => {}}
@@ -110,7 +107,6 @@ describe('MessageItem quick bar', () => {
           style="rich"
           senderName="K5TH"
           timeFormat="24h"
-          client={client}
           contextMenuOpen={false}
           onSelect={() => {}}
           onReply={() => {}}
@@ -127,7 +123,7 @@ describe('MessageItem quick bar', () => {
 // OverflowMenu hand-off rather than only unit-testing buildMessageMenuItems.
 describe('MessageItem overflow menu: Re-send', () => {
   const renderOwn = (message: Message, onResend?: (m: Message) => void) =>
-    render(
+    renderWithClient(
       <TooltipProvider>
         <MessageItem
           message={message}
@@ -135,7 +131,6 @@ describe('MessageItem overflow menu: Re-send', () => {
           style="rich"
           senderName=""
           timeFormat="24h"
-          client={client}
           onSelect={() => {}}
           onReact={() => {}}
           onResend={onResend}

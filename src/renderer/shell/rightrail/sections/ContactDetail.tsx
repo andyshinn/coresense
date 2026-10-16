@@ -22,6 +22,7 @@ import { SetPathEditor } from '../../../components/path/SetPathEditor';
 import { KeyValueRow } from '../../../components/ui/KeyValueRow';
 import { useAdvertPath } from '../../../hooks/useAdvertPath';
 import { type ApiClient, api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { distanceKm, fmtDistance, type ResolvedContact, resolveContact } from '../../../lib/contactDetail';
 import { publish as publishMapBus } from '../../../lib/map/bus';
 import { notify } from '../../../lib/notify';
@@ -40,7 +41,6 @@ const KIND_LABEL: Record<ResolvedContact['kind'], string> = {
 
 interface Props {
   publicKeyHex: string | null;
-  client: ApiClient | null;
   /** Render the embedded path subsection. False where the rail already has a
    *  dedicated Path section (dm/repeater view). Default true. */
   showPath?: boolean;
@@ -52,7 +52,8 @@ function flyToContact(pos: { gpsLat: number; gpsLon: number }) {
   publishMapBus({ kind: 'flyTo', lng: pos.gpsLon, lat: pos.gpsLat, zoom: 12 });
 }
 
-export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) {
+export function ContactDetail({ publicKeyHex, showPath = true }: Props) {
+  const client = useApiClient();
   const discovered = useStore((s) => s.discovered);
   const contacts = useStore((s) => s.contacts);
   const identity = useStore((s) => s.deviceIdentity);
@@ -64,7 +65,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
   // Lazily measures the inbound hop count once the rail settles on this contact,
   // and gives the row's button its handler. Called before the early returns
   // below because hook order can't be conditional; it no-ops on a null key.
-  const { measuring, measure } = useAdvertPath(client, publicKeyHex, { auto: true });
+  const { measuring, measure } = useAdvertPath(publicKeyHex, { auto: true });
 
   if (!publicKeyHex) return <Placeholder label="no contact focused" />;
   const rc = resolveContact(publicKeyHex, discovered, contacts);
@@ -169,12 +170,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
       </div>
 
       {blockOpen && (
-        <BlockSenderDialog
-          client={client}
-          open
-          prefill={{ pubkey: rc.publicKeyHex, name: rc.name }}
-          onClose={() => setBlockOpen(false)}
-        />
+        <BlockSenderDialog open prefill={{ pubkey: rc.publicKeyHex, name: rc.name }} onClose={() => setBlockOpen(false)} />
       )}
 
       <ConfirmDialog
@@ -274,7 +270,7 @@ export function ContactDetail({ publicKeyHex, client, showPath = true }: Props) 
         <div className="border-t border-cs-border pt-2">
           <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">Path</div>
           {rc.contact && rc.publicKeyHex.length >= 64 ? (
-            <SetPathEditor contact={rc.contact} client={client} />
+            <SetPathEditor contact={rc.contact} />
           ) : (
             <div className="space-y-1 px-1 pb-1">
               <div className="font-mono text-[12px] text-cs-text">

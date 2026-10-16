@@ -4,7 +4,7 @@ import type { MacroTemplate } from '../../../shared/macros/types';
 import type { Message } from '../../../shared/types';
 import type { BlockSenderDialogPrefill } from '../../components/BlockSenderDialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
-import type { ApiClient } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { copyToClipboard } from '../../lib/clipboard';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
@@ -33,7 +33,6 @@ interface Props {
   message: Message;
   isSelf: boolean;
   senderName: string;
-  client: ApiClient | null;
   onReact: (name: string, emoji: string) => void;
   onReply: (name: string) => void;
   onBlock: (prefill: BlockSenderDialogPrefill) => void;
@@ -44,17 +43,8 @@ interface Props {
 }
 
 /** Discord-style hover action pill anchored to the top-right of a message row. */
-export function MessageQuickBar({
-  message,
-  isSelf,
-  senderName,
-  client,
-  onReact,
-  onReply,
-  onBlock,
-  onMacro,
-  onResend,
-}: Props) {
+export function MessageQuickBar({ message, isSelf, senderName, onReact, onReply, onBlock, onMacro, onResend }: Props) {
+  const client = useApiClient();
   const [open, setOpen] = useState<PopKey>(null);
   const recordEmojiUse = useStore((s) => s.recordEmojiUse);
   const macros = useStore((s) => s.macros);
@@ -134,7 +124,6 @@ export function MessageQuickBar({
                 <MacroPanel
                   {...popoverProps('macro')}
                   macros={conversationMacros}
-                  client={client}
                   message={message}
                   onPick={(macro, text) => void pickMacro(macro, text)}
                 >

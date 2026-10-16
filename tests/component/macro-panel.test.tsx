@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import type { MacroTemplate } from '../../src/shared/macros/types';
 import type { Message } from '../../src/shared/types';
-import { TEST_CLIENT as client } from '../support/apiClient';
+import { renderWithClient } from '../support/renderWithClient';
 
 const message: Message = { id: 'm1', key: 'ch:x', fromPublicKeyHex: 'a3f9', body: 'hi', ts: 0, state: 'received' };
 
@@ -23,8 +23,8 @@ const signal: MacroTemplate = {
 const relaying: MacroTemplate = { ...signal, id: 'b', name: 'Relaying', template: 'relaying now' };
 
 function renderPanel(macros: MacroTemplate[], onPick = vi.fn()) {
-  render(
-    <MacroPanel open onOpenChange={() => {}} macros={macros} client={client} message={message} onPick={onPick}>
+  renderWithClient(
+    <MacroPanel open onOpenChange={() => {}} macros={macros} message={message} onPick={onPick}>
       <button type="button">macros</button>
     </MacroPanel>,
   );

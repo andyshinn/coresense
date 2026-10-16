@@ -3,7 +3,6 @@ import { MINUTE_MS } from '../../../../../shared/time';
 import type { ActivityWindowKey, Channel, ChannelActivity } from '../../../../../shared/types';
 import { useChannelActivity } from '../../../../hooks/useChannelActivity';
 import { useNowTick } from '../../../../hooks/useNowTick';
-import type { ApiClient } from '../../../../lib/api';
 import { useStore } from '../../../../lib/store';
 import { Placeholder } from '../../atoms';
 import { railIsWide } from '../../railWidth';
@@ -90,14 +89,8 @@ export function ActivityBody({
  *  on every render; selecting `s.ui.rightWidth` here re-rendered the chart on
  *  every frame of a resize drag even though `mode` only has two values. See
  *  railIsWide and issue #35. */
-export const ChannelActivitySection = memo(function ChannelActivitySection({
-  channel,
-  client,
-}: {
-  channel: Channel;
-  client: ApiClient | null;
-}) {
-  const { activity, loading, error } = useChannelActivity(channel.key, client);
+export const ChannelActivitySection = memo(function ChannelActivitySection({ channel }: { channel: Channel }) {
+  const { activity, loading, error } = useChannelActivity(channel.key);
   // The rail's own px width is already in the store, so no ResizeObserver is needed.
   const wide = useStore((s) => railIsWide(s.ui.rightWidth));
   const win = useStore((s) => s.ui.channelActivityWindow);

@@ -6,12 +6,11 @@ import { logError, MapErrorFallback } from '../../components/errors/ErrorFallbac
 import { MapCanvas } from '../../components/map/MapCanvas';
 import { NeighbourMapLayer } from '../../components/map/NeighbourMapLayer';
 import { useNeighbourView } from '../../hooks/useNeighbourView';
-import type { ApiClient } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { useStore } from '../../lib/store';
 
 interface Props {
   contact: Contact;
-  client: ApiClient | null;
 }
 
 function MapPlaceholder({ icon, text }: { icon: 'no-gps' | 'no-tiles'; text: string }) {
@@ -30,7 +29,8 @@ function MapPlaceholder({ icon, text }: { icon: 'no-gps' | 'no-tiles'; text: str
  *  controls + neighbour list live in the right rail (NeighboursRailBody), sharing
  *  state through the `neighbours` store slice. This component owns resetting that
  *  slice when the focal repeater changes. */
-export function NeighboursTab({ contact, client }: Props) {
+export function NeighboursTab({ contact }: Props) {
+  const client = useApiClient();
   const manifest = useStore((s) => s.mapManifest);
   const settings = useStore((s) => s.mapSettings);
   const setNeighboursFor = useStore((s) => s.setNeighboursFor);
@@ -43,7 +43,7 @@ export function NeighboursTab({ contact, client }: Props) {
     setNeighboursFor(contact.key);
   }, [contact.key, setNeighboursFor]);
 
-  const { nb, selectedId, hoveredId, tilesOk, mapShown, displayed } = useNeighbourView(contact, client);
+  const { nb, selectedId, hoveredId, tilesOk, mapShown, displayed } = useNeighbourView(contact);
 
   // hasValidFix is restated (mapShown already implies it) so it narrows
   // contact's coords for the map below.

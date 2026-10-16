@@ -1,6 +1,7 @@
 import type { Contact } from '../../../../shared/types';
 import { useNeighbourView } from '../../../hooks/useNeighbourView';
-import { type ApiClient, api } from '../../../lib/api';
+import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import type { NeighbourSortKey } from '../../../lib/neighbours';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
@@ -22,7 +23,8 @@ const ORDER_BY_FOR_SORT: Record<NeighbourSortKey, number> = {
  *  slice so it stays in sync with the map in the main pane (hover/selection
  *  couple across both). The map (NeighboursTab) owns resetting the slice when
  *  the focal repeater changes; this body only reads + fetches. */
-export function NeighboursRailBody({ contact, client }: { contact: Contact; client: ApiClient | null }) {
+export function NeighboursRailBody({ contact }: { contact: Contact }) {
+  const client = useApiClient();
   const setNeighboursSort = useStore((s) => s.setNeighboursSort);
   const setNeighboursCount = useStore((s) => s.setNeighboursCount);
   const setNeighboursBusy = useStore((s) => s.setNeighboursBusy);
@@ -32,7 +34,7 @@ export function NeighboursRailBody({ contact, client }: { contact: Contact; clie
   const setNeighboursShowNames = useStore((s) => s.setNeighboursShowNames);
 
   // mapShown is the main pane's verdict; the list uses it to decide on-map grouping.
-  const { nb, page, selectedId, hoveredId, mapShown, displayed } = useNeighbourView(contact, client);
+  const { nb, page, selectedId, hoveredId, mapShown, displayed } = useNeighbourView(contact);
 
   const doFetch = async () => {
     if (!client || nb.busy) return;

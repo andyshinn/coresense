@@ -3,9 +3,9 @@ import type { TelemetryPolicy } from '../../../../shared/types';
 import { NumberSelect, Row, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 const eqMessages = (a: TelemetryPolicy, b: TelemetryPolicy) => a.multiAcks === b.multiAcks;
@@ -16,7 +16,8 @@ const MULTI_ACK_OPTIONS = [
   { value: 2, label: '2' },
 ] satisfies { value: number; label: string }[];
 
-export function MessageSection({ client }: SectionProps) {
+export function MessageSection() {
+  const client = useApiClient();
   const saved = useStore((s) => s.telemetryPolicy);
   const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'radio-messages',

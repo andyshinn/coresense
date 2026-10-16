@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/renderer/lib/api', () => ({
@@ -6,11 +6,11 @@ vi.mock('../../src/renderer/lib/api', () => ({
 }));
 
 import { NotificationsSection } from '../../src/renderer/panels/settings/app/Notifications';
-import { TEST_CLIENT } from '../support/apiClient';
+import { renderWithClient } from '../support/renderWithClient';
 
 describe('NotificationsSection', () => {
   it('renders the backlog-summary toggle row', () => {
-    render(<NotificationsSection client={TEST_CLIENT} />);
+    renderWithClient(<NotificationsSection />);
     expect(screen.getByText('Summarize while away')).toBeTruthy();
   });
 });

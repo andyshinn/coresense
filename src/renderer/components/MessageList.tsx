@@ -10,7 +10,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { senderDisplayName } from '../../shared/sender';
 import type { Contact, Message, MessageStyle, TimeFormatPref } from '../../shared/types';
 import { buildMessageMenuItems } from '../features/message-actions/menuItems';
-import type { ApiClient } from '../lib/api';
 import { useStore } from '../lib/store';
 import { fmtDate } from '../lib/time';
 import { VIRTUOSO_LICENSE_KEY } from '../lib/virtuosoLicense';
@@ -41,7 +40,6 @@ interface Props {
   onReply?: (senderName: string) => void;
   onReact?: (name: string, emoji: string) => void;
   onMacro?: (name: string, text: string) => void;
-  client: ApiClient | null;
   /** When set, scroll the row whose message.id matches into view and apply a
    *  brief highlight, then call onJumpConsumed so the parent clears state. */
   jumpToId?: string | null;
@@ -66,7 +64,6 @@ interface RowContext {
   onContextMenu: (m: Message, e: React.MouseEvent) => void;
   /** True while the right-click menu is open, so rows drop their hover bar. */
   contextMenuOpen: boolean;
-  client: ApiClient | null;
 }
 
 interface MessageMenuState {
@@ -116,7 +113,6 @@ const ItemRow: ItemContent<Item, RowContext> = ({ data, context }) => {
       timeFormat={context.timeFormat}
       selected={context.selectedId === m.id}
       flash={context.flashId === m.id}
-      client={context.client}
       onSelect={() => context.onSelect(m.id)}
       onContextMenu={(e) => context.onContextMenu(m, e)}
       onReply={context.onReply}
@@ -148,7 +144,6 @@ export function MessageList({
   onReply,
   onReact,
   onMacro,
-  client,
   jumpToId,
   onJumpConsumed,
 }: Props) {
@@ -473,7 +468,6 @@ export function MessageList({
     onResend,
     onContextMenu: handleContextMenu,
     contextMenuOpen: menu != null,
-    client,
   };
 
   if (visibleMessages.length === 0 && !initialItemsRef.current?.length) {
@@ -528,9 +522,7 @@ export function MessageList({
             />
           );
         })()}
-      {blockPrefill && (
-        <BlockSenderDialog client={client} open prefill={blockPrefill} onClose={() => setBlockPrefill(null)} />
-      )}
+      {blockPrefill && <BlockSenderDialog open prefill={blockPrefill} onClose={() => setBlockPrefill(null)} />}
     </div>
   );
 }

@@ -3,18 +3,15 @@ import { useMemo, useState } from 'react';
 import { type ContactKind, hasValidFix, type MapSettings } from '../../../shared/types';
 import { MARKER_KIND_ORDER, MARKER_TYPES, MarkerShape } from '../../components/map/markers/MarkerShape';
 import { Input } from '../../components/ui/input';
-import type { ApiClient } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { updateMapSettings } from '../../lib/map/settings';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
 import { NumberRow, SectionHeader, SwitchVisual, ToggleRow } from './controls/atoms';
 import { LastHeardSlider } from './controls/LastHeardSlider';
 
-interface Props {
-  client: ApiClient | null;
-}
-
-export function ControlsCard({ client }: Props) {
+export function ControlsCard() {
+  const client = useApiClient();
   const contacts = useStore((s) => s.contacts);
   const settings = useStore((s) => s.mapSettings);
   const [query, setQuery] = useState('');

@@ -1,7 +1,8 @@
 import { Braces, Globe, Hash, Plus, Search, User } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { type ApiClient, api } from '@/lib/api';
+import { api } from '@/lib/api';
+import { useApiClient } from '@/lib/apiClientContext';
 import { notify } from '@/lib/notify';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -31,12 +32,12 @@ const SCOPE_FILTERS: { value: ScopeFilter; label: string; icon: typeof Globe | n
 ];
 
 interface MacroLibraryProps {
-  client: ApiClient | null;
   onNew: () => void;
   onEdit: (m: MacroTemplate) => void;
 }
 
-export function MacroLibrary({ client, onNew, onEdit }: MacroLibraryProps) {
+export function MacroLibrary({ onNew, onEdit }: MacroLibraryProps) {
+  const client = useApiClient();
   const macros = useStore((s) => s.macros);
   const channels = useStore((s) => s.channels);
   const contacts = useStore((s) => s.contacts);

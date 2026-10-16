@@ -4,9 +4,9 @@ import type { DeviceIdentity } from '../../../../shared/types';
 import { Row, TextInput, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
-import type { SectionProps } from '../types';
 import { useSettingsSection } from '../useSectionDraft';
 
 interface PublicInfoDraft {
@@ -18,7 +18,8 @@ interface PublicInfoDraft {
 const eqPublicInfo = (a: PublicInfoDraft, b: PublicInfoDraft) =>
   a.name === b.name && a.latText === b.latText && a.lonText === b.lonText && a.share === b.share;
 
-export function PublicInfoSection({ client }: SectionProps) {
+export function PublicInfoSection() {
+  const client = useApiClient();
   const identity = useStore((s) => s.deviceIdentity);
   const owner = useStore((s) => s.owner);
   const connected = useStore((s) => s.transportState === 'connected');

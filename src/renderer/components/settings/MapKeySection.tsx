@@ -1,16 +1,13 @@
 import { Map as MapIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { errorMessage } from '../../../shared/errors';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { updateMapSettings } from '../../lib/map/settings';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 import { Row, TextInput } from './Field';
 import { SettingsSection } from './SettingsSection';
-
-interface Props {
-  client: ApiClient | null;
-}
 
 const MB = 1024 * 1024;
 const CACHE_CAP_OPTIONS = [256, 512, 1024, 2048, 5120].map((mb) => ({
@@ -29,7 +26,8 @@ function formatBytes(bytes: number): string {
 // flows one way (renderer → main on POST) and never back. Because the key is
 // write-only it keeps its own inline Save/Remove buttons rather than the
 // section-level dirty/Save model.
-export function MapKeySection({ client }: Props) {
+export function MapKeySection() {
+  const client = useApiClient();
   const hasKey = useStore((s) => s.mapSettings.hasProtomapsApiKey);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);

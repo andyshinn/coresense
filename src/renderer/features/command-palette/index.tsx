@@ -9,7 +9,7 @@ import {
   CommandList,
 } from '../../components/ui/command';
 import { Kbd } from '../../components/ui/kbd';
-import type { ApiClient } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { loadLastDevice } from '../../lib/lastDevice';
 import { useStore } from '../../lib/store';
 import { buildActionItems } from './items/actions';
@@ -23,7 +23,6 @@ import { GROUP_LABEL, type PaletteGroup, type PaletteItem } from './types';
 const FOOTER_KBD_CLS = 'h-auto min-w-0 border-cs-border bg-cs-bg-3 px-1 py-px text-[10px]';
 
 interface Props {
-  client: ApiClient | null;
   cycleThemePref: () => void;
 }
 
@@ -48,7 +47,7 @@ function makePaletteFilter(hintWeight: number) {
   };
 }
 
-export function CommandPalette({ client, cycleThemePref }: Props) {
+export function CommandPalette({ cycleThemePref }: Props) {
   const open = useStore((s) => s.paletteOpen);
   const close = useStore((s) => s.closePalette);
   const hintWeightPct = useStore((s) => s.appSettings.commandPalette.hintWeightPct);
@@ -69,12 +68,13 @@ export function CommandPalette({ client, cycleThemePref }: Props) {
       {/* The dialog content (and so PaletteBody) is only mounted while open or
           animating closed, so a closed palette doesn't subscribe to packets
           and messages or rebuild its items on every RX. */}
-      <PaletteBody client={client} cycleThemePref={cycleThemePref} close={close} />
+      <PaletteBody cycleThemePref={cycleThemePref} close={close} />
     </CommandDialog>
   );
 }
 
-function PaletteBody({ client, cycleThemePref, close }: Props & { close: () => void }) {
+function PaletteBody({ cycleThemePref, close }: Props & { close: () => void }) {
+  const client = useApiClient();
   const channels = useStore((s) => s.channels);
   const contacts = useStore((s) => s.contacts);
   const recentKeys = useStore((s) => s.ui.recentKeys);

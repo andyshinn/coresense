@@ -3,7 +3,8 @@ import type { Channel } from '../../../../shared/types';
 import { RelativeTime } from '../../../components/RelativeTime';
 import { SecretField } from '../../../components/SecretField';
 import { KeyValueRow } from '../../../components/ui/KeyValueRow';
-import { type ApiClient, api } from '../../../lib/api';
+import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
 import { fmtDate } from '../../../lib/time';
@@ -46,7 +47,8 @@ export function ChannelInfoBody({
 }
 
 /** Container: resolves last-active from the store and wires the mute toggle. */
-export function ChannelInfoSection({ channel, client }: { channel: Channel | null; client: ApiClient | null }) {
+export function ChannelInfoSection({ channel }: { channel: Channel | null }) {
+  const client = useApiClient();
   // Only the newest ts, not the whole array: a primitive selector skips the
   // re-render when an older message in this channel changes state.
   const lastActiveTs = useStore((s) => (channel ? (s.messagesByKey[channel.key]?.at(-1)?.ts ?? null) : null));

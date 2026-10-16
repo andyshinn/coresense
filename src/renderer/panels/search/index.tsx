@@ -2,21 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { errorMessage } from '../../../shared/errors';
 import { parseSender } from '../../../shared/sender';
 import type { ConversationHit, MessageHit, SearchResults as SearchResultsPayload, SearchSort } from '../../../shared/types';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { useStore } from '../../lib/store';
 import { applyCategorySelection } from './categoryFilter';
 import { shortPk } from './format';
 import { ResultsList } from './ResultsList';
 import { SearchHeader } from './SearchHeader';
 
-interface Props {
-  client: ApiClient | null;
-}
-
 const DEBOUNCE_MS = 150;
 const PAGE_LIMIT = 100;
 
-export function SearchResults({ client }: Props) {
+export function SearchResults() {
+  const client = useApiClient();
   const searchQuery = useStore((s) => s.searchQuery);
   const setSearchQuery = useStore((s) => s.setSearchQuery);
   const filters = useStore((s) => s.searchFilters);
@@ -272,7 +270,6 @@ export function SearchResults({ client }: Props) {
         ownerName={owner?.name ?? 'me'}
         canLoadMore={canLoadMore}
         loadingMore={loadingMore}
-        client={client}
         onLoadMore={onLoadMore}
         onConversationClick={onConversationClick}
         onMessageClick={onMessageClick}

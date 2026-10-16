@@ -1,17 +1,18 @@
 import { useState } from 'react';
 import type { Contact, RepeaterAclEntry } from '../../../shared/types';
 import { useBusyAction } from '../../hooks/useBusyAction';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { ACL_ROLE_LABEL, formatPermissions } from './aclRole';
 import { TabToolbar } from './TabToolbar';
 
 interface Props {
   contact: Contact;
-  client: ApiClient | null;
   disabled: boolean;
 }
 
-export function AclTab({ contact, client, disabled }: Props) {
+export function AclTab({ contact, disabled }: Props) {
+  const client = useApiClient();
   const [entries, setEntries] = useState<RepeaterAclEntry[] | null>(null);
   const [load, busy] = useBusyAction(async () => {
     if (!client) return;

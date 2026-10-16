@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { BlockRule, BlockRuleType } from '../../shared/types';
-import { type ApiClient, api } from '../lib/api';
+import { api } from '../lib/api';
+import { useApiClient } from '../lib/apiClientContext';
 import { notify } from '../lib/notify';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
@@ -26,7 +27,6 @@ export interface BlockSenderDialogPrefill {
 }
 
 interface Props {
-  client: ApiClient | null;
   open: boolean;
   prefill: BlockSenderDialogPrefill;
   onClose: () => void;
@@ -47,7 +47,8 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export function BlockSenderDialog({ client, open, prefill, onClose }: Props) {
+export function BlockSenderDialog({ open, prefill, onClose }: Props) {
+  const client = useApiClient();
   const [checked, setChecked] = useState<Record<IdentifierType, boolean>>(() => ({
     pubkey: prefill.pubkey != null,
     pubkeyPrefix: prefill.pubkeyPrefix != null,

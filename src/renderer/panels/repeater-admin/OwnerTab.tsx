@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import type { Contact, RepeaterOwnerInfo } from '../../../shared/types';
 import { useBusyAction } from '../../hooks/useBusyAction';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { TabToolbar } from './TabToolbar';
 
 interface Props {
   contact: Contact;
-  client: ApiClient | null;
 }
 
-export function OwnerTab({ contact, client }: Props) {
+export function OwnerTab({ contact }: Props) {
+  const client = useApiClient();
   const [info, setInfo] = useState<RepeaterOwnerInfo | null>(null);
   const [load, busy] = useBusyAction(async () => {
     if (!client) return;
