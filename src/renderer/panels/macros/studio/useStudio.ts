@@ -1,8 +1,8 @@
 import { type RefObject, useCallback, useRef, useState } from 'react';
 import type { MacroRenderMode, MacroScope, MacroTemplate } from '../../../../shared/macros/types';
-import { MACRO_CATALOG } from '../lib/catalog';
+import { MACRO_CATALOG } from '../../../features/macros/catalog';
+import { deriveMacroMode } from '../../../features/macros/macroMode';
 import { focusCaret, spliceAtCaret, varTag } from '../lib/insertAtCaret';
-import { deriveMacroMode } from '../lib/macroMode';
 
 export interface StudioState {
   taRef: RefObject<HTMLTextAreaElement | null>;

@@ -21,7 +21,7 @@
 // about filter names it doesn't recognise (it assumes a standard LiquidJS
 // filter and colours it as such rather than erroring).
 
-import type { MacroRenderMode } from '../../../../shared/macros/types';
+import type { MacroRenderMode } from '../../../shared/macros/types';
 
 export type TokenType =
   | 'text'

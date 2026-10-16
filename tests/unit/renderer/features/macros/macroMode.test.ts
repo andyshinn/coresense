@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { deriveMacroMode } from '@/panels/macros/lib/macroMode';
-import type { MacroCatalog } from '@/panels/macros/lib/tokenize';
+import { deriveMacroMode } from '@/features/macros/macroMode';
+import type { MacroCatalog } from '@/features/macros/tokenize';
 
 const catalog: MacroCatalog = {
   variableNames: new Set(['my_name', 'my_pos', 'peer_name', 'peer_pos', 'sender_name', 'snr']),

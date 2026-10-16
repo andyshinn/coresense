@@ -1,5 +1,5 @@
-import { getManifest, replyOnlyVariableNames } from '../../../../shared/macros';
-import type { MacroManifest } from '../../../../shared/macros/types';
+import { getManifest, replyOnlyVariableNames } from '../../../shared/macros';
+import type { MacroManifest } from '../../../shared/macros/types';
 import type { MacroCatalog } from './tokenize';
 
 /** Build the tokenizer's catalog from the server manifest so syntax colouring

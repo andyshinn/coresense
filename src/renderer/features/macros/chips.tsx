@@ -2,11 +2,11 @@ import { Globe, Hash, Reply, User } from 'lucide-react';
 import { useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { MacroScope } from '../../../../shared/macros/types';
-import { MACRO_CATALOG } from '../lib/catalog';
-import { deriveMacroMode } from '../lib/macroMode';
-import { TOKEN_COLORS } from '../lib/tokenColors';
-import { keyedRuns, tokenize } from '../lib/tokenize';
+import type { MacroScope } from '../../../shared/macros/types';
+import { MACRO_CATALOG } from './catalog';
+import { deriveMacroMode } from './macroMode';
+import { TOKEN_COLORS } from './tokenColors';
+import { keyedRuns, tokenize } from './tokenize';
 
 /** A one-line, syntax-coloured rendering of a macro template. */
 export function Snippet({ template, className }: { template: string; className?: string }) {

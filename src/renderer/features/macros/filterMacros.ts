@@ -1,4 +1,4 @@
-import type { MacroScope, MacroTemplate } from '../../../../shared/macros/types';
+import type { MacroScope, MacroTemplate } from '../../../shared/macros/types';
 
 export type ScopeFilter = 'all' | MacroScope;
 

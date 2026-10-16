@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCatalog } from '@/panels/macros/lib/catalog';
+import { buildCatalog } from '@/features/macros/catalog';
 import { getManifest } from '../../../../../src/shared/macros';
 
 describe('buildCatalog', () => {

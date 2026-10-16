@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useApiClient } from '@/lib/apiClientContext';
-import type { MacroTemplate } from '../../../../shared/macros/types';
+import type { MacroTemplate } from '../../../shared/macros/types';
 import { renderMacroSafe } from './inchat';
 
 export type PreviewState =

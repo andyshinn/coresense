@@ -2,11 +2,11 @@ import { type CSSProperties, type RefObject, useMemo, useRef, useState } from 'r
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import type { MacroRenderMode, MacroVariable } from '../../../../shared/macros/types';
+import { MACRO_CATALOG } from '../../../features/macros/catalog';
+import { TOKEN_COLORS } from '../../../features/macros/tokenColors';
+import { keyedRuns, type MacroCatalog, tokenize } from '../../../features/macros/tokenize';
 import { detectOpenVarTag } from '../lib/autocomplete';
-import { MACRO_CATALOG } from '../lib/catalog';
 import { focusCaret, spliceAtCaret, varTag } from '../lib/insertAtCaret';
-import { TOKEN_COLORS } from '../lib/tokenColors';
-import { keyedRuns, type MacroCatalog, tokenize } from '../lib/tokenize';
 
 // Shared metrics so the painted <pre> and the real <textarea> register glyph
 // for glyph — the textarea is transparent and layered exactly over the colours.

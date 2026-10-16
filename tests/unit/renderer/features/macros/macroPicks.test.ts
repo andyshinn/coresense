@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applicableMacros, topMacros } from '../../../../../src/renderer/features/message-actions/macroPicks';
+import { applicableMacros, topMacros } from '../../../../../src/renderer/features/macros/macroPicks';
 import type { MacroTemplate } from '../../../../../src/shared/macros/types';
 import type { UsageMap } from '../../../../../src/shared/types';
 

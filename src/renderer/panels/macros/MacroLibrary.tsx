@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { errorMessage } from '../../../shared/errors';
 import type { MacroTemplate } from '../../../shared/macros/types';
 import type { Channel, Contact } from '../../../shared/types';
-import { filterMacros, type ScopeFilter, scopeCounts } from './lib/filterMacros';
+import { filterMacros, type ScopeFilter, scopeCounts } from '../../features/macros/filterMacros';
 import { MacroRow } from './MacroRow';
 
 /** Human label for a macro's scope binding, resolved against the live lists. */

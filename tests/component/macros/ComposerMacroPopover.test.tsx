@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/notify', () => import('../../support/notifyMock'));
 
+import { ComposerMacroPopover } from '@/features/macros/ComposerMacroPopover';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
-import { ComposerMacroPopover } from '@/panels/macros/inchat/ComposerMacroPopover';
 import type { MacroTemplate } from '../../../src/shared/macros/types';
 import { notify } from '../../support/notifyMock';
 import { renderWithClient } from '../../support/renderWithClient';

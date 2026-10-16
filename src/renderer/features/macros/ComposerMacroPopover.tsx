@@ -2,10 +2,10 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'r
 import { useApiClient } from '@/lib/apiClientContext';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
-import type { MacroTemplate } from '../../../../shared/macros/types';
-import { Snippet } from '../components/chips';
-import { filterMacros } from '../lib/filterMacros';
-import { expandMacro } from '../lib/inchat';
+import type { MacroTemplate } from '../../../shared/macros/types';
+import { Snippet } from './chips';
+import { filterMacros } from './filterMacros';
+import { expandMacro } from './inchat';
 
 export interface ComposerMacroPopoverHandle {
   /** Move the highlighted item; wraps around. */

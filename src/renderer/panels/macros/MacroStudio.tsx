@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { errorMessage } from '../../../shared/errors';
 import { lintTemplate, MACRO_VARIABLES, resolvePath, sampleStructure, validateTemplate } from '../../../shared/macros';
 import type { MacroScope, MacroTemplate } from '../../../shared/macros/types';
-import { ModeChip } from './components/chips';
+import { ModeChip } from '../../features/macros/chips';
 import { MacroEditor } from './studio/MacroEditor';
 import { PreviewPane } from './studio/PreviewPane';
 import { useStudio } from './studio/useStudio';

@@ -8,11 +8,11 @@ import { useApiClient } from '../../lib/apiClientContext';
 import { copyToClipboard } from '../../lib/clipboard';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
-import { expandMacroReply } from '../../panels/macros/lib/inchat';
+import { expandMacroReply } from '../macros/inchat';
+import { applicableMacros, topMacros } from '../macros/macroPicks';
 import { EmojiPickerPopover } from './EmojiPickerPopover';
 import { MacroChip, MacroPanel } from './MacroPanel';
 import { MessageInfoPopover } from './MessageInfoPopover';
-import { applicableMacros, topMacros } from './macroPicks';
 import { OverflowMenu } from './OverflowMenu';
 import { ReactionRow } from './ReactionRow';
 

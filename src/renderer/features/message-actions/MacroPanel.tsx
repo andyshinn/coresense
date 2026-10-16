@@ -6,8 +6,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/pop
 import { MAX_MESSAGE_LENGTH } from '../../lib/messageLimits';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
-import { Snippet } from '../../panels/macros/components/chips';
-import { type PreviewState, useReplyPreviews } from '../../panels/macros/lib/useReplyPreviews';
+import { Snippet } from '../macros/chips';
+import { type PreviewState, useReplyPreviews } from '../macros/useReplyPreviews';
 
 /** One-click macro shortcut in the quick bar. */
 export function MacroChip({ macro, onPick }: { macro: MacroTemplate; onPick: (macro: MacroTemplate) => void }) {

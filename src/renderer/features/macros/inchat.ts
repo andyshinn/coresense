@@ -1,9 +1,9 @@
 import { type ApiClient, api } from '@/lib/api';
 import { notify } from '@/lib/notify';
-import { isChannelKey, isContactKey } from '../../../../shared/conversationKey';
-import { errorMessage } from '../../../../shared/errors';
-import { MACRO_PLACEHOLDER } from '../../../../shared/macros';
-import type { MacroRenderMode, MacroTemplate } from '../../../../shared/macros/types';
+import { isChannelKey, isContactKey } from '../../../shared/conversationKey';
+import { errorMessage } from '../../../shared/errors';
+import { MACRO_PLACEHOLDER } from '../../../shared/macros';
+import type { MacroRenderMode, MacroTemplate } from '../../../shared/macros/types';
 
 /** Map a conversation key (`ch:…` / `c:…`) to the render-context binding the
  *  macro engine expects, so peer/channel variables resolve. */

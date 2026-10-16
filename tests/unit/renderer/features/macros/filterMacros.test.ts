@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterMacros, scopeCounts } from '@/panels/macros/lib/filterMacros';
+import { filterMacros, scopeCounts } from '@/features/macros/filterMacros';
 import type { MacroTemplate } from '../../../../../src/shared/macros/types';
 
 const mk = (over: Partial<MacroTemplate>): MacroTemplate => ({

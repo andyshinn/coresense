@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/notify', () => import('../../../../support/notifyMock'));
 
+import { expandMacro, expandMacroReply, renderMacroSafe, targetToContext } from '@/features/macros/inchat';
 import { api } from '@/lib/api';
-import { expandMacro, expandMacroReply, renderMacroSafe, targetToContext } from '@/panels/macros/lib/inchat';
 import type { MacroTemplate } from '../../../../../src/shared/macros/types';
 import { TEST_CLIENT as client } from '../../../../support/apiClient';
 import { notify, resetNotifyMock } from '../../../../support/notifyMock';

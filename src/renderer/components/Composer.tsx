@@ -2,6 +2,7 @@ import { Loader2, Send } from 'lucide-react';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { RadioSettings } from '../../shared/types';
 import { flushDrafts } from '../app/useDraftsPersistence';
+import { ComposerMacroPopover, type ComposerMacroPopoverHandle } from '../features/macros/ComposerMacroPopover';
 import { loraAirtimeMs } from '../lib/airtime';
 import { useApiClient } from '../lib/apiClientContext';
 import { shouldSendOnKey } from '../lib/composerKeys';
@@ -9,7 +10,6 @@ import { mentionedNames } from '../lib/messageContent';
 import { MAX_MESSAGE_LENGTH } from '../lib/messageLimits';
 import { useStore } from '../lib/store';
 import { cn } from '../lib/utils';
-import { ComposerMacroPopover, type ComposerMacroPopoverHandle } from '../panels/macros/inchat/ComposerMacroPopover';
 
 // Counter turns yellow once this few characters remain before the cap.
 const WARN_REMAINING = 20;

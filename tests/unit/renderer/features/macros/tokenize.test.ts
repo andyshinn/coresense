@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type MacroCatalog, type TokenizeResult, type TokenType, tokenize } from '@/panels/macros/lib/tokenize';
+import { type MacroCatalog, type TokenizeResult, type TokenType, tokenize } from '@/features/macros/tokenize';
 import type { MacroRenderMode } from '../../../../../src/shared/macros/types';
 
 const catalog: MacroCatalog = {
