@@ -4,6 +4,8 @@ This report comes from a multi-agent review of `src/` and `tests/` at main `93e7
 
 Batches B1–B15 are implemented on branch `refactor/code-quality`. **This document records what is still open.** Batches D1–D4 were deferred because each one needs your decision, a manual or packaged-app check, or a large change that cuts across many files. Some findings were handled only in part: helpers were adopted inside each batch's own files, and the leftover call sites were finished in the final integration pass.
 
+**Update 2026-10-16:** D1, D2 and D3 are now implemented on the same branch; each section below opens with a status note saying what was done and what remains. D4 is still open.
+
 ## Overall assessment
 
 CoreSense is in good shape for a codebase of its size and age. strict TypeScript is on, src has no explicit `any`, no non-null assertions and no ts-ignore, Biome reports zero diagnostics, and all 44 biome-ignores give a reason. Tests drive real paths (a real MeshCoreSession over a loopback transport, real sqlite in temp dirs). The "why" comments are unusually good and record firmware and library quirks. Where code was designed for testing, it is clean: updates/*, runtime seams, the CLI pure core, mergeMessages, messageListSync, the macros package, and the small storage/bridge modules (contactWalk, inboxCache, framing). Reviewers kept finding the same thing: hard algorithms are pulled out into pure, tested modules, and the debt sits in the glue around them.
@@ -57,6 +59,13 @@ Almost all of the remaining work is mechanical extraction, deletion or consolida
 
 ### D1 CI/lint guards and packaging (needs user approval)
 
+**Status (2026-10-16): done.** Decisions: align on Node 24; zod is a devDependency like every other bundled library.
+- CI runs `pnpm test:coverage` once (every vitest project, dom included) and takes pnpm from `packageManager: pnpm@11.10.0`; mise and `@types/node` are on Node 24.
+- `biome check --error-on-warnings`; `noRestrictedImports` overrides keep renderer, main/preload and shared from importing across the process boundary (and keep `src/renderer/lib` the renderer's bottom layer); `noImportCycles` (the protocol → advertPath → protocol cycle is broken); `noConsole` with reasons on the two deliberate uses.
+- `dependencies` holds only the runtime externals (`@stoprocent/noble`, `ws`, `electron-squirrel-startup`); RELEASING.md records the rule. A packaged Linux build boots from the trimmed asar, and CI's three `make` jobs pass.
+- Dropped `@electron/rebuild` v4, `nan` and six stale pnpm-workspace entries.
+- Not done: the optional `.catch` before `.finally` at index.ts and the nursery promise rules.
+
 **Goal:** Ratchet lint warnings, de-duplicate the CI test runs, enforce process boundaries via Biome noRestrictedImports/noImportCycles/noConsole, trim app.asar dependencies, and align the toolchain versions.
 
 **Why deferred:** The user has said they dislike bespoke guards and wants to verify build wiring themselves (memory). Packaging changes need a packaged-app launch, and CI changes need the user's sign-off. Propose these rather than implement them.
@@ -98,6 +107,12 @@ Almost all of the remaining work is mechanical extraction, deletion or consolida
 - **Recommendation:** Route index.ts:21 and :120 console.error through `log`. Delete the eslint-disable comment. Enable suspicious/noConsole (warn), with biome-ignore plus a reason in fileSink.ts and auth.ts. Optionally add `.catch(err => log.error(...))` before `.finally` at index.ts:563. Skip enabling the nursery promise rules until they stabilise.
 
 ### D2 routes split, request validation and shared API contract
+
+**Status (2026-10-16): done.** Decisions: zod for validation; the HTTP API is a public surface, so every endpoint is kept and covered by a route test.
+- `src/main/api/routes/` holds one `register*Routes` module per resource; device settings, channel slots and the macro render context live in services that return a status; `state/commit.ts` pairs set-and-broadcast; `protocol/autoAddMapping.ts` owns the AutoAddConfig mapping, with a round-trip test.
+- `src/shared/api/schemas.ts` validates every request body before any write (400 `invalid_body` with `issues`), each schema pinned to its type at compile time; `src/shared/api/contract.ts` types requests, responses and the snake_case `ApiErrorCode` union, and both the routes (`satisfies`) and the renderer client use it.
+- Renderer `api.ts` is built on verb helpers and an encoding `apiPath` template; the CLI route classifies `cli_superseded`, so the renderer no longer reads error text; the renderer is served with `serveStatic`.
+- Still open: the three radio failure conventions belong in meshcore-ts (coresense now folds them into one helper per service); the settings loader does not yet reuse the schemas.
 
 **Goal:** Split routes.ts into per-domain register* modules with a services object, move domain logic into services, add boundary validation for persisting endpoints, and add src/shared API contract types.
 
@@ -170,6 +185,13 @@ Almost all of the remaining work is mechanical extraction, deletion or consolida
 - **Recommendation:** Add thin verb helpers (`get<T>(c, path)`, `post<T>(c, path, body?)`, `put`, `del`) and a tagged-template path builder that encodes interpolations (`path`/api/repeater/${key}/status``). Express the repeater group as `repeaterPost(c, key, 'status')`. Move `Channel` into the top import. Set Content-Type only when `init.body` is present. Optionally group endpoints by domain (`api.repeater.status`) while keeping the flat `api` object for vi.mock compatibility.
 
 ### D3 renderer architecture: ApiClient context, store slices, typed keys
+
+**Status (2026-10-16): done.**
+- ApiClient comes from `ApiClientProvider`/`useApiClient()`; non-React code reads `getApiClient()`. The @mention contact card was always rendered with no client and is now wrapped in `NoApiClient` to keep that; whether it should have a client is an open question.
+- The store is one zustand store composed from slices in `src/renderer/lib/store/`, with navigation and the Settings unsaved-changes guard together in `nav.ts`.
+- lib/ imports nothing above it (enforced by Biome); the reusable macro modules live in `features/macros/`; the snapshot and uiState wire boundaries are typed honestly.
+- `Channel.key`, `Contact.key`, `UiState.activeKey`/`recentKeys`/`pinned` and the navigation paths use the key types in `shared/conversationKey.ts` and `shared/keys.ts`. Still open: `Message.key` and the SQLite rows remain `string`; keys from those edges are narrowed with guards.
+- `shared/types.ts` is a `shared/types/` directory with a barrel.
 
 **Goal:** Provide ApiClient through context (leaf-first migration), split the zustand store into slices, tighten Contact/Channel/activeKey to template-literal key types, and fix lib/ layering inversions.
 
