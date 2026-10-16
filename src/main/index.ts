@@ -32,6 +32,7 @@ import { resolveHttpPort } from './http-port';
 import { child, log } from './log';
 import { applyLoggingSettings } from './logging/apply';
 import { flushLogFile, folderPath } from './logging/fileSink';
+import { clampTileCacheMaxBytes, getTileCache } from './map/tile-cache';
 import { buildMenu } from './menu';
 import { startNotifications } from './notifications';
 import { protocolSession } from './protocol';
@@ -153,6 +154,9 @@ async function bootstrap() {
 
   serverHandle = await startServer(rendererDir, bridgeHandle, { port: httpPort, bindAddress });
   log.info(`server listening on http://${bindAddress}:${serverHandle.port}`);
+  // Apply the persisted tile-cache cap. Clamped for defense-in-depth against a
+  // hand-edited settings file.
+  void getTileCache().setMaxBytes(clampTileCacheMaxBytes(stateHolder().getMapSettings().tileCacheMaxBytes));
 
   // mDNS is published once both ports are known. Records are only advertised
   // when the servers bind the LAN (bindAll) and mDNS is enabled — otherwise the

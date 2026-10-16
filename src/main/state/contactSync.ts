@@ -150,3 +150,42 @@ export function applyLibContacts(libContacts: Models.Contact[]): void {
   // so anything reading state via the holder still sees the latest list.
   scheduleContactsEmit();
 }
+
+/** Write a hand-set (or reset) out-path through to the discovered mirror.
+ *
+ *  meshcore-ts's setContactPath/resetContactPath write the radio and then their
+ *  own in-memory contact map; they emit neither `contactObserved` nor
+ *  `discovered`, so nothing reaches coresense's sqlite mirror. The Contact
+ *  Manager reads its hop count from that mirror — and so does the rail, since
+ *  resolveContact prefers the discovered row's `hops` — which left both showing
+ *  the pre-edit value until the next full GET_CONTACTS.
+ *
+ *  The byte is repacked exactly as the firmware stores it, `((hashSize - 1) <<
+ *  6) | hopCount` (see shared/contacts/discovered.ts), using the same radio
+ *  path-hash mode the library validated the path length against before writing
+ *  the frame.
+ *
+ *  An EMPTY `outPathHex` means different things to the two callers, and the
+ *  mirror has to match whichever frame actually went out — otherwise the next
+ *  refresh silently flips the hop cell under the user:
+ *    - PUT with no hops → encodeAddUpdateContact writes `out_path_len = 0`
+ *      (`path.length === 0 ? 0 : …`), i.e. a known ZERO-HOP route.
+ *    - DELETE → CMD_RESET_PATH, which clears the stored route back to
+ *      OUT_PATH_UNKNOWN (0xFF), i.e. no route at all and the radio floods. */
+export function mirrorOutPath(contactKey: string, outPathHex: string, opts: { emptyMeans: 'direct' | 'unknown' }): void {
+  const pubkey = pubkeyFromKey(contactKey);
+  if (outPathHex.length === 0) {
+    discoveredStore.setOutPath(pubkey, opts.emptyMeans === 'unknown' ? 0xff : 0x00, '');
+    scheduleDiscoveredEmit();
+    return;
+  }
+  const hashSize = stateHolder().getRadioSettings().pathHashMode;
+  const hops = outPathHex.length / 2 / hashSize;
+  // The library rejects a path that isn't a whole number of hops, so this is
+  // belt-and-braces: writing a fractional or out-of-range hop count would pack
+  // a byte hopsFromOutPathLen can't read back. Leaving the row alone is strictly
+  // better than corrupting it.
+  if (!Number.isInteger(hops) || hops < 0 || hops > 0x3f) return;
+  discoveredStore.setOutPath(pubkey, ((hashSize - 1) << 6) | hops, outPathHex);
+  scheduleDiscoveredEmit();
+}
