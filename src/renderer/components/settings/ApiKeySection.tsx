@@ -1,14 +1,10 @@
 import { Copy, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { useState } from 'react';
-import type { ApiClient } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
 import { CopyButton } from '../CopyButton';
 import { SettingsSection } from './SettingsSection';
-
-interface Props {
-  client: ApiClient | null;
-}
 
 const BTN =
   'flex items-center gap-1 rounded border border-cs-border bg-cs-bg-2 px-2 py-1 text-[12px] text-cs-text hover:bg-cs-bg-3 disabled:cursor-not-allowed disabled:opacity-50';
@@ -17,7 +13,8 @@ const BTN =
 // the desktop app — e.g. to paste into a browser's first-launch prompt — without
 // hunting down config.json. Self-contained (no Save model): it just displays
 // the key this client is already authenticated with, plus the config path.
-export function ApiKeySection({ client }: Props) {
+export function ApiKeySection() {
+  const client = useApiClient();
   const apiKey = client?.apiKey ?? null;
   const configPath = useStore((s) => s.capabilities?.configPath ?? null);
   const [revealed, setRevealed] = useState(false);

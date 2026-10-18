@@ -13,6 +13,7 @@ import { __resetChannelStatsCacheForTests } from '@/hooks/useChannelStats';
 import { useStore } from '@/lib/store';
 import { ChannelPeopleBody, ChannelPeopleCount, ChannelPeopleSection } from '@/shell/rightrail/sections/ChannelPeople';
 import type { Channel, ChannelStats, Contact } from '../../src/shared/types';
+import { renderWithClient } from '../support/renderWithClient';
 
 // Pinned, not Date.now(). `bucketFor` is calendar-relative (spec §5.6), so a
 // fixture built from the real clock puts "3 hours ago" on the *previous*
@@ -165,7 +166,6 @@ describe('ChannelPeopleBody', () => {
   });
 });
 
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 const ch: Channel = { key: 'ch:public', name: 'public', kind: 'public' };
 
 describe('ChannelPeopleCount', () => {
@@ -179,7 +179,7 @@ describe('ChannelPeopleCount', () => {
   // chip undercounted every channel the user had posted to.
   it('shows the plain total with no filter or query, counting ourselves', async () => {
     getChannelStats.mockResolvedValue(stats());
-    render(<ChannelPeopleCount channel={ch} client={client} />);
+    renderWithClient(<ChannelPeopleCount channel={ch} />);
     expect(await screen.findByText('3')).toBeTruthy();
   });
 
@@ -188,7 +188,7 @@ describe('ChannelPeopleCount', () => {
   it('switches to «n» / «total» once a query narrows the roster', async () => {
     getChannelStats.mockResolvedValue(stats());
     useStore.setState({ peopleQuery: 'zora' });
-    render(<ChannelPeopleCount channel={ch} client={client} />);
+    renderWithClient(<ChannelPeopleCount channel={ch} />);
     expect(await screen.findByText('1 / 3')).toBeTruthy();
   });
 });
@@ -209,8 +209,8 @@ describe('ChannelPeopleSection clears the query on unmount (I-3)', () => {
   function Harness({ open }: { open: boolean }) {
     return (
       <TooltipProvider>
-        <ChannelPeopleCount channel={ch} client={client} />
-        {open && <ChannelPeopleSection channel={ch} client={client} />}
+        <ChannelPeopleCount channel={ch} />
+        {open && <ChannelPeopleSection channel={ch} />}
       </TooltipProvider>
     );
   }
@@ -218,7 +218,7 @@ describe('ChannelPeopleSection clears the query on unmount (I-3)', () => {
   it('collapsing the section clears peopleQuery so the header count stops showing a stale filter', async () => {
     getChannelStats.mockResolvedValue(stats());
 
-    const { rerender } = render(<Harness open />);
+    const { rerender } = renderWithClient(<Harness open />);
     fireEvent.change(await screen.findByLabelText('Search people'), { target: { value: 'zora' } });
     await waitFor(() => expect(screen.getByText('1 / 3')).toBeTruthy());
 

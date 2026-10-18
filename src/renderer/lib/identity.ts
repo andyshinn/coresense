@@ -8,6 +8,8 @@
 // out; 'byName' colours everyone from the string we do have.
 
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
+import type { ContactKey } from '../../shared/conversationKey';
+import { parseSender } from '../../shared/sender';
 import type { Contact, IdentityColorMode } from '../../shared/types';
 
 export type IdentitySource = 'contact' | 'discovered' | 'none';
@@ -17,7 +19,7 @@ export interface ResolvedIdentity {
   name: string | null;
   pubkey: string | null;
   /** Route key for the contact page (`c:<pkhex>`), when saved. */
-  contactKey: string | null;
+  contactKey: ContactKey | null;
   source: IdentitySource;
   /** True when the name matched >1 discovered node — treated as unresolved. */
   ambiguous: boolean;
@@ -84,19 +86,20 @@ export function resolveIdentity(
   contacts: Contact[],
   discoveredByName: Map<string, DiscoveredContact[]>,
 ): ResolvedIdentity {
-  if (!fromPk || fromPk === 'unknown') return NONE;
+  const sender = parseSender(fromPk);
+  if (sender.kind === 'self' || sender.kind === 'unknown') return NONE;
 
-  if (!fromPk.startsWith('name:')) {
+  if (sender.kind === 'pubkey') {
     // A raw hex pubkey. Not currently produced for channel posts, but DMs and
     // several other call sites pass one. `blocked` still comes from the
     // discovered pool — every heard node (saved or not) has a row there — not
     // from a hardcoded false, so a blocked saved contact or a blocked node we
     // have no contact for both report correctly.
-    const saved = contacts.find((c) => c.publicKeyHex === fromPk);
-    const heard = findDiscoveredByPubkey(discoveredByName, fromPk);
+    const saved = contacts.find((c) => c.publicKeyHex === sender.pk);
+    const heard = findDiscoveredByPubkey(discoveredByName, sender.pk);
     return {
       name: saved?.name ?? null,
-      pubkey: fromPk,
+      pubkey: sender.pk,
       contactKey: saved?.key ?? null,
       source: saved ? 'contact' : 'none',
       ambiguous: false,
@@ -104,7 +107,7 @@ export function resolveIdentity(
     };
   }
 
-  const name = fromPk.slice(5);
+  const { name } = sender;
 
   const saved = contacts.find((c) => c.name === name);
   if (saved) {

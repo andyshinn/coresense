@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { errorMessage } from '../shared/errors';
 import { createMenuActionHandler } from './app/menuActions';
 import { resolveBaseUrl } from './app/resolveBaseUrl';
 import { useDraftsPersistence } from './app/useDraftsPersistence';
@@ -12,6 +13,7 @@ import { CommandPalette } from './features/command-palette';
 import { ShortcutsHelpDialog } from './features/help-overlay';
 import { useWebSocket } from './hooks/useWebSocket';
 import { type ApiClient, api, fetchCapabilities } from './lib/api';
+import { ApiClientProvider } from './lib/apiClientContext';
 import { loadApiKey, saveApiKey } from './lib/apiKey';
 import { notify } from './lib/notify';
 import { dispatchShortcut } from './lib/shortcut-dispatch';
@@ -106,15 +108,13 @@ export function App() {
   const handleMenuAction = useMemo(
     () =>
       createMenuActionHandler({
-        baseUrl,
-        apiKey,
         cycleThemePref,
         toggleLeftNav,
         toggleRightRail,
         togglePin,
         setActiveKey,
       }),
-    [cycleThemePref, toggleLeftNav, toggleRightRail, togglePin, setActiveKey, baseUrl, apiKey],
+    [cycleThemePref, toggleLeftNav, toggleRightRail, togglePin, setActiveKey],
   );
 
   useEffect(() => {
@@ -124,28 +124,25 @@ export function App() {
     // this window to some *other* CoreSense instance (issue #21).
     const { candidate, fallback } = resolveBaseUrl(window.coresense?.httpPort, window.location);
     void (async () => {
-      try {
-        const caps = await fetchCapabilities(candidate);
-        setBaseUrl(candidate);
-        setPort(caps.httpPort);
-        setConfigPath(caps.configPath);
-      } catch (err) {
-        if (!fallback) {
-          notify.error(`Could not reach CoreSense server: ${(err as Error).message}`, err);
-          return;
-        }
+      let lastErr: unknown;
+      for (const url of fallback ? [candidate, fallback] : [candidate]) {
         try {
-          const caps = await fetchCapabilities(fallback);
-          setBaseUrl(fallback);
+          const caps = await fetchCapabilities(url);
+          setBaseUrl(url);
           setPort(caps.httpPort);
           setConfigPath(caps.configPath);
-        } catch (fallbackErr) {
-          notify.error(`Could not reach CoreSense server: ${(fallbackErr as Error).message}`, fallbackErr);
+          return;
+        } catch (err) {
+          lastErr = err;
         }
       }
+      notify.error(`Could not reach CoreSense server: ${errorMessage(lastErr)}`, lastErr);
     })();
   }, []);
 
+  // Built once here and provided to the whole tree by ApiClientProvider below;
+  // components read it with useApiClient(), the menu-action handler with
+  // getApiClient(). App itself sits above the provider, so it uses this value.
   const client: ApiClient | null = useMemo(() => (baseUrl && apiKey ? { baseUrl, apiKey } : null), [baseUrl, apiKey]);
 
   useEffect(() => {
@@ -159,7 +156,7 @@ export function App() {
           setHydrated(true);
         }
       } catch (err) {
-        if (!cancelled) notify.error(`Snapshot fetch failed: ${(err as Error).message}`, err);
+        if (!cancelled) notify.failure('Snapshot fetch', err);
       }
     })();
     return () => {
@@ -203,44 +200,25 @@ export function App() {
 
   useWebSocket({ url: wsUrl, onMessage });
 
-  const handleScan = useCallback(async () => {
-    if (!client) return;
-    setBusy(true);
-    try {
-      await api.scan(client);
-    } catch (err) {
-      notify.error((err as Error).message, err);
-    } finally {
-      setBusy(false);
-    }
-  }, [client, setBusy]);
-
-  const handleConnect = useCallback(
-    async (deviceId: string) => {
+  // Scan, connect and disconnect share one shape: busy for the duration of the
+  // call, and a toast on failure.
+  const runBusy = useCallback(
+    async (op: (c: ApiClient) => Promise<unknown>) => {
       if (!client) return;
       setBusy(true);
       try {
-        await api.connect(client, deviceId);
+        await op(client);
       } catch (err) {
-        notify.error((err as Error).message, err);
+        notify.error(errorMessage(err), err);
       } finally {
         setBusy(false);
       }
     },
     [client, setBusy],
   );
-
-  const handleDisconnect = useCallback(async () => {
-    if (!client) return;
-    setBusy(true);
-    try {
-      await api.disconnect(client);
-    } catch (err) {
-      notify.error((err as Error).message, err);
-    } finally {
-      setBusy(false);
-    }
-  }, [client, setBusy]);
+  const handleScan = useCallback(() => runBusy((c) => api.scan(c)), [runBusy]);
+  const handleConnect = useCallback((deviceId: string) => runBusy((c) => api.connect(c, deviceId)), [runBusy]);
+  const handleDisconnect = useCallback(() => runBusy((c) => api.disconnect(c)), [runBusy]);
 
   if (!apiKey) {
     return (
@@ -260,31 +238,32 @@ export function App() {
   }
 
   return (
-    <AppShell client={client}>
-      <Toaster richColors closeButton position="bottom-right" />
-      <CommandPalette client={client} cycleThemePref={cycleThemePref} />
-      <ShortcutsHelpDialog />
-      <PacketDecoderDialog />
-      <PathLearnedDialogHost client={client} />
-      <div className="flex h-full flex-1 flex-col">
-        <div className="flex-1 overflow-hidden">
-          <Suspense fallback={null}>
-            <MainPane
-              client={client}
-              onScan={handleScan}
-              onConnect={handleConnect}
-              onDisconnect={handleDisconnect}
-              renderPacketLog={() => (
-                <Suspense fallback={null}>
-                  <PacketLogHost />
-                </Suspense>
-              )}
-            />
-          </Suspense>
-        </div>
+    <ApiClientProvider client={client}>
+      <AppShell>
+        <Toaster richColors closeButton position="bottom-right" />
+        <CommandPalette cycleThemePref={cycleThemePref} />
+        <ShortcutsHelpDialog />
+        <PacketDecoderDialog />
+        <PathLearnedDialogHost />
+        <div className="flex h-full flex-1 flex-col">
+          <div className="flex-1 overflow-hidden">
+            <Suspense fallback={null}>
+              <MainPane
+                onScan={handleScan}
+                onConnect={handleConnect}
+                onDisconnect={handleDisconnect}
+                renderPacketLog={() => (
+                  <Suspense fallback={null}>
+                    <PacketLogHost />
+                  </Suspense>
+                )}
+              />
+            </Suspense>
+          </div>
 
-        <StatusBarHost port={port} />
-      </div>
-    </AppShell>
+          <StatusBarHost port={port} />
+        </div>
+      </AppShell>
+    </ApiClientProvider>
   );
 }

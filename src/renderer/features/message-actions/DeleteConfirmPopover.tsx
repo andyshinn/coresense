@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
+import { errorMessage } from '../../../shared/errors';
 import { Button } from '../../components/ui/button';
 import { Popover, PopoverAnchor, PopoverContent } from '../../components/ui/popover';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 
@@ -10,7 +12,6 @@ interface Props {
   conversationKey: string;
   /** Message body, shown truncated so the user sees what they're deleting. */
   preview: string;
-  client: ApiClient | null;
   /** Called after the server confirms the delete. The conversation views need
    *  nothing here (the messagesDeleted WS event updates the store), but the
    *  search panel holds its hits in local state and must splice its own. */
@@ -23,7 +24,8 @@ const PREVIEW_MAX = 80;
  *  inside the row means Virtuoso recycling unmounts the confirm along with the
  *  row rather than orphaning a detached anchor — at the cost of dismissing the
  *  confirm when the message scrolls far out of view. */
-export function DeleteConfirmPopover({ messageId, conversationKey, preview, client, onDeleted }: Props) {
+export function DeleteConfirmPopover({ messageId, conversationKey, preview, onDeleted }: Props) {
+  const client = useApiClient();
   const open = useStore((s) => s.pendingDeleteMessageId === messageId);
   const setPendingDeleteMessageId = useStore((s) => s.setPendingDeleteMessageId);
 
@@ -55,7 +57,7 @@ export function DeleteConfirmPopover({ messageId, conversationKey, preview, clie
       notify.success('Message deleted');
       onDeleted?.();
     } catch (err) {
-      notify.error(`Couldn’t delete message: ${(err as Error).message}`, err);
+      notify.error(`Couldn’t delete message: ${errorMessage(err)}`, err);
     }
   };
 

@@ -1,4 +1,4 @@
-import { MoreHorizontal } from 'lucide-react';
+import { BellOff, MoreHorizontal, Star } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '../../components/ui/sidebar';
 import { cn } from '../../lib/utils';
@@ -29,6 +29,29 @@ export function UnreadChip({ count, muted, className }: { count: number; muted?:
     >
       {count > 99 ? '99+' : count}
     </span>
+  );
+}
+
+/** Trailing badges of a channel or contact row: unread chip, muted bell, pin star. */
+export function NavRowTrailing({
+  unread,
+  showUnread,
+  muted,
+  pinned,
+  pinTestId,
+}: {
+  unread: number;
+  showUnread: boolean;
+  muted: boolean | undefined;
+  pinned: boolean;
+  pinTestId?: string;
+}) {
+  return (
+    <>
+      {showUnread && <UnreadChip count={unread} />}
+      {muted && <BellOff aria-label="muted" className="size-3 text-cs-text-dim/60" />}
+      {pinned && <Star data-testid={pinTestId} aria-hidden="true" className="size-3 text-cs-accent" fill="currentColor" />}
+    </>
   );
 }
 

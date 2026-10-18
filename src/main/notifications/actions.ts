@@ -1,13 +1,16 @@
+import { isChannelKey } from '../../shared/conversationKey';
 import type { Channel, Contact, UiState } from '../../shared/types';
+import type { SendResult } from '../messaging/sendMessage';
 
 export interface NotificationActions {
+  /** Rejects when the send reports failure, so the caller can log it. */
   reply(key: string, text: string): Promise<void>;
   markRead(key: string): void;
   mute(key: string): void;
 }
 
 export interface ActionDeps {
-  sendMessage(key: string, body: string): Promise<unknown>;
+  sendMessage(key: string, body: string): Promise<SendResult>;
   getChannels(): Channel[];
   getContacts(): Contact[];
   upsertChannel(c: Channel): void;
@@ -27,7 +30,8 @@ export function createNotificationActions(deps: ActionDeps): NotificationActions
       // HTTP send route (which rejects an empty body), this path would insert a
       // blank message row — so guard it here.
       if (!text.trim()) return;
-      await deps.sendMessage(key, text);
+      const result = await deps.sendMessage(key, text);
+      if (!result.ok) throw new Error(result.error ?? 'send failed');
     },
     markRead(key) {
       const ui = deps.getUiState();
@@ -36,7 +40,7 @@ export function createNotificationActions(deps: ActionDeps): NotificationActions
       deps.emitUiState(next);
     },
     mute(key) {
-      if (key.startsWith('ch:')) {
+      if (isChannelKey(key)) {
         const ch = deps.getChannels().find((c) => c.key === key);
         if (!ch) return;
         deps.upsertChannel({ ...ch, muted: true });

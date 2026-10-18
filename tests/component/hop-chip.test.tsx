@@ -5,7 +5,7 @@ import { HopChip, ListRow, TableView } from '@/panels/contacts/ContactRows';
 import type { DiscoveredContact } from '../../src/shared/contacts/discovered';
 
 // ContactRows pulls in notify (sonner) and the api client at module scope.
-vi.mock('@/lib/notify', () => ({ notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() } }));
+vi.mock('@/lib/notify', () => import('../support/notifyMock'));
 vi.mock('@/lib/api', () => ({ api: { addToRadio: vi.fn(), removeFromRadio: vi.fn() } }));
 
 function contact(hops: number | undefined, lastHeardMs?: number, observedHops?: number): DiscoveredContact {
@@ -32,13 +32,13 @@ beforeEach(() => {
 
 /** The hop cell in the table layout (column 5, after checkbox/glyph/name/type). */
 function tableHopText(hops: number | undefined, observedHops?: number): string {
-  const { container } = render(<TableView rows={[contact(hops, undefined, observedHops)]} client={null} />);
+  const { container } = render(<TableView rows={[contact(hops, undefined, observedHops)]} />);
   return (container.querySelectorAll('tbody td')[4]?.textContent ?? '').trim();
 }
 
 /** The hop segment of the list layout's meta line. */
 function listHopText(hops: number | undefined, observedHops?: number): string {
-  const { container } = render(<ListRow c={contact(hops, undefined, observedHops)} client={null} />);
+  const { container } = render(<ListRow c={contact(hops, undefined, observedHops)} />);
   // querySelectorAll is document order, so ancestors come first; the meta line
   // is the deepest element carrying the separator.
   const meta = Array.from(container.querySelectorAll('div'))
@@ -95,13 +95,13 @@ describe('table and list layouts agree on hop wording', () => {
 
 /** The last-heard cell in the table layout (column 7). */
 function tableLastHeardText(lastHeardMs?: number): string {
-  const { container } = render(<TableView rows={[contact(1, lastHeardMs)]} client={null} />);
+  const { container } = render(<TableView rows={[contact(1, lastHeardMs)]} />);
   return (container.querySelectorAll('tbody td')[6]?.textContent ?? '').trim();
 }
 
 /** The last-heard segment of the list layout's meta line. */
 function listLastHeardText(lastHeardMs?: number): string {
-  const { container } = render(<ListRow c={contact(1, lastHeardMs)} client={null} />);
+  const { container } = render(<ListRow c={contact(1, lastHeardMs)} />);
   const meta = Array.from(container.querySelectorAll('div'))
     .filter((d) => d.textContent?.includes(' · '))
     .at(-1);

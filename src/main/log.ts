@@ -1,6 +1,7 @@
 import * as util from 'node:util';
 import { type ILogObjMeta, Logger } from 'tslog';
-import type { LogEntry, LogLevel } from '../shared/types';
+import { type LogLevel, logLevelId, parseLogLevel, resolveLogLevel } from '../shared/logLevels';
+import type { LogEntry } from '../shared/types';
 import { emit } from './events/bus';
 import { write as fileSinkWrite } from './logging/fileSink';
 
@@ -11,38 +12,12 @@ import { write as fileSinkWrite } from './logging/fileSink';
 const MAX_LOG_ENTRIES = 5000;
 
 // ---------------------------------------------------------------------------
-// Level mapping: tslog numeric → LogLevel string
-// ---------------------------------------------------------------------------
-
-const LEVEL_ID_TO_NAME: Record<number, LogLevel> = {
-  0: 'silly',
-  1: 'trace',
-  2: 'debug',
-  3: 'info',
-  4: 'warn',
-  5: 'error',
-  6: 'fatal',
-};
-
-const LEVEL_NAME_TO_ID: Record<LogLevel, number> = {
-  silly: 0,
-  trace: 1,
-  debug: 2,
-  info: 3,
-  warn: 4,
-  error: 5,
-  fatal: 6,
-};
-
-const VALID_LEVELS = new Set<string>(Object.keys(LEVEL_NAME_TO_ID));
-
-// ---------------------------------------------------------------------------
 // Root logger (preserve existing behaviour)
 // ---------------------------------------------------------------------------
 
 const minLevel = (() => {
-  const raw = process.env.CORESENSE_LOG_LEVEL?.toLowerCase();
-  return LEVEL_NAME_TO_ID[raw as LogLevel] ?? 2; // default: debug
+  const level = parseLogLevel(process.env.CORESENSE_LOG_LEVEL);
+  return level ? logLevelId(level) : 2; // default: debug
 })();
 
 export const log = new Logger({
@@ -90,8 +65,7 @@ export function toLogEntry(logObj: TslogObj): LogEntry {
   };
 
   const levelId = meta.logLevelId;
-  const rawName = meta.logLevelName?.toLowerCase();
-  const level: LogLevel = VALID_LEVELS.has(rawName) ? (rawName as LogLevel) : (LEVEL_ID_TO_NAME[levelId] ?? 'info');
+  const level = resolveLogLevel(meta.logLevelName, levelId);
 
   // Build logger name: join parent names + own name (mirrors tslog's template {{name}})
   const parts: string[] = [];
@@ -146,7 +120,7 @@ export function ingestLogEntry(entry: LogEntry): void {
 // ---------------------------------------------------------------------------
 
 export function setLogLevel(level: LogLevel): void {
-  log.settings.minLevel = LEVEL_NAME_TO_ID[level];
+  log.settings.minLevel = logLevelId(level);
 }
 
 // ---------------------------------------------------------------------------

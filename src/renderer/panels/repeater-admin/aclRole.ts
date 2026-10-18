@@ -10,3 +10,8 @@ export const ACL_ROLE_LABEL: Record<RepeaterAclRole, string> = {
   readWrite: 'Read-write',
   admin: 'Admin',
 };
+
+/** A raw permissions byte as the ACL table and login card show it: `0x03`. */
+export function formatPermissions(bits: number): string {
+  return `0x${bits.toString(16).padStart(2, '0')}`;
+}

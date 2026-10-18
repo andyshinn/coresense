@@ -1,10 +1,7 @@
+import { HOUR_MS } from '../../../../../shared/time';
 import type { ActivityBand, ActivityWindow, ActivityWindowKey } from '../../../../../shared/types';
 
-export { RAIL_COLLAPSE_WIDTH as COLLAPSE_WIDTH } from '../../railWidth';
-
 export type ActivityMode = 'collapsed' | 'full';
-
-const HOUR_MS = 3_600_000;
 
 /** Percentage change vs the previous equal period, or null when there is no
  *  previous period — a channel's first week has nothing to compare against and

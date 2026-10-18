@@ -1,10 +1,11 @@
 import { ArrowUpCircle, Bluetooth, RotateCw } from 'lucide-react';
-import { type MouseEvent, useCallback, useEffect, useState } from 'react';
+import { type MouseEvent, useEffect, useState } from 'react';
 import type { SyncProgress, TransportState } from '../../../shared/types';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Progress } from '../../components/ui/progress';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '../../components/ui/sidebar';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { loadLastDevice } from '../../lib/lastDevice';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
@@ -34,48 +35,47 @@ const SYNC_DONE_FADE_MS = 800;
 
 /** Sidebar footer row showing transport state, sync progress, and a reconnect-to-last-device shortcut. */
 export function ConnectionFooter({
-  client,
   state,
   sync,
   onClick,
   active,
 }: {
-  client: ApiClient | null;
   state: TransportState;
   sync: SyncProgress;
   onClick: () => void;
   active: boolean;
 }) {
+  const client = useApiClient();
   const updateState = useStore((s) => s.updateState);
   const updatePending = updateState && (updateState.status === 'available' || updateState.status === 'downloaded');
   const onInstall = () => {
     if (!client || !updateState) return;
     // On the silent path quitAndInstall quits the app, so the promise may never
     // settle — that's fine. A real failure (route/network) must not be silent.
-    void api.installUpdate(client).catch((err) => notify.error(`Update action failed: ${(err as Error).message}`, err));
+    void api.installUpdate(client).catch((err) => notify.failure('Update action', err));
   };
 
   const syncing = state === 'connected' && sync.phase === 'syncing';
   const justFinished = state === 'connected' && sync.phase === 'done';
   const [reconnecting, setReconnecting] = useState(false);
+  // Re-read every render, deliberately unmemoised: BleConnect can save or
+  // forget the device while the transport state stays put, so no dep list
+  // would catch every change. It's one small localStorage parse.
   const lastDevice = loadLastDevice();
   const canReconnect = !!client && !!lastDevice && (state === 'idle' || state === 'error') && !reconnecting;
 
-  const handleReconnect = useCallback(
-    async (e: MouseEvent) => {
-      e.stopPropagation();
-      if (!client || !lastDevice) return;
-      setReconnecting(true);
-      try {
-        await api.connect(client, lastDevice.id);
-      } catch (err) {
-        notify.error(`Reconnect failed: ${(err as Error).message}`, err);
-      } finally {
-        setReconnecting(false);
-      }
-    },
-    [client, lastDevice],
-  );
+  const handleReconnect = async (e: MouseEvent) => {
+    e.stopPropagation();
+    if (!client || !lastDevice) return;
+    setReconnecting(true);
+    try {
+      await api.connect(client, lastDevice.id);
+    } catch (err) {
+      notify.failure('Reconnect', err);
+    } finally {
+      setReconnecting(false);
+    }
+  };
   const [showFinishedBar, setShowFinishedBar] = useState(false);
   useEffect(() => {
     if (!justFinished) {

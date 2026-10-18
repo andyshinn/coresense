@@ -1,9 +1,12 @@
 import { memo, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import type { ContactKey } from '../../../../shared/conversationKey';
 import type { Channel, ChannelStats, PeopleFilter, PeopleSort } from '../../../../shared/types';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { useChannelStats } from '../../../hooks/useChannelStats';
 import { useNowTick } from '../../../hooks/useNowTick';
-import { type ApiClient, api } from '../../../lib/api';
+import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
+import { capList } from '../../../lib/capList';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
 import { railIsWide } from '../railWidth';
@@ -11,7 +14,7 @@ import { useRailSettleTick } from '../useRailSettleTick';
 import { PeopleControls } from './PeopleControls';
 import { PeopleRow } from './PeopleRow';
 import {
-  capRows,
+  DEFAULT_PEOPLE_PREFS,
   filterRoster,
   groupByBucket,
   maxCount,
@@ -32,7 +35,7 @@ interface BodyProps {
   onQuery: (q: string) => void;
   onSort: (s: PeopleSort) => void;
   onFilter: (f: PeopleFilter) => void;
-  onOpenContact: (contactKey: string) => void;
+  onOpenContact: (contactKey: ContactKey) => void;
   /** Save a poster we have a pubkey for. Only ever called for rows whose
    *  UserPlus is enabled, i.e. `pubkey !== null && !inContacts && !blocked`. */
   onAddContact: (row: RosterRow) => void;
@@ -78,11 +81,13 @@ export function ChannelPeopleBody({
 
   // Search and filter run over the FULL roster above; only the paint is capped,
   // so the header count and every search result stay complete.
+  //
+  // Deliberately capped BEFORE `groupByBucket`, not after: grouping the capped
+  // set means a bucket header can never appear above zero visible rows, and
+  // each header's count describes what is actually on screen. The full total
+  // stays available for the reveal affordance and the section's header count.
   const expanded = expandedFor === resetKey;
-  const { rows: visible, hidden } = useMemo(
-    () => (expanded ? { rows: shown, hidden: 0 } : capRows(shown, PEOPLE_ROW_CAP)),
-    [shown, expanded],
-  );
+  const { rows: visible, hidden } = useMemo(() => capList(shown, expanded ? null : PEOPLE_ROW_CAP), [shown, expanded]);
   const buckets = useMemo(() => (sort === 'recent' ? groupByBucket(visible, now) : []), [visible, now, sort]);
 
   const showVolume = wide && sort !== 'name';
@@ -192,24 +197,30 @@ function EmptyNote({ children }: { children: ReactNode }) {
   return <p className="px-3 py-4 text-[11.5px] text-cs-text-dim">{children}</p>;
 }
 
+/** The roster narrowing the header count and the section body both read,
+ *  with the never-touched defaults applied in one place. */
+function usePeopleFilter(channelKey: string): { filter: PeopleFilter; query: string } {
+  const query = useStore((s) => s.peopleQuery);
+  const filter = useStore((s) => s.ui.peopleRail[channelKey]?.filter ?? DEFAULT_PEOPLE_PREFS.filter);
+  return { filter, query };
+}
+
+/** usePeopleFilter plus the sort, which only the section body reads. */
+function usePeopleView(channelKey: string): { sort: PeopleSort; filter: PeopleFilter; query: string } {
+  const sort = useStore((s) => s.ui.peopleRail[channelKey]?.sort ?? DEFAULT_PEOPLE_PREFS.sort);
+  return { sort, ...usePeopleFilter(channelKey) };
+}
+
 /** Header count: `156`, or `«n» / 156` while a query or filter narrows it.
  *
  *  Memoised because the rail evaluates `trailing={section.trailing?.()}` outside
  *  the Collapsible's open guard, so this re-derives the roster even while the
  *  People section is collapsed — once per drag frame, before the memo. */
-export const ChannelPeopleCount = memo(function ChannelPeopleCount({
-  channel,
-  client,
-}: {
-  channel: Channel;
-  client: ApiClient | null;
-}) {
-  const { stats } = useChannelStats(channel.key, client);
+export const ChannelPeopleCount = memo(function ChannelPeopleCount({ channel }: { channel: Channel }) {
+  const { stats } = useChannelStats(channel.key);
   const contacts = useStore((s) => s.contacts);
   const discovered = useStore((s) => s.discovered);
-  const query = useStore((s) => s.peopleQuery);
-  const prefs = useStore((s) => s.ui.peopleRail[channel.key]);
-  const filter = prefs?.filter ?? 'all';
+  const { filter, query } = usePeopleFilter(channel.key);
 
   const roster = stats?.roster;
   const all = useMemo(() => toRosterRows(roster ?? [], contacts, discovered), [roster, contacts, discovered]);
@@ -226,21 +237,15 @@ export const ChannelPeopleCount = memo(function ChannelPeopleCount({
   );
 });
 
-export const ChannelPeopleSection = memo(function ChannelPeopleSection({
-  channel,
-  client,
-}: {
-  channel: Channel;
-  client: ApiClient | null;
-}) {
-  const { stats } = useChannelStats(channel.key, client);
+export const ChannelPeopleSection = memo(function ChannelPeopleSection({ channel }: { channel: Channel }) {
+  const client = useApiClient();
+  const { stats } = useChannelStats(channel.key);
   // A boolean, not `s.ui.rightWidth` — see railIsWide. Subscribing to the px
   // value here would re-render this section (and therefore the whole roster) on
   // every drag frame no matter how many memo boundaries sit below it.
   const wide = useStore((s) => railIsWide(s.ui.rightWidth));
-  const query = useStore((s) => s.peopleQuery);
+  const { sort, filter, query } = usePeopleView(channel.key);
   const setQuery = useStore((s) => s.setPeopleQuery);
-  const prefs = useStore((s) => s.ui.peopleRail[channel.key]);
   const setPeopleRail = useStore((s) => s.setPeopleRail);
   const setActiveKey = useStore((s) => s.setActiveKey);
 
@@ -275,15 +280,15 @@ export const ChannelPeopleSection = memo(function ChannelPeopleSection({
         await api.addToRadio(client, row.pubkey);
         notify.success(`Added ${row.name} to radio`);
       } catch (err) {
-        notify.error(`Add failed: ${(err as Error).message}`, err);
+        notify.failure('Add', err);
       }
     },
     [client],
   );
 
-  const onSort = useCallback((sort: PeopleSort) => setPeopleRail(channel.key, { sort }), [channel.key, setPeopleRail]);
+  const onSort = useCallback((next: PeopleSort) => setPeopleRail(channel.key, { sort: next }), [channel.key, setPeopleRail]);
   const onFilter = useCallback(
-    (filter: PeopleFilter) => setPeopleRail(channel.key, { filter }),
+    (next: PeopleFilter) => setPeopleRail(channel.key, { filter: next }),
     [channel.key, setPeopleRail],
   );
 
@@ -291,8 +296,8 @@ export const ChannelPeopleSection = memo(function ChannelPeopleSection({
     <ChannelPeopleBody
       stats={stats}
       wide={wide}
-      sort={prefs?.sort ?? 'recent'}
-      filter={prefs?.filter ?? 'all'}
+      sort={sort}
+      filter={filter}
       query={query}
       onQuery={setQuery}
       onSort={onSort}

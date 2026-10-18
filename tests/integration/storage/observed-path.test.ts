@@ -92,6 +92,20 @@ describe('discoveredStore.setObservedPath', () => {
   });
 });
 
+describe('discoveredStore.getObservedPath', () => {
+  it('is null for no row and for a never-measured row', () => {
+    expect(discoveredStore.getObservedPath(PK)).toBeNull();
+    seed();
+    expect(discoveredStore.getObservedPath(PK)).toBeNull();
+  });
+
+  it('returns a zero-hop measurement rather than treating it as missing', () => {
+    seed();
+    discoveredStore.setObservedPath(PK, { hops: 0, pathHex: '', recvUnix: 1_760_000_000 });
+    expect(discoveredStore.getObservedPath(PK)).toEqual({ hops: 0, pathHex: '', recvUnix: 1_760_000_000 });
+  });
+});
+
 // The single sharpest regression risk in this change: the observed_* columns
 // must appear in the DDL, the Row interface and the projection — and NOWHERE in
 // upsert's INSERT or ON CONFLICT DO UPDATE SET lists. Adding them there would

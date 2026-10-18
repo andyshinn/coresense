@@ -1,11 +1,12 @@
 import { Ban, ChevronDown, DoorOpen, Minus, Plus, RadioTower, Star, Thermometer, User } from 'lucide-react';
-import { useState } from 'react';
+import { type KeyboardEvent, useState } from 'react';
 import { type DiscoveredContact, formatHopsCell, formatLastHeard, hopsCellTitle } from '../../../shared/contacts/discovered';
 import type { ContactKind } from '../../../shared/types';
 import { BlockSenderDialog } from '../../components/BlockSenderDialog';
-import { copyToClipboard } from '../../components/ContextMenu';
 import { Checkbox } from '../../components/ui/checkbox';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
+import { copyToClipboard } from '../../lib/clipboard';
 import { notify } from '../../lib/notify';
 import type { CmSortField } from '../../lib/store';
 import { useStore } from '../../lib/store';
@@ -31,7 +32,7 @@ const KIND_LABEL: Record<ContactKind, string> = {
   sensor: 'Sensor',
 };
 
-export function StatusPill({ c }: { c: DiscoveredContact }) {
+export function StatusPill({ c }: { c: Pick<DiscoveredContact, 'blocked' | 'onRadio'> }) {
   if (c.blocked) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full border border-cs-danger/40 bg-cs-danger/10 px-2 py-px font-mono text-[9.5px] text-cs-danger">
@@ -70,7 +71,8 @@ export function HopChip({ hops, observedHops }: { hops?: number; observedHops?: 
   );
 }
 
-export function RowActions({ c, client }: { c: DiscoveredContact; client: ApiClient | null }) {
+export function RowActions({ c }: { c: DiscoveredContact }) {
+  const client = useApiClient();
   const [blockOpen, setBlockOpen] = useState(false);
 
   async function addToRadio(e: React.MouseEvent) {
@@ -80,7 +82,7 @@ export function RowActions({ c, client }: { c: DiscoveredContact; client: ApiCli
       await api.addToRadio(client, c.publicKeyHex);
       notify.success(`Added ${c.name} to radio`);
     } catch (err) {
-      notify.error(`Add failed: ${(err as Error).message}`, err);
+      notify.failure('Add', err);
     }
   }
   async function removeFromRadio(e: React.MouseEvent) {
@@ -90,7 +92,7 @@ export function RowActions({ c, client }: { c: DiscoveredContact; client: ApiCli
       await api.removeFromRadio(client, c.publicKeyHex);
       notify.success(`Removed ${c.name} from radio`);
     } catch (err) {
-      notify.error(`Remove failed: ${(err as Error).message}`, err);
+      notify.failure('Remove', err);
     }
   }
 
@@ -140,12 +142,7 @@ export function RowActions({ c, client }: { c: DiscoveredContact; client: ApiCli
         <Ban className="size-3.5" aria-hidden="true" />
       </button>
       {blockOpen && (
-        <BlockSenderDialog
-          client={client}
-          open
-          prefill={{ pubkey: c.publicKeyHex, name: c.name }}
-          onClose={() => setBlockOpen(false)}
-        />
+        <BlockSenderDialog open prefill={{ pubkey: c.publicKeyHex, name: c.name }} onClose={() => setBlockOpen(false)} />
       )}
     </div>
   );
@@ -170,7 +167,30 @@ function SortHeader({ field, label, className }: { field: CmSortField; label: st
   );
 }
 
-export function TableView({ rows, client }: { rows: DiscoveredContact[]; client: ApiClient | null }) {
+// Name + favourite star, shared by the table and list layouts so the two stay
+// identical; a blocked contact's name is struck through.
+function ContactName({ c }: { c: DiscoveredContact }) {
+  return (
+    <>
+      <span className={cn('truncate text-[12.5px] font-medium text-cs-text', c.blocked && 'line-through opacity-60')}>
+        {c.name}
+      </span>
+      {c.favourite && <Star className="size-3 shrink-0 fill-cs-warn text-cs-warn" aria-hidden="true" />}
+    </>
+  );
+}
+
+// Enter/Space activation for a focusable row that isn't a native <button>.
+function onActivateKey(activate: () => void) {
+  return (e: KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      activate();
+    }
+  };
+}
+
+export function TableView({ rows }: { rows: DiscoveredContact[] }) {
   const selected = useStore((s) => s.contactManager.selected);
   const focusKey = useStore((s) => s.contactManager.focusKey);
   const showKeys = useStore((s) => s.contactManager.showKeys);
@@ -221,12 +241,7 @@ export function TableView({ rows, client }: { rows: DiscoveredContact[]; client:
               key={pk}
               tabIndex={0}
               onClick={() => setCmFocus(pk)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setCmFocus(pk);
-                }
-              }}
+              onKeyDown={onActivateKey(() => setCmFocus(pk))}
               className={cn(
                 'group cursor-pointer border-b border-cs-border hover:bg-cs-bg-2',
                 isFocused && 'bg-cs-bg-3',
@@ -245,12 +260,7 @@ export function TableView({ rows, client }: { rows: DiscoveredContact[]; client:
               </td>
               <td className={cn('px-2', pad)}>
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <span
-                    className={cn('truncate text-[12.5px] font-medium text-cs-text', c.blocked && 'line-through opacity-60')}
-                  >
-                    {c.name}
-                  </span>
-                  {c.favourite && <Star className="size-3 shrink-0 fill-cs-warn text-cs-warn" aria-hidden="true" />}
+                  <ContactName c={c} />
                 </div>
                 {showKeys && (
                   <button
@@ -286,7 +296,7 @@ export function TableView({ rows, client }: { rows: DiscoveredContact[]; client:
                 <StatusPill c={c} />
               </td>
               <td className={cn('px-2', pad)}>
-                <RowActions c={c} client={client} />
+                <RowActions c={c} />
               </td>
             </tr>
           );
@@ -296,7 +306,7 @@ export function TableView({ rows, client }: { rows: DiscoveredContact[]; client:
   );
 }
 
-export function ListRow({ c, client }: { c: DiscoveredContact; client: ApiClient | null }) {
+export function ListRow({ c }: { c: DiscoveredContact }) {
   const selected = useStore((s) => s.contactManager.selected);
   const focusKey = useStore((s) => s.contactManager.focusKey);
   const showKeys = useStore((s) => s.contactManager.showKeys);
@@ -320,12 +330,7 @@ export function ListRow({ c, client }: { c: DiscoveredContact; client: ApiClient
       role="button"
       tabIndex={0}
       onClick={() => setCmFocus(pk)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          setCmFocus(pk);
-        }
-      }}
+      onKeyDown={onActivateKey(() => setCmFocus(pk))}
       className={cn(
         'group flex cursor-pointer items-center gap-3 border-b border-cs-border px-4 hover:bg-cs-bg-2',
         compact ? 'py-1.5' : 'py-2.5',
@@ -338,10 +343,7 @@ export function ListRow({ c, client }: { c: DiscoveredContact; client: ApiClient
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className={cn('truncate text-[12.5px] font-medium text-cs-text', c.blocked && 'line-through opacity-60')}>
-            {c.name}
-          </span>
-          {c.favourite && <Star className="size-3 shrink-0 fill-cs-warn text-cs-warn" aria-hidden="true" />}
+          <ContactName c={c} />
         </div>
         <div className="truncate font-mono text-[10.5px] text-cs-text-dim">
           {KIND_LABEL[c.kind]} · {lastLabel} · <span title={hopsCellTitle(c)}>{hopsLabel}</span>
@@ -349,7 +351,7 @@ export function ListRow({ c, client }: { c: DiscoveredContact; client: ApiClient
         </div>
       </div>
       <StatusPill c={c} />
-      <RowActions c={c} client={client} />
+      <RowActions c={c} />
     </div>
   );
 }

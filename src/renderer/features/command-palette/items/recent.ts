@@ -1,13 +1,14 @@
+import type { ActiveKey } from '../../../../shared/keys';
 import type { Channel, Contact } from '../../../../shared/types';
 import type { PaletteItem } from '../types';
 import { resolveKeyItem } from './tools';
 
 export interface BuildRecentArgs {
-  recentKeys: string[];
+  recentKeys: ActiveKey[];
   activeKey: string;
   channels: Channel[];
   contacts: Contact[];
-  setActiveKey: (key: string) => void;
+  setActiveKey: (key: ActiveKey) => void;
   close: () => void;
 }
 
@@ -27,7 +28,6 @@ export function buildRecentItems({
     list.push({
       ...item,
       group: 'recent',
-      groupLabel: 'Recent',
       run: () => {
         setActiveKey(key);
         close();

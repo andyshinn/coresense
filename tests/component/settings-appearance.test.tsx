@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/renderer/lib/api', () => ({
@@ -10,8 +10,8 @@ vi.mock('../../src/renderer/lib/api', () => ({
 import { api } from '../../src/renderer/lib/api';
 import { useStore } from '../../src/renderer/lib/store';
 import { AppearanceSection } from '../../src/renderer/panels/settings/app/Appearance';
-
-const client = { baseUrl: 'http://x', apiKey: 'k' };
+import { TEST_CLIENT as client } from '../support/apiClient';
+import { renderWithClient } from '../support/renderWithClient';
 
 afterEach(() => {
   vi.mocked(api.putAppSettings).mockClear();
@@ -24,7 +24,7 @@ afterEach(() => {
 
 describe('AppearanceSection', () => {
   it('saves a changed identity colour mode', () => {
-    render(<AppearanceSection client={client} />);
+    renderWithClient(<AppearanceSection />);
     fireEvent.change(screen.getByDisplayValue('By key (only verified identities)'), {
       target: { value: 'byName' },
     });
@@ -33,20 +33,20 @@ describe('AppearanceSection', () => {
   });
 
   it('warns that byKey leaves channel posters grey', () => {
-    render(<AppearanceSection client={client} />);
+    renderWithClient(<AppearanceSection />);
     expect(screen.getByText(/Posters stay grey until this node hears an advert/)).toBeTruthy();
   });
 
   // Issue #22 — the selector used to write AppSettings.theme, which nothing
   // ever read, so picking a theme did nothing at all.
   it('writes the theme straight to ui.themePref, which is what the app applies', () => {
-    render(<AppearanceSection client={client} />);
+    renderWithClient(<AppearanceSection />);
     fireEvent.change(screen.getByDisplayValue('Auto (system)'), { target: { value: 'light' } });
     expect(useStore.getState().ui.themePref).toBe('light');
   });
 
   it('applies the theme immediately, without going through the section Save', () => {
-    render(<AppearanceSection client={client} />);
+    renderWithClient(<AppearanceSection />);
     fireEvent.change(screen.getByDisplayValue('Auto (system)'), { target: { value: 'dark' } });
     // Instant-apply: no save call, and the section's Save button stays
     // disabled because the theme is not part of its draft at all.
@@ -56,7 +56,7 @@ describe('AppearanceSection', () => {
   });
 
   it('no longer carries a theme in the saved app-settings payload', () => {
-    render(<AppearanceSection client={client} />);
+    renderWithClient(<AppearanceSection />);
     fireEvent.change(screen.getByDisplayValue('Auto (system)'), { target: { value: 'dark' } });
     fireEvent.change(screen.getByDisplayValue('Rich (sender + meta)'), { target: { value: 'compact' } });
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
@@ -69,7 +69,7 @@ describe('AppearanceSection', () => {
   // Issue #22, secondary symptom: Cmd-T wrote ui.themePref while the selector
   // rendered AppSettings.theme, so the dropdown showed a stale value.
   it('follows a theme changed from outside the panel (the Cmd-T path)', () => {
-    render(<AppearanceSection client={client} />);
+    renderWithClient(<AppearanceSection />);
     expect(screen.getByDisplayValue('Auto (system)')).toBeTruthy();
 
     act(() => {

@@ -4,6 +4,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { App } from './App';
 import { AppErrorFallback, logError } from './components/errors/ErrorFallback';
 import './index.css';
+import { log } from './lib/logger';
 import { initScrollbarReveal } from './lib/scrollbarReveal';
 import { applyTheme, readLegacyThemePref, resolveTheme, systemPrefersDark } from './lib/theme';
 
@@ -15,6 +16,12 @@ applyTheme(resolveTheme(readLegacyThemePref() ?? 'auto', systemPrefersDark()));
 
 // Reveal scrollbar handles on hover / while scrolling, then auto-hide.
 initScrollbarReveal();
+
+// Safety net for promises nobody handled: log them so they reach the in-app
+// Logs panel too. The browser still reports them to the DevTools console.
+window.addEventListener('unhandledrejection', (event) => {
+  log.error('unhandled rejection', event.reason);
+});
 
 const container = document.getElementById('root');
 if (!container) throw new Error('#root element missing');

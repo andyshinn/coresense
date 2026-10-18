@@ -1,4 +1,9 @@
+import type { ILogger } from 'update-electron-app';
 import type { UpdateChannel, UpdateState } from '../../shared/types';
+
+/** The logger both updater modules take. It is update-electron-app's own
+ *  ILogger, `log()` included, because silent.ts hands it to the library. */
+export type UpdatesLogger = ILogger;
 
 export function computeMode(platform: NodeJS.Platform, channel: UpdateChannel): 'silent' | 'notify' {
   return channel === 'stable' && (platform === 'darwin' || platform === 'win32') ? 'silent' : 'notify';
@@ -12,7 +17,7 @@ export interface UpdateControllerDeps {
   checkNotify: (channel: UpdateChannel, current: string) => Promise<UpdateState>;
   openExternal: (url: string) => void;
   emitState: (s: UpdateState) => void;
-  logger: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
+  logger: UpdatesLogger;
 }
 
 /** Shown when the silent path can't run (dev/MAS) so the UI doesn't spin on

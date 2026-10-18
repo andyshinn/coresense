@@ -1,49 +1,18 @@
-import { readFile, stat } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
-import { extname, join, normalize } from 'node:path';
+import { extname, join } from 'node:path';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { type WebSocket, WebSocketServer } from 'ws';
-import type { DiscoveredContact } from '../shared/contacts/discovered';
+import { errorMessage } from '../shared/errors';
 import { clampRetention } from '../shared/packetLog';
-import type {
-  AppSettings,
-  AutoAddConfig,
-  BleDevice,
-  BlockRule,
-  Channel,
-  Contact,
-  DeviceCapabilities,
-  DeviceIdentity,
-  DeviceInfo,
-  GpsConfig,
-  LogEntry,
-  MacroTemplate,
-  MapSettings,
-  MapTileStatus,
-  MenuAction,
-  Message,
-  MessagePath,
-  MessageState,
-  Owner,
-  PathLearnedEvent,
-  RadioSettings,
-  RawPacket,
-  RepeaterStatusSnapshot,
-  RepeaterTelemetrySnapshot,
-  SyncProgress,
-  TelemetryPolicy,
-  ThemePush,
-  TileManifest,
-  TransportState,
-  UiState,
-  UpdateState,
-  WsMessage,
-} from '../shared/types';
+import type { RawPacket, TransportState, WsMessage } from '../shared/types';
+import { onApiError } from './api/errors';
 import { apiKeyAuth, checkWsKey } from './api/middleware/auth';
 import { createRoutes } from './api/routes';
 import type { BridgeHandle } from './bridge';
-import { bus } from './events/bus';
+import { type BusEventMap, bus } from './events/bus';
 import { listenOnPort } from './http-listen';
 import { resolveHttpPort } from './http-port';
 import { child, getLogBuffer } from './log';
@@ -74,6 +43,50 @@ interface StartServerOptions {
   bindAddress?: string;
 }
 
+/** The bus events that reach WS clients unchanged apart from their envelope. */
+type WsForwards = Omit<
+  { [K in keyof BusEventMap]: (...args: BusEventMap[K]) => WsMessage },
+  'packet' | 'transportState' | 'contactSyncSummary' | 'contactDiscovered'
+>;
+
+const WS_FORWARDS: WsForwards = {
+  scanResults: (devices) => ({ type: 'scanResults', payload: devices }),
+  errorMessage: (message) => ({ type: 'error', payload: { message } }),
+  menuAction: (action) => ({ type: 'menuAction', payload: action }),
+  theme: (push) => ({ type: 'theme', payload: push }),
+  channels: (channels) => ({ type: 'channels', payload: channels }),
+  channelPresence: (keys) => ({ type: 'channelPresence', payload: { keys } }),
+  syncProgress: (progress) => ({ type: 'syncProgress', payload: progress }),
+  contacts: (contacts) => ({ type: 'contacts', payload: contacts }),
+  discovered: (rows) => ({ type: 'discovered', payload: rows }),
+  contactEvicted: (name) => ({ type: 'contactEvicted', payload: { name } }),
+  messages: (key, messages) => ({ type: 'messages', payload: { key, messages } }),
+  messageState: (id, state) => ({ type: 'messageState', payload: { id, state } }),
+  messagePathHeard: (payload) => ({ type: 'messagePathHeard', payload }),
+  messagesDeleted: (payload) => ({ type: 'messagesDeleted', payload }),
+  owner: (owner) => ({ type: 'owner', payload: owner }),
+  appSettings: (settings) => ({ type: 'appSettings', payload: settings }),
+  radioSettings: (settings) => ({ type: 'radioSettings', payload: settings }),
+  mapSettings: (settings) => ({ type: 'mapSettings', payload: settings }),
+  mapManifest: (manifest) => ({ type: 'mapManifest', payload: manifest }),
+  mapTileStatus: (status) => ({ type: 'mapTileStatus', payload: status }),
+  repeaterStatus: (snap) => ({ type: 'repeaterStatus', payload: snap }),
+  repeaterTelemetry: (snap) => ({ type: 'repeaterTelemetry', payload: snap }),
+  pathLearned: (event) => ({ type: 'pathLearned', payload: event }),
+  deviceIdentity: (identity) => ({ type: 'deviceIdentity', payload: identity }),
+  autoAddConfig: (cfg) => ({ type: 'autoAddConfig', payload: cfg }),
+  telemetryPolicy: (policy) => ({ type: 'telemetryPolicy', payload: policy }),
+  gpsConfig: (cfg) => ({ type: 'gpsConfig', payload: cfg }),
+  deviceInfo: (info) => ({ type: 'deviceInfo', payload: info }),
+  deviceCapabilities: (caps) => ({ type: 'deviceCapabilities', payload: caps }),
+  blockRules: (rules) => ({ type: 'blockRules', payload: rules }),
+  macros: (macros) => ({ type: 'macros', payload: macros }),
+  uiState: (state) => ({ type: 'uiState', payload: state }),
+  windowFocus: (focused) => ({ type: 'windowFocus', payload: { focused } }),
+  updateState: (state) => ({ type: 'updateState', payload: state }),
+  'log:entry': (entry) => ({ type: 'log', payload: entry }),
+};
+
 export async function startServer(
   rendererDir: string | null,
   bridge: BridgeHandle,
@@ -101,6 +114,11 @@ export async function startServer(
       maxAge: 600,
     }),
   );
+  // Set by listenOnPort once bound; createRoutes reads it lazily.
+  let boundPort = requestedPort;
+  // createRoutes installs the same handler on its own app; this one covers
+  // throws from the middleware and the static file routes below.
+  app.onError(onApiError);
   app.use('/api/*', apiKeyAuth);
   app.route(
     '/',
@@ -110,31 +128,22 @@ export async function startServer(
       bridgeStatus: () => bridge.getStatus(),
     }),
   );
+  // An unknown API path is a JSON 404 — never the SPA fallback below, which
+  // would answer it with index.html and a 200.
+  app.all('/api/*', (c) => c.json({ error: 'not found', code: 'not_found' }, 404));
 
   if (rendererDir) {
     // Preload index.html once at startup; the production bundle is immutable.
     const indexHtml = await readFile(join(rendererDir, 'index.html'), 'utf8');
-    const normalizedRoot = normalize(rendererDir);
     app.get('/', (c) => c.html(indexHtml));
-    app.get('/*', async (c) => {
-      const reqPath = c.req.path === '/' ? '/index.html' : c.req.path;
-      const filePath = normalize(join(rendererDir, reqPath));
-      if (!filePath.startsWith(normalizedRoot)) {
-        return c.json({ error: 'Forbidden' }, 403);
-      }
-      try {
-        const s = await stat(filePath);
-        if (!s.isFile()) throw new Error('not a file');
-      } catch {
-        if (extname(c.req.path) === '') return c.html(indexHtml);
-        return c.json({ error: 'Not found' }, 404);
-      }
-      const body = await readFile(filePath);
-      return c.body(body, 200, { 'Content-Type': mimeFor(extname(filePath)) });
-    });
+    // serveStatic owns MIME types, streaming, ranges and path traversal (it
+    // refuses any `.`/`..` segment), and falls through when nothing matches.
+    app.get('/*', serveStatic({ root: rendererDir }));
+    // SPA fallback: an extensionless path is a client-side route. Anything else
+    // serveStatic didn't find is a missing asset.
+    app.get('*', (c) => (extname(c.req.path) === '' ? c.html(indexHtml) : c.json({ error: 'Not found' }, 404)));
   }
 
-  let boundPort = requestedPort;
   const httpServer = await listenOnPort(app.fetch, requestedPort, bindAddress, (p) => {
     boundPort = p;
   });
@@ -210,7 +219,7 @@ export async function startServer(
       packetStore.record(p, clampRetention(stateHolder().getUiState().packetLog).storedHistorySize);
     } catch (err) {
       // Persistence is best-effort: a bad DB write must not crash main or drop the live broadcast.
-      log.warn(`packet persist failed: ${(err as Error).message}`);
+      log.warn(`packet persist failed: ${errorMessage(err)}`);
     }
     broadcast({ type: 'packet', payload: p });
   };
@@ -232,122 +241,24 @@ export async function startServer(
     }
     broadcast({ type: 'transportState', payload: { state, deviceId } });
   };
-  const onScanResults = (devices: BleDevice[]) => broadcast({ type: 'scanResults', payload: devices });
-  const onError = (message: string) => broadcast({ type: 'error', payload: { message } });
   const onBridgeStatus = () => broadcast({ type: 'bridgeStatus', payload: bridge.getStatus() });
-  const onMenuAction = (action: MenuAction) => broadcast({ type: 'menuAction', payload: action });
-  const onTheme = (push: ThemePush) => broadcast({ type: 'theme', payload: push });
-  const onChannels = (channels: Channel[]) => broadcast({ type: 'channels', payload: channels });
-  const onChannelPresence = (keys: string[]) => broadcast({ type: 'channelPresence', payload: { keys } });
-  const onSyncProgress = (progress: SyncProgress) => broadcast({ type: 'syncProgress', payload: progress });
-  const onContacts = (contacts: Contact[]) => broadcast({ type: 'contacts', payload: contacts });
-  const onDiscovered = (rows: DiscoveredContact[]) => broadcast({ type: 'discovered', payload: rows });
-  const onContactEvicted = (name: string) => broadcast({ type: 'contactEvicted', payload: { name } });
-  const onMessages = (key: string, messages: Message[]) => broadcast({ type: 'messages', payload: { key, messages } });
-  const onMessageState = (id: string, state: MessageState) => broadcast({ type: 'messageState', payload: { id, state } });
-  const onMessagePathHeard = (payload: { id: string; path: MessagePath; state: MessageState }) =>
-    broadcast({ type: 'messagePathHeard', payload });
-  const onMessagesDeleted = (payload: { key: string; ids: string[] }) => broadcast({ type: 'messagesDeleted', payload });
-  const onOwner = (owner: Owner | null) => broadcast({ type: 'owner', payload: owner });
-  const onAppSettings = (settings: AppSettings) => broadcast({ type: 'appSettings', payload: settings });
-  const onRadioSettings = (settings: RadioSettings) => broadcast({ type: 'radioSettings', payload: settings });
-  const onMapSettings = (settings: MapSettings) => broadcast({ type: 'mapSettings', payload: settings });
-  const onMapManifest = (manifest: TileManifest) => broadcast({ type: 'mapManifest', payload: manifest });
-  const onMapTileStatus = (status: MapTileStatus) => broadcast({ type: 'mapTileStatus', payload: status });
-  const onRepeaterStatus = (snap: RepeaterStatusSnapshot) => broadcast({ type: 'repeaterStatus', payload: snap });
-  const onRepeaterTelemetry = (snap: RepeaterTelemetrySnapshot) => broadcast({ type: 'repeaterTelemetry', payload: snap });
-  const onPathLearned = (event: PathLearnedEvent) => broadcast({ type: 'pathLearned', payload: event });
-  const onDeviceIdentity = (identity: DeviceIdentity) => broadcast({ type: 'deviceIdentity', payload: identity });
-  const onAutoAddConfig = (cfg: AutoAddConfig) => broadcast({ type: 'autoAddConfig', payload: cfg });
-  const onTelemetryPolicy = (policy: TelemetryPolicy) => broadcast({ type: 'telemetryPolicy', payload: policy });
-  const onGpsConfig = (cfg: GpsConfig) => broadcast({ type: 'gpsConfig', payload: cfg });
-  const onDeviceInfo = (info: DeviceInfo) => broadcast({ type: 'deviceInfo', payload: info });
-  const onDeviceCapabilities = (caps: DeviceCapabilities) => broadcast({ type: 'deviceCapabilities', payload: caps });
-  const onBlockRules = (rules: BlockRule[]) => broadcast({ type: 'blockRules', payload: rules });
-  const onMacros = (macros: MacroTemplate[]) => broadcast({ type: 'macros', payload: macros });
-  const onUiState = (state: UiState) => broadcast({ type: 'uiState', payload: state });
-  const onWindowFocus = (focused: boolean) => broadcast({ type: 'windowFocus', payload: { focused } });
-  const onUpdateState = (state: UpdateState) => broadcast({ type: 'updateState', payload: state });
-  const onLogEntry = (entry: LogEntry) => broadcast({ type: 'log', payload: entry });
+  // Plain bus → WS forwards; packet and transportState stay explicit above
+  // because they do more than broadcast.
+  const forwards = (Object.keys(WS_FORWARDS) as (keyof WsForwards)[]).map((event) => {
+    const toMessage = WS_FORWARDS[event] as (...args: unknown[]) => WsMessage;
+    return [event, (...args: unknown[]) => broadcast(toMessage(...args))] as const;
+  });
 
   bus.on('packet', onPacket);
   bus.on('transportState', onTransportState);
-  bus.on('scanResults', onScanResults);
-  bus.on('errorMessage', onError);
-  bus.on('menuAction', onMenuAction);
-  bus.on('theme', onTheme);
-  bus.on('channels', onChannels);
-  bus.on('channelPresence', onChannelPresence);
-  bus.on('syncProgress', onSyncProgress);
-  bus.on('contacts', onContacts);
-  bus.on('discovered', onDiscovered);
-  bus.on('contactEvicted', onContactEvicted);
-  bus.on('messages', onMessages);
-  bus.on('messageState', onMessageState);
-  bus.on('messagePathHeard', onMessagePathHeard);
-  bus.on('messagesDeleted', onMessagesDeleted);
-  bus.on('owner', onOwner);
-  bus.on('appSettings', onAppSettings);
-  bus.on('radioSettings', onRadioSettings);
-  bus.on('mapSettings', onMapSettings);
-  bus.on('mapManifest', onMapManifest);
-  bus.on('mapTileStatus', onMapTileStatus);
-  bus.on('repeaterStatus', onRepeaterStatus);
-  bus.on('repeaterTelemetry', onRepeaterTelemetry);
-  bus.on('pathLearned', onPathLearned);
-  bus.on('deviceIdentity', onDeviceIdentity);
-  bus.on('autoAddConfig', onAutoAddConfig);
-  bus.on('telemetryPolicy', onTelemetryPolicy);
-  bus.on('gpsConfig', onGpsConfig);
-  bus.on('deviceInfo', onDeviceInfo);
-  bus.on('deviceCapabilities', onDeviceCapabilities);
-  bus.on('blockRules', onBlockRules);
-  bus.on('macros', onMacros);
-  bus.on('uiState', onUiState);
-  bus.on('windowFocus', onWindowFocus);
-  bus.on('updateState', onUpdateState);
-  bus.on('log:entry', onLogEntry);
+  for (const [event, listener] of forwards) bus.on(event, listener);
   bridge.on('statusChanged', onBridgeStatus);
 
   const close = async () => {
     stopContactAutoRefresh();
     bus.off('packet', onPacket);
     bus.off('transportState', onTransportState);
-    bus.off('scanResults', onScanResults);
-    bus.off('errorMessage', onError);
-    bus.off('menuAction', onMenuAction);
-    bus.off('theme', onTheme);
-    bus.off('channels', onChannels);
-    bus.off('channelPresence', onChannelPresence);
-    bus.off('syncProgress', onSyncProgress);
-    bus.off('contacts', onContacts);
-    bus.off('discovered', onDiscovered);
-    bus.off('contactEvicted', onContactEvicted);
-    bus.off('messages', onMessages);
-    bus.off('messageState', onMessageState);
-    bus.off('messagePathHeard', onMessagePathHeard);
-    bus.off('messagesDeleted', onMessagesDeleted);
-    bus.off('owner', onOwner);
-    bus.off('appSettings', onAppSettings);
-    bus.off('radioSettings', onRadioSettings);
-    bus.off('mapSettings', onMapSettings);
-    bus.off('mapManifest', onMapManifest);
-    bus.off('mapTileStatus', onMapTileStatus);
-    bus.off('repeaterStatus', onRepeaterStatus);
-    bus.off('repeaterTelemetry', onRepeaterTelemetry);
-    bus.off('pathLearned', onPathLearned);
-    bus.off('deviceIdentity', onDeviceIdentity);
-    bus.off('autoAddConfig', onAutoAddConfig);
-    bus.off('telemetryPolicy', onTelemetryPolicy);
-    bus.off('gpsConfig', onGpsConfig);
-    bus.off('deviceInfo', onDeviceInfo);
-    bus.off('deviceCapabilities', onDeviceCapabilities);
-    bus.off('blockRules', onBlockRules);
-    bus.off('macros', onMacros);
-    bus.off('uiState', onUiState);
-    bus.off('windowFocus', onWindowFocus);
-    bus.off('updateState', onUpdateState);
-    bus.off('log:entry', onLogEntry);
+    for (const [event, listener] of forwards) bus.off(event, listener);
     bridge.off('statusChanged', onBridgeStatus);
     // Force-terminate WS clients and HTTP keep-alives. The renderer is still
     // alive during shutdown (before-quit preventDefault), so graceful close
@@ -359,37 +270,4 @@ export async function startServer(
   };
 
   return { port: boundPort, close, hasOpenClients };
-}
-
-function mimeFor(ext: string): string {
-  switch (ext.toLowerCase()) {
-    case '.html':
-      return 'text/html; charset=utf-8';
-    case '.js':
-    case '.mjs':
-      return 'application/javascript; charset=utf-8';
-    case '.css':
-      return 'text/css; charset=utf-8';
-    case '.json':
-      return 'application/json; charset=utf-8';
-    case '.svg':
-      return 'image/svg+xml';
-    case '.png':
-      return 'image/png';
-    case '.jpg':
-    case '.jpeg':
-      return 'image/jpeg';
-    case '.gif':
-      return 'image/gif';
-    case '.ico':
-      return 'image/x-icon';
-    case '.woff':
-      return 'font/woff';
-    case '.woff2':
-      return 'font/woff2';
-    case '.map':
-      return 'application/json; charset=utf-8';
-    default:
-      return 'application/octet-stream';
-  }
 }

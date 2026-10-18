@@ -1,8 +1,9 @@
-import { app, BrowserWindow, Menu, type MenuItemConstructorOptions, shell } from 'electron';
+import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from 'electron';
 import { accelFor, menuActionFor } from '../shared/shortcuts';
 import type { MenuAction } from '../shared/types';
 import { showAboutDialog } from './about';
 import { emit } from './events/bus';
+import { openExternal } from './runtime/shell';
 import { updatesController } from './updates/controller';
 
 const isMac = process.platform === 'darwin';
@@ -201,7 +202,7 @@ export function buildMenu(): Menu {
       {
         label: 'MeshCore Project',
         click: () => {
-          void shell.openExternal('https://meshcore.co.uk');
+          openExternal('https://meshcore.co.uk');
         },
       },
       {

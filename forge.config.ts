@@ -10,7 +10,7 @@ import { MakerZIP } from '@electron-forge/maker-zip';
 import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { VitePlugin } from '@electron-forge/plugin-vite';
-import { PublisherGithub } from '@electron-forge/publisher-github';
+import { PublisherGitHub } from '@electron-forge/publisher-github';
 import type { ForgeConfig } from '@electron-forge/shared-types';
 
 // Bundled PMTiles extract (basemap) ships as extraResource so it lands
@@ -71,7 +71,10 @@ const config: ForgeConfig = {
     // The Vite plugin's default ignore excludes everything outside /.vite, but
     // we need /node_modules for the native module (@stoprocent/noble) that
     // cannot be bundled by Rollup. AutoUnpackNativesPlugin moves the .node
-    // binaries out of app.asar at package time.
+    // binaries out of app.asar at package time. Forge prunes devDependencies
+    // before this runs, so what ships is the closure of package.json
+    // `dependencies`: only the main-process externals in vite.main.config.mts.
+    // Everything Vite bundles is a devDependency (see RELEASING.md).
     ignore: (file: string) => {
       if (!file) return false;
       if (file.startsWith('/.vite')) return false;
@@ -177,7 +180,7 @@ const config: ForgeConfig = {
     new MakerDeb({ options: { bin: 'CoreSense' } }),
   ],
   publishers: [
-    new PublisherGithub({
+    new PublisherGitHub({
       repository: {
         owner: 'andyshinn',
         name: 'coresense',

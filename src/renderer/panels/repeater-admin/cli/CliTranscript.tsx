@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Kbd } from '@/components/ui/kbd';
 import { CliRow, type FollowUp } from './CliRow';
+import { KbdHints } from './KbdHints';
 import type { CliEntry } from './lib/queue';
 
 export interface CliTranscriptProps {
@@ -21,21 +21,15 @@ function TranscriptEmpty() {
         <code className="rounded bg-cs-bg-3 px-1 py-0.5 font-mono text-[12px] text-cs-text-muted">discover.neighbors</code>).
       </p>
       <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-cs-text-dim">
-        <span>
-          <Kbd>⌃Space</Kbd> suggestions
-        </span>
-        <span>
-          <Kbd>↹</Kbd> complete
-        </span>
-        <span>
-          <Kbd>↑</Kbd> previous
-        </span>
-        <span>
-          <Kbd>⌃R</Kbd> reverse search
-        </span>
-        <span>
-          <Kbd>⌃L</Kbd> clear
-        </span>
+        <KbdHints
+          items={[
+            ['⌃Space', 'suggestions'],
+            ['↹', 'complete'],
+            ['↑', 'previous'],
+            ['⌃R', 'reverse search'],
+            ['⌃L', 'clear'],
+          ]}
+        />
       </div>
     </div>
   );

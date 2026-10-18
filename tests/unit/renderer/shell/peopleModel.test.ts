@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { capList } from '../../../../src/renderer/lib/capList';
 import type { RosterRow } from '../../../../src/renderer/shell/rightrail/sections/peopleModel';
 import {
   bucketFor,
-  capRows,
   filterRoster,
   fmtAge,
   fmtCount,
@@ -13,6 +13,7 @@ import {
   toRosterRows,
   volumeWidth,
 } from '../../../../src/renderer/shell/rightrail/sections/peopleModel';
+import type { Contact } from '../../../../src/shared/types';
 
 const NOW = new Date('2026-07-25T14:30:00').getTime();
 const MIN = 60_000;
@@ -238,7 +239,7 @@ describe('toRosterRows', () => {
   });
 
   it('marks a saved poster as a contact', () => {
-    const contacts = [{ key: 'c:abc', publicKeyHex: 'abc', name: 'alice', kind: 'chat' as const }];
+    const contacts: Contact[] = [{ key: 'c:abc', publicKeyHex: 'abc', name: 'alice', kind: 'chat' }];
     const [r] = toRosterRows([{ fromPk: 'name:alice', count: 3, lastTs: NOW }], contacts, []);
     expect(r).toMatchObject({
       inContacts: true,
@@ -290,36 +291,36 @@ describe('the You row behaves like any other participant', () => {
 // The People rail paints at most PEOPLE_ROW_CAP rows and reveals the rest on
 // demand (issue #35). The cap is a paint-time slice applied AFTER sort/filter,
 // so search still sees the whole roster.
-describe('capRows', () => {
+describe('capList on the roster', () => {
   const rows = (n: number) => Array.from({ length: n }, (_, i) => row({ id: `r${i}`, name: `p${i}` }));
 
   it('passes a short list straight through, by identity', () => {
     const input = rows(10);
-    const out = capRows(input, PEOPLE_ROW_CAP);
+    const out = capList(input, PEOPLE_ROW_CAP);
     expect(out.rows).toBe(input);
     expect(out.hidden).toBe(0);
   });
 
   it('withholds nothing at exactly the cap', () => {
-    const out = capRows(rows(PEOPLE_ROW_CAP), PEOPLE_ROW_CAP);
+    const out = capList(rows(PEOPLE_ROW_CAP), PEOPLE_ROW_CAP);
     expect(out.rows.length).toBe(PEOPLE_ROW_CAP);
     expect(out.hidden).toBe(0);
   });
 
   it('withholds exactly one at cap + 1', () => {
-    const out = capRows(rows(PEOPLE_ROW_CAP + 1), PEOPLE_ROW_CAP);
+    const out = capList(rows(PEOPLE_ROW_CAP + 1), PEOPLE_ROW_CAP);
     expect(out.rows.length).toBe(PEOPLE_ROW_CAP);
     expect(out.hidden).toBe(1);
   });
 
   it("keeps the caller's order — the cap is a prefix, not a sample", () => {
-    const out = capRows(rows(100), 3);
+    const out = capList(rows(100), 3);
     expect(out.rows.map((r) => r.name)).toEqual(['p0', 'p1', 'p2']);
     expect(out.hidden).toBe(97);
   });
 
   it('handles an empty roster', () => {
-    expect(capRows([], PEOPLE_ROW_CAP)).toEqual({ rows: [], hidden: 0 });
+    expect(capList([], PEOPLE_ROW_CAP)).toEqual({ rows: [], hidden: 0 });
   });
 
   // Capping BEFORE grouping is what stops a bucket header rendering above zero
@@ -330,7 +331,7 @@ describe('capRows', () => {
       ...Array.from({ length: 5 }, (_, i) => row({ id: `y${i}`, lastSeenAt: NOW - DAY - i * MIN })),
       ...Array.from({ length: 5 }, (_, i) => row({ id: `w${i}`, lastSeenAt: NOW - 3 * DAY - i * MIN })),
     ];
-    const { rows: visible, hidden } = capRows(spread, 7);
+    const { rows: visible, hidden } = capList(spread, 7);
     expect(hidden).toBe(8);
     const buckets = groupByBucket(visible, NOW);
     expect(buckets.map((b) => b.id)).toEqual(['today', 'yesterday']);

@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import { errorMessage } from '../../shared/errors';
 import { log } from './logger';
 import { useStore } from './store';
 
@@ -13,6 +14,10 @@ export const notify = {
     log.error(msg, err);
     const opts = toastOptions();
     if (opts) toast.error(msg, opts);
+  },
+  /** Error toast + log for a failed action: "<action> failed: <message>". */
+  failure(action: string, err: unknown) {
+    notify.error(`${action} failed: ${errorMessage(err)}`, err);
   },
   success(msg: string) {
     log.info(msg);

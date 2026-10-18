@@ -1,4 +1,5 @@
 import { type AdvertPayload, type DeviceRole, MeshCoreDecoder, PayloadType, Utils } from '@michaelhart/meshcore-decoder';
+import { isHexBody } from './packetInput';
 
 /**
  * A MeshCore node advertisement decoded from a `meshcore://` contact-share
@@ -33,7 +34,7 @@ const PREFIX = 'meshcore://';
 export function decodeMeshcoreUri(raw: string): MeshcoreAdvert | null {
   if (!raw.toLowerCase().startsWith(PREFIX)) return null;
   const hex = raw.slice(PREFIX.length).trim();
-  if (hex.length < 2 || hex.length % 2 !== 0 || !/^[0-9a-f]+$/i.test(hex)) return null;
+  if (!isHexBody(hex)) return null;
 
   let advert: AdvertPayload | null;
   try {

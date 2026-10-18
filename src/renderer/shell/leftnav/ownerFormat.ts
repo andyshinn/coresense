@@ -2,10 +2,6 @@
 export function fmtFreqMhz(hz: number): string {
   return (hz / 1e6).toFixed(3);
 }
-/** Frequency in Hz formatted as MHz with a unit (e.g. "910.525 MHz"). */
-export function fmtFreq(hz: number): string {
-  return `${fmtFreqMhz(hz)} MHz`;
-}
 /** Bandwidth in Hz formatted as kHz. */
 export function fmtBandwidth(hz: number): string {
   return `${hz / 1000} kHz`;

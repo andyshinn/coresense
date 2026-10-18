@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { rename, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
+import { conversationKind } from '../../shared/conversationKey';
+import { errorMessage } from '../../shared/errors';
 import type { MacroTemplate } from '../../shared/macros/types';
 import { clampRetention } from '../../shared/packetLog';
 import {
@@ -30,6 +30,7 @@ import {
 import { child } from '../log';
 import { isPackaged } from '../runtime/appInfo';
 import { userDataDir } from '../runtime/userData';
+import { createJsonWriter, isPlainObject, readJsonFile } from './jsonFile';
 
 const log = child('settings');
 
@@ -56,46 +57,46 @@ function pathFor(file: string): string {
   return join(userDataDir(), file);
 }
 
-function readJson<T>(file: string, fallback: T): T {
-  try {
-    const raw = readFileSync(pathFor(file), 'utf8');
-    return JSON.parse(raw) as T;
-  } catch (err) {
-    const e = err as NodeJS.ErrnoException;
-    if (e.code && e.code !== 'ENOENT') {
-      log.warn(`failed to read ${file}: ${e.message} — falling back to defaults`);
-    }
-    return fallback;
-  }
+/** A settings file's parsed root, or undefined when it is missing or fails
+ *  `guard` (logged), so the caller falls back to its defaults. */
+function readJson<T>(file: string, guard: (v: unknown) => v is T): T | undefined {
+  return readJsonFile(pathFor(file), guard, (reason) =>
+    log.warn(`failed to read ${file}: ${reason} — falling back to defaults`),
+  );
 }
 
-// Serialize writes per-file so concurrent saves (e.g. two quick UI changes)
-// can't interleave write+rename and corrupt the on-disk JSON. Callers stay
-// synchronous-looking; the write is fire-and-forget.
-const writeChains = new Map<string, Promise<void>>();
+/** Root guard for the list files. Shallow on purpose: it turns a corrupt root
+ *  (an object, a number) into an empty list, not a malformed element. */
+function isList<T>(v: unknown): v is T[] {
+  return Array.isArray(v);
+}
+
+function isStringRecord(v: unknown): v is Record<string, string> {
+  return isPlainObject(v) && Object.values(v).every((x) => typeof x === 'string');
+}
+
+// Per-file serialized atomic writes; see createJsonWriter.
+const writer = createJsonWriter((path, err) => log.error(`failed to write ${basename(path)}: ${errorMessage(err)}`));
 
 function writeJson(file: string, value: unknown): void {
-  const target = pathFor(file);
-  const tmp = `${target}.tmp`;
-  // Snapshot the value synchronously so callers can mutate their copy after
-  // this returns without affecting the on-disk payload.
-  const body = JSON.stringify(value, null, 2);
-  const prev = writeChains.get(file) ?? Promise.resolve();
-  const next = prev
-    .catch(() => undefined)
-    .then(async () => {
-      try {
-        await writeFile(tmp, body, 'utf8');
-        await rename(tmp, target);
-      } catch (err) {
-        log.error(`failed to write ${file}: ${(err as Error).message}`);
-      }
-    });
-  writeChains.set(file, next);
+  writer.write(pathFor(file), value);
 }
 
 export async function flushSettings(): Promise<void> {
-  await Promise.all(writeChains.values());
+  await writer.flush();
+}
+
+/** Delete fields that have LEFT a settings type from a loaded object, returning
+ *  the names actually removed. mergeDefaults copies every stored key through,
+ *  defaults or not, so a retired field has to be deleted actively, or it is
+ *  reloaded, re-broadcast and re-written forever. */
+function stripRetired(target: object, keys: readonly string[]): string[] {
+  const bag = target as Record<string, unknown>;
+  return keys.filter((key) => {
+    if (!(key in bag)) return false;
+    delete bag[key];
+    return true;
+  });
 }
 
 // First-run seed for AppSettings. In dev (`pnpm start`), substitute the dev
@@ -129,7 +130,7 @@ const LAST_READ_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
  *
  *  Pure, and only ever called from the LOAD path. That is not a style choice:
  *  applyUiState merges read markers per key by MAX and never deletes
- *  (mergeLastRead in src/renderer/lib/store.ts), so a prune performed anywhere
+ *  (mergeLastRead in src/renderer/lib/store/ui.ts), so a prune performed anywhere
  *  a client has already hydrated — on save, on a timer, in removeContact — is
  *  undone by that client's next full-object PUT. */
 function pruneLastRead(
@@ -142,7 +143,7 @@ function pruneLastRead(
   for (const [key, ts] of Object.entries(map)) {
     // Conversation keys only. `tool:` and anything added later have no
     // channel/contact to be live against, so they are never candidates.
-    const isConversation = key.startsWith('ch:') || key.startsWith('c:');
+    const isConversation = conversationKind(key) !== null;
     if (isConversation && !liveKeys.has(key) && now - ts > LAST_READ_GRACE_MS) {
       dropped++;
       continue;
@@ -155,17 +156,13 @@ function pruneLastRead(
 export const settingsStore = {
   loadAppSettings: (): AppSettings => {
     const seed = appSettingsSeed();
-    const merged = mergeDefaults(readJson(FILES.app, seed), seed);
-    const bag = merged as unknown as Record<string, unknown>;
-    // mergeDefaults copies every stored key through, defaults or not. A field
-    // that has LEFT AppSettings therefore has to be deleted actively, or it is
-    // reloaded, re-broadcast and re-written forever — same trap as loadUiState.
+    const merged = mergeDefaults(readJson(FILES.app, isPlainObject), seed);
+    // Retired field (see stripRetired) — same trap as loadUiState.
     // `theme` is dropped rather than migrated into UiState.themePref: it was
     // written by a selector that never applied anything (issue #22), so
     // adopting it could override the theme the user really picked with the
     // Cmd-T cycle. Nothing is lost — the value never had an effect.
-    if ('theme' in bag) {
-      delete bag.theme;
+    if (stripRetired(merged, ['theme']).length > 0) {
       writeJson(FILES.app, merged);
       log.info('migrated retired field out of app-settings.json: theme');
     }
@@ -174,7 +171,7 @@ export const settingsStore = {
   saveAppSettings: (v: AppSettings): void => writeJson(FILES.app, v),
 
   loadRadioSettings: (): RadioSettings => {
-    const merged = mergeDefaults(readJson(FILES.radio, DEFAULT_RADIO_SETTINGS), DEFAULT_RADIO_SETTINGS);
+    const merged = mergeDefaults(readJson(FILES.radio, isPlainObject), DEFAULT_RADIO_SETTINGS);
     // Legacy migration: PathHashSize used to allow 4, but firmware only
     // accepts 1/2/3 bytes per hop. Coerce anything else to the default.
     if (merged.pathHashMode !== 1 && merged.pathHashMode !== 2 && merged.pathHashMode !== 3) {
@@ -188,47 +185,34 @@ export const settingsStore = {
   },
   saveRadioSettings: (v: RadioSettings): void => writeJson(FILES.radio, v),
 
-  loadChannels: (): Channel[] => readJson(FILES.channels, []),
+  loadChannels: (): Channel[] => readJson(FILES.channels, isList<Channel>) ?? [],
   saveChannels: (v: Channel[]): void => writeJson(FILES.channels, v),
 
-  loadContacts: (): Contact[] => readJson(FILES.contacts, []),
+  loadContacts: (): Contact[] => readJson(FILES.contacts, isList<Contact>) ?? [],
   saveContacts: (v: Contact[]): void => writeJson(FILES.contacts, v),
 
   /** @param liveKeys Conversation keys (`ch:`/`c:`) that still exist, used to
    *  drop dead read markers — see pruneLastRead. Optional: omit it (or pass an
    *  empty set) to skip the prune entirely. */
   loadUiState: (liveKeys?: ReadonlySet<string>): UiState => {
-    const raw = readJson<Record<string, unknown>>(FILES.ui, {});
-    const merged = mergeDefaults(raw as unknown as UiState, DEFAULT_UI_STATE);
+    const merged = mergeDefaults(readJson(FILES.ui, isPlainObject), DEFAULT_UI_STATE);
     // mergeDefaults passes a stored `"packetLog": null` (or out-of-range numbers
     // from a hand edit) straight through, and the renderer reads it unguarded.
     merged.packetLog = clampRetention(merged.packetLog);
-    const bag = merged as unknown as Record<string, unknown>;
-    // mergeDefaults copies every stored key through, defaults or not. A field
-    // that has LEFT UiState therefore has to be deleted actively, or it is
-    // reloaded, re-broadcast and re-written forever. Strip the retired ones and
-    // rewrite the file once.
-    const retired: string[] = [];
-    if ('drafts' in raw) {
-      // loadDrafts() has already lifted these into drafts.json by now — holder
-      // constructs in that order.
-      delete bag.drafts;
-      retired.push('drafts');
-    }
-    if ('decoderOpen' in raw) {
-      // The packet decoder dialog's open flag was briefly persisted by
-      // pre-release Packet Log builds, which reopened the dialog on launch. It
-      // is session-only store state now.
-      delete bag.decoderOpen;
-      retired.push('decoderOpen');
-    }
-    const logsFilter = bag.logsFilter as Record<string, unknown> | undefined;
-    if (logsFilter && ('loggerSubstring' in logsFilter || 'textSubstring' in logsFilter)) {
-      // The Logs substring boxes are session-only now. Nothing is migrated:
-      // a substring typed a week ago silently emptying the panel on launch is
-      // the bug being fixed, so these are simply dropped.
-      delete logsFilter.loggerSubstring;
-      delete logsFilter.textSubstring;
+    // Retired fields (see stripRetired). Strip them and rewrite the file once.
+    //  - drafts: loadDrafts() has already lifted these into drafts.json by now
+    //    — holder constructs in that order.
+    //  - decoderOpen: the packet decoder dialog's open flag was briefly
+    //    persisted by pre-release Packet Log builds, which reopened the dialog
+    //    on launch. It is session-only store state now.
+    const retired = stripRetired(merged, ['drafts', 'decoderOpen']);
+    // The Logs substring boxes are session-only now. Nothing is migrated:
+    // a substring typed a week ago silently emptying the panel on launch is
+    // the bug being fixed, so these are simply dropped.
+    if (
+      isPlainObject(merged.logsFilter) &&
+      stripRetired(merged.logsFilter, ['loggerSubstring', 'textSubstring']).length > 0
+    ) {
       retired.push('logsFilter substrings');
     }
     // Read markers for conversations that no longer exist. Skipped when the
@@ -255,26 +239,25 @@ export const settingsStore = {
    *  out of a legacy ui-state.json on first run after the split. MUST be called
    *  before loadUiState(), which strips and rewrites that file. */
   loadDrafts: (): Record<string, string> => {
-    const own = readJson<Record<string, string> | null>(FILES.drafts, null);
+    const own = readJson(FILES.drafts, isStringRecord);
     if (own) return own;
-    const legacy = readJson<Record<string, unknown>>(FILES.ui, {});
-    const lifted = (legacy.drafts as Record<string, string> | undefined) ?? {};
+    const legacy = readJson(FILES.ui, isPlainObject);
+    const lifted = isStringRecord(legacy?.drafts) ? legacy.drafts : {};
     if (Object.keys(lifted).length > 0) writeJson(FILES.drafts, lifted);
     return lifted;
   },
   saveDrafts: (v: Record<string, string>): void => writeJson(FILES.drafts, v),
 
-  loadMapSettings: (): MapSettings => mergeDefaults(readJson(FILES.map, DEFAULT_MAP_SETTINGS), DEFAULT_MAP_SETTINGS),
+  loadMapSettings: (): MapSettings => mergeDefaults(readJson(FILES.map, isPlainObject), DEFAULT_MAP_SETTINGS),
   saveMapSettings: (v: MapSettings): void => writeJson(FILES.map, v),
 
   loadDeviceIdentity: (): DeviceIdentity =>
-    mergeDefaults(readJson(FILES.deviceIdentity, DEFAULT_DEVICE_IDENTITY), DEFAULT_DEVICE_IDENTITY),
+    mergeDefaults(readJson(FILES.deviceIdentity, isPlainObject), DEFAULT_DEVICE_IDENTITY),
   saveDeviceIdentity: (v: DeviceIdentity): void => writeJson(FILES.deviceIdentity, v),
 
   loadAutoAddConfig: (): AutoAddConfig => {
-    const stored = readJson<Record<string, unknown>>(FILES.autoAdd, {});
-    const merged = mergeDefaults(stored as unknown as AutoAddConfig, DEFAULT_AUTO_ADD_CONFIG);
-    const bag = merged as unknown as Record<string, unknown>;
+    const stored = readJson(FILES.autoAdd, isPlainObject) ?? {};
+    const merged = mergeDefaults(stored, DEFAULT_AUTO_ADD_CONFIG);
     let migrated = false;
     // `mode` used to be independent app-side state; it is now a VIEW of
     // manual_add_contacts bit 0. A file written before that byte existed can
@@ -289,27 +272,19 @@ export const settingsStore = {
       migrated = true;
       log.info('migrated auto-add-config.json: derived manual_add_contacts bit 0 from the stored mode');
     }
-    // Retired field. `maxHops` was an app-side advert filter that nothing on
-    // either side ever applied; the radio's own `autoadd_max_hops`
-    // (`radioMaxHops`) replaced it. It is NOT adopted as the new value — that
-    // would push a hop limit to the radio the user never actually got — and
-    // mergeDefaults copies unknown stored keys straight through, so it has to
-    // be deleted actively or it is reloaded and rewritten forever (same trap as
-    // AppSettings.theme).
-    if ('maxHops' in bag) {
-      delete bag.maxHops;
+    // Retired fields (see stripRetired) — same trap as AppSettings.theme.
+    //  - maxHops: an app-side advert filter that nothing on either side ever
+    //    applied; the radio's own `autoadd_max_hops` (`radioMaxHops`) replaced
+    //    it. It is NOT adopted as the new value — that would push a hop limit
+    //    to the radio the user never actually got.
+    //  - pullToRefresh: a toggle nothing ever read, persisted as `true` for
+    //    everyone. Its replacement (`autoRefreshContacts`) drives a real
+    //    periodic GET_CONTACTS walk, so the old value is deliberately NOT
+    //    carried over — nobody gets opted into radio traffic by a setting that
+    //    never did anything.
+    for (const field of stripRetired(merged, ['maxHops', 'pullToRefresh'])) {
       migrated = true;
-      log.info('migrated retired field out of auto-add-config.json: maxHops');
-    }
-    // Retired field. `pullToRefresh` was a toggle nothing ever read, persisted
-    // as `true` for everyone. Its replacement (`autoRefreshContacts`) drives a
-    // real periodic GET_CONTACTS walk, so the old value is deliberately NOT
-    // carried over — nobody gets opted into radio traffic by a setting that
-    // never did anything. Deleted actively for the same reason as `maxHops`.
-    if ('pullToRefresh' in bag) {
-      delete bag.pullToRefresh;
-      migrated = true;
-      log.info('migrated retired field out of auto-add-config.json: pullToRefresh');
+      log.info(`migrated retired field out of auto-add-config.json: ${field}`);
     }
     if (migrated) writeJson(FILES.autoAdd, merged);
     return merged;
@@ -317,40 +292,46 @@ export const settingsStore = {
   saveAutoAddConfig: (v: AutoAddConfig): void => writeJson(FILES.autoAdd, v),
 
   loadTelemetryPolicy: (): TelemetryPolicy =>
-    mergeDefaults(readJson(FILES.telemetryPolicy, DEFAULT_TELEMETRY_POLICY), DEFAULT_TELEMETRY_POLICY),
+    mergeDefaults(readJson(FILES.telemetryPolicy, isPlainObject), DEFAULT_TELEMETRY_POLICY),
   saveTelemetryPolicy: (v: TelemetryPolicy): void => writeJson(FILES.telemetryPolicy, v),
 
-  loadGpsConfig: (): GpsConfig => mergeDefaults(readJson(FILES.gps, DEFAULT_GPS_CONFIG), DEFAULT_GPS_CONFIG),
+  loadGpsConfig: (): GpsConfig => mergeDefaults(readJson(FILES.gps, isPlainObject), DEFAULT_GPS_CONFIG),
   saveGpsConfig: (v: GpsConfig): void => writeJson(FILES.gps, v),
 
-  loadDeviceInfo: (): DeviceInfo => mergeDefaults(readJson(FILES.deviceInfo, DEFAULT_DEVICE_INFO), DEFAULT_DEVICE_INFO),
+  loadDeviceInfo: (): DeviceInfo => mergeDefaults(readJson(FILES.deviceInfo, isPlainObject), DEFAULT_DEVICE_INFO),
   saveDeviceInfo: (v: DeviceInfo): void => writeJson(FILES.deviceInfo, v),
 
-  loadBlockRules: (): BlockRule[] => readJson(FILES.blockRules, [] as BlockRule[]),
+  loadBlockRules: (): BlockRule[] => readJson(FILES.blockRules, isList<BlockRule>) ?? [],
   saveBlockRules: (v: BlockRule[]): void => writeJson(FILES.blockRules, v),
 
-  loadMacros: (): MacroTemplate[] => readJson(FILES.macros, [] as MacroTemplate[]),
+  loadMacros: (): MacroTemplate[] => readJson(FILES.macros, isList<MacroTemplate>) ?? [],
   saveMacros: (v: MacroTemplate[]): void => writeJson(FILES.macros, v),
 };
 
 // Recursive merge so new fields added in code get default values when reading
 // older files written before those fields existed — including fields nested
-// inside an existing object (e.g. a new key under `composer`). Arrays and
-// primitives are taken wholesale from the stored value.
-function mergeDefaults<T>(stored: T, defaults: T): T {
-  if (
-    stored === null ||
-    typeof stored !== 'object' ||
-    Array.isArray(stored) ||
-    typeof defaults !== 'object' ||
-    defaults === null ||
-    Array.isArray(defaults)
-  ) {
-    return stored;
+// inside an existing object (e.g. a new key under `composer`). Below the root,
+// arrays and primitives are taken wholesale from the stored value. A root that
+// is missing or not an object (a corrupt file holding `5` or `[]`) yields the
+// defaults. The defaults are deep-cloned first, so the result never shares an
+// array or nested object with a DEFAULT_* constant: loaders mutate what they
+// get back.
+function mergeDefaults<T extends object>(stored: unknown, defaults: T): T {
+  const fresh = structuredClone(defaults);
+  return mergeValue(isPlainObject(stored) ? stored : fresh, fresh) as T;
+}
+
+// JSON.parse makes `__proto__` an own key, and assigning it through `out[key]`
+// would swap the merged object's prototype. A hand-edited file has no business
+// setting these, so they are dropped.
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function mergeValue(stored: unknown, defaults: unknown): unknown {
+  if (!isPlainObject(stored) || !isPlainObject(defaults)) return stored;
+  const out: Record<string, unknown> = { ...defaults };
+  for (const [key, storedVal] of Object.entries(stored)) {
+    if (UNSAFE_KEYS.has(key)) continue;
+    out[key] = mergeValue(storedVal, defaults[key]);
   }
-  const out: Record<string, unknown> = { ...(defaults as object) };
-  for (const [key, storedVal] of Object.entries(stored as object)) {
-    out[key] = mergeDefaults(storedVal, (defaults as Record<string, unknown>)[key]);
-  }
-  return out as T;
+  return out;
 }

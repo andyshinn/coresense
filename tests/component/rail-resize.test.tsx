@@ -52,6 +52,7 @@ import { RAIL_COLLAPSE_WIDTH } from '@/shell/rightrail/railWidth';
 import { ChannelPeopleSection } from '@/shell/rightrail/sections/ChannelPeople';
 import { PEOPLE_ROW_CAP } from '@/shell/rightrail/sections/peopleModel';
 import type { Channel, ChannelSenderStat, ChannelStats, Contact } from '../../src/shared/types';
+import { renderWithClient } from '../support/renderWithClient';
 
 const ROSTER_SIZE = 120;
 
@@ -81,7 +82,6 @@ const stats = (): ChannelStats => ({
 });
 
 const ch: Channel = { key: 'ch:public', name: 'public', kind: 'public' };
-const client = { baseUrl: 'http://x', apiKey: 'k' };
 
 function setWidth(w: number) {
   act(() => {
@@ -90,9 +90,9 @@ function setWidth(w: number) {
 }
 
 async function mountSection() {
-  const view = render(
+  const view = renderWithClient(
     <TooltipProvider>
-      <ChannelPeopleSection channel={ch} client={client} />
+      <ChannelPeopleSection channel={ch} />
     </TooltipProvider>,
   );
   await waitFor(() => expect(screen.getByText('person-0')).toBeTruthy());
@@ -301,10 +301,6 @@ describe('ResizeHandle coalesces pointermoves into one frame', () => {
     cancelSpy = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation((id: number) => {
       frames[id - 1] = () => {};
     });
-    // jsdom implements neither of these on Element; the handle uses them to keep
-    // receiving moves once the pointer leaves the 2px hit area.
-    if (!Element.prototype.setPointerCapture) Element.prototype.setPointerCapture = () => {};
-    if (!Element.prototype.releasePointerCapture) Element.prototype.releasePointerCapture = () => {};
   });
 
   afterEach(() => {

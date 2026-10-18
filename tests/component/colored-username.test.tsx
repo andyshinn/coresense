@@ -2,8 +2,9 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ColoredUsername } from '@/components/ColoredUsername';
 import { useStore } from '@/lib/store';
+import type { Contact } from '../../src/shared/types';
 
-const contact = { key: 'c:abc', publicKeyHex: 'abc', name: 'alice', kind: 'chat' as const };
+const contact: Contact = { key: 'c:abc', publicKeyHex: 'abc', name: 'alice', kind: 'chat' };
 
 function setMode(identityColorMode: 'byKey' | 'byName') {
   useStore.setState((s) => ({ appSettings: { ...s.appSettings, identityColorMode } }));

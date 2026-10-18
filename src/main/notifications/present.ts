@@ -80,20 +80,17 @@ export function electronPresenter(deps: {
       n.on('close', () => {
         live.delete(key);
       });
-      // Electron's reply/action events differ across versions: older builds pass
-      // (event, reply)/(event, index); newer builds expose the value on the event
-      // object. The optional 2nd param typechecks against either overload and the
-      // body handles both runtime shapes.
-      n.on('reply', (_event: unknown, reply?: string) => {
-        const details = _event as { reply?: string } | undefined;
-        const text = reply ?? details?.reply ?? '';
+      // Electron 44 carries the value on the event (`details.reply` /
+      // `details.actionIndex`). The positional arg is deprecated and only a
+      // fallback.
+      n.on('reply', (details, reply) => {
+        const text = details?.reply ?? reply ?? '';
         debug(`reply id=${key} chars=${text.length}`);
         live.delete(key);
         spec.onReply?.(text);
       });
-      n.on('action', (_event: unknown, index?: number) => {
-        const details = _event as { actionIndex?: number } | undefined;
-        const idx = index ?? (typeof _event === 'number' ? _event : details?.actionIndex) ?? 0;
+      n.on('action', (details, actionIndex) => {
+        const idx = details?.actionIndex ?? actionIndex ?? 0;
         debug(`action id=${key} index=${idx}`);
         live.delete(key);
         spec.onAction?.(idx);

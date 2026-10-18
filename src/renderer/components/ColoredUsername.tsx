@@ -1,6 +1,7 @@
+import { senderDisplayName } from '../../shared/sender';
 import { useIdentityHash } from '../hooks/useIdentityHash';
 import { getNameColor } from '../lib/contactColor';
-import { cn, deriveSenderName } from '../lib/utils';
+import { cn } from '../lib/utils';
 
 interface Props {
   /** Already-resolved display name (wins over `sender`). */
@@ -38,7 +39,7 @@ export function ColoredUsername({
     display = selfLabel;
     neutral = true;
   } else {
-    const derived = deriveSenderName(sender); // '' for self / 'unknown'
+    const derived = senderDisplayName(sender); // '' for self / 'unknown'
     if (derived === '') {
       display = 'Unknown';
       neutral = true;

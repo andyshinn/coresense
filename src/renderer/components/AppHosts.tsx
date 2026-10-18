@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import type { ApiClient } from '../lib/api';
+
 import { useStore } from '../lib/store';
 import { PathLearnedDialog } from './path/PathLearnedDialog';
 import { StatusBar } from './StatusBar';
@@ -23,9 +23,9 @@ export function StatusBarHost({ port }: { port: number | null }) {
 }
 
 /** Shows the path-learned confirmation dialog when one is pending. */
-export function PathLearnedDialogHost({ client }: { client: ApiClient | null }) {
+export function PathLearnedDialogHost() {
   const event = useStore((s) => s.pendingPathLearn);
   const contact = useStore((s) => (event ? (s.contacts.find((c) => c.key === event.contactKey) ?? null) : null));
   const dismiss = useStore((s) => s.dismissPathLearned);
-  return <PathLearnedDialog event={event} contact={contact} client={client} onClose={dismiss} />;
+  return <PathLearnedDialog event={event} contact={contact} onClose={dismiss} />;
 }

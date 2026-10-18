@@ -5,7 +5,9 @@
 // environment: 'node'.
 
 import type { DiscoveredContact } from '../../../../shared/contacts/discovered';
-import type { ChannelSenderStat, Contact, PeopleFilter, PeopleSort } from '../../../../shared/types';
+import type { ContactKey } from '../../../../shared/conversationKey';
+import { DAY_MS, MINUTE_MS } from '../../../../shared/time';
+import type { ChannelSenderStat, Contact, PeopleFilter, PeopleRailPrefs, PeopleSort } from '../../../../shared/types';
 import { discoveredNameIndex, type IdentitySource, resolveIdentity } from '../../../lib/identity';
 
 export type BucketId = 'today' | 'yesterday' | 'week' | 'earlier';
@@ -17,7 +19,7 @@ export interface RosterRow {
   id: string;
   name: string;
   pubkey: string | null;
-  contactKey: string | null;
+  contactKey: ContactKey | null;
   source: IdentitySource;
   ambiguous: boolean;
   blocked: boolean;
@@ -35,10 +37,6 @@ export interface Bucket {
   label: string;
   rows: RosterRow[];
 }
-
-const MIN = 60_000;
-const HOUR = 60 * MIN;
-const DAY = 24 * HOUR;
 
 const BUCKET_LABELS: Record<BucketId, string> = {
   today: 'Today',
@@ -115,14 +113,14 @@ export function fmtAge(ts: number, now: number): string {
   // Node RTCs are unreliable and can report the future; clamp rather than
   // rendering a negative age.
   const elapsed = Math.max(0, now - ts);
-  if (elapsed < MIN) return 'now';
-  const mins = Math.floor(elapsed / MIN);
+  if (elapsed < MINUTE_MS) return 'now';
+  const mins = Math.floor(elapsed / MINUTE_MS);
   if (mins < 60) return `${mins}m`;
-  if (elapsed < DAY) {
+  if (elapsed < DAY_MS) {
     // Math.round(1439/60) is 24, which belongs to the next rung — clamp.
     return `${Math.min(23, Math.round(mins / 60))}h`;
   }
-  const days = Math.floor(elapsed / DAY);
+  const days = Math.floor(elapsed / DAY_MS);
   if (days < 7) return `${days}d`;
   return `${Math.floor(days / 7)}w`;
 }
@@ -143,7 +141,7 @@ function localMidnight(ts: number): number {
 /** Calendar-relative, not rolling. Math.round (not floor) so 23- and 25-hour
  *  DST days still land on whole day counts. */
 export function bucketFor(ts: number, now: number): BucketId {
-  const days = Math.round((localMidnight(now) - localMidnight(ts)) / DAY);
+  const days = Math.round((localMidnight(now) - localMidnight(ts)) / DAY_MS);
   if (days <= 0) return 'today';
   if (days === 1) return 'yesterday';
   if (days <= 7) return 'week';
@@ -216,6 +214,9 @@ export function volumeWidth(count: number, max: number): string {
   return `${Math.max(6, (count / max) * 100)}%`;
 }
 
+/** View prefs for a channel the user has never sorted or filtered. */
+export const DEFAULT_PEOPLE_PREFS: PeopleRailPrefs = { sort: 'recent', filter: 'all' };
+
 /** Rows the list paints before the "Show all" reveal.
  *
  *  A busy public channel can have several hundred distinct posters (`ch:Public`
@@ -228,16 +229,3 @@ export function volumeWidth(count: number, max: number): string {
  *  unbounded" as the trigger; this is that revisit, taken as a plain cap rather
  *  than a virtualiser so the rail stays one scroll container. */
 export const PEOPLE_ROW_CAP = 60;
-
-/** First `cap` rows plus how many were withheld.
- *
- *  Deliberately applied BEFORE `groupByBucket`, not after: grouping the capped
- *  set means a bucket header can never appear above zero visible rows, and each
- *  header's count describes what is actually on screen. The full total stays
- *  available for the reveal affordance and the section's header count. Returns
- *  the input array itself when nothing is withheld, so callers can memoise on
- *  identity. */
-export function capRows(rows: RosterRow[], cap: number): { rows: RosterRow[]; hidden: number } {
-  if (rows.length <= cap) return { rows, hidden: 0 };
-  return { rows: rows.slice(0, cap), hidden: rows.length - cap };
-}

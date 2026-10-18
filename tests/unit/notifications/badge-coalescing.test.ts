@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bus } from '../../../src/main/events/bus';
 import { subscribeBadgeRecompute } from '../../../src/main/notifications/badge';
+import type { AppSettings } from '../../../src/shared/types';
 
 // recomputeBadge walks every channel + contact key and reads up to 200 messages
 // per key out of sqlite — ~10ms on a real store. It was wired straight to
@@ -37,7 +38,7 @@ describe('subscribeBadgeRecompute', () => {
 
     bus.emit('channels', []);
     await sub.flush();
-    bus.emit('appSettings', {});
+    bus.emit('appSettings', {} as AppSettings);
     await sub.flush();
     bus.emit('blockRules', []);
     await sub.flush();

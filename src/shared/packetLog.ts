@@ -1,9 +1,5 @@
+import { clampFiniteInt } from './math';
 import { DEFAULT_PACKET_LOG_SETTINGS, PACKET_LOG_BOUNDS, type UiState } from './types';
-
-function clampBound(value: unknown, lo: number, hi: number, fallback: number): number {
-  const n = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-  return Math.min(hi, Math.max(lo, Math.floor(n)));
-}
 
 /**
  * Clamp a persisted packetLog retention config into PACKET_LOG_BOUNDS before
@@ -23,13 +19,13 @@ export function clampRetention(packetLog: Partial<UiState['packetLog']> | null |
   // mergeDefaults keeps a stored `"packetLog": null` as null. Tolerate it here
   // rather than throwing: this runs in the snapshot route on every launch.
   return {
-    liveBufferSize: clampBound(
+    liveBufferSize: clampFiniteInt(
       packetLog?.liveBufferSize,
       PACKET_LOG_BOUNDS.liveBufferSize.min,
       PACKET_LOG_BOUNDS.liveBufferSize.max,
       DEFAULT_PACKET_LOG_SETTINGS.liveBufferSize,
     ),
-    storedHistorySize: clampBound(
+    storedHistorySize: clampFiniteInt(
       packetLog?.storedHistorySize,
       PACKET_LOG_BOUNDS.storedHistorySize.min,
       PACKET_LOG_BOUNDS.storedHistorySize.max,

@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type ApiClient, ApiError, api } from '../lib/api';
+import { contactKey } from '../../shared/conversationKey';
+import { errorMessage } from '../../shared/errors';
+import { ApiError, api } from '../lib/api';
+import { useApiClient } from '../lib/apiClientContext';
 import { notify } from '../lib/notify';
 
 /** How long a contact has to stay focused before an automatic measurement
@@ -79,10 +82,10 @@ function describeMiss(reason: 'noPath' | undefined): string {
  *  arrives as a `discovered` push, so the row re-renders from the store like
  *  every other contact field. */
 export function useAdvertPath(
-  client: ApiClient | null,
   publicKeyHex: string | null,
   opts: { auto?: boolean } = {},
 ): { measuring: boolean; measure: () => Promise<void> } {
+  const client = useApiClient();
   const auto = opts.auto ?? false;
   // Which pubkeys this hook has outstanding. A ref, not the state below: the
   // websocket push that follows a successful measurement re-renders this
@@ -106,7 +109,7 @@ export function useAdvertPath(
       busy.current.add(pubkey);
       setInFlight([...busy.current]);
       try {
-        const res = await api.getAdvertPath(client, `c:${pubkey}`, { force: !silent });
+        const res = await api.getAdvertPath(client, contactKey(pubkey), { force: !silent });
         if (!silent) {
           if (!res.cached) notify.info(describeMiss(res.reason));
           else notify.success(describe(res.hops));
@@ -118,11 +121,11 @@ export function useAdvertPath(
         // The radio not storing this contact is a state, not a fault — the app
         // knows plenty of nodes the radio doesn't — and it is a state one click
         // on "Add to radio" changes, so it stays retryable.
-        if (err instanceof ApiError && err.code === 'NOT_ON_RADIO') {
+        if (err instanceof ApiError && err.code === 'not_on_radio') {
           if (!silent) notify.info('Add this contact to the radio before measuring its advert path');
           return 'retryable';
         }
-        if (!silent) notify.error(`Could not measure heard hops: ${(err as Error).message}`, err);
+        if (!silent) notify.error(`Could not measure heard hops: ${errorMessage(err)}`, err);
         return 'retryable';
       } finally {
         busy.current.delete(pubkey);

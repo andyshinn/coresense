@@ -13,7 +13,7 @@ function harness(over: Partial<RouterDeps> = {}) {
   const channels: Channel[] = [{ key: 'ch:General', name: 'General', kind: 'public' }];
   const contacts: Contact[] = [{ key: 'c:aa', publicKeyHex: 'aa', name: 'Alice', kind: 'chat' }];
   const owner: Owner = { name: 'me', publicKeyHex: 'ff', publicKeyShort: 'ff' };
-  let ui: UiState = { activeKey: 'tool:packetlog', lastReadByKey: {} } as UiState;
+  let ui: UiState = { activeKey: 'tool:packetlog', lastReadByKey: {} } as Partial<UiState> as UiState;
   const settings: AppSettings = {
     ...DEFAULT_APP_SETTINGS,
     notifications: { ...DEFAULT_APP_SETTINGS.notifications, channelMessage: true },
@@ -111,7 +111,7 @@ describe('notification router', () => {
     h.router.handleMessages('ch:General', [chMsg({ id: 'm4', ts: NOW - 10 * 60_000 })]);
     vi.advanceTimersByTime(1_000);
     expect(h.shown).toHaveLength(1);
-    const opened = { activeKey: 'ch:General', lastReadByKey: {} } as UiState;
+    const opened = { activeKey: 'ch:General', lastReadByKey: {} } as Partial<UiState> as UiState;
     h.setUi(opened);
     h.router.handleUiState(opened);
     expect(h.cleared).toContain('ch:General');
@@ -131,11 +131,22 @@ describe('notification router', () => {
     expect(h.deps.actions.mute).toHaveBeenCalledWith('ch:General');
   });
 
+  it('logs a rejected inline reply instead of leaving it unhandled', async () => {
+    const warn = vi.fn();
+    const h = harness({
+      warn,
+      actions: { reply: vi.fn(async () => Promise.reject(new Error('no radio'))), markRead: vi.fn(), mute: vi.fn() },
+    });
+    h.router.handleMessages('ch:General', [chMsg({ id: 'm6' })]);
+    h.shown[0].onReply?.('yo');
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledWith('notification reply to ch:General failed: no radio'));
+  });
+
   it('clears an individual notification group when its conversation is opened', () => {
     const h = harness();
     h.router.handleMessages('ch:General', [chMsg({ id: 'live1' })]);
     expect(h.shown).toHaveLength(1); // fresh → individual banner, groupId ch:General
-    h.router.handleUiState({ activeKey: 'ch:General', lastReadByKey: {} } as UiState);
+    h.router.handleUiState({ activeKey: 'ch:General', lastReadByKey: {} } as Partial<UiState> as UiState);
     expect(h.cleared).toContain('ch:General');
   });
 
@@ -157,14 +168,14 @@ describe('notification router', () => {
 
   it('suppresses the notification when the app is focused on that conversation', () => {
     const h = harness({ isFocused: () => true });
-    h.setUi({ activeKey: 'ch:General', lastReadByKey: {} } as UiState);
+    h.setUi({ activeKey: 'ch:General', lastReadByKey: {} } as Partial<UiState> as UiState);
     h.router.handleMessages('ch:General', [chMsg({ id: 'focused-msg' })]);
     expect(h.shown).toHaveLength(0);
   });
 
   it('is silent when the app is focused but on a different conversation', () => {
     const h = harness({ isFocused: () => true });
-    h.setUi({ activeKey: 'c:aa', lastReadByKey: {} } as UiState);
+    h.setUi({ activeKey: 'c:aa', lastReadByKey: {} } as Partial<UiState> as UiState);
     h.router.handleMessages('ch:General', [chMsg({ id: 'other-convo' })]);
     expect(h.shown).toHaveLength(1);
     expect(h.shown[0].silent).toBe(true);

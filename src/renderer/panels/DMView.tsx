@@ -6,7 +6,8 @@ import { Composer, type ComposerHandle } from '../components/Composer';
 import { MessageList } from '../components/MessageList';
 import { RssiChip } from '../components/RssiChip';
 import { useJumpBackfill } from '../hooks/useJumpBackfill';
-import { type ApiClient, api } from '../lib/api';
+import { api } from '../lib/api';
+import { useApiClient } from '../lib/apiClientContext';
 import { notify } from '../lib/notify';
 import { useStore } from '../lib/store';
 import { fmtAgoShort } from '../lib/time';
@@ -24,11 +25,10 @@ const EMPTY_MESSAGES: never[] = [];
 
 interface Props {
   contact: Contact;
-  client: ApiClient | null;
 }
 
-export function DMView({ contact, client }: Props) {
-  const owner = useStore((s) => s.owner);
+export function DMView({ contact }: Props) {
+  const client = useApiClient();
   const contacts = useStore((s) => s.contacts);
   const messages = useStore((s) => s.messagesByKey[contact.key]) ?? EMPTY_MESSAGES;
   const selectedId = useStore((s) => s.selectedMessageId);
@@ -62,7 +62,7 @@ export function DMView({ contact, client }: Props) {
 
   // A search hit older than the trailing window above has no row to scroll to
   // until this pulls the history around it.
-  useJumpBackfill(client, contact.key, pendingJumpMid);
+  useJumpBackfill(contact.key, pendingJumpMid);
 
   const onSend = useCallback(
     async (body: string) => {
@@ -70,7 +70,7 @@ export function DMView({ contact, client }: Props) {
       try {
         await api.sendMessage(client, contact.key, body);
       } catch (err) {
-        notify.error(`Send failed: ${(err as Error).message}`, err);
+        notify.failure('Send', err);
       }
     },
     [client, contact.key],
@@ -112,7 +112,6 @@ export function DMView({ contact, client }: Props) {
         <MessageList
           conversationKey={contact.key}
           messages={messages}
-          owner={owner}
           contacts={contacts}
           selectedId={selectedId}
           onSelect={onSelectMessage}
@@ -123,7 +122,6 @@ export function DMView({ contact, client }: Props) {
           onReply={handleReply}
           onReact={handleReact}
           onMacro={handleMacro}
-          client={client}
           jumpToId={pendingJumpMid}
           onJumpConsumed={() => setPendingJump(null)}
         />
@@ -137,7 +135,6 @@ export function DMView({ contact, client }: Props) {
         autoFocus={appSettings.composer.autoFocus}
         disabled={!client}
         draftKey={contact.key}
-        client={client}
       />
     </div>
   );

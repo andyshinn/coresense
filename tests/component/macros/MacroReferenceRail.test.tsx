@@ -15,7 +15,7 @@ describe('MacroReferenceRail', () => {
 
   it('inserts a variable through the active studio bridge', () => {
     const insertVar = vi.fn();
-    useStore.setState({ macroStudioBridge: { previewMode: 'send', insertVar, insertText: vi.fn() } });
+    useStore.setState({ macroStudioPreviewMode: 'send', macroStudioBridge: { insertVar, insertText: vi.fn() } });
     render(<MacroReferenceRail />);
     fireEvent.click(screen.getByRole('button', { name: 'Insert my_name' }));
     expect(insertVar).toHaveBeenCalledWith('my_name');
@@ -23,7 +23,7 @@ describe('MacroReferenceRail', () => {
 
   it('inserts a filter segment through the bridge', () => {
     const insertText = vi.fn();
-    useStore.setState({ macroStudioBridge: { previewMode: 'reply', insertVar: vi.fn(), insertText } });
+    useStore.setState({ macroStudioPreviewMode: 'reply', macroStudioBridge: { insertVar: vi.fn(), insertText } });
     render(<MacroReferenceRail />);
     fireEvent.click(screen.getByRole('tab', { name: /filters/i }));
     fireEvent.click(screen.getByRole('button', { name: /insert distance filter/i }));
@@ -31,7 +31,7 @@ describe('MacroReferenceRail', () => {
   });
 
   it('documents the json and inspect debug filters', () => {
-    useStore.setState({ macroStudioBridge: { previewMode: 'reply', insertVar: vi.fn(), insertText: vi.fn() } });
+    useStore.setState({ macroStudioPreviewMode: 'reply', macroStudioBridge: { insertVar: vi.fn(), insertText: vi.fn() } });
     render(<MacroReferenceRail />);
     fireEvent.click(screen.getByRole('tab', { name: /filters/i }));
     expect(screen.getByRole('button', { name: /insert json filter/i })).toBeTruthy();
@@ -40,7 +40,7 @@ describe('MacroReferenceRail', () => {
 
   it('inserts the json stub with an indent argument', () => {
     const insertText = vi.fn();
-    useStore.setState({ macroStudioBridge: { previewMode: 'reply', insertVar: vi.fn(), insertText } });
+    useStore.setState({ macroStudioPreviewMode: 'reply', macroStudioBridge: { insertVar: vi.fn(), insertText } });
     render(<MacroReferenceRail />);
     fireEvent.click(screen.getByRole('tab', { name: /filters/i }));
     fireEvent.click(screen.getByRole('button', { name: /insert json filter/i }));
@@ -49,7 +49,7 @@ describe('MacroReferenceRail', () => {
 
   it('suggests short_id for map, the field that is always populated', () => {
     const insertText = vi.fn();
-    useStore.setState({ macroStudioBridge: { previewMode: 'reply', insertVar: vi.fn(), insertText } });
+    useStore.setState({ macroStudioPreviewMode: 'reply', macroStudioBridge: { insertVar: vi.fn(), insertText } });
     render(<MacroReferenceRail />);
     fireEvent.click(screen.getByRole('tab', { name: /filters/i }));
     fireEvent.click(screen.getByRole('button', { name: /insert map filter/i }));
@@ -57,13 +57,13 @@ describe('MacroReferenceRail', () => {
   });
 
   it('wraps variable rows in a hover-card trigger', () => {
-    useStore.setState({ macroStudioBridge: { previewMode: 'reply', insertVar: vi.fn(), insertText: vi.fn() } });
+    useStore.setState({ macroStudioPreviewMode: 'reply', macroStudioBridge: { insertVar: vi.fn(), insertText: vi.fn() } });
     const { container } = render(<MacroReferenceRail />);
     expect(container.querySelector('[data-slot="hover-card-trigger"]')).toBeTruthy();
   });
 
   it('shows a Context tab listing sample fields with type and value', () => {
-    useStore.setState({ macroStudioBridge: { previewMode: 'reply', insertVar: vi.fn(), insertText: vi.fn() } });
+    useStore.setState({ macroStudioPreviewMode: 'reply', macroStudioBridge: { insertVar: vi.fn(), insertText: vi.fn() } });
     render(<MacroReferenceRail />);
     fireEvent.click(screen.getByRole('tab', { name: /context/i }));
     // Query by row, not by text: my_name and my_callsign share the value
@@ -76,7 +76,7 @@ describe('MacroReferenceRail', () => {
 
   it('expands a nested object and inserts the dotted path', () => {
     const insertText = vi.fn();
-    useStore.setState({ macroStudioBridge: { previewMode: 'reply', insertVar: vi.fn(), insertText } });
+    useStore.setState({ macroStudioPreviewMode: 'reply', macroStudioBridge: { insertVar: vi.fn(), insertText } });
     render(<MacroReferenceRail />);
     fireEvent.click(screen.getByRole('tab', { name: /context/i }));
     fireEvent.click(screen.getByRole('button', { name: /expand my_pos/i }));
@@ -85,7 +85,7 @@ describe('MacroReferenceRail', () => {
   });
 
   it('reflects the send-mode context, where reply-only variables are null', () => {
-    useStore.setState({ macroStudioBridge: { previewMode: 'send', insertVar: vi.fn(), insertText: vi.fn() } });
+    useStore.setState({ macroStudioPreviewMode: 'send', macroStudioBridge: { insertVar: vi.fn(), insertText: vi.fn() } });
     render(<MacroReferenceRail />);
     fireEvent.click(screen.getByRole('tab', { name: /context/i }));
     const row = screen.getByTestId('ctx-row-sender_name');

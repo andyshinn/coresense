@@ -1,7 +1,7 @@
-import { SHORTCUTS, type Shortcut } from '../../shared/shortcuts';
+import { type RendererShortcut, SHORTCUTS } from '../../shared/shortcuts';
 import { matchesEvent, type ShortcutKeyEvent } from '../../shared/shortcuts-format';
 
-const RENDERER_SHORTCUTS = SHORTCUTS.filter((s) => s.surface === 'renderer');
+const RENDERER_SHORTCUTS = SHORTCUTS.filter((s): s is RendererShortcut => s.surface === 'renderer');
 
 function isDigit1to9(key: string): boolean {
   return key.length === 1 && key >= '1' && key <= '9';
@@ -9,7 +9,7 @@ function isDigit1to9(key: string): boolean {
 
 /** Pure resolution: which renderer-surface shortcut (if any) this event triggers.
  *  `isTyping` suppresses shortcuts flagged `guardTyping`. */
-export function resolveShortcut(ev: ShortcutKeyEvent, isTyping: boolean): Shortcut | null {
+export function resolveShortcut(ev: ShortcutKeyEvent, isTyping: boolean): RendererShortcut | null {
   for (const s of RENDERER_SHORTCUTS) {
     if (s.guardTyping && isTyping) continue;
     for (const chord of s.chords) {

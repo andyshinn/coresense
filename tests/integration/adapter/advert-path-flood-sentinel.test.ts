@@ -1,10 +1,9 @@
-import { Buffer } from 'node:buffer';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { setProtocolSession } from '../../../src/main/protocol';
+import { Protocol } from '@andyshinn/meshcore-ts';
+import { describe, expect, it, vi } from 'vitest';
 import { fetchAdvertPath } from '../../../src/main/state/advertPath';
 import { discoveredStore } from '../../../src/main/storage/discoveredContacts';
-import { transportManager } from '../../../src/main/transport/manager';
 import { formatHopsCell, formatObservedHops } from '../../../src/shared/contacts/discovered';
+import { advertPathReply, contactSyncFrame, newAdvertFrame, OUT_PATH_UNKNOWN } from '../../support/companionFrames';
 import { makeTestSession, type TestSession } from '../../support/session-harness';
 
 // The #45 flood-sentinel defect, pinned from the bytes the firmware puts on the
@@ -24,53 +23,17 @@ import { makeTestSession, type TestSession } from '../../support/session-harness
 
 const PK = 'a3'.repeat(32);
 
-// RESP_CONTACT (0x03): the 148-byte record a GET_CONTACTS walk streams. Seeds
-// the library's contact map (so hasRadioContact passes) and coresense's mirror
-// (so markHeard, which is UPDATE-only, has a row to move). A walk is the radio
-// listing what it stores, not a reception, so it leaves last_heard_ms at 0 —
-// which is what makes it a clean baseline below.
-function contactSyncFrame(pubkeyHex: string, name: string): Buffer {
-  const frame = Buffer.alloc(148);
-  frame[0] = 0x03;
-  Buffer.from(pubkeyHex, 'hex').copy(frame, 1);
-  frame[33] = 1; // type = chat
-  frame[35] = 0xff; // out_path_len = OUT_PATH_UNKNOWN → "Flood" outbound
-  Buffer.from(name, 'utf8').copy(frame, 100);
-  return frame;
-}
-
-// PUSH_NEW_ADVERT (0x8a): the same record, but a node we just heard. This is
-// what triggers the sampler.
-function newAdvertFrame(pubkeyHex: string, name: string): Buffer {
-  const frame = contactSyncFrame(pubkeyHex, name);
-  frame[0] = 0x8a;
-  return frame;
-}
-
-// RESP_ADVERT_PATH (0x16): [0x16][recv_timestamp u32 LE][path_len u8][path...].
-// Written byte by byte rather than through a builder, so path_len can carry a
-// value no builder would ever emit.
-function advertPathReply(recvUnix: number, pathLenByte: number, pathHex = ''): Buffer {
-  const path = Buffer.from(pathHex, 'hex');
-  const frame = Buffer.alloc(6 + path.length);
-  frame[0] = 0x16;
-  frame.writeUInt32LE(recvUnix, 1);
-  frame[5] = pathLenByte;
-  path.copy(frame, 6);
-  return frame;
-}
-
 /** OUT_PATH_UNKNOWN in the path_len slot: "this ring entry has no path". Not a
  *  hop count, and no path bytes follow — so on the wire the frame is byte-for-
  *  byte identical to a direct reception apart from this one value. */
-const PATH_LEN_FLOOD = 0xff;
+const PATH_LEN_FLOOD = OUT_PATH_UNKNOWN;
 /** A real zero-hop measurement. Also zero path bytes. */
 const PATH_LEN_DIRECT = 0x00;
 
 /** Old enough to be believable, recent enough to survive MAX_OBSERVED_HEARD_AGE_MS. */
 const recentUnix = () => Math.floor(Date.now() / 1000) - 600;
 
-const advertPathCommands = (s: TestSession) => s.transport.sent.filter((f) => f[0] === 0x2a);
+const advertPathCommands = (s: TestSession) => s.sentWithCode(Protocol.CMD.GET_ADVERT_PATH);
 
 /** The row as the Contact Manager sees it — through the same list() the IPC
  *  layer serves, never a hand-built object. */
@@ -80,20 +43,15 @@ function managerRow() {
   return row;
 }
 
-/** A connected session with Erin in the radio's contact map and in our mirror,
- *  and nothing else: no reception, so last_heard_ms is 0. */
+/** A connected session with Erin in the radio's contact map (so
+ *  hasRadioContact passes) and in our mirror (so markHeard, which is
+ *  UPDATE-only, has a row to move), and nothing else. A GET_CONTACTS record is
+ *  not a reception, so last_heard_ms is 0 — a clean baseline. */
 function seeded(): TestSession {
-  const s = makeTestSession();
-  transportManager.setState('connected');
-  setProtocolSession(s.adapter);
+  const s = makeTestSession({ connected: true, installAsProtocolSession: true });
   s.receive(contactSyncFrame(PK, 'Erin'));
   return s;
 }
-
-afterEach(() => {
-  setProtocolSession(null);
-  transportManager.setState('idle');
-});
 
 describe('RESP_ADVERT_PATH flood sentinel, wire to rendered cell', () => {
   // The advert-triggered route — how the column actually fills in on a live

@@ -4,8 +4,6 @@ import { useStore } from '../../src/renderer/lib/store';
 import type { Message } from '../../src/shared/types';
 
 const deps = () => ({
-  baseUrl: 'http://x',
-  apiKey: 'k',
   cycleThemePref: vi.fn(),
   toggleLeftNav: vi.fn(),
   toggleRightRail: vi.fn(),

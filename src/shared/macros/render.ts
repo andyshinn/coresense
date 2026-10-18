@@ -1,9 +1,13 @@
 import type { Liquid } from 'liquidjs';
+import { errorMessage } from '../errors';
 import { DEFAULT_RENDER_LIMIT } from './engine';
 import { PlaceholderDrop } from './placeholder';
 import type { MacroError, RenderOptions, RenderResult } from './types';
 
-function wrapScope(context: Record<string, unknown>, placeholder: string): Record<string, unknown> {
+/** What an empty (null / undefined) value renders as unless a caller overrides it. */
+export const MACRO_PLACEHOLDER = '?';
+
+function wrapScope(context: object, placeholder: string): Record<string, unknown> {
   const ph = new PlaceholderDrop(placeholder);
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(context)) out[k] = v === null || v === undefined ? ph : v;
@@ -15,7 +19,7 @@ function filterNameFromMessage(msg: string): string | undefined {
 }
 
 function lineCol(e: unknown): { line?: number; col?: number } {
-  const t = (e as { token?: { line?: number; col?: number } }).token;
+  const t = (e as { token?: { line?: number; col?: number } } | null | undefined)?.token;
   const out: { line?: number; col?: number } = {};
   if (typeof t?.line === 'number') out.line = t.line;
   if (typeof t?.col === 'number') out.col = t.col;
@@ -23,14 +27,14 @@ function lineCol(e: unknown): { line?: number; col?: number } {
 }
 
 export function classifyParseError(e: unknown): MacroError {
-  const message = (e as Error).message ?? String(e);
+  const message = errorMessage(e);
   const low = message.toLowerCase();
   if (low.includes('undefined filter')) return { kind: 'unknown-filter', message, name: filterNameFromMessage(message) };
   return { kind: 'parse', message, ...lineCol(e) };
 }
 
 export function classifyRenderError(e: unknown, elapsedMs: number, limit: number): MacroError {
-  const message = (e as Error).message ?? String(e);
+  const message = errorMessage(e);
   const low = message.toLowerCase();
   if (low.includes('undefined filter')) return { kind: 'unknown-filter', message, name: filterNameFromMessage(message) };
   if (low.includes('undefined variable'))
@@ -39,13 +43,8 @@ export function classifyRenderError(e: unknown, elapsedMs: number, limit: number
   return { kind: 'render', message };
 }
 
-export function renderTemplate(
-  engine: Liquid,
-  template: string,
-  context: Record<string, unknown>,
-  opts: RenderOptions = {},
-): RenderResult {
-  const placeholder = opts.placeholder ?? '?';
+export function renderTemplate(engine: Liquid, template: string, context: object, opts: RenderOptions = {}): RenderResult {
+  const placeholder = opts.placeholder ?? MACRO_PLACEHOLDER;
   let templates: ReturnType<Liquid['parse']>;
   try {
     templates = engine.parse(template);

@@ -11,7 +11,7 @@ this before every re-sync.
   `cfg.entry`. Keep it in sync with `cfg.componentSrcMap` when UI components are
   added/removed under `src/renderer/components/ui/`.
 - `package.json` `main` points at the **Electron main** bundle
-  (`.vite/build/index.js`) — never let the converter resolve that as the DS
+  (`.vite/build/index.cjs`) — never let the converter resolve that as the DS
   entry. The explicit `cfg.entry` avoids this.
 - Components are pinned 1:1 to the 23 files in `src/renderer/components/ui/` via
   `cfg.componentSrcMap` (so compound shadcn exports like `DialogContent` ride in

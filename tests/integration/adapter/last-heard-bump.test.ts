@@ -1,8 +1,14 @@
-import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
 import { openDb } from '../../../src/main/storage/db';
 import { discoveredStore } from '../../../src/main/storage/discoveredContacts';
 import { messagesStore } from '../../../src/main/storage/messages';
+import {
+  channelMsgV3,
+  contactMsgV3,
+  contactSyncFrame,
+  statusResponse,
+  telemetryResponse,
+} from '../../support/companionFrames';
 import { makeTestSession } from '../../support/session-harness';
 
 // #45 item 9: `last_heard_ms` is our-clock "when did we last actually receive
@@ -13,61 +19,6 @@ import { makeTestSession } from '../../support/session-harness';
 const PK = 'cc'.repeat(32);
 const PREFIX = 'cccccccccccc'; // first 6 bytes of PK
 const STRANGER = 'dd'.repeat(32);
-
-// RESP_CONTACT (0x03) — the 148-byte record the radio streams during a
-// GET_CONTACTS walk. Seeds both the lib's contact map and coresense's mirror.
-function contactSyncFrame(pubkeyHex: string, name: string): Buffer {
-  const frame = Buffer.alloc(148);
-  frame[0] = 0x03;
-  Buffer.from(pubkeyHex, 'hex').copy(frame, 1);
-  frame[33] = 1; // type = chat
-  frame[35] = 0xff; // out_path_len = OUT_PATH_UNKNOWN
-  Buffer.from(name, 'utf8').copy(frame, 100);
-  return frame;
-}
-
-// RESP_CONTACT_MSG_RECV_V3 (0x10): [0x10][snr*4 i8][rsv][rsv][6B sender prefix]
-// [path_len][txt_type][ts u32 LE][body].
-function dmFrame(prefixHex: string, ts: number, body: string): Buffer {
-  const text = Buffer.from(body, 'utf8');
-  const frame = Buffer.alloc(16 + text.length);
-  frame[0] = 0x10;
-  frame.writeInt8(40, 1);
-  Buffer.from(prefixHex, 'hex').copy(frame, 4);
-  frame[10] = 0xff;
-  frame[11] = 0; // txt_type = plain
-  frame.writeUInt32LE(ts, 12);
-  text.copy(frame, 16);
-  return frame;
-}
-
-// RESP_CHANNEL_MSG_RECV_V3 (0x11): [0x11][snr*4 i8][rsv][rsv][idx][path_len]
-// [txt_type][ts u32 LE][body].
-function channelFrame(idx: number, ts: number, body: string): Buffer {
-  const text = Buffer.from(body, 'utf8');
-  const frame = Buffer.alloc(11 + text.length);
-  frame[0] = 0x11;
-  frame.writeInt8(40, 1);
-  frame[4] = idx;
-  frame[5] = 0xff;
-  frame[6] = 0;
-  frame.writeUInt32LE(ts, 7);
-  text.copy(frame, 11);
-  return frame;
-}
-
-// PUSH_STATUS_RESPONSE: [0x87][0][6B prefix][stats…].
-function statusResponse(prefixHex: string): Buffer {
-  const stats = Buffer.alloc(8);
-  stats.writeUInt32LE(4020, 0);
-  stats.writeUInt32LE(2, 4);
-  return Buffer.concat([Buffer.from([0x87, 0x00]), Buffer.from(prefixHex, 'hex'), stats]);
-}
-
-// PUSH_TELEMETRY_RESPONSE: [0x8b][0][6B prefix][CayenneLPP].
-function telemetryResponse(prefixHex: string): Buffer {
-  return Buffer.concat([Buffer.from([0x8b, 0x00]), Buffer.from(prefixHex, 'hex'), Buffer.from([0x00, 0x74, 0x01, 0xa4])]);
-}
 
 const heard = (pk = PK) => discoveredStore.get(pk)?.last_heard_ms ?? null;
 const rowCount = () => (openDb().prepare('SELECT COUNT(*) AS n FROM discovered_contacts').get() as { n: number }).n;
@@ -87,7 +38,7 @@ describe('last-heard bumps from receipt paths', () => {
     const { receive } = seeded();
     const before = Date.now();
 
-    receive(dmFrame(PREFIX, 1_700_000_000, 'hello'));
+    receive(contactMsgV3(PREFIX, 1_700_000_000, 'hello'));
 
     expect(messagesStore.byKey(`c:${PK}`)).toHaveLength(1);
     expect(heard()).toBeGreaterThanOrEqual(before);
@@ -162,7 +113,7 @@ describe('last-heard bumps from receipt paths', () => {
     const { adapter, receive } = seeded();
     adapter.session.markChannelPresent({ key: 'ch:General', name: 'General', kind: 'public', idx: 0 });
 
-    receive(channelFrame(0, 1_700_000_100, 'Carol: hi all'));
+    receive(channelMsgV3(0, 1_700_000_100, 'Carol: hi all'));
 
     expect(messagesStore.byKey('ch:General')).toHaveLength(1);
     expect(heard()).toBe(0);
@@ -175,7 +126,7 @@ describe('last-heard bumps from receipt paths', () => {
     const { receive } = seeded();
     const before = rowCount();
 
-    receive(dmFrame('ffeeddccbbaa', 1_700_000_200, 'who am i'));
+    receive(contactMsgV3('ffeeddccbbaa', 1_700_000_200, 'who am i'));
 
     expect(rowCount()).toBe(before);
     expect(heard(STRANGER)).toBeNull();
@@ -185,7 +136,7 @@ describe('last-heard bumps from receipt paths', () => {
     const { receive } = seeded();
     receive(contactSyncFrame(STRANGER, 'Dave'));
 
-    receive(dmFrame(PREFIX, 1_700_000_300, 'hi'));
+    receive(contactMsgV3(PREFIX, 1_700_000_300, 'hi'));
 
     expect(heard()).toBeGreaterThan(0);
     expect(heard(STRANGER)).toBe(0);

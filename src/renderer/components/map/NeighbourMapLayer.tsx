@@ -1,8 +1,8 @@
 import { type GeoJSONSource, type Map as MapLibreMap, Marker } from 'maplibre-gl';
 import { useEffect, useMemo, useRef } from 'react';
-import type { Contact } from '../../../shared/types';
 import type { ResolvedNeighbour } from '../../lib/neighbours';
-import { buildContactMarker, type MarkerState, syncMarkerVisual } from './markers/markerHtml';
+import { type CachedMarker, markerSignature } from './cluster/markerCache';
+import { buildContactMarker, type MarkerState, type MarkerSubject, syncMarkerVisual } from './markers/markerHtml';
 import { buildNeighbourLinkFeatures, computeNeighbourBounds, type FocalPoint } from './neighbourLinks';
 
 const LINK_SOURCE = 'neighbour-links-src';
@@ -27,14 +27,8 @@ interface NeighbourMapLayerProps {
   onSelect: (id: string | null) => void;
 }
 
-// Minimal Contact shape for the marker builder — it only reads name/kind/key.
-function markerContact(n: ResolvedNeighbour): Contact {
-  return {
-    key: n.contactKey ?? `nb:${n.pubKeyPrefixHex}`,
-    publicKeyHex: n.pubKeyPrefixHex,
-    name: n.name,
-    kind: 'repeater',
-  } as Contact;
+function markerSubject(n: ResolvedNeighbour): MarkerSubject {
+  return { key: n.contactKey ?? `nb:${n.pubKeyPrefixHex}`, name: n.name, kind: 'repeater' };
 }
 
 // Focal repeater marker — distinct double-ring + persistent label. Inline
@@ -94,7 +88,7 @@ export function NeighbourMapLayer({
   const activeId = rawActive != null && locatedIds.has(rawActive) ? rawActive : null;
   const focalPoint: FocalPoint = { lat: focal.lat, lon: focal.lon };
 
-  const markersRef = useRef<Map<string, Marker>>(new Map());
+  const markersRef = useRef<Map<string, CachedMarker>>(new Map());
   const focalMarkerRef = useRef<Marker | null>(null);
   // Read current selection inside the (create-once) marker click handler without
   // capturing a stale value.
@@ -123,12 +117,20 @@ export function NeighbourMapLayer({
       const id = n.pubKeyPrefixHex;
       wanted.add(id);
       const lngLat: [number, number] = [n.lon as number, n.lat as number];
+      const subject = markerSubject(n);
+      const state = stateFor(id);
+      const signature = markerSignature('neighbour', subject, state);
       const existing = markers.get(id);
       if (existing) {
-        existing.setLngLat(lngLat);
-        syncMarkerVisual(existing.getElement(), markerContact(n), stateFor(id), null);
+        existing.marker.setLngLat(lngLat);
+        // Hover/selection re-renders every neighbour; only rebuild the ones
+        // whose visual actually changed.
+        if (existing.signature !== signature) {
+          syncMarkerVisual(existing.marker.getElement(), subject, state);
+          existing.signature = signature;
+        }
       } else {
-        const el = buildContactMarker(markerContact(n), stateFor(id));
+        const el = buildContactMarker(subject, state);
         el.addEventListener('mouseenter', () => onHover(id));
         el.addEventListener('mouseleave', () => onHover(null));
         el.addEventListener('click', (e) => {
@@ -136,12 +138,12 @@ export function NeighbourMapLayer({
           onSelect(selectedIdRef.current === id ? null : id);
         });
         const marker = new Marker({ element: el, anchor: 'center' }).setLngLat(lngLat).addTo(map);
-        markers.set(id, marker);
+        markers.set(id, { marker, signature });
       }
     }
-    for (const [id, marker] of markers) {
+    for (const [id, entry] of markers) {
       if (!wanted.has(id)) {
-        marker.remove();
+        entry.marker.remove();
         markers.delete(id);
       }
     }
@@ -249,7 +251,7 @@ export function NeighbourMapLayer({
   useEffect(() => {
     const markers = markersRef.current;
     return () => {
-      for (const m of markers.values()) m.remove();
+      for (const entry of markers.values()) entry.marker.remove();
       markers.clear();
       focalMarkerRef.current?.remove();
       focalMarkerRef.current = null;

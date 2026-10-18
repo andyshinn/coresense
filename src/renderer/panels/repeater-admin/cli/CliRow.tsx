@@ -1,5 +1,6 @@
 import { RefreshCw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { byteLength, REPLY_TRUNCATE_BYTES } from './lib/airtime';
 import type { CliEntry } from './lib/queue';
 
 export interface FollowUp {
@@ -16,16 +17,14 @@ export interface CliRowProps {
   onCancel: (id: string) => void;
 }
 
-function byteLength(s: string): number {
-  return new TextEncoder().encode(s).length;
-}
+const TICK_MS = 47; // in-flight elapsed counter refresh
 
-// A 47ms tick, live only while active. Drives the in-flight elapsed counter.
+// Live only while active. Drives the in-flight elapsed counter.
 function useTick(active: boolean) {
   const [, force] = useState(0);
   useEffect(() => {
     if (!active) return;
-    const t = setInterval(() => force((n) => n + 1), 47);
+    const t = setInterval(() => force((n) => n + 1), TICK_MS);
     return () => clearInterval(t);
   }, [active]);
 }
@@ -36,13 +35,26 @@ function MsCounter({ from, done }: { from: number; done: number | null }) {
   return <span className="font-mono text-[11px] tabular-nums text-cs-text-dim">{ms.toLocaleString('en-US')} ms</span>;
 }
 
+function RetryButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1 rounded border border-cs-danger/30 bg-cs-danger/15 px-1.5 py-0.5 text-[10px] text-cs-danger"
+    >
+      <RefreshCw size={10} aria-hidden="true" />
+      Retry
+    </button>
+  );
+}
+
 export function CliRow({ entry, timeoutMs, followUps, onRetry, onEdit, onCancel }: CliRowProps) {
   const inFlight = entry.state === 'sending';
   const failed = entry.state === 'timeout' || (entry.state === 'error' && entry.error?.kind !== 'refused');
   const isTimeout = entry.state === 'timeout' || entry.error?.kind === 'timeout';
   const isSuperseded = entry.error?.kind === 'superseded';
   const isTransport = entry.error?.kind === 'transport';
-  const truncated = entry.reply != null && byteLength(entry.reply) >= 156;
+  const truncated = entry.reply != null && byteLength(entry.reply) >= REPLY_TRUNCATE_BYTES;
 
   return (
     <div className={`px-4 py-1.5 ${inFlight ? 'opacity-50' : ''}`}>
@@ -108,14 +120,7 @@ export function CliRow({ entry, timeoutMs, followUps, onRetry, onEdit, onCancel 
           {entry.cmd?.serialOnly ? (
             <span className="text-[11px] text-cs-text-dim">— this command is serial-console only</span>
           ) : null}
-          <button
-            type="button"
-            onClick={() => onRetry(entry)}
-            className="flex items-center gap-1 rounded border border-cs-danger/30 bg-cs-danger/15 px-1.5 py-0.5 text-[10px] text-cs-danger"
-          >
-            <RefreshCw size={10} aria-hidden="true" />
-            Retry
-          </button>
+          <RetryButton onClick={() => onRetry(entry)} />
           <button
             type="button"
             onClick={() => onEdit(entry.text)}
@@ -129,14 +134,7 @@ export function CliRow({ entry, timeoutMs, followUps, onRetry, onEdit, onCancel 
       {isTransport ? (
         <div className="flex flex-wrap items-center gap-2 pl-4 pt-1">
           <span className="font-mono text-[11px] text-cs-danger">{entry.error?.message}</span>
-          <button
-            type="button"
-            onClick={() => onRetry(entry)}
-            className="flex items-center gap-1 rounded border border-cs-danger/30 bg-cs-danger/15 px-1.5 py-0.5 text-[10px] text-cs-danger"
-          >
-            <RefreshCw size={10} aria-hidden="true" />
-            Retry
-          </button>
+          <RetryButton onClick={() => onRetry(entry)} />
         </div>
       ) : null}
 

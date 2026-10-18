@@ -2,7 +2,8 @@ import { Activity, ListTree, LogIn, LogOut, Radio, ShieldCheck, Spline, Terminal
 import { useCallback, useEffect, useState } from 'react';
 import type { Contact, RepeaterAdminSession } from '../../../shared/types';
 import { RssiChip } from '../../components/RssiChip';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { notify } from '../../lib/notify';
 import { type RepeaterAdminTab, useStore } from '../../lib/store';
 import { AclTab } from './AclTab';
@@ -19,7 +20,6 @@ type TabId = RepeaterAdminTab;
 
 interface Props {
   contact: Contact;
-  client: ApiClient | null;
 }
 
 const TABS: Array<{ id: TabId; label: string; icon: typeof Radio; adminOnly?: boolean }> = [
@@ -32,7 +32,8 @@ const TABS: Array<{ id: TabId; label: string; icon: typeof Radio; adminOnly?: bo
   { id: 'cli', label: 'CLI', icon: TerminalSquare },
 ];
 
-export function RepeaterAdmin({ contact, client }: Props) {
+export function RepeaterAdmin({ contact }: Props) {
+  const client = useApiClient();
   const [tab, setTab] = useState<TabId>('login');
   const pendingTab = useStore((s) => s.repeaterAdminTab);
   const setRepeaterAdminTab = useStore((s) => s.setRepeaterAdminTab);
@@ -119,7 +120,7 @@ export function RepeaterAdmin({ contact, client }: Props) {
       setSession(null);
       notify.success('Logged out');
     } catch (err) {
-      notify.error(`Logout failed: ${(err as Error).message}`, err);
+      notify.failure('Logout', err);
     }
   };
 
@@ -187,16 +188,15 @@ export function RepeaterAdmin({ contact, client }: Props) {
           repeaters and shows the previous one's data. Tab selection + session
           live in the parent and survive the switch. */}
       <div key={contact.key} className="flex-1 overflow-hidden">
-        {tab === 'login' && <LoginTab contact={contact} client={client} session={session} onSession={setSession} />}
-        {tab === 'path' && <PathTab contact={contact} client={client} />}
-        {tab === 'status' && <StatusTab contact={contact} client={client} />}
-        {tab === 'acl' && <AclTab contact={contact} client={client} disabled={!isAdmin} />}
-        {tab === 'neighbours' && <NeighboursTab contact={contact} client={client} />}
-        {tab === 'owner' && <OwnerTab contact={contact} client={client} />}
+        {tab === 'login' && <LoginTab contact={contact} session={session} onSession={setSession} />}
+        {tab === 'path' && <PathTab contact={contact} />}
+        {tab === 'status' && <StatusTab contact={contact} />}
+        {tab === 'acl' && <AclTab contact={contact} disabled={!isAdmin} />}
+        {tab === 'neighbours' && <NeighboursTab contact={contact} />}
+        {tab === 'owner' && <OwnerTab contact={contact} />}
         {tab === 'cli' && (
           <CliTab
             contact={contact}
-            client={client}
             session={session}
             sessionChecked={sessionChecked}
             pending={pending}

@@ -104,10 +104,11 @@ describe('messagesStore.byKey({ around })', () => {
   });
 
   // SQLite treats a negative LIMIT as unlimited, so ?limit=0 (or an empty or
-  // negative one) would have dumped the whole conversation.
+  // negative one) would have dumped the whole conversation. A fractional limit
+  // below 1 used to floor to LIMIT 0 and return nothing; it now falls back too.
   it('falls back to the default window rather than returning everything for a bad limit', () => {
     seed(500);
-    for (const limit of [0, -1, Number.NaN]) {
+    for (const limit of [0, 0.5, -1, Number.NaN]) {
       expect(messagesStore.byKey(KEY, { around: 'm250', limit }).length, `limit ${limit}`).toBe(200);
       expect(messagesStore.byKey(KEY, { limit }).length, `limit ${limit}`).toBe(200);
     }

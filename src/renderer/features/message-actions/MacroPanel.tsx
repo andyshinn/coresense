@@ -3,12 +3,11 @@ import type { ReactNode } from 'react';
 import type { MacroTemplate } from '../../../shared/macros/types';
 import type { Message } from '../../../shared/types';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
-import type { ApiClient } from '../../lib/api';
 import { MAX_MESSAGE_LENGTH } from '../../lib/messageLimits';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
-import { Snippet } from '../../panels/macros/components/chips';
-import { type PreviewState, useReplyPreviews } from '../../panels/macros/lib/useReplyPreviews';
+import { Snippet } from '../macros/chips';
+import { type PreviewState, useReplyPreviews } from '../macros/useReplyPreviews';
 
 /** One-click macro shortcut in the quick bar. */
 export function MacroChip({ macro, onPick }: { macro: MacroTemplate; onPick: (macro: MacroTemplate) => void }) {
@@ -32,7 +31,6 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** Already scope-filtered by the caller (see macroPicks.applicableMacros). */
   macros: MacroTemplate[];
-  client: ApiClient | null;
   message: Message;
   /** `renderedText` is present when the row already previewed successfully, so
    *  the caller can insert it without a second round-trip. */
@@ -42,8 +40,8 @@ interface Props {
 
 /** The all-macros popover: every macro that applies to this conversation,
  *  previewed against the message being replied to. */
-export function MacroPanel({ open, onOpenChange, macros, client, message, onPick, children }: Props) {
-  const previews = useReplyPreviews(client, message.id, macros, open);
+export function MacroPanel({ open, onOpenChange, macros, message, onPick, children }: Props) {
+  const previews = useReplyPreviews(message.id, macros, open);
   // Distinguishes "you have no macros" from "none of yours apply here".
   const totalMacros = useStore((s) => s.macros.length);
 

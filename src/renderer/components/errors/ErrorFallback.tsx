@@ -1,21 +1,11 @@
 import { MapIcon, RotateCcw, TriangleAlert } from 'lucide-react';
 import type { ErrorInfo } from 'react';
 import type { FallbackProps } from 'react-error-boundary';
+import { errorMessage } from '../../../shared/errors';
 import { log } from '../../lib/logger';
 import { isGpuInitializationError } from '../../lib/map/gpu-error';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
-
-/** Best-effort human-readable message from whatever a component threw. */
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
-}
 
 /**
  * Shared `onError` handler for every boundary. Render-time crashes only reach
@@ -43,7 +33,9 @@ interface ErrorFallbackBaseProps {
  * subtree still feels like part of the app.
  */
 function ErrorFallbackBase({ icon: Icon, title, description, error, actionLabel, onAction }: ErrorFallbackBaseProps) {
-  const message = errorMessage(error);
+  // Nothing useful to show for these: errorMessage would stringify them to a
+  // literal "undefined", a function's source or "Symbol()", so hide the block.
+  const message = error === undefined || typeof error === 'function' || typeof error === 'symbol' ? '' : errorMessage(error);
   return (
     <div className="flex h-full w-full items-center justify-center p-8">
       <div className="max-w-lg space-y-4 text-center">

@@ -1,4 +1,7 @@
 import childProcess from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The hook calls execFileSync from node:child_process; mock it so no real
@@ -16,8 +19,14 @@ const ENV_KEYS = ['AZURE_TRUSTED_SIGNING_DLIB', 'AZURE_TRUSTED_SIGNING_METADATA'
 
 describe('windows-sign hook', () => {
   const original: Record<string, string | undefined> = {};
+  let dir: string;
+  // A file starting with the PE "MZ" header, which the hook signs.
+  let exe: string;
 
   beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'coresense-winsign-'));
+    exe = join(dir, 'foo.exe');
+    writeFileSync(exe, Buffer.from('MZ\x90\x00', 'latin1'));
     for (const k of ENV_KEYS) {
       original[k] = process.env[k];
       delete process.env[k];
@@ -27,6 +36,7 @@ describe('windows-sign hook', () => {
   });
 
   afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
     for (const k of ENV_KEYS) {
       if (original[k] === undefined) delete process.env[k];
       else process.env[k] = original[k];
@@ -37,14 +47,14 @@ describe('windows-sign hook', () => {
   it('throws when AZURE_TRUSTED_SIGNING_DLIB is unset', async () => {
     process.env.AZURE_TRUSTED_SIGNING_METADATA = '/tmp/metadata.json';
     const sign = await loadSign();
-    await expect(sign('C:/app/foo.exe')).rejects.toThrow(/AZURE_TRUSTED_SIGNING_DLIB/);
+    await expect(sign(exe)).rejects.toThrow(/AZURE_TRUSTED_SIGNING_DLIB/);
     expect(execFileSyncSpy).not.toHaveBeenCalled();
   });
 
   it('throws when AZURE_TRUSTED_SIGNING_METADATA is unset', async () => {
     process.env.AZURE_TRUSTED_SIGNING_DLIB = '/tmp/dlib.dll';
     const sign = await loadSign();
-    await expect(sign('C:/app/foo.exe')).rejects.toThrow(/AZURE_TRUSTED_SIGNING_METADATA/);
+    await expect(sign(exe)).rejects.toThrow(/AZURE_TRUSTED_SIGNING_METADATA/);
     expect(execFileSyncSpy).not.toHaveBeenCalled();
   });
 
@@ -52,7 +62,7 @@ describe('windows-sign hook', () => {
     process.env.AZURE_TRUSTED_SIGNING_DLIB = '/tmp/dlib.dll';
     process.env.AZURE_TRUSTED_SIGNING_METADATA = '/tmp/metadata.json';
     const sign = await loadSign();
-    await sign('C:/app/foo.exe');
+    await sign(exe);
     expect(execFileSyncSpy).toHaveBeenCalledTimes(1);
     const [tool, args] = execFileSyncSpy.mock.calls[0];
     expect(tool).toBe('signtool.exe');
@@ -71,7 +81,7 @@ describe('windows-sign hook', () => {
       '/tmp/metadata.json',
       '/d',
       'CoreSense',
-      'C:/app/foo.exe',
+      exe,
     ]);
   });
 
@@ -81,7 +91,7 @@ describe('windows-sign hook', () => {
     process.env.SIGNTOOL_PATH = 'C:/sdk/signtool.exe';
     process.env.CODESIGN_TIMESTAMP_URL = 'http://ts.example/';
     const sign = await loadSign();
-    await sign('C:/app/foo.exe');
+    await sign(exe);
     const [tool, args] = execFileSyncSpy.mock.calls[0];
     expect(tool).toBe('C:/sdk/signtool.exe');
     expect(args).toEqual([
@@ -99,7 +109,22 @@ describe('windows-sign hook', () => {
       '/tmp/metadata.json',
       '/d',
       'CoreSense',
-      'C:/app/foo.exe',
+      exe,
     ]);
+  });
+
+  // @electron/windows-sign 2.x passes every .node by extension, including other
+  // platforms' prebuilds, which signtool rejects.
+  it('skips a file without a PE header instead of calling signtool', async () => {
+    process.env.AZURE_TRUSTED_SIGNING_DLIB = '/tmp/dlib.dll';
+    process.env.AZURE_TRUSTED_SIGNING_METADATA = '/tmp/metadata.json';
+    const elf = join(dir, 'node.napi.armv7.node');
+    writeFileSync(elf, Buffer.from('\x7fELF', 'latin1'));
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const sign = await loadSign();
+    await sign(elf);
+    expect(execFileSyncSpy).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('skipping non-PE file'));
+    log.mockRestore();
   });
 });

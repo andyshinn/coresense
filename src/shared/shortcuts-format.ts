@@ -4,7 +4,7 @@
 // No DOM / Node / renderer imports — safe to load in both processes.
 
 export type Mod = 'mod' | 'shift' | 'alt' | 'ctrl'; // 'mod' = ⌘ on mac / Ctrl elsewhere
-export type Chord = { mods?: Mod[]; key: string };
+export type Chord = { mods?: readonly Mod[]; key: string };
 export type Platform = 'mac' | 'other';
 
 // Minimal keydown view — the real KeyboardEvent satisfies this structurally, and
@@ -27,7 +27,7 @@ const ACCEL_MOD: Record<Mod, string> = {
 
 /** Stable modifier order for accelerator/caps output: mod → ctrl → alt → shift.
  *  Electron accepts any order; a fixed rank just keeps output deterministic. */
-function modOrder(mods: Mod[]): Mod[] {
+function modOrder(mods: readonly Mod[]): Mod[] {
   const rank: Record<Mod, number> = { mod: 0, ctrl: 1, alt: 2, shift: 3 };
   return [...mods].sort((a, b) => rank[a] - rank[b]);
 }

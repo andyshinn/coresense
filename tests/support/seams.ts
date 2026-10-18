@@ -13,7 +13,6 @@ export function spyLifecycle(): SpyLifecycle {
     calls,
     quit: () => void calls.push('quit'),
     relaunch: () => void calls.push('relaunch'),
-    exit: (code) => void calls.push(`exit:${code ?? 0}`),
   };
 }
 

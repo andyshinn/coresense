@@ -37,6 +37,11 @@ class TransportManager {
     return { state: this.state, deviceId: this.deviceId };
   }
 
+  /** True while a radio is attached and the link is up. */
+  isConnected(): boolean {
+    return this.state === 'connected';
+  }
+
   async disconnect(): Promise<void> {
     if (this.active) await this.active.disconnect();
   }

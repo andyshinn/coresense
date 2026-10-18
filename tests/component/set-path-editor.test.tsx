@@ -28,7 +28,7 @@ describe('SetPathEditor path rows', () => {
     // A direct / 0-hop contact: firmware out_path_len 0x40 decodes to zero path
     // bytes, so the on-radio Contact carries outPathHex undefined.
     const direct: Contact = { ...base, hops: 0, outPathHex: undefined, outPathHashSize: undefined };
-    render(<SetPathEditor contact={direct} client={null} />);
+    render(<SetPathEditor contact={direct} />);
 
     expect(screen.queryAllByLabelText('Hop prefix')).toHaveLength(0);
     expect(screen.getByText(/No hops/)).toBeTruthy();
@@ -39,7 +39,7 @@ describe('SetPathEditor path rows', () => {
   it('renders one row per real hop for a 3-hop 2-byte path', () => {
     useStore.getState().applyContacts([]);
     const threeHop: Contact = { ...base, hops: 3, outPathHex: 'aabbccddeeff', outPathHashSize: 2 };
-    render(<SetPathEditor contact={threeHop} client={null} />);
+    render(<SetPathEditor contact={threeHop} />);
 
     const inputs = screen.queryAllByLabelText('Hop prefix') as HTMLInputElement[];
     expect(inputs.map((i) => i.value)).toEqual(['aabb', 'ccdd', 'eeff']);
@@ -76,7 +76,7 @@ describe('SetPathEditor hop avatar identity', () => {
     // sibling known hop below pins that identity, not name, drives the hash.
     const contact: Contact = { ...base, hops: 2, outPathHex: 'ab12ff34', outPathHashSize: 2 };
     useStore.getState().applyContacts([knownRepeater]);
-    const { container } = render(<SetPathEditor contact={contact} client={null} />);
+    const { container } = render(<SetPathEditor contact={contact} />);
 
     const avatars = container.querySelectorAll('li .rounded-full');
     expect(avatars).toHaveLength(2);
@@ -90,7 +90,7 @@ describe('SetPathEditor hop avatar identity', () => {
     useStore.getState().applyContacts([]);
     useStore.getState().applyAppSettings({ ...DEFAULT_APP_SETTINGS, identityColorMode: 'byName' });
     const contact: Contact = { ...base, hops: 1, outPathHex: 'ab12', outPathHashSize: 2 };
-    const { container } = render(<SetPathEditor contact={contact} client={null} />);
+    const { container } = render(<SetPathEditor contact={contact} />);
 
     const avatar = container.querySelector('.rounded-full') as HTMLElement;
     expect(avatar.className).toContain('bg-cs-bg-3');
@@ -100,7 +100,7 @@ describe('SetPathEditor hop avatar identity', () => {
   it('known repeater under byKey hashes its pubkey, not its name and not its prefix', () => {
     useStore.getState().applyContacts([knownRepeater]);
     const contact: Contact = { ...base, hops: 1, outPathHex: 'ab12', outPathHashSize: 2 };
-    const { container } = render(<SetPathEditor contact={contact} client={null} />);
+    const { container } = render(<SetPathEditor contact={contact} />);
 
     const avatar = container.querySelector('li .rounded-full') as HTMLElement;
     expect(avatar.style.color).toBe(getNameColor(repeaterPubkey).fg);
@@ -117,7 +117,7 @@ describe('SetPathEditor hop avatar identity', () => {
     useStore.getState().applyContacts([knownRepeater]);
     useStore.getState().applyAppSettings({ ...DEFAULT_APP_SETTINGS, identityColorMode: 'byName' });
     const contact: Contact = { ...base, hops: 1, outPathHex: 'ab12', outPathHashSize: 2 };
-    const { container } = render(<SetPathEditor contact={contact} client={null} />);
+    const { container } = render(<SetPathEditor contact={contact} />);
 
     const hopAvatar = container.querySelector('li .rounded-full') as HTMLElement;
     expect(hopAvatar.style.color).toBe(getNameColor(repeaterName).fg);

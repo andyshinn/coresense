@@ -1,12 +1,13 @@
-import { BellOff, Star } from 'lucide-react';
 import { type DragEvent, type MouseEvent, useRef, useState } from 'react';
+import type { ChannelKey } from '../../../shared/conversationKey';
 import type { Channel } from '../../../shared/types';
 import { SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '../../components/ui/sidebar';
-import { shouldShowUnread } from '../../hooks/useUnreads';
+import { capList } from '../../lib/capList';
 import { CHANNEL_ICON } from '../../lib/conversationIcons';
 import { useStore } from '../../lib/store';
+import { shouldShowUnread } from '../../lib/unreads';
 import { cn } from '../../lib/utils';
-import { ACTIVE_BUTTON_CLASS, ShowMoreRow, UnreadChip } from './atoms';
+import { ACTIVE_BUTTON_CLASS, NavRowTrailing, ShowMoreRow } from './atoms';
 
 /** Sub-list of channel rows with drag-to-reorder, presence dimming, unread/mute/pin badges, and capped reveal. */
 export function ChannelSubList({
@@ -15,8 +16,7 @@ export function ChannelSubList({
   pinSet,
   presence,
   unreadByKey,
-  limit,
-  revealed,
+  cap,
   onShowMore,
   onSelect,
   onReorder,
@@ -27,11 +27,10 @@ export function ChannelSubList({
   pinSet: Set<string>;
   presence: Set<string>;
   unreadByKey: Record<string, number>;
-  /** Max rows to render before the Show-more affordance; `null` disables capping. */
-  limit: number | null;
-  revealed: boolean;
+  /** Max rows to render before the Show-more affordance; `null` when uncapped or revealed. */
+  cap: number | null;
   onShowMore: () => void;
-  onSelect: (key: string) => void;
+  onSelect: (key: ChannelKey) => void;
   onReorder: (orderedKeys: string[]) => void;
   onContext: (channel: Channel, e: MouseEvent) => void;
 }) {
@@ -55,7 +54,7 @@ export function ChannelSubList({
     dragKey.current = null;
     setDragOver(null);
     if (!src || src === key) return;
-    const keys = channels.map((c) => c.key);
+    const keys: string[] = channels.map((c) => c.key);
     const from = keys.indexOf(src);
     const to = keys.indexOf(key);
     if (from === -1 || to === -1) return;
@@ -64,8 +63,7 @@ export function ChannelSubList({
     onReorder(keys);
   };
 
-  const shown = limit !== null && !revealed ? channels.slice(0, limit) : channels;
-  const hidden = channels.length - shown.length;
+  const { rows: shown, hidden } = capList(channels, cap);
   const windowFocused = useStore((s) => s.windowFocused);
   return (
     <SidebarMenuSub>
@@ -95,16 +93,13 @@ export function ChannelSubList({
               <button type="button" data-testid="channel-nav-item" data-channel-key={ch.key}>
                 <Icon />
                 <span className={cn('flex-1 truncate', !onDevice && 'italic')}>{ch.name}</span>
-                {showUnread && <UnreadChip count={unread} />}
-                {ch.muted && <BellOff aria-label="muted" className="size-3 text-cs-text-dim/60" />}
-                {pinSet.has(ch.key) && (
-                  <Star
-                    data-testid="channel-pin-indicator"
-                    aria-hidden="true"
-                    className="size-3 text-cs-accent"
-                    fill="currentColor"
-                  />
-                )}
+                <NavRowTrailing
+                  unread={unread}
+                  showUnread={showUnread}
+                  muted={ch.muted}
+                  pinned={pinSet.has(ch.key)}
+                  pinTestId="channel-pin-indicator"
+                />
               </button>
             </SidebarMenuSubButton>
           </SidebarMenuSubItem>

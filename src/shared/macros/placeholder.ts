@@ -5,13 +5,13 @@ export class PlaceholderDrop extends Drop {
     super();
   }
   // Any property access on an empty value resolves to the placeholder text.
-  liquidMethodMissing(): unknown {
+  override liquidMethodMissing(): unknown {
     return this.text;
   }
-  valueOf(): string {
+  override valueOf(): string {
     return this.text;
   }
-  toString(): string {
+  override toString(): string {
     return this.text;
   }
   // JSON.stringify walks own enumerable fields and would otherwise leak the

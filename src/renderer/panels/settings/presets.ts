@@ -194,3 +194,36 @@ export function findMatchingPreset(opts: {
       p.codingRate === opts.codingRate,
   );
 }
+
+type Option = { value: number; label: string };
+
+/** LoRa bandwidths the radio accepts, in Hz. */
+export const BANDWIDTH_OPTIONS = [
+  { value: 7800, label: '7.8 kHz' },
+  { value: 10400, label: '10.4 kHz' },
+  { value: 15600, label: '15.6 kHz' },
+  { value: 20800, label: '20.8 kHz' },
+  { value: 31250, label: '31.25 kHz' },
+  { value: 41700, label: '41.7 kHz' },
+  { value: 62500, label: '62.5 kHz' },
+  { value: 125000, label: '125 kHz' },
+  { value: 250000, label: '250 kHz' },
+  { value: 500000, label: '500 kHz' },
+] satisfies Option[];
+
+export const SPREADING_FACTOR_OPTIONS = [
+  { value: 7, label: 'SF7 (fastest)' },
+  { value: 8, label: 'SF8' },
+  { value: 9, label: 'SF9' },
+  { value: 10, label: 'SF10' },
+  { value: 11, label: 'SF11' },
+  { value: 12, label: 'SF12 (longest range)' },
+] satisfies Option[];
+
+/** Coding rate as the LoRa denominator suffix: 5 = 4/5 … 8 = 4/8. */
+export const CODING_RATE_OPTIONS = [
+  { value: 5, label: '4/5' },
+  { value: 6, label: '4/6' },
+  { value: 7, label: '4/7' },
+  { value: 8, label: '4/8' },
+] satisfies Option[];

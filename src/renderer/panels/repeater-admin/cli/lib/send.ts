@@ -3,10 +3,12 @@
 //
 // The split is deliberate: a refused command is HTTP 200 with an `Err -` reply
 // body — the transport succeeded, the firmware said no — so it stays a reply,
-// tinted danger, not a transport failure. A superseded rejection arrives tagged
-// `code: 'transport'` from the route (§7.2), so it is disambiguated by MESSAGE
-// before the code is consulted.
+// tinted danger, not a transport failure. The route classifies every failure
+// into an ApiError `code` (cli_timeout / cli_superseded / transport), so the
+// message text is never parsed here.
 
+import { errorMessage } from '../../../../../shared/errors';
+import { ApiError } from '../../../../lib/api';
 import type { CliEntry } from './queue';
 
 export type CliReplyResult = { ok: true; reply: string } | { ok: true; sent: true };
@@ -23,13 +25,13 @@ export function settlePatchForReply(result: CliReplyResult, endedAt: number): Pa
 }
 
 export function settlePatchForError(err: unknown, endedAt: number): Partial<CliEntry> {
-  const message = err instanceof Error ? err.message : String(err);
-  const code = (err as { code?: unknown } | null)?.code;
-  if (message.includes('superseded by newer CLI command')) {
-    return { state: 'error', error: { kind: 'superseded', message }, endedAt };
+  const message = errorMessage(err);
+  switch (err instanceof ApiError ? err.code : null) {
+    case 'cli_superseded':
+      return { state: 'error', error: { kind: 'superseded', message }, endedAt };
+    case 'cli_timeout':
+      return { state: 'timeout', error: { kind: 'timeout', message }, endedAt };
+    default:
+      return { state: 'error', error: { kind: 'transport', message }, endedAt };
   }
-  if (code === 'cli_timeout') {
-    return { state: 'timeout', error: { kind: 'timeout', message }, endedAt };
-  }
-  return { state: 'error', error: { kind: 'transport', message }, endedAt };
 }

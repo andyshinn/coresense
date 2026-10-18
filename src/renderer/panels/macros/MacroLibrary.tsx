@@ -1,13 +1,16 @@
 import { Braces, Globe, Hash, Plus, Search, User } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { type ApiClient, api } from '@/lib/api';
+import { api } from '@/lib/api';
+import { useApiClient } from '@/lib/apiClientContext';
 import { notify } from '@/lib/notify';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
+import { channelNameFromKey } from '../../../shared/conversationKey';
+import { errorMessage } from '../../../shared/errors';
 import type { MacroTemplate } from '../../../shared/macros/types';
 import type { Channel, Contact } from '../../../shared/types';
-import { filterMacros, type ScopeFilter, scopeCounts } from './lib/filterMacros';
+import { filterMacros, type ScopeFilter, scopeCounts } from '../../features/macros/filterMacros';
 import { MacroRow } from './MacroRow';
 
 /** Human label for a macro's scope binding, resolved against the live lists. */
@@ -16,7 +19,7 @@ function resolveScopeLabel(macro: MacroTemplate, channels: Channel[], contacts: 
   if (macro.scope === 'channel') {
     const ch = channels.find((c) => c.key === macro.channelKey);
     if (ch) return `#${ch.name.replace(/^#/, '')}`;
-    return macro.channelKey ? `#${macro.channelKey.replace(/^ch:/, '')}` : 'Channel';
+    return macro.channelKey ? `#${channelNameFromKey(macro.channelKey)}` : 'Channel';
   }
   const contact = contacts.find((c) => c.key === macro.contactKey);
   return contact?.name ?? 'Contact';
@@ -30,12 +33,12 @@ const SCOPE_FILTERS: { value: ScopeFilter; label: string; icon: typeof Globe | n
 ];
 
 interface MacroLibraryProps {
-  client: ApiClient | null;
   onNew: () => void;
   onEdit: (m: MacroTemplate) => void;
 }
 
-export function MacroLibrary({ client, onNew, onEdit }: MacroLibraryProps) {
+export function MacroLibrary({ onNew, onEdit }: MacroLibraryProps) {
+  const client = useApiClient();
   const macros = useStore((s) => s.macros);
   const channels = useStore((s) => s.channels);
   const contacts = useStore((s) => s.contacts);
@@ -57,7 +60,7 @@ export function MacroLibrary({ client, onNew, onEdit }: MacroLibraryProps) {
       });
       notify.success('Macro duplicated');
     } catch (err) {
-      notify.error(`Couldn’t duplicate macro: ${(err as Error).message}`, err);
+      notify.error(`Couldn’t duplicate macro: ${errorMessage(err)}`, err);
     }
   };
 
@@ -67,7 +70,7 @@ export function MacroLibrary({ client, onNew, onEdit }: MacroLibraryProps) {
       await api.deleteMacro(client, m.id);
       notify.success('Macro deleted');
     } catch (err) {
-      notify.error(`Couldn’t delete macro: ${(err as Error).message}`, err);
+      notify.error(`Couldn’t delete macro: ${errorMessage(err)}`, err);
     }
   };
 

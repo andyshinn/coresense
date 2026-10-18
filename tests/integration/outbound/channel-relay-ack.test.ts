@@ -1,9 +1,9 @@
 import { Buffer } from 'node:buffer';
 import { createCipheriv, createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { bus } from '../../../src/main/events/bus';
 import { stateHolder } from '../../../src/main/state/holder';
-import type { Channel, MessagePath } from '../../../src/shared/types';
+import type { Channel } from '../../../src/shared/types';
+import { captureBus } from '../../support/bus';
 import { makeTestSession } from '../../support/session-harness';
 
 const channel: Channel = {
@@ -76,14 +76,13 @@ describe('channel send → heard repeater relay (green check)', () => {
       timestampUnix: result.timestampUnix,
     });
 
-    const heard: Array<{ id: string; path: MessagePath; state: string }> = [];
-    bus.on('messagePathHeard', (e) => heard.push(e));
+    const heard = captureBus('messagePathHeard');
 
     receive(heardRelayFrame(result.channelHash as number, result.timestampUnix as number, 'Andy: hi there'));
 
-    expect(heard).toHaveLength(1);
-    expect(heard[0].id).toBe(id);
-    expect(heard[0].state).toBe('heard');
+    expect(heard.values).toHaveLength(1);
+    expect(heard.values[0].id).toBe(id);
+    expect(heard.values[0].state).toBe('heard');
 
     const msg = holder.getMessagesForKey('ch:Outbound').find((m) => m.id === id);
     expect(msg?.state).toBe('heard');
@@ -113,14 +112,13 @@ describe('channel send → heard repeater relay (green check)', () => {
     adapter.registerChannelSend({ messageId: first, channelHash, timestampUnix: olderTs });
     adapter.registerChannelSend({ messageId: second, channelHash, timestampUnix: newerTs });
 
-    const heard: Array<{ id: string; path: MessagePath; state: string }> = [];
-    bus.on('messagePathHeard', (e) => heard.push(e));
+    const heard = captureBus('messagePathHeard');
 
     // Relay the OLDER send. Newest-first guessing would credit this to
     // `second`; the sealed timestamp is what makes it land on `first`.
     receive(heardRelayFrame(channelHash, olderTs, 'Andy: first'));
 
-    expect(heard).toHaveLength(1);
-    expect(heard[0].id).toBe(first);
+    expect(heard.values).toHaveLength(1);
+    expect(heard.values[0].id).toBe(first);
   });
 });

@@ -66,6 +66,25 @@ describe('history persistence', () => {
     store.setItem(`coresense.cli.history.${PK}`, '{not json');
     expect(loadHistory(PK, store)).toEqual([]);
   });
+
+  it('drops malformed lines instead of handing them to reverse-search', () => {
+    store.setItem(
+      `coresense.cli.history.${PK}`,
+      JSON.stringify([
+        { text: 'ver', status: 'ok' },
+        null,
+        { status: 'ok' },
+        { text: 42, status: 'ok' },
+        { text: 'get radio', status: 'bogus' },
+        { text: 'get tx', status: 'sent', id: 7 },
+        { text: 'get tx', status: 'timeout', id: 'cli-1' },
+      ]),
+    );
+    expect(loadHistory(PK, store)).toEqual([
+      { text: 'ver', status: 'ok' },
+      { text: 'get tx', status: 'timeout', id: 'cli-1' },
+    ]);
+  });
 });
 
 describe('pushHistory', () => {
@@ -143,6 +162,26 @@ describe('reboot-pending persistence', () => {
     const p = { settings: [{ label: 'radio', verify: 'get radio' }], dismissed: true, rebootSentAtMs: 123 };
     savePendingReboot(PK, p, store);
     expect(loadPendingReboot(PK, store)).toEqual(p);
+  });
+
+  it('drops malformed settings but keeps the well-formed ones', () => {
+    store.setItem(
+      `coresense.cli.pendingReboot.${PK}`,
+      JSON.stringify({
+        settings: [{ label: 'radio', verify: 'get radio' }, { verify: 'get tx' }, 'tx', { label: 'af', verify: null }],
+        dismissed: false,
+        rebootSentAtMs: null,
+      }),
+    );
+    expect(loadPendingReboot(PK, store).settings).toEqual([
+      { label: 'radio', verify: 'get radio' },
+      { label: 'af', verify: null },
+    ]);
+  });
+
+  it('falls back to the default for a non-object payload', () => {
+    store.setItem(`coresense.cli.pendingReboot.${PK}`, 'null');
+    expect(loadPendingReboot(PK, store)).toEqual({ settings: [], dismissed: false, rebootSentAtMs: null });
   });
 });
 

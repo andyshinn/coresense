@@ -53,11 +53,11 @@ export type CliPromptAction =
   | { kind: 'rsearch/setQuery'; query: string }
   | { kind: 'confirm/cancel' };
 
-export function initialPromptState(ctx?: Partial<CliSuggestCtx>): CliPromptState {
+export function initialPromptState(ctx?: Partial<CliSuggestCtx>, history: CliHistoryEntry[] = []): CliPromptState {
   return {
     value: '',
     caret: 0,
-    history: [],
+    history,
     histIndex: -1,
     draft: '',
     manualOpen: false,
@@ -115,10 +115,16 @@ export function rsearchMatches(history: CliHistoryEntry[], query: string): CliHi
   return out;
 }
 
-export function rsearchView(s: CliPromptState): { text: string | null; index: number; total: number } {
-  if (!s.rsearch) return { text: null, index: 0, total: 0 };
+export function rsearchView(s: CliPromptState): {
+  match: CliHistoryEntry | null;
+  text: string | null;
+  index: number;
+  total: number;
+} {
+  if (!s.rsearch) return { match: null, text: null, index: 0, total: 0 };
   const matches = rsearchMatches(s.history, s.rsearch.query);
-  return { text: matches[s.rsearch.index]?.text ?? null, index: s.rsearch.index, total: matches.length };
+  const match = matches[s.rsearch.index] ?? null;
+  return { match, text: match?.text ?? null, index: s.rsearch.index, total: matches.length };
 }
 
 function applyItem(s: CliPromptState, item: CliSuggestion): CliPromptState {
@@ -126,6 +132,36 @@ function applyItem(s: CliPromptState, item: CliSuggestion): CliPromptState {
   const hasArgs = !!(item.cmd && (item.cmd.args || item.cmd.spec));
   // No-args → close; with-args → leave open so arg suggestions appear.
   return reselect({ ...s, value, caret, navigated: false, manualOpen: false, dismissed: !hasArgs, histIndex: -1 });
+}
+
+/** Load the current reverse-search match onto the line and leave the search.
+ *  With no match, `miss` is the state to land in instead. */
+function acceptRsearch(s: CliPromptState, miss: CliPromptState): CliPromptState {
+  const { text } = rsearchView(s);
+  if (text === null) return miss;
+  return reselect({ ...s, value: text, caret: text.length, rsearch: null, navigated: false, dismissed: false });
+}
+
+/** Leave reverse-search, restoring the line it was opened over. */
+function abortRsearch(s: CliPromptState): CliPromptState {
+  if (!s.rsearch) return s;
+  const { restore } = s.rsearch;
+  return reselect({ ...s, value: restore, caret: restore.length, rsearch: null });
+}
+
+/** Step the palette highlight one visual row, clamped at either end. */
+function movePalette(s: CliPromptState, step: -1 | 1): CliPromptState {
+  const items = paletteItems(s);
+  if (!items.length) return s;
+  const cur = items.findIndex((i) => i.id === s.activeId);
+  const next = Math.max(0, Math.min(items.length - 1, cur + step));
+  return { ...s, activeId: items[next].id, navigated: true };
+}
+
+/** Put history entry `index` (0 = newest) on the line. */
+function recallHistory(s: CliPromptState, index: number): CliPromptState {
+  const entry = s.history[s.history.length - 1 - index];
+  return reselect({ ...s, value: entry.text, caret: entry.text.length, histIndex: index, navigated: false });
 }
 
 function clearLine(s: CliPromptState): CliPromptState {
@@ -165,54 +201,25 @@ export function cliPromptReducer(s: CliPromptState, a: CliPromptAction): { state
 
     case 'key/arrowUp': {
       if (s.rsearch) return { state: s }; // modal — swallowed
-      if (isPaletteOpen(s)) {
-        const items = paletteItems(s);
-        if (!items.length) return { state: s };
-        const cur = items.findIndex((i) => i.id === s.activeId);
-        return { state: { ...s, activeId: items[Math.max(0, cur - 1)].id, navigated: true } };
-      }
+      if (isPaletteOpen(s)) return { state: movePalette(s, -1) };
       if (s.history.length === 0) return { state: s };
       const first = s.histIndex === -1;
       const index = Math.min(first ? 0 : s.histIndex + 1, s.history.length - 1);
-      const entry = s.history[s.history.length - 1 - index];
-      return {
-        state: reselect({
-          ...s,
-          value: entry.text,
-          caret: entry.text.length,
-          draft: first ? s.value : s.draft,
-          histIndex: index,
-          dismissed: true,
-          navigated: false,
-        }),
-      };
+      return { state: recallHistory({ ...s, draft: first ? s.value : s.draft, dismissed: true }, index) };
     }
 
     case 'key/arrowDown': {
       if (s.rsearch) return { state: s };
-      if (isPaletteOpen(s)) {
-        const items = paletteItems(s);
-        if (!items.length) return { state: s };
-        const cur = items.findIndex((i) => i.id === s.activeId);
-        return { state: { ...s, activeId: items[Math.min(items.length - 1, cur + 1)].id, navigated: true } };
-      }
+      if (isPaletteOpen(s)) return { state: movePalette(s, 1) };
       if (s.histIndex === -1) return { state: s };
       if (s.histIndex === 0) {
         return { state: reselect({ ...s, value: s.draft, caret: s.draft.length, histIndex: -1, navigated: false }) };
       }
-      const index = s.histIndex - 1;
-      const entry = s.history[s.history.length - 1 - index];
-      return { state: reselect({ ...s, value: entry.text, caret: entry.text.length, histIndex: index, navigated: false }) };
+      return { state: recallHistory(s, s.histIndex - 1) };
     }
 
     case 'key/tab': {
-      if (s.rsearch) {
-        const { text } = rsearchView(s);
-        if (text === null) return { state: { ...s, rsearch: null } };
-        return {
-          state: reselect({ ...s, value: text, caret: text.length, rsearch: null, navigated: false, dismissed: false }),
-        };
-      }
+      if (s.rsearch) return { state: acceptRsearch(s, { ...s, rsearch: null }) };
       if (!isPaletteOpen(s)) return { state: reselect({ ...s, manualOpen: true, dismissed: false, navigated: false }) };
       const items = paletteItems(s);
       if (items.length === 0) return { state: s };
@@ -228,13 +235,7 @@ export function cliPromptReducer(s: CliPromptState, a: CliPromptAction): { state
     }
 
     case 'key/acceptGhost': {
-      if (s.rsearch) {
-        const { text } = rsearchView(s);
-        if (text === null) return { state: s };
-        return {
-          state: reselect({ ...s, value: text, caret: text.length, rsearch: null, navigated: false, dismissed: false }),
-        };
-      }
+      if (s.rsearch) return { state: acceptRsearch(s, s) };
       const suffix = ghostSuffix(s);
       if (!suffix) return { state: s }; // caller falls through to native cursor move
       const value = s.value + suffix;
@@ -260,8 +261,7 @@ export function cliPromptReducer(s: CliPromptState, a: CliPromptAction): { state
 
     case 'key/escape': {
       if (s.confirmPending) return { state: { ...s, confirmPending: null } };
-      if (s.rsearch)
-        return { state: reselect({ ...s, value: s.rsearch.restore, caret: s.rsearch.restore.length, rsearch: null }) };
+      if (s.rsearch) return { state: abortRsearch(s) };
       if (isPaletteOpen(s)) return { state: { ...s, manualOpen: false, dismissed: true } };
       return { state: { ...s, value: '', caret: 0, histIndex: -1, navigated: false } };
     }
@@ -276,8 +276,7 @@ export function cliPromptReducer(s: CliPromptState, a: CliPromptAction): { state
     }
 
     case 'key/ctrlG':
-      if (!s.rsearch) return { state: s };
-      return { state: reselect({ ...s, value: s.rsearch.restore, caret: s.rsearch.restore.length, rsearch: null }) };
+      return { state: abortRsearch(s) };
 
     case 'key/ctrlL':
       return { state: s, effect: { kind: 'clearTranscript' } };

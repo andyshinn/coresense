@@ -1,8 +1,8 @@
-import { Buffer } from 'node:buffer';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { setProtocolSession } from '../../../src/main/protocol';
+import { Protocol } from '@andyshinn/meshcore-ts';
+import { describe, expect, it, vi } from 'vitest';
 import { discoveredStore } from '../../../src/main/storage/discoveredContacts';
 import { transportManager } from '../../../src/main/transport/manager';
+import { advertPathReply, contactSyncFrame, newAdvertFrame, OUT_PATH_UNKNOWN } from '../../support/companionFrames';
 import { makeTestSession, type TestSession } from '../../support/session-harness';
 
 // #45 item 7, the half that makes the column fill in on its own.
@@ -17,57 +17,16 @@ import { makeTestSession, type TestSession } from '../../support/session-harness
 const PK = 'e7'.repeat(32);
 const STRANGER = 'f8'.repeat(32);
 
-// RESP_CONTACT (0x03) — the 148-byte record a GET_CONTACTS walk streams. Seeds
-// both the library's contact map and coresense's mirror.
-function contactSyncFrame(pubkeyHex: string, name: string): Buffer {
-  const frame = Buffer.alloc(148);
-  frame[0] = 0x03;
-  Buffer.from(pubkeyHex, 'hex').copy(frame, 1);
-  frame[33] = 1; // type = chat
-  frame[35] = 0xff; // out_path_len = OUT_PATH_UNKNOWN
-  Buffer.from(name, 'utf8').copy(frame, 100);
-  return frame;
-}
-
-// PUSH_NEW_ADVERT (0x8a) — same 148-byte record, but a node we actually heard.
-function newAdvertFrame(pubkeyHex: string, name: string): Buffer {
-  const frame = contactSyncFrame(pubkeyHex, name);
-  frame[0] = 0x8a;
-  return frame;
-}
-
-// RESP_ADVERT_PATH (0x16): [0x16][recv_timestamp u32 LE][path_len u8][path].
-// path_len is the packed byte: bits 5-0 hop count, bits 7-6 hashSize-1 — except
-// for the one value below, which is not a length at all. Written raw so a test
-// can put the sentinel on the wire.
-function advertPathReply(recvUnix: number, pathLenByte: number, pathHex = ''): Buffer {
-  const path = Buffer.from(pathHex, 'hex');
-  const frame = Buffer.alloc(6 + path.length);
-  frame[0] = 0x16;
-  frame.writeUInt32LE(recvUnix, 1);
-  frame[5] = pathLenByte;
-  path.copy(frame, 6);
-  return frame;
-}
-
 // OUT_PATH_UNKNOWN: "this entry has no path", not a hop count. No path bytes
 // follow it, so the frame is a valid six-byte reply.
-const PATH_LEN_FLOOD = 0xff;
+const PATH_LEN_FLOOD = OUT_PATH_UNKNOWN;
 
-const advertPathCommands = (s: TestSession) => s.transport.sent.filter((f) => f[0] === 0x2a);
-
-afterEach(() => {
-  setProtocolSession(null);
-  transportManager.setState('idle');
-});
+const advertPathCommands = (s: TestSession) => s.sentWithCode(Protocol.CMD.GET_ADVERT_PATH);
 
 function connected(): TestSession {
-  const s = makeTestSession();
   // fetchAdvertPath refuses without a radio, and the sampler calls it through
   // the module-level session seam.
-  transportManager.setState('connected');
-  setProtocolSession(s.adapter);
-  return s;
+  return makeTestSession({ connected: true, installAsProtocolSession: true });
 }
 
 describe('advert-triggered advert-path sampling', () => {
@@ -79,7 +38,7 @@ describe('advert-triggered advert-path sampling', () => {
 
     await vi.waitFor(() => expect(advertPathCommands(s)).toHaveLength(1));
     // CMD_GET_ADVERT_PATH: [0x2a][reserved][32B pubkey].
-    const cmd = Buffer.from(advertPathCommands(s)[0]);
+    const cmd = advertPathCommands(s)[0];
     expect(cmd).toHaveLength(34);
     expect(cmd.subarray(2).toString('hex')).toBe(PK);
   });
@@ -168,8 +127,7 @@ describe('advert-triggered advert-path sampling', () => {
   });
 
   it('does not sample while the radio is detached', async () => {
-    const s = makeTestSession();
-    setProtocolSession(s.adapter);
+    const s = makeTestSession({ installAsProtocolSession: true });
     transportManager.setState('idle');
     s.receive(contactSyncFrame(PK, 'Erin'));
 

@@ -4,10 +4,10 @@ import type { DeviceIdentity } from '../../../../shared/types';
 import { Row, TextInput, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
 import { useSettingsSection } from '../useSectionDraft';
-import type { SectionProps } from './shared';
 
 interface PublicInfoDraft {
   name: string;
@@ -18,7 +18,8 @@ interface PublicInfoDraft {
 const eqPublicInfo = (a: PublicInfoDraft, b: PublicInfoDraft) =>
   a.name === b.name && a.latText === b.latText && a.lonText === b.lonText && a.share === b.share;
 
-export function PublicInfoSection({ client }: SectionProps) {
+export function PublicInfoSection() {
+  const client = useApiClient();
   const identity = useStore((s) => s.deviceIdentity);
   const owner = useStore((s) => s.owner);
   const connected = useStore((s) => s.transportState === 'connected');
@@ -33,7 +34,7 @@ export function PublicInfoSection({ client }: SectionProps) {
     [identity.name, identity.lat, identity.lon, identity.sharePositionInAdvert, owner?.name],
   );
 
-  const { draft, setDraft, dirty, saving, save } = useSettingsSection({
+  const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'radio-public-info',
     saved,
     eq: eqPublicInfo,
@@ -58,14 +59,11 @@ export function PublicInfoSection({ client }: SectionProps) {
 
   return (
     <SettingsSection
-      id="radio-public-info"
+      {...sectionProps}
       icon={UserCircle}
       title="Public Info"
       description="What the radio advertises about itself — name and position."
-      dirty={dirty}
-      saving={saving}
       canSave={!!client}
-      onSave={save}
     >
       <Row
         label="Name"

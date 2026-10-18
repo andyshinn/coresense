@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/renderer/lib/api', () => ({
@@ -11,38 +11,36 @@ vi.mock('../../src/renderer/lib/api', () => ({
     putMapSettings: vi.fn(async () => ({ ok: true })),
   },
 }));
-vi.mock('../../src/renderer/lib/notify', () => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
+vi.mock('../../src/renderer/lib/notify', () => import('../support/notifyMock'));
 
 import { MapKeySection } from '../../src/renderer/components/settings/MapKeySection';
 import { api } from '../../src/renderer/lib/api';
-
-const client = { baseUrl: 'http://x', apiKey: 'k' };
+import { TEST_CLIENT as client } from '../support/apiClient';
+import { renderWithClient } from '../support/renderWithClient';
 
 afterEach(() => vi.clearAllMocks());
 
 describe('MapKeySection cache controls', () => {
   it('shows the current cache size on mount', async () => {
-    render(<MapKeySection client={client} />);
+    renderWithClient(<MapKeySection />);
     expect(await screen.findByText(/25\.0 MB/)).toBeTruthy();
   });
 
   it('clears the cache and refreshes size', async () => {
-    render(<MapKeySection client={client} />);
+    renderWithClient(<MapKeySection />);
     await waitFor(() => expect(api.getTileCacheInfo).toHaveBeenCalled());
     fireEvent.click(screen.getByRole('button', { name: /clear cache/i }));
     await waitFor(() => expect(api.clearTileCache).toHaveBeenCalledWith(client));
   });
 
   it('opens the cache folder', async () => {
-    render(<MapKeySection client={client} />);
+    renderWithClient(<MapKeySection />);
     fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
     await waitFor(() => expect(api.openTileCacheFolder).toHaveBeenCalledWith(client));
   });
 
   it('persists a new cap when the select changes', async () => {
-    render(<MapKeySection client={client} />);
+    renderWithClient(<MapKeySection />);
     fireEvent.change(screen.getByLabelText(/cache size limit/i), {
       target: { value: String(1024 * 1024 * 1024) },
     });

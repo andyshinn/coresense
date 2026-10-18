@@ -1,9 +1,9 @@
 import { Buffer } from 'node:buffer';
+import { Protocol } from '@andyshinn/meshcore-ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { setProtocolSession } from '../../../src/main/protocol';
 import { stateHolder } from '../../../src/main/state/holder';
-import { transportManager } from '../../../src/main/transport/manager';
 import { DEFAULT_AUTO_ADD_CONFIG } from '../../../src/shared/types';
+import { newAdvertFrame } from '../../support/companionFrames';
 import { frameBuf } from '../../support/frames';
 import { makeTestSession, type TestSession } from '../../support/session-harness';
 
@@ -24,19 +24,7 @@ import { makeTestSession, type TestSession } from '../../support/session-harness
 const REPEATER_PK = 'b4'.repeat(32);
 const CHAT_PK = 'c5'.repeat(32);
 
-const ADV_TYPE_CHAT = 1;
-const ADV_TYPE_REPEATER = 2;
-
-/** PUSH_NEW_ADVERT (0x8a): a node we heard that the radio did NOT store. */
-function newAdvertFrame(pubkeyHex: string, advType: number, name: string): Buffer {
-  const frame = Buffer.alloc(148);
-  frame[0] = 0x8a;
-  Buffer.from(pubkeyHex, 'hex').copy(frame, 1);
-  frame[33] = advType;
-  frame[35] = 0xff; // out_path_len = OUT_PATH_UNKNOWN
-  Buffer.from(name, 'utf8').copy(frame, 100);
-  return frame;
-}
+const { ADV_TYPE } = Protocol;
 
 /** RESP_SELF_INFO (0x05) with `_prefs.manual_add_contacts` (byte 47) overridden.
  *  The real captured frame, so the other 70 bytes are whatever a radio actually
@@ -47,8 +35,8 @@ function selfInfoWithManualAdd(manualAddContacts: number): Buffer {
   return frame;
 }
 
-/** CMD_GET_CONTACTS (0x04) — the full-store walk the re-sync issues. */
-const getContactsCommands = (s: TestSession) => s.transport.sent.filter((f) => f[0] === 0x04);
+/** CMD_GET_CONTACTS — the full-store walk the re-sync issues. */
+const getContactsCommands = (s: TestSession) => s.sentWithCode(Protocol.CMD.GET_CONTACTS);
 
 /** The library debounces the re-sync by 1.5s. */
 const RESYNC_DEBOUNCE_MS = 1500;
@@ -57,15 +45,10 @@ const RESYNC_DEBOUNCE_MS = 1500;
  *  library mirror from the holder, so the order matters. */
 function sessionWith(cfg: Partial<typeof DEFAULT_AUTO_ADD_CONFIG>): TestSession {
   stateHolder().setAutoAddConfig({ ...DEFAULT_AUTO_ADD_CONFIG, ...cfg });
-  const s = makeTestSession();
-  transportManager.setState('connected');
-  setProtocolSession(s.adapter);
-  return s;
+  return makeTestSession({ connected: true, installAsProtocolSession: true });
 }
 
 afterEach(() => {
-  setProtocolSession(null);
-  transportManager.setState('idle');
   vi.useRealTimers();
 });
 
@@ -91,7 +74,7 @@ describe('post-advert contact re-sync gate', () => {
     // The radio speaks: bit 0 set, honour the per-kind flags.
     s.receive(selfInfoWithManualAdd(1));
     // And a repeater advert it refused, on a rule the user set.
-    s.receive(newAdvertFrame(REPEATER_PK, ADV_TYPE_REPEATER, 'Hilltop'));
+    s.receive(newAdvertFrame(REPEATER_PK, 'Hilltop', { type: ADV_TYPE.REPEATER }));
     await vi.advanceTimersByTimeAsync(RESYNC_DEBOUNCE_MS * 2);
 
     // Re-enumerating the radio's whole contact store cannot produce a contact
@@ -104,7 +87,7 @@ describe('post-advert contact re-sync gate', () => {
     const s = sessionWith({ mode: 'all', manualAddContacts: 0, chat: true, repeater: false });
 
     s.receive(selfInfoWithManualAdd(1));
-    s.receive(newAdvertFrame(CHAT_PK, ADV_TYPE_CHAT, 'Erin'));
+    s.receive(newAdvertFrame(CHAT_PK, 'Erin', { type: ADV_TYPE.CHAT }));
     await vi.advanceTimersByTimeAsync(RESYNC_DEBOUNCE_MS * 2);
 
     // Chat is enabled, so the radio should have stored this one — the walk is
@@ -120,7 +103,7 @@ describe('post-advert contact re-sync gate', () => {
     vi.useFakeTimers();
     const s = sessionWith({ mode: 'all', manualAddContacts: 0, repeater: false });
 
-    s.receive(newAdvertFrame(REPEATER_PK, ADV_TYPE_REPEATER, 'Hilltop'));
+    s.receive(newAdvertFrame(REPEATER_PK, 'Hilltop', { type: ADV_TYPE.REPEATER }));
     await vi.advanceTimersByTimeAsync(RESYNC_DEBOUNCE_MS * 2);
 
     expect(getContactsCommands(s)).toHaveLength(1);
@@ -150,7 +133,7 @@ describe('post-advert contact re-sync gate', () => {
     vi.useFakeTimers();
     const s = sessionWith({ mode: 'selected', manualAddContacts: 0, repeater: false });
 
-    s.receive(newAdvertFrame(REPEATER_PK, ADV_TYPE_REPEATER, 'Hilltop'));
+    s.receive(newAdvertFrame(REPEATER_PK, 'Hilltop', { type: ADV_TYPE.REPEATER }));
     await vi.advanceTimersByTimeAsync(RESYNC_DEBOUNCE_MS * 2);
 
     // Bit 0 is clear, so `repeater: false` is a stale app-side opinion the radio

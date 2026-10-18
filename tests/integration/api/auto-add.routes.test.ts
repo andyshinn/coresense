@@ -1,18 +1,18 @@
 import { Models } from '@andyshinn/meshcore-ts';
-import { afterEach, describe, expect, it } from 'vitest';
-import { createRoutes } from '../../../src/main/api/routes';
-import { setProtocolSession } from '../../../src/main/protocol';
+import { describe, expect, it } from 'vitest';
 import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
 import { stateHolder } from '../../../src/main/state/holder';
 import { transportManager } from '../../../src/main/transport/manager';
+import type { ApiErrorBody } from '../../../src/shared/api/contract';
 import { type AutoAddConfig, DEFAULT_AUTO_ADD_CONFIG } from '../../../src/shared/types';
+import { installSessionStub, json, testRoutes } from '../../support/api';
 
 type AutoAddFlags = Parameters<SessionAdapter['setAutoAddConfig']>[0];
 type OtherParamsCall = [Parameters<SessionAdapter['setOtherParams']>[0], boolean, number | undefined];
 type LibAutoAddConfig = ReturnType<SessionAdapter['getLibAutoAddConfig']>;
 
 interface Recorder {
-  adapter: SessionAdapter;
+  adapter: Partial<SessionAdapter>;
   /** Command names in the order they went to the radio. */
   order: string[];
   flags: AutoAddFlags[];
@@ -28,7 +28,7 @@ interface Recorder {
 function recordingAdapter(opts: { ok?: boolean; mirror?: Partial<LibAutoAddConfig> } = {}): Recorder {
   const ok = opts.ok ?? true;
   const rec: Recorder = {
-    adapter: null as unknown as SessionAdapter,
+    adapter: {},
     order: [],
     flags: [],
     otherParams: [],
@@ -52,24 +52,12 @@ function recordingAdapter(opts: { ok?: boolean; mirror?: Partial<LibAutoAddConfi
       if (args[2] !== undefined) rec.mirror.manualAddContacts = args[2];
       return ok;
     },
-  } as unknown as SessionAdapter;
+  };
   return rec;
 }
 
-function app() {
-  return createRoutes({
-    port: () => 8080,
-    wsClients: () => 0,
-    bridgeStatus: () => ({ running: false, clients: 0 }) as never,
-  });
-}
-
 function putAutoAdd(body: AutoAddConfig) {
-  return app().request('/api/device/auto-add', {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  return testRoutes().request('/api/device/auto-add', json('PUT', body));
 }
 
 /** What the radio last told us: the holder copy the panel renders AND the
@@ -88,7 +76,7 @@ function seedRadioState(manualAddContacts: number, radioMaxHops = 0): void {
 function connectedRadio(manualAddContacts: number, radioMaxHops = 0, ok = true): Recorder {
   seedRadioState(manualAddContacts, radioMaxHops);
   const rec = recordingAdapter({ ok, mirror: { manualAddContacts, radioMaxHops } });
-  setProtocolSession(rec.adapter);
+  installSessionStub(rec.adapter);
   transportManager.setState('connected');
   return rec;
 }
@@ -96,11 +84,6 @@ function connectedRadio(manualAddContacts: number, radioMaxHops = 0, ok = true):
 const panelSave = (over: Partial<AutoAddConfig>): AutoAddConfig => ({
   ...DEFAULT_AUTO_ADD_CONFIG,
   ...over,
-});
-
-afterEach(() => {
-  setProtocolSession(null);
-  transportManager.setState('idle');
 });
 
 describe('PUT /api/device/auto-add — manual_add_contacts bit 0', () => {
@@ -160,7 +143,7 @@ describe('PUT /api/device/auto-add — manual_add_contacts bit 0', () => {
   it('persists the derived byte while disconnected without writing to the radio', async () => {
     seedRadioState(0);
     const rec = recordingAdapter();
-    setProtocolSession(rec.adapter);
+    installSessionStub(rec.adapter);
     transportManager.setState('idle');
 
     await putAutoAdd(panelSave({ mode: 'selected' }));
@@ -211,7 +194,7 @@ describe('PUT /api/device/auto-add — the library mirror is what decides', () =
   it('re-sends the mode bit on the next connected save when the radio never got it', async () => {
     seedRadioState(0);
     const offline = recordingAdapter();
-    setProtocolSession(offline.adapter);
+    installSessionStub(offline.adapter);
     transportManager.setState('idle');
     await putAutoAdd(panelSave({ mode: 'selected' }));
     expect(stateHolder().getAutoAddConfig().manualAddContacts).toBe(1);
@@ -219,7 +202,7 @@ describe('PUT /api/device/auto-add — the library mirror is what decides', () =
     // Radio attaches. RESP_SELF_INFO reports bit 0 clear, which matches the
     // library's mirror, so nothing emits and nothing corrects the holder.
     const rec = recordingAdapter({ mirror: { manualAddContacts: 0 } });
-    setProtocolSession(rec.adapter);
+    installSessionStub(rec.adapter);
     transportManager.setState('connected');
 
     await putAutoAdd(panelSave({ mode: 'selected', chat: true, repeater: false, room: false, sensor: false }));
@@ -234,7 +217,7 @@ describe('PUT /api/device/auto-add — the library mirror is what decides', () =
     expect(rejecting.order).toEqual(['setAutoAddConfig']);
 
     const rec = recordingAdapter({ mirror: { manualAddContacts: 0 } });
-    setProtocolSession(rec.adapter);
+    installSessionStub(rec.adapter);
 
     await putAutoAdd(panelSave({ mode: 'selected' }));
 
@@ -262,7 +245,7 @@ describe('PUT /api/device/auto-add — autoadd_max_hops', () => {
   it('delivers a hop limit edited while disconnected on the next connected save', async () => {
     seedRadioState(0, 0);
     const offline = recordingAdapter();
-    setProtocolSession(offline.adapter);
+    installSessionStub(offline.adapter);
     transportManager.setState('idle');
     await putAutoAdd(panelSave({ mode: 'all', radioMaxHops: 3 }));
 
@@ -270,11 +253,42 @@ describe('PUT /api/device/auto-add — autoadd_max_hops', () => {
     // against the holder would call it unchanged and emit the 2-byte form,
     // which the firmware reads as "keep what you have".
     const rec = recordingAdapter({ mirror: { radioMaxHops: 0 } });
-    setProtocolSession(rec.adapter);
+    installSessionStub(rec.adapter);
     transportManager.setState('connected');
 
     await putAutoAdd(panelSave({ mode: 'all', radioMaxHops: 3 }));
 
     expect(rec.flags[0].radioMaxHops).toBe(3);
+  });
+});
+
+describe('PUT /api/device/auto-add — a throwing setter', () => {
+  // The device-settings service turns a throw into a rejection, so a dropped
+  // link is a 503 like a refusal, not a 500 `internal`.
+  it('answers 503 with the message', async () => {
+    const rec = connectedRadio(0);
+    rec.adapter.setAutoAddConfig = () => Promise.reject(new Error('link lost'));
+
+    const res = await putAutoAdd(panelSave({ mode: 'selected' }));
+
+    expect(res.status).toBe(503);
+    expect((await res.json()) as ApiErrorBody).toEqual({ error: 'link lost' });
+    expect(rec.otherParams).toEqual([]);
+  });
+});
+
+describe('GET /api/device/auto-add', () => {
+  it('serves the stored config', async () => {
+    seedRadioState(1, 2);
+
+    const res = await testRoutes().request('/api/device/auto-add');
+
+    expect(res.status).toBe(200);
+    expect((await res.json()) as AutoAddConfig).toEqual({
+      ...DEFAULT_AUTO_ADD_CONFIG,
+      mode: 'selected',
+      manualAddContacts: 1,
+      radioMaxHops: 2,
+    });
   });
 });

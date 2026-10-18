@@ -1,27 +1,16 @@
 allowBuilds:
-  '@abandonware/noble': true
   '@serialport/bindings-cpp': true
   '@stoprocent/bluetooth-hci-socket': true
   '@stoprocent/noble': true
   electron: true
   electron-winstaller: true
-  es5-ext: true
-  esbuild: true
   fs-xattr: true
   macos-alias: true
   usb: true
 allowedDeprecatedVersions:
-  "@npmcli/move-file": "2.0.1"
-  are-we-there-yet: "2.0.0"
-  boolean: "3.2.0"
-  gar: "1.0.4"
-  gauge: "3.0.2"
-  glob: "7 || 8 || 10.5.0"
+  glob: "7"
   inflight: "1.0.6"
-  lodash.get: "4.4.2"
-  npmlog: "5.0.1"
-  rimraf: "2 || 3"
-  tar: "6.2.1"
+  rimraf: "2"
 blockExoticSubdeps: false
 minimumReleaseAgeExclude:
   # First-party scope: exempt our own packages from the release-age cooldown
@@ -31,4 +20,3 @@ minimumReleaseAgeExclude:
 nodeLinker: hoisted
 overrides:
   "@types/parse-path": "npm:parse-path@7.1.0"
-  extract-zip: npm:@electron-internal/extract-zip@1.0.3

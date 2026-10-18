@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { errorMessage } from '../../../shared/errors';
+import { isConversationKey } from '../../../shared/keys';
+import { parseSender } from '../../../shared/sender';
 import type { ConversationHit, MessageHit, SearchResults as SearchResultsPayload, SearchSort } from '../../../shared/types';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { useStore } from '../../lib/store';
 import { applyCategorySelection } from './categoryFilter';
 import { shortPk } from './format';
 import { ResultsList } from './ResultsList';
 import { SearchHeader } from './SearchHeader';
 
-interface Props {
-  client: ApiClient | null;
-}
-
 const DEBOUNCE_MS = 150;
 const PAGE_LIMIT = 100;
 
-export function SearchResults({ client }: Props) {
+export function SearchResults() {
+  const client = useApiClient();
   const searchQuery = useStore((s) => s.searchQuery);
   const setSearchQuery = useStore((s) => s.setSearchQuery);
   const filters = useStore((s) => s.searchFilters);
@@ -80,8 +81,9 @@ export function SearchResults({ client }: Props) {
         const pk = m.fromPublicKeyHex;
         if (!pk || known.has(pk)) continue;
         if (out.has(pk)) continue;
-        if (pk === 'unknown') out.set(pk, 'Unknown sender');
-        else if (pk.startsWith('name:')) out.set(pk, pk.slice(5));
+        const sender = parseSender(pk);
+        if (sender.kind === 'unknown') out.set(pk, 'Unknown sender');
+        else if (sender.kind === 'name') out.set(pk, sender.name);
         else out.set(pk, shortPk(pk));
       }
     }
@@ -137,7 +139,7 @@ export function SearchResults({ client }: Props) {
         setConversations(r.conversations);
         setTotalMessages(r.total.messages);
       } catch (err) {
-        if (!cancelled) setError((err as Error).message);
+        if (!cancelled) setError(errorMessage(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -168,7 +170,7 @@ export function SearchResults({ client }: Props) {
       setMessages((prev) => [...prev, ...r.messages]);
       setTotalMessages(r.total.messages);
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setLoadingMore(false);
     }
@@ -176,13 +178,14 @@ export function SearchResults({ client }: Props) {
 
   const onConversationClick = useCallback(
     (hit: ConversationHit) => {
-      setActiveKey(hit.key);
+      if (isConversationKey(hit.key)) setActiveKey(hit.key);
     },
     [setActiveKey],
   );
 
   const onMessageClick = useCallback(
     (hit: MessageHit) => {
+      if (!isConversationKey(hit.key)) return;
       setActiveKey(hit.key);
       setPendingJump(hit.id);
     },
@@ -214,7 +217,7 @@ export function SearchResults({ client }: Props) {
   const changeSort = useCallback(
     (next: SearchSort) => {
       setSort(next);
-      if (client && appSettings.search?.defaultSort !== next) {
+      if (client && appSettings.search.defaultSort !== next) {
         void api
           .putAppSettings(client, {
             ...appSettings,
@@ -257,7 +260,6 @@ export function SearchResults({ client }: Props) {
       />
       <ResultsList
         hasQuery={hasQuery}
-        loading={loading}
         error={error}
         empty={empty}
         searchQuery={searchQuery}
@@ -270,7 +272,6 @@ export function SearchResults({ client }: Props) {
         ownerName={owner?.name ?? 'me'}
         canLoadMore={canLoadMore}
         loadingMore={loadingMore}
-        client={client}
         onLoadMore={onLoadMore}
         onConversationClick={onConversationClick}
         onMessageClick={onMessageClick}

@@ -12,18 +12,14 @@ import {
   Upload,
 } from 'lucide-react';
 import { useState } from 'react';
+import { DAY_MS, WEEK_MS } from '../../../../shared/time';
+import type { ContactKind } from '../../../../shared/types';
 import { BlockSenderDialog } from '../../../components/BlockSenderDialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../../../components/ui/dialog';
+import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { KeyValueRow } from '../../../components/ui/KeyValueRow';
 import { useContactRefresh } from '../../../hooks/useContactRefresh';
-import { type ApiClient, api } from '../../../lib/api';
+import { api } from '../../../lib/api';
+import { useApiClient } from '../../../lib/apiClientContext';
 import { deriveContactView } from '../../../lib/contactManagerView';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
@@ -68,7 +64,8 @@ function SubHeader({ children }: { children: React.ReactNode }) {
   return <div className="font-mono text-[10px] uppercase tracking-wider text-cs-text-dim">{children}</div>;
 }
 
-function BulkActions({ client }: { client: ApiClient | null }) {
+function BulkActions() {
+  const client = useApiClient();
   const selected = useStore((s) => s.contactManager.selected);
   const clearCmSelected = useStore((s) => s.clearCmSelected);
   const n = selected.length;
@@ -80,7 +77,7 @@ function BulkActions({ client }: { client: ApiClient | null }) {
       clearCmSelected();
       notify.success(successMsg);
     } catch (err) {
-      notify.error(`Action failed: ${(err as Error).message}`, err);
+      notify.failure('Action', err);
     }
   }
 
@@ -166,19 +163,20 @@ function BulkActions({ client }: { client: ApiClient | null }) {
 }
 
 const PRUNE_OPTIONS: Array<{ label: string; ms: number }> = [
-  { label: '7 days', ms: 604_800_000 },
-  { label: '1 month', ms: 2_592_000_000 },
-  { label: '3 months', ms: 7_776_000_000 },
-  { label: '6 months', ms: 15_552_000_000 },
+  { label: '7 days', ms: WEEK_MS },
+  { label: '1 month', ms: 30 * DAY_MS },
+  { label: '3 months', ms: 90 * DAY_MS },
+  { label: '6 months', ms: 180 * DAY_MS },
 ];
 
-function ListActions({ client }: { client: ApiClient | null }) {
+function ListActions() {
+  const client = useApiClient();
   const discovered = useStore((s) => s.discovered);
   const cm = useStore((s) => s.contactManager);
   const blockRulesCount = useStore((s) => s.blockRules.length);
   const [showClear, setShowClear] = useState(false);
   const [showBlock, setShowBlock] = useState(false);
-  const { refreshing, refresh: refreshFromRadio } = useContactRefresh(client);
+  const { refreshing, refresh: refreshFromRadio } = useContactRefresh();
 
   const view = deriveContactView(discovered, cm, Date.now());
   const rows = view.rows;
@@ -192,7 +190,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
       await Promise.all(discoveredOnly.map((c) => api.addToRadio(client, c.publicKeyHex)));
       notify.success(`Added ${discoveredOnly.length} contact${discoveredOnly.length === 1 ? '' : 's'} to radio`);
     } catch (err) {
-      notify.error(`Action failed: ${(err as Error).message}`, err);
+      notify.failure('Action', err);
     }
   }
 
@@ -202,7 +200,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
       await Promise.all(onRadioRows.map((c) => api.removeFromRadio(client, c.publicKeyHex)));
       notify.success(`Removed ${onRadioRows.length} contact${onRadioRows.length === 1 ? '' : 's'} from radio`);
     } catch (err) {
-      notify.error(`Action failed: ${(err as Error).message}`, err);
+      notify.failure('Action', err);
     }
   }
 
@@ -220,7 +218,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
       await Promise.all(stale.map((d) => api.removeFromRadio(client, d.publicKeyHex)));
       notify.success(`Pruned ${stale.length} contact${stale.length === 1 ? '' : 's'} older than ${label}`);
     } catch (err) {
-      notify.error(`Prune failed: ${(err as Error).message}`, err);
+      notify.failure('Prune', err);
     }
   }
 
@@ -230,7 +228,7 @@ function ListActions({ client }: { client: ApiClient | null }) {
       await api.clearDiscovered(client);
       notify.success(`Cleared ${clearCount} discovered contact${clearCount === 1 ? '' : 's'}`);
     } catch (err) {
-      notify.error(`Clear failed: ${(err as Error).message}`, err);
+      notify.failure('Clear', err);
     } finally {
       setShowClear(false);
     }
@@ -307,34 +305,17 @@ function ListActions({ client }: { client: ApiClient | null }) {
         />
       </div>
 
-      <Dialog open={showClear} onOpenChange={(open) => !open && setShowClear(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Clear discovered list</DialogTitle>
-            <DialogDescription>
-              Delete {clearCount} discovered-only contact{clearCount === 1 ? '' : 's'}? On-radio contacts are kept.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <button
-              type="button"
-              onClick={() => setShowClear(false)}
-              className="rounded-md border border-cs-border bg-cs-bg-2 px-3 py-1.5 text-xs hover:bg-cs-bg-3"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={clearDiscovered}
-              className="rounded-md border border-cs-danger bg-cs-danger/10 px-3 py-1.5 text-xs text-cs-danger hover:bg-cs-danger/20"
-            >
-              Delete {clearCount}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={showClear}
+        title="Clear discovered list"
+        description={`Delete ${clearCount} discovered-only contact${clearCount === 1 ? '' : 's'}? On-radio contacts are kept.`}
+        confirmLabel={`Delete ${clearCount}`}
+        tone="danger"
+        onConfirm={clearDiscovered}
+        onCancel={() => setShowClear(false)}
+      />
 
-      {showBlock && <BlockSenderDialog client={client} open prefill={{}} onClose={() => setShowBlock(false)} />}
+      {showBlock && <BlockSenderDialog open prefill={{}} onClose={() => setShowBlock(false)} />}
     </div>
   );
 }
@@ -342,12 +323,12 @@ function ListActions({ client }: { client: ApiClient | null }) {
 /** Contextual right-rail body for the Contact Manager: bulk actions when rows
  *  are selected, the focused contact's detail when a single row is focused,
  *  otherwise list-wide actions. */
-export function ContactManagerRailBody({ client }: { client: ApiClient | null }) {
+export function ContactManagerRailBody() {
   const selected = useStore((s) => s.contactManager.selected);
   const focusKey = useStore((s) => s.contactManager.focusKey);
   const setCmFocus = useStore((s) => s.setCmFocus);
 
-  if (selected.length > 0) return <BulkActions client={client} />;
+  if (selected.length > 0) return <BulkActions />;
   if (focusKey) {
     return (
       <div className="space-y-2">
@@ -359,14 +340,14 @@ export function ContactManagerRailBody({ client }: { client: ApiClient | null })
           <ChevronLeft className="size-3.5" aria-hidden="true" />
           Back to list actions
         </button>
-        <ContactDetail publicKeyHex={focusKey} client={client} />
+        <ContactDetail publicKeyHex={focusKey} />
       </div>
     );
   }
-  return <ListActions client={client} />;
+  return <ListActions />;
 }
 
-const AUTO_ADD_KINDS: Array<{ key: 'chat' | 'repeater' | 'room' | 'sensor'; label: string }> = [
+const AUTO_ADD_KINDS: Array<{ key: ContactKind; label: string }> = [
   { key: 'chat', label: 'Users' },
   { key: 'repeater', label: 'Repeaters' },
   { key: 'room', label: 'Rooms' },

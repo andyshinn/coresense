@@ -5,8 +5,7 @@
 // are unit-testable in Node.
 
 import { PayloadType, RouteType } from '@michaelhart/meshcore-decoder';
-import type { Contact, MessageHop, MessagePath } from '../../shared/types';
-import { splitHopsHex } from '../components/path/resolveRepeater';
+import { type Contact, isPathHashSize, type MessageHop, type MessagePath, type PathHashSize } from '../../shared/types';
 import type { PacketSender } from './packetInspect';
 import type { LivePacket } from './store';
 
@@ -15,10 +14,21 @@ export interface OnAirRoute {
   routeType: RouteType;
   payloadType: PayloadType;
   /** Bytes per path hash: 1, 2 or 3. */
-  hashSize: 1 | 2 | 3;
+  hashSize: PathHashSize;
   pathHex: string;
   /** Everything after the path. Identical across every reception of one packet. */
   payloadHex: string;
+}
+
+/** Split a contiguous hex string into per-hop chunks of `hashSize` bytes
+ *  (i.e. hashSize*2 hex chars), discarding any trailing fragment. */
+export function splitHopsHex(hex: string, hashSize: PathHashSize): string[] {
+  const chunkLen = hashSize * 2;
+  const out: string[] = [];
+  for (let i = 0; i + chunkLen <= hex.length; i += chunkLen) {
+    out.push(hex.slice(i, i + chunkLen));
+  }
+  return out;
 }
 
 /**
@@ -42,7 +52,7 @@ export function parseOnAirRoute(hex: string): OnAirRoute | null {
   at += 2;
   const hashSize = (pathLen >> 6) + 1;
   // 0b11 in the size bits is reserved; the firmware never emits it.
-  if (hashSize !== 1 && hashSize !== 2 && hashSize !== 3) return null;
+  if (!isPathHashSize(hashSize)) return null;
   const pathEnd = at + (pathLen & 0x3f) * hashSize * 2;
   if (hex.length < pathEnd) return null;
   return { routeType, payloadType, hashSize, pathHex: hex.slice(at, pathEnd), payloadHex: hex.slice(pathEnd) };

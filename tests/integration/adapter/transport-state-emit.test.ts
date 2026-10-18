@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { bus } from '../../../src/main/events/bus';
-import { setProtocolSession } from '../../../src/main/protocol';
-import { startServer } from '../../../src/main/server';
 import { transportManager } from '../../../src/main/transport/manager';
 import type { TransportState } from '../../../src/shared/types';
+import { captureBus } from '../../support/bus';
+import { bootTestServer } from '../../support/server';
 import { makeTestSession, type TestSession } from '../../support/session-harness';
 
 // meshcore-ts 0.8.0 → 0.8.1 made `MeshCoreSession` EMIT `transportState`.
@@ -30,25 +30,12 @@ import { makeTestSession, type TestSession } from '../../support/session-harness
 
 const RESP_SELF_INFO_HEX = `05${'00'.repeat(70)}`;
 
-let live: TestSession | null = null;
-let closeServer: (() => Promise<void>) | null = null;
-
-/** The real HTTP server on an ephemeral port with a stub bridge. It owns
- *  coresense's transportState subscriber (src/main/server.ts's
- *  `onTransportState`), which is what writes transportManager — and that
- *  subscriber is a closure, not an export, so booting the server is the only
- *  way to assert on it. */
-async function bootServer(): Promise<void> {
-  const bridge = { getStatus: () => ({ running: false, clients: 0 }), on: () => {}, off: () => {} };
-  const handle = await startServer(null, bridge as never, { port: 0, bindAddress: '127.0.0.1' });
-  closeServer = handle.close;
-}
+// bootTestServer() is the real HTTP server. It owns coresense's
+// transportState subscriber (src/main/server.ts's `onTransportState`), which
+// is what writes transportManager.
 
 function session(): TestSession {
-  const s = makeTestSession();
-  live = s;
-  setProtocolSession(s.adapter);
-  return s;
+  return makeTestSession({ installAsProtocolSession: true });
 }
 
 /** coresense's BleTransport.connect() tail, verbatim: the bus is told first
@@ -60,20 +47,9 @@ function driveTransport(s: TestSession, state: TransportState, deviceId?: string
   s.transport.setState(state === 'connected' ? 'connected' : 'idle');
 }
 
-afterEach(async () => {
-  live?.adapter.stop();
-  live = null;
-  setProtocolSession(null);
-  await closeServer?.();
-  closeServer = null;
-  transportManager.setState('idle');
-  bus.removeAllListeners('transportState');
-});
-
 describe('the library re-emitting transportState onto coresense’s bus', () => {
   it('does not announce a second, device-less copy of the same transition', () => {
-    const seen: Array<[TransportState, string | undefined]> = [];
-    bus.on('transportState', (s: TransportState, id?: string) => seen.push([s, id]));
+    const seen = captureBus('transportState');
     const s = session();
 
     driveTransport(s, 'connected', 'dev-1');
@@ -81,7 +57,7 @@ describe('the library re-emitting transportState onto coresense’s bus', () => 
     // One transition, one announcement. A second copy is not merely redundant:
     // it carries no device id, and every subscriber treats the latest value as
     // the truth.
-    expect(seen).toEqual([['connected', 'dev-1']]);
+    expect(seen.calls).toEqual([['connected', 'dev-1']]);
   });
 
   // The one that reaches the screen. transportManager is what /api/snapshot
@@ -91,7 +67,7 @@ describe('the library re-emitting transportState onto coresense’s bus', () => 
   // device-less second announcement doesn't just look untidy; it loses the
   // stored radio and the user has to re-scan on every launch.
   it('leaves the connected device id intact for the snapshot to serve', async () => {
-    await bootServer();
+    await bootTestServer();
     const s = session();
 
     driveTransport(s, 'connected', 'dev-1');
@@ -109,14 +85,12 @@ describe('re-starting one SessionAdapter', () => {
   // this is the wrong thing to leave armed.
   it('does not wire a second copy of every handler', () => {
     const s = session();
-    const owners: unknown[] = [];
-    bus.on('owner', (o: unknown) => owners.push(o));
+    const owners = captureBus('owner');
 
     s.adapter.stop();
     s.adapter.start();
     s.receive(RESP_SELF_INFO_HEX);
 
-    expect(owners).toHaveLength(1);
-    bus.removeAllListeners('owner');
+    expect(owners.calls).toHaveLength(1);
   });
 });

@@ -1,6 +1,7 @@
 import { open, stat } from 'node:fs/promises';
 import type { Context, Hono } from 'hono';
 import { PMTiles, type RangeResponse, type Source } from 'pmtiles';
+import { errorMessage } from '../../shared/errors';
 import type { TileManifest, TileManifestEntry, TileSource } from '../../shared/types';
 import { emit } from '../events/bus';
 import { child } from '../log';
@@ -11,6 +12,10 @@ import { stateHolder } from '../state/holder';
 
 const log = child('tile-proxy');
 const PROTOMAPS_TILE_BASE = 'https://api.protomaps.com/tiles/v4';
+const TILE_HEADERS = {
+  'Content-Type': 'application/vnd.mapbox-vector-tile',
+  'Cache-Control': 'private, max-age=300',
+};
 
 // PMTiles bundled with the app can be hundreds of MB. The renderer's pmtiles.js
 // library issues HTTP Range requests against /api/tiles/:source and parses the
@@ -26,15 +31,20 @@ class FileSource implements Source {
   }
 
   async getBytes(offset: number, length: number): Promise<RangeResponse> {
-    const fh = await open(this.path, 'r');
-    try {
-      const buf = Buffer.alloc(length);
-      await fh.read(buf, 0, length, offset);
-      const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
-      return { data: ab as ArrayBuffer };
-    } finally {
-      await fh.close();
-    }
+    return { data: toArrayBuffer(await readSlice(this.path, offset, length)) };
+  }
+}
+
+/** Read up to `length` bytes at `offset`. A read that runs past EOF comes back
+ *  short rather than zero-padded. */
+async function readSlice(path: string, offset: number, length: number): Promise<Buffer> {
+  const fh = await open(path, 'r');
+  try {
+    const buf = Buffer.alloc(length);
+    const { bytesRead } = await fh.read(buf, 0, length, offset);
+    return buf.subarray(0, bytesRead);
+  } finally {
+    await fh.close();
   }
 }
 
@@ -94,18 +104,12 @@ async function serveRange(c: Context, filePath: string) {
 
   if (!rangeHeader) {
     // pmtiles.js always sends a Range; full reads only happen via curl/debug.
-    const fh = await open(filePath, 'r');
-    try {
-      const buf = Buffer.alloc(total);
-      await fh.read(buf, 0, total, 0);
-      return c.body(toArrayBuffer(buf), 200, {
-        'Content-Type': 'application/octet-stream',
-        'Content-Length': String(total),
-        'Accept-Ranges': 'bytes',
-      });
-    } finally {
-      await fh.close();
-    }
+    const buf = await readSlice(filePath, 0, total);
+    return c.body(toArrayBuffer(buf), 200, {
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': String(buf.length),
+      'Accept-Ranges': 'bytes',
+    });
   }
 
   const match = /^bytes=(\d+)-(\d*)$/.exec(rangeHeader);
@@ -120,19 +124,19 @@ async function serveRange(c: Context, filePath: string) {
   const clampedEnd = Math.min(end, total - 1);
   const length = clampedEnd - start + 1;
 
-  const fh = await open(filePath, 'r');
-  try {
-    const buf = Buffer.alloc(length);
-    await fh.read(buf, 0, length, start);
-    return c.body(toArrayBuffer(buf), 206, {
-      'Content-Type': 'application/octet-stream',
-      'Content-Length': String(length),
-      'Content-Range': `bytes ${start}-${clampedEnd}/${total}`,
-      'Accept-Ranges': 'bytes',
-    });
-  } finally {
-    await fh.close();
+  // The file can only come up short if it was truncated after the stat; label
+  // what was actually read so the headers never disagree with the body. If it
+  // now ends before `start` there is no valid range left to label.
+  const buf = await readSlice(filePath, start, length);
+  if (buf.length === 0) {
+    return c.body(null, 416, { 'Content-Range': `bytes */${total}` });
   }
+  return c.body(toArrayBuffer(buf), 206, {
+    'Content-Type': 'application/octet-stream',
+    'Content-Length': String(buf.length),
+    'Content-Range': `bytes ${start}-${start + buf.length - 1}/${total}`,
+    'Accept-Ranges': 'bytes',
+  });
 }
 
 function toArrayBuffer(buf: Buffer): ArrayBuffer {
@@ -184,10 +188,7 @@ export function registerTileRoutes(api: Hono): void {
 
     const cached = await cache.get(cacheKey);
     if (cached) {
-      return c.body(toArrayBuffer(cached), 200, {
-        'Content-Type': 'application/vnd.mapbox-vector-tile',
-        'Cache-Control': 'private, max-age=300',
-      });
+      return c.body(toArrayBuffer(cached), 200, TILE_HEADERS);
     }
 
     // Protomaps v4 hosts vector tiles for the same schema we render from PMTiles.
@@ -209,13 +210,21 @@ export function registerTileRoutes(api: Hono): void {
       }
       const buf = await res.arrayBuffer();
       markKeyRejected(false);
-      await cache.put(cacheKey, Buffer.from(buf));
+      // The write-through is best-effort. A full or read-only disk must not
+      // turn a tile we already hold into a 502 (and a log blaming upstream).
+      try {
+        await cache.put(cacheKey, Buffer.from(buf));
+      } catch (err) {
+        log.warn(`tile cache write failed for ${cacheKey}: ${errorMessage(err)}`);
+      }
       return c.body(buf, 200, {
-        'Content-Type': res.headers.get('Content-Type') ?? 'application/vnd.mapbox-vector-tile',
-        'Cache-Control': 'private, max-age=300',
+        ...TILE_HEADERS,
+        'Content-Type': res.headers.get('Content-Type') ?? TILE_HEADERS['Content-Type'],
       });
     } catch (err) {
-      log.warn(`fetch failed for ${z}/${x}/${y}: ${(err as Error).message}`);
+      // Some network errors quote the request URL, which carries the key.
+      const reason = errorMessage(err).replaceAll(encodeURIComponent(key), '<redacted>').replaceAll(key, '<redacted>');
+      log.warn(`fetch failed for ${z}/${x}/${y}: ${reason}`);
       return c.body(null, 502);
     }
   });

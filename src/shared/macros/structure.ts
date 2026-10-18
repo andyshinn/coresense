@@ -134,6 +134,13 @@ function step(node: StructureNode, seg: string | number): StructureNode | 'missi
   return 'missing';
 }
 
+/** Whether a node has fields to browse into: a non-empty object, or an array
+ *  whose element shape is known. */
+export function hasBrowsableChildren(node: StructureNode): boolean {
+  if (node.kind === 'object') return node.fields.length > 0;
+  return node.kind === 'array' && node.element !== null;
+}
+
 export function resolvePath(root: StructureNode, path: PathSegment[]): ResolveResult {
   let node = root;
   for (let i = 0; i < path.length; i++) {

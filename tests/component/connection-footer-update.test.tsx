@@ -1,25 +1,23 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/renderer/lib/api', () => ({
   api: { installUpdate: vi.fn(async () => ({ ok: true })), connect: vi.fn() },
 }));
-vi.mock('../../src/renderer/lib/notify', () => ({
-  notify: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
+vi.mock('../../src/renderer/lib/notify', () => import('../support/notifyMock'));
 
 import { SidebarProvider } from '../../src/renderer/components/ui/sidebar';
 import { api } from '../../src/renderer/lib/api';
-import { notify } from '../../src/renderer/lib/notify';
 import { useStore } from '../../src/renderer/lib/store';
 import { ConnectionFooter } from '../../src/renderer/shell/leftnav/ConnectionFooter';
 import type { UpdateState } from '../../src/shared/types';
+import { notify } from '../support/notifyMock';
+import { renderWithClient } from '../support/renderWithClient';
 
 function renderFooter() {
-  return render(
+  return renderWithClient(
     <SidebarProvider>
       <ConnectionFooter
-        client={{ baseUrl: 'http://x', apiKey: 'k' }}
         state="connected"
         sync={{ phase: 'idle', channels: { done: 0, total: 0 }, contacts: { done: 0, total: 0 } }}
         onClick={() => {}}
@@ -62,6 +60,8 @@ describe('ConnectionFooter update indicator', () => {
     renderFooter();
     fireEvent.click(screen.getByTestId('update-indicator'));
     fireEvent.click(await screen.findByRole('button', { name: /restart & install/i }));
-    await waitFor(() => expect(notify.error).toHaveBeenCalledWith(expect.stringContaining('boom'), expect.anything()));
+    await waitFor(() =>
+      expect(notify.failure).toHaveBeenCalledWith('Update action', expect.objectContaining({ message: 'boom' })),
+    );
   });
 });

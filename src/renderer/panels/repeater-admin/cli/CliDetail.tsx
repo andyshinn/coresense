@@ -8,11 +8,19 @@ export interface CliDetailProps {
   roundTripLabel: string | null;
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  valueClassName = 'text-cs-text-muted',
+  children,
+}: {
+  label: string;
+  valueClassName?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-[11px]">
       <span className="text-[10px] uppercase tracking-wider text-cs-text-dim">{label}</span>
-      <span className="truncate font-mono tabular-nums text-cs-text-muted">{children}</span>
+      <span className={`truncate font-mono tabular-nums ${valueClassName}`}>{children}</span>
     </div>
   );
 }
@@ -68,10 +76,9 @@ export function CliDetail({ item, nodeValue, roundTripLabel }: CliDetailProps) {
 
       {cmd.def ? <Field label="Default">{cmd.def}</Field> : null}
       {nodeValue && nodeValue.length > 0 ? (
-        <div className="flex items-baseline justify-between gap-3 text-[11px]">
-          <span className="text-[10px] uppercase tracking-wider text-cs-text-dim">On node</span>
-          <span className="truncate font-mono tabular-nums text-cs-text">{nodeValue}</span>
-        </div>
+        <Field label="On node" valueClassName="text-cs-text">
+          {nodeValue}
+        </Field>
       ) : null}
       <Field label="Round trip">{roundTrip}</Field>
 

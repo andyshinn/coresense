@@ -192,7 +192,7 @@ export function getTileCache(): TileCache {
   return singleton;
 }
 
-// --- Open-in-file-manager seam (real impl injected from src/main/index.ts) ---
+// --- Open-in-file-manager seam (real impl injected from src/main/bootstrap/seams.ts) ---
 let opener: (dir: string) => void = () => {};
 
 export function setTileCacheOpener(fn: (dir: string) => void): void {

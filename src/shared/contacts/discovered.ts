@@ -1,81 +1,8 @@
-import type { BlockRule, ContactKind, PathHashSize } from '../types';
+import { type BlockRule, type ContactKind, type DiscoveredContact, isPathHashSize, type PathHashSize } from '../types';
 
-/** A node we've heard an advert from. Superset of the on-radio contact list:
- *  `onRadio` marks whether it is currently committed to the radio's store. */
-export interface DiscoveredContact {
-  key: string; // `c:${publicKeyHex}`
-  publicKeyHex: string;
-  name: string;
-  kind: ContactKind;
-  hops?: number;
-  outPathHex?: string;
-  outPathHashSize?: PathHashSize;
-  gpsLat?: number;
-  gpsLon?: number;
-  /** Last advert time stamped by the NODE's own clock, ms. Unreliable — a node
-   *  with a wrong RTC can report a time in the future or far past. Shown as the
-   *  secondary "advertised" timestamp, never used for the "last heard" sort. */
-  lastAdvertMs?: number;
-  /** Last time WE genuinely received ANYTHING from this node (our clock), ms.
-   *  Advert, DM, ack, path learn, repeater status/telemetry or CLI reply — any
-   *  identity-bearing reception. On the advert side that is both a PUSH_ADVERT
-   *  (0x80) refresh of a stored contact and a PUSH_NEW_ADVERT (0x8a), which
-   *  since meshcore-ts 0.8.0 means the radio REFUSED to store the node — either
-   *  way we demodulated a real advert. Never a GET_CONTACTS resync (the device
-   *  just listing what it stores) and never our own outbound traffic, so
-   *  committing a contact to the radio can't bump it. Reception only: it says
-   *  nothing about whether the radio holds the contact. Undefined until the
-   *  first reception.
-   *
-   *  One value here does NOT come from our own clock: a RESP_ADVERT_PATH reply
-   *  carries the radio's own reception time for an advert it heard while we were
-   *  not attached, and that is a real reception we would otherwise report as
-   *  "never". It is adopted only after a plausibility check and only when it is
-   *  NEWER than what we already hold (see state/advertPath.ts), so a radio with
-   *  an unset or skewed RTC can never move this column.
-   *
-   *  Widened from "last live advert" in #45: a node we DM daily was showing
-   *  "never" because only PUSH_NEW_ADVERT wrote here, and every Last-heard
-   *  filter (hour/day/week) drops rows with no value at all. */
-  lastHeardMs?: number;
-  /** Hops the radio counted on the last advert it actually HEARD from this node
-   *  (CMD_GET_ADVERT_PATH → RESP_ADVERT_PATH). This is an INBOUND measurement
-   *  and is deliberately a field of its own: `hops` above is derived from
-   *  out_path_len, the LEARNED OUTBOUND route we would use to SEND. A mesh is
-   *  routinely asymmetric, so the two legitimately differ and neither may
-   *  overwrite the other (#45 item 7).
-   *
-   *  0 is a real measurement — "the advert arrived direct" — not an absence.
-   *  Undefined means nobody has measured it yet, which is NOT the same state as
-   *  `hops === undefined` ("no stored route → flood"); see formatObservedHops.
-   *
-   *  The firmware's backing store is a 16-entry RAM ring keyed on a 7-BYTE
-   *  pubkey PREFIX (companion_radio `AdvertPath.pubkey_prefix[7]`, compared with
-   *  memcmp) and evicted oldest-first, so this is a sample of one recent advert
-   *  rather than a durable property of the node — and, being a prefix match, not
-   *  full-key fidelity. */
-  observedHops?: number;
-  /** The path bytes that advert arrived over, hex. Empty for a 0-hop (direct)
-   *  reception, which is why `observedHops` — never this — is the presence test.
-   *
-   *  The firmware's other empty path, the 0xFF flood / no-path sentinel, is
-   *  never written here at all: the radio reports it as zero hops with an empty
-   *  path, and state/advertPath.ts drops it on the `flood` flag rather than
-   *  filing it as a direct reception. */
-  observedPathHex?: string;
-  /** When the RADIO received that advert, ms. Its RTC, not our clock and not the
-   *  advertising node's clock (see lastHeardMs / lastAdvertMs respectively). A
-   *  radio with an unset RTC reports something near the epoch, which is why it
-   *  is range-checked before it is allowed to advance `lastHeardMs` — but a
-   *  plausible value IS firmware-authoritative proof of a reception, and is used
-   *  as one (state/advertPath.ts). */
-  observedAtMs?: number;
-  /** First time WE heard this pubkey (our clock), ms. Tracked app-side. */
-  firstHeardMs: number;
-  onRadio: boolean;
-  favourite: boolean;
-  blocked: boolean;
-}
+// The type lives with the other domain records in shared/types; re-exported
+// here for the modules that import it alongside these helpers.
+export type { DiscoveredContact };
 
 /** Hops away, derived from a contact's stored out_path_len. This is the packed
  *  MeshCore path-length byte, NOT a raw byte count: bits 5-0 hold the hop count
@@ -97,7 +24,7 @@ export function hopsFromOutPathLen(outPathLen: number): number | undefined {
 export function hashSizeFromOutPathLen(outPathLen: number): PathHashSize | undefined {
   if (outPathLen === 0xff) return undefined;
   const size = (outPathLen >> 6) + 1;
-  return size === 1 || size === 2 || size === 3 ? (size as PathHashSize) : undefined;
+  return isPathHashSize(size) ? size : undefined;
 }
 
 /** The one rendering of a contact's hop state, shared by every surface so the

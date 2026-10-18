@@ -2,11 +2,13 @@ import type { MeshCoreSession } from '@andyshinn/meshcore-ts';
 import { emit, summarizeContactSync } from '../events/bus';
 import { child } from '../log';
 import { sampleAdvertPathAfterAdvert } from '../state/advertPath';
+import { commit } from '../state/commit';
 import { applyLibContacts, ingestObservedContact, noteHeard, scheduleDiscoveredEmit } from '../state/contactSync';
 import { endContactWalk, noteContactWalkStreaming } from '../state/contactWalk';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { messagesStore } from '../storage/messages';
+import { fromLibAutoAdd } from './autoAddMapping';
 import { mergeSyncedChannels } from './mergeChannels';
 
 const log = child('contacts');
@@ -39,62 +41,20 @@ export function wireSessionEvents(session: MeshCoreSession): void {
   // (`git grep transportState v0.8.0 -- src` finds only ports/events.ts); 0.8.1
   // added the emit at the tail of the session's own onTransportState, which
   // made this line live for the first time since it was written.
-  ev.on('owner', (o) => {
-    holder.setOwner(o);
-    emit.owner(o);
-  });
-  ev.on('deviceInfo', (info) => {
-    holder.setDeviceInfo(info);
-    emit.deviceInfo(info);
-  });
-  ev.on('deviceCapabilities', (caps) => {
-    holder.setDeviceCapabilities(caps);
-    emit.deviceCapabilities(caps);
-  });
-  ev.on('deviceIdentity', (id) => {
-    holder.setDeviceIdentity(id);
-    emit.deviceIdentity(id);
-  });
-  ev.on('radioSettings', (r) => {
-    holder.setRadioSettings(r);
-    emit.radioSettings(r);
-  });
-  ev.on('gpsConfig', (g) => {
-    holder.setGpsConfig(g);
-    emit.gpsConfig(g);
-  });
-  ev.on('telemetryPolicy', (t) => {
-    holder.setTelemetryPolicy(t);
-    emit.telemetryPolicy(t);
-  });
+  ev.on('owner', (o) => commit.owner(o));
+  ev.on('deviceInfo', (info) => commit.deviceInfo(info));
+  ev.on('deviceCapabilities', (caps) => commit.deviceCapabilities(caps));
+  ev.on('deviceIdentity', (id) => commit.deviceIdentity(id));
+  ev.on('radioSettings', (r) => commit.radioSettings(r));
+  ev.on('gpsConfig', (g) => commit.gpsConfig(g));
+  ev.on('telemetryPolicy', (t) => commit.telemetryPolicy(t));
   ev.on('autoAddConfig', (a) => {
-    // The lib owns the radio-driven fields; coresense keeps two app-only UI
-    // fields (autoRefreshContacts/showPublicKeys) the lib's type doesn't carry,
-    // so preserve them from the current holder value rather than dropping them.
-    //
     // The payload is the library's WHOLE mirror, not a delta — one emit per
     // change, carrying every other field as it stood. SessionAdapter.start()
     // seeds that mirror from this holder precisely so the untouched fields
     // round-trip our own values back to us instead of library defaults.
-    const prev = holder.getAutoAddConfig();
-    const next = {
-      // Derived, never copied: the library's own `mode` is app-side state it
-      // never writes, so reading it back pins us to its default ('all') and
-      // silently discards the user's choice. Bit 0 of manual_add_contacts is
-      // the radio's actual answer to the same question.
-      mode: (a.manualAddContacts & 1) !== 0 ? ('selected' as const) : ('all' as const),
-      chat: a.chat,
-      repeater: a.repeater,
-      room: a.room,
-      sensor: a.sensor,
-      overwriteOldest: a.overwriteOldest,
-      radioMaxHops: a.radioMaxHops,
-      manualAddContacts: a.manualAddContacts,
-      autoRefreshContacts: prev.autoRefreshContacts,
-      showPublicKeys: prev.showPublicKeys,
-    };
-    holder.setAutoAddConfig(next);
-    emit.autoAddConfig(next);
+    // fromLibAutoAdd derives `mode` from bit 0 and keeps the app-only fields.
+    commit.autoAddConfig(fromLibAutoAdd(a, holder.getAutoAddConfig()));
   });
   ev.on('channels', (chs) => {
     // The lib owns radio fields (name/kind/secretHex/idx) but never carries

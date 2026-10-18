@@ -1,5 +1,6 @@
 import { ArrowDownUp, LayoutGrid, List, Rows3, Search, Star } from 'lucide-react';
 import type { ContactKind } from '../../../shared/types';
+import { CountTab } from '../../components/CountTab';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Input } from '../../components/ui/input';
@@ -67,30 +68,15 @@ export function Toolbar({ counts }: { counts: CmCounts }) {
           />
         </div>
         <div className="flex items-center gap-1 text-xs">
-          {STATE_TABS.map(({ tab, label, key }) => {
-            const active = cm.stateTab === tab;
-            return (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setCmFilter({ stateTab: tab })}
-                className={cn(
-                  'flex items-center gap-1.5 border-b-2 px-2 py-1 transition-colors',
-                  active ? 'border-cs-accent text-cs-text' : 'border-transparent text-cs-text-muted hover:text-cs-text',
-                )}
-              >
-                {label}
-                <span
-                  className={cn(
-                    'rounded-full px-1.5 py-px font-mono text-[9px] tabular-nums',
-                    active ? 'bg-cs-accent-soft/30 text-cs-text' : 'bg-cs-bg-3 text-cs-text-dim',
-                  )}
-                >
-                  {counts[key]}
-                </span>
-              </button>
-            );
-          })}
+          {STATE_TABS.map(({ tab, label, key }) => (
+            <CountTab
+              key={tab}
+              label={label}
+              count={counts[key]}
+              active={cm.stateTab === tab}
+              onClick={() => setCmFilter({ stateTab: tab })}
+            />
+          ))}
         </div>
       </div>
 

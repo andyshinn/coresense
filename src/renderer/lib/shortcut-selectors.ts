@@ -1,6 +1,7 @@
+import type { ChannelKey } from '../../shared/conversationKey';
 import type { Platform } from '../../shared/shortcuts-format';
 import type { Channel } from '../../shared/types';
-import { sortChannels } from '../shell/leftnav/sorting';
+import { sortChannels } from './sortByPinned';
 
 /** True when a keydown originated in an editable field — used to suppress
  *  bare-key shortcuts (?, ⌥↑/↓) while the user is typing. */
@@ -14,7 +15,12 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 
 /** Key of the Nth channel (1-based) in left-nav sort order, or null. Unread
  *  ordering is intentionally ignored so ⌘1–9 stays positionally stable. */
-export function nthChannelKey(channels: Channel[], pinSet: Set<string>, pinnedOrder: string[], n: number): string | null {
+export function nthChannelKey(
+  channels: Channel[],
+  pinSet: Set<string>,
+  pinnedOrder: string[],
+  n: number,
+): ChannelKey | null {
   const sorted = sortChannels(channels, pinSet, pinnedOrder, null);
   return sorted[n - 1]?.key ?? null;
 }
@@ -22,9 +28,9 @@ export function nthChannelKey(channels: Channel[], pinSet: Set<string>, pinnedOr
 /** Given conversation keys in display order, return the next/previous one
  *  relative to `currentKey`, wrapping around. When `currentKey` is not in the
  *  list, returns the first (next) or last (prev) entry. Null if empty. */
-export function adjacentUnreadKey(orderedKeys: string[], currentKey: string, dir: 'next' | 'prev'): string | null {
+export function adjacentUnreadKey<K extends string>(orderedKeys: K[], currentKey: string, dir: 'next' | 'prev'): K | null {
   if (orderedKeys.length === 0) return null;
-  const i = orderedKeys.indexOf(currentKey);
+  const i = (orderedKeys as string[]).indexOf(currentKey);
   if (i === -1) return dir === 'next' ? orderedKeys[0] : orderedKeys[orderedKeys.length - 1];
   const len = orderedKeys.length;
   const j = dir === 'next' ? (i + 1) % len : (i - 1 + len) % len;

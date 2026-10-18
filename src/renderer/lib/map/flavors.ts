@@ -13,7 +13,7 @@ import { type Flavor, namedFlavor } from '@protomaps/basemaps';
 // Road class names map to the Protomaps schema: highway > major > minor > link.
 
 // Light flavor — warm parchment. Pairs with app's light theme.
-export const coresenseLight: Flavor = {
+const coresenseLight: Flavor = {
   ...namedFlavor('light'),
 
   // Land / background — warm cream tones.
@@ -91,7 +91,7 @@ export const coresenseLight: Flavor = {
 };
 
 // Dark flavor — warm-dark console. Pairs with app's dark theme.
-export const coresenseDark: Flavor = {
+const coresenseDark: Flavor = {
   ...namedFlavor('dark'),
 
   background: '#13110b',

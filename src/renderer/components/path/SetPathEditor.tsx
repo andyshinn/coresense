@@ -18,8 +18,10 @@ import { CSS } from '@dnd-kit/utilities';
 import { Check, GripVertical, Plus, RotateCcw, Save, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { Contact, IdentityColorMode, PathHashSize } from '../../../shared/types';
-import { type ApiClient, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { useApiClient } from '../../lib/apiClientContext';
 import { notify } from '../../lib/notify';
+import { splitHopsHex } from '../../lib/packetPath';
 import { useStore } from '../../lib/store';
 import { ContactAvatar } from '../ContactAvatar';
 import { PathHashBadge } from '../PathHashBadge';
@@ -30,7 +32,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Separator } from '../ui/separator';
-import { makeId, splitHopsHex } from './resolveRepeater';
+import { makeId } from './resolveRepeater';
 
 interface Hop {
   id: string;
@@ -39,10 +41,10 @@ interface Hop {
 
 interface Props {
   contact: Contact;
-  client: ApiClient | null;
 }
 
-export function SetPathEditor({ contact, client }: Props) {
+export function SetPathEditor({ contact }: Props) {
+  const client = useApiClient();
   const radioPathHashMode = useStore((s) => s.radioSettings.pathHashMode);
   const contacts = useStore((s) => s.contacts);
   const identityMode = useStore((s) => s.appSettings.identityColorMode ?? 'byKey');
@@ -141,7 +143,7 @@ export function SetPathEditor({ contact, client }: Props) {
       });
       notify.success(currentHex ? `Path saved (${hops.length} hops)` : 'Path cleared');
     } catch (err) {
-      notify.error(`Save failed: ${(err as Error).message}`, err);
+      notify.failure('Save', err);
     } finally {
       setBusy(false);
     }
@@ -155,7 +157,7 @@ export function SetPathEditor({ contact, client }: Props) {
       setHops([]);
       notify.success('Reset to flood');
     } catch (err) {
-      notify.error(`Reset failed: ${(err as Error).message}`, err);
+      notify.failure('Reset', err);
     } finally {
       setBusy(false);
     }

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { FilterHoverCard } from '@/panels/macros/studio/FilterHoverCard';
 import { VariableHoverCard } from '@/panels/macros/studio/VariableHoverCard';
 import { buildSampleContext, MACRO_VARIABLES, resolvePath, structureOf } from '../../../src/shared/macros';
+import type { MacroFilterDoc } from '../../../src/shared/macros/types';
 
 const variable = (name: string) => {
   const v = MACRO_VARIABLES.find((x) => x.name === name);
@@ -53,10 +54,12 @@ describe('FilterHoverCard', () => {
   it('shows signature and description, and the example when given', () => {
     render(
       <FilterHoverCard
-        name="distance"
-        description="Great-circle distance in metres between two positions"
-        signature="{{ a | distance: b }}"
-        example="{{ my_pos | distance: peer_pos }}"
+        doc={{
+          name: 'distance',
+          description: 'Great-circle distance in metres between two positions',
+          signature: '{{ a | distance: b }}',
+          example: '{{ my_pos | distance: peer_pos }}',
+        }}
       />,
     );
     expect(screen.getByText('distance')).toBeTruthy();
@@ -65,7 +68,8 @@ describe('FilterHoverCard', () => {
   });
 
   it('omits the example section when there is none', () => {
-    render(<FilterHoverCard name="first" description="First item of an array" signature="{{ array | first }}" />);
+    const doc: MacroFilterDoc = { name: 'first', description: 'First item of an array', signature: '{{ array | first }}' };
+    render(<FilterHoverCard doc={doc} />);
     expect(screen.getByText('first')).toBeTruthy();
     expect(screen.queryByText(/^EXAMPLE$/i)).toBeNull();
   });

@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { setProtocolSession } from '../../../src/main/protocol';
 import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
 import {
   isContactAutoRefreshRunning,
@@ -11,13 +10,16 @@ import { endContactWalk, noteContactWalkStreaming } from '../../../src/main/stat
 import { stateHolder } from '../../../src/main/state/holder';
 import { transportManager } from '../../../src/main/transport/manager';
 import { DEFAULT_AUTO_ADD_CONFIG, DEFAULT_SYNC_PROGRESS, type SyncProgress } from '../../../src/shared/types';
+import { installSessionStub } from '../../support/api';
 
 const INTERVAL = 60_000;
 
-function spySession(opts: { contacts?: () => Promise<unknown[]>; phase?: SyncProgress['phase'] } = {}) {
+type Contacts = Awaited<ReturnType<SessionAdapter['getContacts']>>;
+
+function spySession(opts: { contacts?: () => Promise<Contacts>; phase?: SyncProgress['phase'] } = {}) {
   const getContacts = vi.fn(opts.contacts ?? (() => Promise.resolve([])));
   const getSyncProgress = vi.fn(() => ({ ...DEFAULT_SYNC_PROGRESS, phase: opts.phase ?? 'done' }));
-  setProtocolSession({ getContacts, getSyncProgress } as unknown as SessionAdapter);
+  installSessionStub({ getContacts, getSyncProgress });
   return { getContacts };
 }
 
@@ -35,7 +37,6 @@ afterEach(() => {
   stopContactAutoRefresh();
   endContactWalk();
   vi.useRealTimers();
-  setProtocolSession(null);
 });
 
 // "Auto-refresh contacts" replaces a toggle (`pullToRefresh`) that had no
@@ -113,14 +114,14 @@ describe('contact auto-refresh', () => {
   // withSyncLock queues rather than rejects, so a radio slower than the interval
   // would otherwise accumulate back-to-back walks and stop delivering messages.
   it('never stacks a second walk on top of one still in flight', async () => {
-    let finish!: (v: unknown[]) => void;
+    let finish!: (v: Contacts) => void;
     let calls = 0;
     const { getContacts } = spySession({
       contacts: () => {
         calls += 1;
         // Only the FIRST walk hangs. Later ones settle, so the module's
         // in-flight flag can't stay latched past this test.
-        return calls === 1 ? new Promise<unknown[]>((r) => (finish = r)) : Promise.resolve([]);
+        return calls === 1 ? new Promise<Contacts>((r) => (finish = r)) : Promise.resolve([]);
       },
     });
     startContactAutoRefresh(INTERVAL);
@@ -137,6 +138,13 @@ describe('contact auto-refresh', () => {
     expect(getContacts).toHaveBeenCalledTimes(2);
   });
 
+  // A non-Error rejection used to surface as `message: undefined` in the
+  // renderer's toast; errorMessage() gives it a readable string.
+  it('reports a readable message when the walk rejects with a non-Error', async () => {
+    spySession({ contacts: () => Promise.reject('link reset') });
+    expect(await refreshContacts()).toEqual({ status: 'failed', message: 'link reset' });
+  });
+
   it('keeps ticking after a failed walk rather than wedging', async () => {
     const { getContacts } = spySession({ contacts: () => Promise.reject(new Error('transport gone')) });
     startContactAutoRefresh(INTERVAL);
@@ -150,8 +158,8 @@ describe('contact auto-refresh', () => {
   // in-flight flag has to be shared. It used to be private to this module, with
   // the route keeping none at all.
   it('stands down while a manual refresh is already walking', async () => {
-    let finish!: (v: unknown[]) => void;
-    const { getContacts } = spySession({ contacts: () => new Promise<unknown[]>((r) => (finish = r)) });
+    let finish!: (v: Contacts) => void;
+    const { getContacts } = spySession({ contacts: () => new Promise<Contacts>((r) => (finish = r)) });
 
     const manual = refreshContacts();
     await vi.waitFor(() => expect(getContacts).toHaveBeenCalledTimes(1));

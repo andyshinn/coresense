@@ -6,7 +6,7 @@ import type { Channel, Contact } from '../../../src/shared/types';
 
 // Playwright runs from the repo root; the built main entry is the package
 // `main` field. `electron-forge package` populates `.vite/build` at the root.
-const MAIN_ENTRY = join(process.cwd(), '.vite', 'build', 'index.js');
+const MAIN_ENTRY = join(process.cwd(), '.vite', 'build', 'index.cjs');
 const DEFAULT_FIXTURE = join(process.cwd(), 'tests', 'fixtures', 'frames', 'e2e-connect.json');
 
 export interface LaunchOptions {
@@ -92,7 +92,7 @@ export async function launchApp(opts: LaunchOptions = {}): Promise<LaunchedApp> 
  *
  * These are the two ways an e2e run can damage (or be damaged by) the user's
  * installed app, and both used to be silent:
- *  - a packaged launch ignores CORESENSE_USER_DATA (src/main/storage/paths.ts
+ *  - a packaged launch ignores CORESENSE_USER_DATA (src/main/runtime/devUserDataRedirect.ts
  *    gates the redirect on `!app.isPackaged`) and would read and overwrite the
  *    real profile;
  *  - binding a well-known HTTP port hijacks the installed app's loopback API.

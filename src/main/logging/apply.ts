@@ -1,8 +1,7 @@
-import type { AppSettings, LogLevel } from '../../shared/types';
+import { type LogLevel, parseLogLevel } from '../../shared/logLevels';
+import type { AppSettings } from '../../shared/types';
 import { setLogLevel } from '../log';
 import { setEnabled as setFileSinkEnabled } from './fileSink';
-
-const VALID_LEVELS = new Set<LogLevel>(['silly', 'trace', 'debug', 'info', 'warn', 'error', 'fatal']);
 
 /** A CORESENSE_LOG_LEVEL env override, if it names a valid level. Lets
  *  `CORESENSE_LOG_LEVEL=trace pnpm start` win over the persisted setting for
@@ -10,8 +9,7 @@ const VALID_LEVELS = new Set<LogLevel>(['silly', 'trace', 'debug', 'info', 'warn
  *  and lazily-created child loggers (e.g. transport:ble, made on connect) never
  *  emit their trace frames. */
 function envLogLevelOverride(): LogLevel | null {
-  const raw = process.env.CORESENSE_LOG_LEVEL?.toLowerCase();
-  return raw && VALID_LEVELS.has(raw as LogLevel) ? (raw as LogLevel) : null;
+  return parseLogLevel(process.env.CORESENSE_LOG_LEVEL);
 }
 
 export function applyLoggingSettings(logging: AppSettings['logging']): void {

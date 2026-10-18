@@ -1,3 +1,4 @@
+import { bleRssiBars } from '@/lib/signal';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -9,18 +10,10 @@ interface Props {
   className?: string;
 }
 
-// Map dBm → bars (0..4). MeshCore radios in BLE proximity typically run
-// -30 to -90 dBm; below -95 is essentially unusable.
-function barsFor(rssi: number): number {
-  if (rssi >= -55) return 4;
-  if (rssi >= -70) return 3;
-  if (rssi >= -85) return 2;
-  if (rssi >= -95) return 1;
-  return 0;
-}
-
+// Bars use the BLE scale (bleRssiBars): BleConnect's scan RSSI is what it was
+// tuned for. LoRa callers (contact RSSI) inherit those thresholds for now.
 export function RssiChip({ rssi, hops, showHops = true, className }: Props) {
-  const bars = barsFor(rssi);
+  const bars = bleRssiBars(rssi);
   return (
     <span
       className={cn('inline-flex items-center gap-1.5 font-mono text-[10px] text-cs-text-muted', className)}

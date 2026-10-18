@@ -1,4 +1,6 @@
 import type { DiscoveredContact } from '../../shared/contacts/discovered';
+import { pubkeyFromKey } from '../../shared/conversationKey';
+import { hasValidFix } from '../../shared/geo';
 import type { Contact, RepeaterNeighbour } from '../../shared/types';
 
 // 'protocol' is reserved for a future firmware that returns the neighbour's name
@@ -33,41 +35,27 @@ interface Candidate {
   heardMs: number;
 }
 
-// Both coords present, not the 0/0 "no GPS" sentinel, and within WGS84 range
-// (mirrors hasValidFix, but works on the looser DiscoveredContact too).
-function coordsValid(lat: number | undefined, lon: number | undefined): boolean {
-  return (
-    typeof lat === 'number' &&
-    typeof lon === 'number' &&
-    (lat !== 0 || lon !== 0) &&
-    lat >= -90 &&
-    lat <= 90 &&
-    lon >= -180 &&
-    lon <= 180
-  );
-}
-
 function contactCandidate(c: Contact): Candidate {
-  const located = coordsValid(c.gpsLat, c.gpsLon);
+  const located = hasValidFix(c);
   return {
     key: c.key,
     publicKeyHex: c.publicKeyHex.toLowerCase(),
     name: c.name,
-    lat: located ? (c.gpsLat as number) : null,
-    lon: located ? (c.gpsLon as number) : null,
+    lat: located ? c.gpsLat : null,
+    lon: located ? c.gpsLon : null,
     located,
     heardMs: c.lastSeenMs ?? 0,
   };
 }
 
 function discoveredCandidate(d: DiscoveredContact): Candidate {
-  const located = coordsValid(d.gpsLat, d.gpsLon);
+  const located = hasValidFix(d);
   return {
     key: d.key,
     publicKeyHex: d.publicKeyHex.toLowerCase(),
     name: d.name,
-    lat: located ? (d.gpsLat as number) : null,
-    lon: located ? (d.gpsLon as number) : null,
+    lat: located ? d.gpsLat : null,
+    lon: located ? d.gpsLon : null,
     located,
     heardMs: d.lastHeardMs ?? d.firstHeardMs ?? 0,
   };
@@ -139,7 +127,7 @@ export function resolveNeighbourPublicKey(
 ): string | null {
   const [resolved] = resolveNeighbours([{ pubKeyPrefixHex: prefix, heardSecsAgo: 0, snrDb: 0 }], contacts, discovered);
   // contactKey is `c:<publicKeyHex>`; strip the prefix for ContactDetail.
-  return resolved?.contactKey ? resolved.contactKey.slice(2) : null;
+  return resolved?.contactKey ? pubkeyFromKey(resolved.contactKey) : null;
 }
 
 // ── Client-side sorting ────────────────────────────────────────────────

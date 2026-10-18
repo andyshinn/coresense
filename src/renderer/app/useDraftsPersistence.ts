@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { type ApiClient, api } from '../lib/api';
+import { log } from '../lib/logger';
 import { useStore } from '../lib/store';
 
 /**
@@ -57,8 +58,9 @@ export function useDraftsPersistence(client: ApiClient | null, hydrated: boolean
         for (const key of keys) {
           try {
             await api.putDraft(client, key, drafts[key] ?? '');
-          } catch {
+          } catch (err) {
             // Non-fatal; the store is the source of truth for this session.
+            log.warn('drafts: write failed', key, err);
           }
         }
       });

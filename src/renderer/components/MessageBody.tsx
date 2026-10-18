@@ -4,9 +4,10 @@ import { MeshcoreLink } from './MeshcoreLink';
 
 /**
  * Renders a chat message body with inline @mentions, web links, and custom-URI
- * links expanded. Shared by the channel conversation view (MessageRow) and the
- * Unreads triage previews so message content renders identically in both. The
- * caller owns the surrounding text sizing / wrapping styles.
+ * links expanded. Shared by the channel conversation view (MessageItem, via
+ * MessageList's ItemRow) and the Unreads triage previews so message content
+ * renders identically in both. The caller owns the surrounding text sizing /
+ * wrapping styles.
  */
 export function MessageBody({ body }: { body: string }) {
   const tokens = parseMessageContent(body);

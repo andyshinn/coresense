@@ -1,45 +1,23 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { createRoutes } from '../../../src/main/api/routes';
-import { bus } from '../../../src/main/events/bus';
+import { describe, expect, it } from 'vitest';
 import { stateHolder } from '../../../src/main/state/holder';
 import { packetStore } from '../../../src/main/storage/packets';
-import { DEFAULT_PACKET_LOG_SETTINGS, DEFAULT_UI_STATE, PACKET_LOG_BOUNDS, type UiState } from '../../../src/shared/types';
+import { DEFAULT_PACKET_LOG_SETTINGS, DEFAULT_UI_STATE, PACKET_LOG_BOUNDS } from '../../../src/shared/types';
+import { json, testRoutes } from '../../support/api';
+import { captureBus } from '../../support/bus';
 
-function app() {
-  return createRoutes({
-    port: () => 8080,
-    wsClients: () => 0,
-    bridgeStatus: () => ({ running: false, clients: 0 }) as never,
-  });
-}
-
-const put = (body: unknown) =>
-  app().request('/api/ui-state', {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-let off: (() => void) | null = null;
-afterEach(() => {
-  off?.();
-  off = null;
-});
+const put = (body: unknown) => testRoutes().request('/api/ui-state', json('PUT', body));
 
 // packetLog sizes main's packets-table prune and is adopted by every client's
 // applyUiState, so main must never store or broadcast a missing/garbage value.
 describe('PUT /api/ui-state normalises packetLog', () => {
   it('replaces a null packetLog with defaults in both the holder and the broadcast', async () => {
-    const broadcast: UiState[] = [];
-    const onUi = (u: UiState) => broadcast.push(u);
-    bus.on('uiState', onUi);
-    off = () => bus.off('uiState', onUi);
+    const broadcast = captureBus('uiState');
 
     const res = await put({ ...DEFAULT_UI_STATE, packetLog: null });
 
     expect(res.status).toBe(200);
     expect(stateHolder().getUiState().packetLog).toEqual(DEFAULT_PACKET_LOG_SETTINGS);
-    expect(broadcast.at(-1)?.packetLog).toEqual(DEFAULT_PACKET_LOG_SETTINGS);
+    expect(broadcast.last()?.packetLog).toEqual(DEFAULT_PACKET_LOG_SETTINGS);
   });
 
   it('clamps out-of-range retention a client sent', async () => {

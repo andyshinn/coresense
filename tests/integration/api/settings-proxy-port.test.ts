@@ -1,24 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { createRoutes } from '../../../src/main/api/routes';
 import { stateHolder } from '../../../src/main/state/holder';
 import { type AppSettings, DEFAULT_APP_SETTINGS } from '../../../src/shared/types';
+import { json, testRoutes } from '../../support/api';
 
 const HTTP_PORT = 7654;
 
-function app() {
-  return createRoutes({
-    port: () => HTTP_PORT,
-    wsClients: () => 0,
-    bridgeStatus: () => ({ running: false, clients: 0 }) as never,
-  });
-}
+const app = () => testRoutes({ port: () => HTTP_PORT });
 
 function put(settings: AppSettings) {
-  return app().request('/api/settings/app', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(settings),
-  });
+  return app().request('/api/settings/app', json('PUT', settings));
 }
 
 const withProxyPort = (port: number): AppSettings => ({
@@ -56,13 +46,17 @@ describe('PUT /api/settings/app — TCP proxy port', () => {
     expect(stateHolder().getAppSettings().proxy.port).toBe(5800);
   });
 
-  it('still accepts a body with no proxy block', async () => {
+  // The body is validated before anything is stored, so a settings object with
+  // no proxy block can no longer reach the holder (it used to be persisted as-is
+  // and broke every later read of appSettings.proxy for the session).
+  it('refuses a body with no proxy block, and does not persist it', async () => {
+    stateHolder().setAppSettings(withProxyPort(5800));
     const { proxy: _proxy, ...rest } = DEFAULT_APP_SETTINGS;
-    const res = await app().request('/api/settings/app', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(rest),
-    });
-    expect(res.status).toBe(200);
+
+    const res = await app().request('/api/settings/app', json('PUT', rest));
+
+    expect(res.status).toBe(400);
+    expect((await res.json()) as { code: string }).toMatchObject({ code: 'invalid_body' });
+    expect(stateHolder().getAppSettings().proxy.port).toBe(5800);
   });
 });

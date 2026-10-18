@@ -40,4 +40,13 @@ describe('checkNotify', () => {
     expect(s.status).toBe('error');
     expect(s.error).toContain('503');
   });
+
+  // A non-Error rejection used to land in UpdateState.error as undefined.
+  it('reports a readable error when fetch rejects with a non-Error', async () => {
+    const fetch = vi.fn(async () => {
+      throw 'offline';
+    }) as unknown as typeof globalThis.fetch;
+    const s = await checkNotify('stable', '0.0.10', { fetch, now });
+    expect(s).toMatchObject({ status: 'error', error: 'offline' });
+  });
 });
