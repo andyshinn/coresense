@@ -17,8 +17,29 @@
 // Env is read inside the function so a single hook instance honours per-call env.
 
 const { execFileSync } = require('node:child_process');
+const { closeSync, openSync, readSync } = require('node:fs');
+
+// True iff the file starts with the PE/COFF "MZ" header. @electron/windows-sign
+// 2.x hands over every .node by extension, including the other platforms'
+// prebuilds that native packages ship (e.g. @serialport/bindings-cpp's
+// prebuilds/android-arm/*.node, an ELF file). signtool rejects those ("file
+// format cannot be signed"), and Windows never loads them, so skip them.
+function isPortableExecutable(file) {
+  const fd = openSync(file, 'r');
+  try {
+    const header = Buffer.alloc(2);
+    return readSync(fd, header, 0, 2, 0) === 2 && header.toString('latin1') === 'MZ';
+  } finally {
+    closeSync(fd);
+  }
+}
 
 module.exports = async function windowsSign(fileToSign) {
+  if (!isPortableExecutable(fileToSign)) {
+    console.log(`windows-sign: skipping non-PE file ${fileToSign}`);
+    return;
+  }
+
   const dlib = process.env.AZURE_TRUSTED_SIGNING_DLIB;
   const metadata = process.env.AZURE_TRUSTED_SIGNING_METADATA;
   const signtool = process.env.SIGNTOOL_PATH || 'signtool.exe';
