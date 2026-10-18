@@ -22,14 +22,7 @@ so `package.json` decides what ships:
   builds on macOS. It declares its own `nan` dependency.
 
 When you add a package, put it in `devDependencies` unless you also add it to
-the main-process `external` list.
-
-`glob@^7` is a direct devDependency only to work around a pnpm install bug.
-Under Forge 8 every path to it is optional (`electron-winstaller` → `temp` →
-`rimraf@2`, and the deb/rpm makers' `@electron/asar@3`), and pnpm skips it on
-Windows even though `rimraf` is installed. `electron-forge make` on Windows
-then fails to load forge.config.ts with "Cannot find module 'glob'". Drop it
-once Forge no longer pulls in `rimraf@2`. To check a build, run `pnpm package` and then
+the main-process `external` list. To check a build, run `pnpm package` and then
 `npx @electron/asar list out/CoreSense-*/resources/app.asar` (on macOS, the asar
 is under `CoreSense.app/Contents/Resources/`).
 
