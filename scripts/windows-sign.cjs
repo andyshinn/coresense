@@ -35,11 +35,6 @@ function isPortableExecutable(file) {
 }
 
 module.exports = async function windowsSign(fileToSign) {
-  if (!isPortableExecutable(fileToSign)) {
-    console.log(`windows-sign: skipping non-PE file ${fileToSign}`);
-    return;
-  }
-
   const dlib = process.env.AZURE_TRUSTED_SIGNING_DLIB;
   const metadata = process.env.AZURE_TRUSTED_SIGNING_METADATA;
   const signtool = process.env.SIGNTOOL_PATH || 'signtool.exe';
@@ -50,6 +45,10 @@ module.exports = async function windowsSign(fileToSign) {
   }
   if (!metadata) {
     throw new Error(`AZURE_TRUSTED_SIGNING_METADATA is not set — cannot sign ${fileToSign}`);
+  }
+  if (!isPortableExecutable(fileToSign)) {
+    console.log(`windows-sign: skipping non-PE file ${fileToSign}`);
+    return;
   }
 
   execFileSync(
