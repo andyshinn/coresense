@@ -179,9 +179,21 @@ export async function applyTelemetryPolicy(policy: TelemetryPolicy): Promise<Dev
   return radioWrites(() => expectOk(protocolSession().setOtherParams(policy, share), 'SET_OTHER_PARAMS rejected by radio'));
 }
 
-/** Save the GPS config locally, then push it when connected. */
+/** Save the GPS config. Disconnected, it is stored app-side only. Connected,
+ *  local state is left to the library's `gpsConfig` event, which it emits only
+ *  once the radio has acked both custom vars — so a refusal leaves the toggle
+ *  showing what the radio is actually doing. The firmware refuses `gps` with
+ *  ERR_CODE_ILLEGAL_ARG on any board built without GPS support or whose GPS
+ *  module wasn't detected at boot. */
 export async function applyGpsConfig(cfg: GpsConfig): Promise<DeviceWriteResult> {
-  commit.gpsConfig(cfg);
-  if (!transportManager.isConnected()) return OK;
-  return radioWrites(() => expectOk(protocolSession().setGpsConfig(cfg), 'GPS custom-var rejected by radio'));
+  if (!transportManager.isConnected()) {
+    commit.gpsConfig(cfg);
+    return OK;
+  }
+  return radioWrites(() =>
+    expectOk(
+      protocolSession().setGpsConfig(cfg),
+      'Radio refused the GPS change. It may have no GPS module, or none was detected at boot.',
+    ),
+  );
 }

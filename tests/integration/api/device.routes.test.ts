@@ -218,14 +218,32 @@ describe('PUT /api/device/gps', () => {
     expect(setGpsConfig).toHaveBeenCalledWith(GPS);
   });
 
-  it('answers 503 when the radio rejects it', async () => {
+  it('leaves local state to the radio reply when connected', async () => {
+    stateHolder().setGpsConfig(DEFAULT_GPS_CONFIG);
+    installSessionStub({ setGpsConfig: () => Promise.resolve(true) });
+    transportManager.setState('connected');
+    const broadcast = captureBus('gpsConfig');
+
+    await put('/api/device/gps', GPS);
+
+    expect(stateHolder().getGpsConfig()).toEqual(DEFAULT_GPS_CONFIG);
+    expect(broadcast.values).toEqual([]);
+  });
+
+  it('answers 503 and keeps the previous config when the radio rejects it', async () => {
+    stateHolder().setGpsConfig(DEFAULT_GPS_CONFIG);
     installSessionStub({ setGpsConfig: () => Promise.resolve(false) });
     transportManager.setState('connected');
+    const broadcast = captureBus('gpsConfig');
 
     const res = await put('/api/device/gps', GPS);
 
     expect(res.status).toBe(503);
-    expect((await res.json()) as ApiErrorBody).toEqual({ error: 'GPS custom-var rejected by radio' });
+    expect((await res.json()) as ApiErrorBody).toEqual({
+      error: 'Radio refused the GPS change. It may have no GPS module, or none was detected at boot.',
+    });
+    expect(stateHolder().getGpsConfig()).toEqual(DEFAULT_GPS_CONFIG);
+    expect(broadcast.values).toEqual([]);
   });
 
   it('answers 503 with the message when the setter throws', async () => {
