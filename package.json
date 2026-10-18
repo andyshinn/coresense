@@ -82,6 +82,7 @@
     "electron": "^44.3.0",
     "emojibase-data": "^17.0.0",
     "frimousse": "^0.3.0",
+    "glob": "^7.2.3",
     "hono": "^4.12.31",
     "jsdom": "^29.1.1",
     "liquidjs": "^10.27.2",
