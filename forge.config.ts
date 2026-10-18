@@ -10,7 +10,7 @@ import { MakerZIP } from '@electron-forge/maker-zip';
 import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { VitePlugin } from '@electron-forge/plugin-vite';
-import { PublisherGithub } from '@electron-forge/publisher-github';
+import { PublisherGitHub } from '@electron-forge/publisher-github';
 import type { ForgeConfig } from '@electron-forge/shared-types';
 
 // Bundled PMTiles extract (basemap) ships as extraResource so it lands
@@ -180,7 +180,7 @@ const config: ForgeConfig = {
     new MakerDeb({ options: { bin: 'CoreSense' } }),
   ],
   publishers: [
-    new PublisherGithub({
+    new PublisherGitHub({
       repository: {
         owner: 'andyshinn',
         name: 'coresense',

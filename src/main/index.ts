@@ -74,7 +74,7 @@ declare const MAIN_WINDOW_VITE_NAME: string;
 
 // Two different questions used to share one `isDev` flag, and they disagree in
 // exactly one case: a production-built main bundle run *unpackaged* — which is
-// what the e2e harness and a hand-run `electron .vite/build/index.js` do. That
+// what the e2e harness and a hand-run `electron .vite/build/index.cjs` do. That
 // made a test run claim the installed app's HTTP port (issue #21).
 //
 // "Is the renderer served by Vite's dev server?" — a build-time define that
@@ -355,8 +355,8 @@ function createWindow() {
     webPreferences: {
       // Hands the renderer the shared API key via `window.coresense` so the
       // bundled window skips the manual paste gate. Built by the Vite plugin's
-      // preload target to `preload.js` alongside this main bundle.
-      preload: path.join(__dirname, 'preload.js'),
+      // preload target to `preload.cjs` alongside this main bundle.
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

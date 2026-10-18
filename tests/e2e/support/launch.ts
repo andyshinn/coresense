@@ -6,7 +6,7 @@ import type { Channel, Contact } from '../../../src/shared/types';
 
 // Playwright runs from the repo root; the built main entry is the package
 // `main` field. `electron-forge package` populates `.vite/build` at the root.
-const MAIN_ENTRY = join(process.cwd(), '.vite', 'build', 'index.js');
+const MAIN_ENTRY = join(process.cwd(), '.vite', 'build', 'index.cjs');
 const DEFAULT_FIXTURE = join(process.cwd(), 'tests', 'fixtures', 'frames', 'e2e-connect.json');
 
 export interface LaunchOptions {
