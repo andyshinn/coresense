@@ -19,6 +19,7 @@ import type {
   macroPatchBodySchema,
   newBlockRuleSchema,
   newMacroBodySchema,
+  radioPatchBodySchema,
   radioSettingsBodySchema,
   repeaterNeighboursBodySchema,
   repeaterTraceBodySchema,
@@ -74,6 +75,8 @@ export interface OkResponse {
 // ---- Requests ---------------------------------------------------------------
 
 export type RadioSettingsRequest = z.input<typeof radioSettingsBodySchema>;
+/** PUT /api/device/radio: the radio fields to change; the rest stay as the radio holds them. */
+export type RadioPatchRequest = z.input<typeof radioPatchBodySchema>;
 export type NewBlockRule = z.output<typeof newBlockRuleSchema>;
 export type AddBlockRulesRequest = z.input<typeof addBlockRulesBodySchema>;
 export type BlockRulePatch = z.output<typeof blockRulePatchSchema>;

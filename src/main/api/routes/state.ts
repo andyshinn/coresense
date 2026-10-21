@@ -48,6 +48,7 @@ export function registerStateRoutes(api: Hono, deps: RoutesDeps): void {
       gpsConfig: holder.getGpsConfig(),
       deviceInfo: holder.getDeviceInfo(),
       deviceCapabilities: holder.getDeviceCapabilities(),
+      radioLimits: holder.getRadioLimits(),
       blockRules: holder.getBlockRules(),
       macros: macrosStore.list(),
       packets: packetStore.recent(Math.min(retention.liveBufferSize, retention.storedHistorySize)),

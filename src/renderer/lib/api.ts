@@ -13,6 +13,7 @@ import type {
   NewMacro,
   OkResponse,
   PushChannelResponse,
+  RadioPatchRequest,
   RadioSettingsRequest,
   RefreshContactsResponse,
   RepeaterAclResponse,
@@ -162,6 +163,9 @@ export const api = {
   putTelemetryRetention: (c: ApiClient, settings: AppSettings, keep: number) =>
     put<OkResponse>(c, '/api/settings/app', withTelemetryRetention(settings, keep)),
   putRadioSettings: (c: ApiClient, settings: RadioSettingsRequest) => put<OkResponse>(c, '/api/settings/radio', settings),
+  /** Change some radio params on the connected radio; main merges them onto
+   *  the radio's own values, so send only the fields being changed. */
+  putDeviceRadio: (c: ApiClient, patch: RadioPatchRequest) => put<OkResponse>(c, '/api/device/radio', patch),
   addBlockRules: (c: ApiClient, rules: NewBlockRule[]) =>
     post<AddBlockRulesResponse>(c, '/api/blocks', { rules }).then((r) => r.rules),
   updateBlockRule: (c: ApiClient, id: string, patch: BlockRulePatch): Promise<BlockRule> =>

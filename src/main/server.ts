@@ -12,6 +12,7 @@ import { onApiError } from './api/errors';
 import { apiKeyAuth, checkWsKey } from './api/middleware/auth';
 import { createRoutes } from './api/routes';
 import type { BridgeHandle } from './bridge';
+import { clearRadioLimits, observeRadioLimits } from './device/radioLimits';
 import { type BusEventMap, bus } from './events/bus';
 import { listenOnPort } from './http-listen';
 import { resolveHttpPort } from './http-port';
@@ -81,6 +82,7 @@ const WS_FORWARDS: WsForwards = {
   gpsConfig: (cfg) => ({ type: 'gpsConfig', payload: cfg }),
   deviceInfo: (info) => ({ type: 'deviceInfo', payload: info }),
   deviceCapabilities: (caps) => ({ type: 'deviceCapabilities', payload: caps }),
+  radioLimits: (limits) => ({ type: 'radioLimits', payload: limits }),
   blockRules: (rules) => ({ type: 'blockRules', payload: rules }),
   macros: (macros) => ({ type: 'macros', payload: macros }),
   uiState: (state) => ({ type: 'uiState', payload: state }),
@@ -224,6 +226,8 @@ export async function startServer(
       log.warn(`packet persist failed: ${errorMessage(err)}`);
     }
     broadcast({ type: 'packet', payload: p });
+    // The handshake's RESP_SELF_INFO carries the board's TX power maximum.
+    observeRadioLimits(p);
   };
   const onTransportState = (state: TransportState, deviceId?: string) => {
     transportManager.setState(state, deviceId);
@@ -240,6 +244,7 @@ export async function startServer(
       // connect's refresh button answers "already syncing" until the stale
       // timeout expires.
       endContactWalk();
+      clearRadioLimits();
     }
     broadcast({ type: 'transportState', payload: { state, deviceId } });
   };

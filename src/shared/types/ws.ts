@@ -30,6 +30,7 @@ import type {
   DeviceIdentity,
   DeviceInfo,
   GpsConfig,
+  RadioLimits,
   RadioSettings,
   TelemetryPolicy,
 } from './settings';
@@ -69,6 +70,9 @@ export interface StateSnapshot {
   gpsConfig: GpsConfig;
   deviceInfo: DeviceInfo;
   deviceCapabilities: DeviceCapabilities;
+  /** The connected radio's TX power range. Optional so a renderer hydrating
+   *  from an older main reads it as unknown. */
+  radioLimits?: RadioLimits;
   blockRules: BlockRule[];
   macros: MacroTemplate[];
   /** Newest persisted packets (min(liveBufferSize, storedHistorySize)), oldest→newest. */
@@ -149,6 +153,7 @@ export type WsMessage =
   | { type: 'gpsConfig'; payload: GpsConfig }
   | { type: 'deviceInfo'; payload: DeviceInfo }
   | { type: 'deviceCapabilities'; payload: DeviceCapabilities }
+  | { type: 'radioLimits'; payload: RadioLimits }
   | { type: 'uiState'; payload: UiStateUpdate }
   // Authoritative window focus, sourced from BrowserWindow focus/blur events in
   // main. The renderer gates view-driven auto-mark-read on this so messages

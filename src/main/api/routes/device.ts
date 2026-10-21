@@ -5,13 +5,16 @@ import {
   deviceIdentityPatchSchema,
   gpsConfigSchema,
   pathHashModeBodySchema,
+  radioPatchBodySchema,
   telemetryPolicyPatchSchema,
 } from '../../../shared/api/schemas';
 import { errorMessage } from '../../../shared/errors';
+import { validateTxPower } from '../../../shared/radio';
 import {
   applyAutoAddConfig,
   applyDeviceIdentity,
   applyGpsConfig,
+  applyRadioSettings,
   applyTelemetryPolicy,
   type DeviceWriteResult,
 } from '../../device/deviceSettings';
@@ -19,7 +22,7 @@ import { child } from '../../log';
 import { protocolSession } from '../../protocol';
 import { stateHolder } from '../../state/holder';
 import { transportManager } from '../../transport/manager';
-import { readJson } from '../body';
+import { InvalidBodyError, readJson } from '../body';
 import { fail503 } from '../errors';
 
 const log = child('device');
@@ -40,6 +43,24 @@ export function registerDeviceRoutes(api: Hono): void {
   });
 
   api.get('/api/device/auto-add', (c) => c.json(stateHolder().getAutoAddConfig()));
+
+  // Change some radio params and keep the rest as the radio holds them: the
+  // body is merged onto the holder's radioSettings (the radio's latest
+  // SELF_INFO), never onto a client's copy, so a stale renderer can't write old
+  // modulation back. Always a push, so it needs a radio — and, for TX power,
+  // that radio's reported maximum (device/radioLimits.ts).
+  api.put('/api/device/radio', async (c) => {
+    const patch = await readJson(c, radioPatchBodySchema);
+    if (!transportManager.isConnected()) return c.json({ error: 'no radio attached' }, 503);
+    const holder = stateHolder();
+    if (patch.txPowerDbm !== undefined) {
+      const limits = holder.getRadioLimits();
+      if (limits.maxTxPowerDbm === null) return c.json({ error: 'TX power limit not known yet' }, 503);
+      const tx = validateTxPower(patch.txPowerDbm, limits);
+      if (!tx.ok) throw new InvalidBodyError([{ path: 'txPowerDbm', message: tx.error }]);
+    }
+    return deviceWriteResponse(c, await applyRadioSettings({ ...holder.getRadioSettings(), ...patch }, true));
+  });
 
   // A PATCH in all but verb: only the fields being changed, merged onto the
   // radio's value (see device/deviceSettings.applyTelemetryPolicy).

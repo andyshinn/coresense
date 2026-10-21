@@ -6,6 +6,7 @@ import {
   DEFAULT_GPS_CONFIG,
   DEFAULT_MAP_SETTINGS,
   DEFAULT_MAP_TILE_STATUS,
+  DEFAULT_RADIO_LIMITS,
   DEFAULT_SYNC_PROGRESS,
   DEFAULT_TELEMETRY_POLICY,
   type StateSnapshot,
@@ -71,6 +72,7 @@ export const createHydrateSlice: SliceCreator<HydrateSlice> = (set) => ({
       gpsConfig: snapshot.gpsConfig ?? DEFAULT_GPS_CONFIG,
       deviceInfo: snapshot.deviceInfo ?? DEFAULT_DEVICE_INFO,
       deviceCapabilities: snapshot.deviceCapabilities ?? DEFAULT_DEVICE_CAPABILITIES,
+      radioLimits: snapshot.radioLimits ?? DEFAULT_RADIO_LIMITS,
       // Merge snapshot over defaults so any fields added to MapSettings in
       // newer builds get sensible values when reading older persisted state.
       mapSettings: { ...DEFAULT_MAP_SETTINGS, ...snapshot.mapSettings },

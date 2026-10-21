@@ -1,13 +1,14 @@
 import type { Hono } from 'hono';
 import { appSettingsSchema, radioSettingsBodySchema } from '../../../shared/api/schemas';
 import { checkProxyPort } from '../../../shared/ports';
+import { validateTxPower } from '../../../shared/radio';
 import { applyRadioSettings } from '../../device/deviceSettings';
 import { applyLoggingSettings } from '../../logging/apply';
 import { commit } from '../../state/commit';
 import { stateHolder } from '../../state/holder';
 import { normalizeTelemetrySettings, telemetryRetention } from '../../telemetry/retention';
 import { applyTelemetryRetention } from '../../telemetry/service';
-import { readJson } from '../body';
+import { InvalidBodyError, readJson } from '../body';
 import type { RoutesDeps } from './app';
 
 export function registerSettingsRoutes(api: Hono, deps: RoutesDeps): void {
@@ -36,6 +37,10 @@ export function registerSettingsRoutes(api: Hono, deps: RoutesDeps): void {
   // device/deviceSettings.applyRadioSettings.
   api.put('/api/settings/radio', async (c) => {
     const { pushToDevice, ...settings } = await readJson(c, radioSettingsBodySchema);
+    // Against the connected radio's range when its SELF_INFO has reported one;
+    // the firmware minimum alone otherwise (an app-side save while offline).
+    const tx = validateTxPower(settings.txPowerDbm, stateHolder().getRadioLimits());
+    if (!tx.ok) throw new InvalidBodyError([{ path: 'txPowerDbm', message: tx.error }]);
     const res = await applyRadioSettings(settings, pushToDevice !== false);
     return res.status === 'ok' ? c.json({ ok: true }) : c.json({ error: res.message }, 503);
   });

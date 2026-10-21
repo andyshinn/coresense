@@ -7,6 +7,7 @@ import type {
   GpsConfig,
   MapSettings,
   Owner,
+  RadioLimits,
   RadioSettings,
   TelemetryPolicy,
   UiState,
@@ -63,5 +64,9 @@ export const commit = {
   deviceCapabilities(next: DeviceCapabilities): void {
     stateHolder().setDeviceCapabilities(next);
     emit.deviceCapabilities(next);
+  },
+  radioLimits(next: RadioLimits): void {
+    stateHolder().setRadioLimits(next);
+    emit.radioLimits(next);
   },
 };

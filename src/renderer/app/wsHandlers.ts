@@ -141,6 +141,9 @@ export function createWsMessageHandler(deps: WsMessageHandlerDeps): (msg: WsMess
       case 'deviceCapabilities':
         s.applyDeviceCapabilities(msg.payload);
         break;
+      case 'radioLimits':
+        s.applyRadioLimits(msg.payload);
+        break;
       case 'pathLearned': {
         s.applyPathLearned(msg.payload);
         if (!msg.payload.previousManual) {
