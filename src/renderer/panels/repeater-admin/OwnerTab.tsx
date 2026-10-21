@@ -3,6 +3,7 @@ import type { Contact, RepeaterOwnerInfo } from '../../../shared/types';
 import { useBusyAction } from '../../hooks/useBusyAction';
 import { api } from '../../lib/api';
 import { useApiClient } from '../../lib/apiClientContext';
+import { RADIO_BUSY_HINT, useRadioBusy } from '../../lib/telemetry';
 import { TabToolbar } from './TabToolbar';
 
 interface Props {
@@ -12,15 +13,25 @@ interface Props {
 export function OwnerTab({ contact }: Props) {
   const client = useApiClient();
   const [info, setInfo] = useState<RepeaterOwnerInfo | null>(null);
+  // A telemetry request holds the radio; a fetch now would kill its reply.
+  const radioBusy = useRadioBusy();
   const [load, busy] = useBusyAction(async () => {
-    if (!client) return;
+    if (!client || radioBusy) return;
     const res = await api.repeaterOwner(client, contact.key);
     setInfo(res.info);
   }, 'Owner info fetch');
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-auto p-4">
-      <TabToolbar title="Owner info" label="Fetch" busyLabel="Fetching…" busy={busy} disabled={!client} onClick={load} />
+      <TabToolbar
+        title="Owner info"
+        label="Fetch"
+        busyLabel="Fetching…"
+        busy={busy}
+        disabled={!client || radioBusy}
+        hint={radioBusy ? RADIO_BUSY_HINT : undefined}
+        onClick={load}
+      />
 
       {info && (
         <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 text-[12px]">

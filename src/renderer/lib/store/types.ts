@@ -34,7 +34,14 @@ export type CmLayout = 'table' | 'list';
 
 /** Tabs in the RepeaterAdmin panel. Lives here (not the panel) so the store
  *  can carry a pending deep-link target without importing a panel module. */
-export type RepeaterAdminTab = 'login' | 'path' | 'status' | 'acl' | 'neighbours' | 'owner' | 'cli';
+export type RepeaterAdminTab = 'login' | 'path' | 'status' | 'telemetry' | 'acl' | 'neighbours' | 'owner' | 'cli';
+
+/** What a node's in-flight list GET may not reflect: ids saved and deleted by
+ *  WS pushes since it started. `'all'` = the node was cleared. */
+export interface TelemetryFetchLedger {
+  pushed: string[];
+  deleted: string[] | 'all';
+}
 
 export interface ContactManagerState {
   search: string;

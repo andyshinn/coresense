@@ -49,7 +49,9 @@ export type ApiErrorCode =
   /** A newer CLI command to the same repeater replaced this one (503). */
   | 'cli_superseded'
   /** The link to the radio failed mid-request (503). */
-  | 'transport';
+  | 'transport'
+  /** Another awaited mesh request holds the radio (409); see `owner`. */
+  | 'radio_busy';
 
 export interface ApiErrorBody {
   error: string;

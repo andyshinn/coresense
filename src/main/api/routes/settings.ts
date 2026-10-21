@@ -4,6 +4,9 @@ import { checkProxyPort } from '../../../shared/ports';
 import { applyRadioSettings } from '../../device/deviceSettings';
 import { applyLoggingSettings } from '../../logging/apply';
 import { commit } from '../../state/commit';
+import { stateHolder } from '../../state/holder';
+import { normalizeTelemetrySettings, telemetryRetention } from '../../telemetry/retention';
+import { applyTelemetryRetention } from '../../telemetry/service';
 import { readJson } from '../body';
 import type { RoutesDeps } from './app';
 
@@ -17,8 +20,15 @@ export function registerSettingsRoutes(api: Hono, deps: RoutesDeps): void {
     // than only in the UI because this endpoint is reachable directly.
     const conflict = checkProxyPort(body.proxy.port, port());
     if (conflict) return c.json({ error: conflict }, 400);
-    commit.appSettings(body);
-    applyLoggingSettings(body.logging);
+    // Telemetry retention sizes a per-node prune, so never store or fan out a
+    // value a client sent unclamped.
+    const current = stateHolder().getAppSettings();
+    const next = normalizeTelemetrySettings(body, current);
+    commit.appSettings(next);
+    applyLoggingSettings(next.logging);
+    // A smaller retention takes effect now, for every node, rather than as each
+    // node is next requested.
+    applyTelemetryRetention(telemetryRetention(current), telemetryRetention(next));
     return c.json({ ok: true });
   });
 

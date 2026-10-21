@@ -114,8 +114,10 @@ describe('repeater administration', () => {
   });
 
   it('round-trips owner-info via the public anon OWNER request (RESP_SENT → BINARY_RESPONSE)', async () => {
-    const { adapter, receive, sentWithCode } = makeTestSession();
+    const { adapter, receive, sentWithCode, ackCommands } = makeTestSession();
     adapter.session.state.upsertContact(repeater());
+    // The transient zero-hop path and its reset each wait for RESP_OK.
+    ackCommands(Protocol.CMD.ADD_UPDATE_CONTACT, Protocol.CMD.RESET_PATH);
 
     const p = adapter.repeaterRequestOwnerInfo(`c:${PK}`);
     await tick();
@@ -214,15 +216,31 @@ describe('repeater administration', () => {
     expect(entries.map((e) => e.permissions)).toEqual([1, 2, 3, 0x80]);
   });
 
-  it('emits repeaterTelemetry on PUSH_TELEMETRY_RESPONSE for a known sender', async () => {
-    const { adapter, receive } = makeTestSession();
+  it('resolves a telemetry binary request with the raw, still-padded LPP body', async () => {
+    const { adapter, transport, receive } = makeTestSession();
     adapter.session.state.upsertContact(repeater());
 
-    const events = captureBus('repeaterTelemetry');
-    await adapter.sendTelemetryReq(`c:${PK}`);
+    const req = Uint8Array.from([0x03, 0x00, 0, 0, 0, 1, 2, 3, 4]);
+    const p = adapter.sendBinaryRequest(`c:${PK}`, req, { timeoutMs: 1000 });
+    await tick();
+    const sent = transport.sent.find((f) => f[0] === Protocol.CMD.SEND_BINARY_REQ);
+    expect(sent && [...sent.subarray(33)]).toEqual([...req]);
+    receive(respSent('0badf00d'));
+    await tick();
+    // ch1 voltage 4.25 V, then the AES block's zero padding.
+    receive(binaryResponse('0badf00d', Buffer.from('017401a9000000', 'hex')));
+    expect(Buffer.from(await p).toString('hex')).toBe('017401a9000000');
+  });
+
+  it('no longer broadcasts an unsolicited PUSH_TELEMETRY_RESPONSE', async () => {
+    const { adapter, receive } = makeTestSession();
+    adapter.session.state.upsertContact(repeater());
+    const saved = captureBus('telemetrySaved');
+    const inFlight = captureBus('telemetryInFlight');
     receive(telemetryResponse(PREFIX));
-    expect(events.last()?.contactKey).toBe(`c:${PK}`);
-    expect(events.last()?.fields.length).toBeGreaterThan(0);
+    await tick();
+    expect(saved.calls).toEqual([]);
+    expect(inFlight.calls).toEqual([]);
   });
 
   it('resolves local stats from RESP_STATS', async () => {

@@ -1,9 +1,11 @@
 import { SlidersHorizontal } from 'lucide-react';
+import { TELEMETRY_RETENTION_BOUNDS } from '../../../../shared/telemetry/types';
 import type { AppSettings as AppSettingsType } from '../../../../shared/types';
 import { NumberInput, Row, Select, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
 import { useApiClient } from '../../../lib/apiClientContext';
 import { useStore } from '../../../lib/store';
+import { telemetryRetentionOf, withTelemetryRetention } from '../../../lib/telemetryRetention';
 import { saveApp } from '../save';
 import { useSettingsSection } from '../useSectionDraft';
 
@@ -29,7 +31,8 @@ const eqBehavior = (a: AppSettingsType, b: AppSettingsType) =>
   a.leftNavCollapseLists.limit === b.leftNavCollapseLists.limit &&
   a.unreadsPreview.enabled === b.unreadsPreview.enabled &&
   a.unreadsPreview.limit === b.unreadsPreview.limit &&
-  a.commandPalette.hintWeightPct === b.commandPalette.hintWeightPct;
+  a.commandPalette.hintWeightPct === b.commandPalette.hintWeightPct &&
+  telemetryRetentionOf(a) === telemetryRetentionOf(b);
 
 export function BehaviorSection() {
   const client = useApiClient();
@@ -52,6 +55,8 @@ export function BehaviorSection() {
           leftNavCollapseLists: d.leftNavCollapseLists,
           unreadsPreview: d.unreadsPreview,
           commandPalette: d.commandPalette,
+          // Clamped; main prunes every node at once when it shrinks.
+          telemetry: withTelemetryRetention(d, telemetryRetentionOf(d)).telemetry,
         },
         'Behavior settings saved',
       ),
@@ -181,6 +186,19 @@ export function BehaviorSection() {
             step={5}
             suffix="%"
             onChange={(v) => setGroup('commandPalette', { hintWeightPct: v })}
+          />
+        }
+      />
+      <Row
+        label="Saved telemetry per node"
+        description="Telemetry requests kept for each node, oldest dropped first. Applies to all nodes; lowering it deletes the extra requests on save."
+        changed={telemetryRetentionOf(draft) !== telemetryRetentionOf(saved)}
+        control={
+          <NumberInput
+            value={telemetryRetentionOf(draft)}
+            min={TELEMETRY_RETENTION_BOUNDS.min}
+            max={TELEMETRY_RETENTION_BOUNDS.max}
+            onChange={(v) => setDraft((s) => withTelemetryRetention(s, v))}
           />
         }
       />

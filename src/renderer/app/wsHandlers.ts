@@ -112,8 +112,16 @@ export function createWsMessageHandler(deps: WsMessageHandlerDeps): (msg: WsMess
       case 'repeaterStatus':
         s.applyRepeaterStatus(msg.payload);
         break;
-      case 'repeaterTelemetry':
-        s.applyRepeaterTelemetry(msg.payload);
+      // No toast here: the surface that asked (tab, rail, palette) reports the
+      // outcome from its own POST, so a push from another window stays quiet.
+      case 'telemetrySaved':
+        s.applyTelemetrySaved(msg.payload.request);
+        break;
+      case 'telemetryDeleted':
+        s.applyTelemetryDeleted(msg.payload);
+        break;
+      case 'telemetryInFlight':
+        s.applyTelemetryInFlight(msg.payload.inFlight);
         break;
       case 'deviceIdentity':
         s.applyDeviceIdentity(msg.payload);

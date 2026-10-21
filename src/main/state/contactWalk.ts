@@ -35,6 +35,8 @@ let inFlight = false;
  *  nowhere" (a dead link resolves the lib's waiters by timeout too). */
 let streaming = false;
 let staleTimer: ReturnType<typeof setTimeout> | null = null;
+/** Callers parked in contactWalkEnded(), released by the next endContactWalk. */
+let waiters: Array<() => void> = [];
 
 function armStaleTimer(): void {
   if (staleTimer) clearTimeout(staleTimer);
@@ -66,6 +68,9 @@ export function endContactWalk(): void {
     clearTimeout(staleTimer);
     staleTimer = null;
   }
+  const release = waiters;
+  waiters = [];
+  for (const w of release) w();
 }
 
 /** Release the guard only if not one contact frame ever arrived. Called when
@@ -79,4 +84,13 @@ export function endContactWalkIfSilent(): void {
 
 export function isContactWalkInFlight(): boolean {
   return inFlight;
+}
+
+/** Resolves when the walk in flight ends — END_OF_CONTACTS, a dropped link or
+ *  the stale timeout, whichever comes first (so never later than
+ *  CONTACT_WALK_STALE_MS after the last frame). Resolves at once when no walk
+ *  is in flight. Never rejects. */
+export function contactWalkEnded(): Promise<void> {
+  if (!inFlight) return Promise.resolve();
+  return new Promise((resolve) => waiters.push(resolve));
 }

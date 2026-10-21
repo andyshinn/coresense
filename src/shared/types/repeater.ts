@@ -117,16 +117,3 @@ export type RepeaterLocalStats =
       nRecvDirect: number;
       nRecvErrors: number;
     };
-
-export interface RepeaterTelemetrySnapshot {
-  contactKey: string;
-  receivedAt: number;
-  payloadHex: string;
-  fields: Array<{
-    channel: number;
-    typeHex: string;
-    name: string;
-    value: number | string;
-    unit?: string;
-  }>;
-}

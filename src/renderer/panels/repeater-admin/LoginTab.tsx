@@ -6,6 +6,7 @@ import { useBusyAction } from '../../hooks/useBusyAction';
 import { api } from '../../lib/api';
 import { useApiClient } from '../../lib/apiClientContext';
 import { notify } from '../../lib/notify';
+import { RADIO_BUSY_HINT, useRadioBusy } from '../../lib/telemetry';
 import { ACL_ROLE_LABEL, formatPermissions } from './aclRole';
 
 interface Props {
@@ -37,8 +38,10 @@ function deriveLoginLabel(contact: Contact, isGuest: boolean): string {
 export function LoginTab({ contact, session, onSession }: Props) {
   const client = useApiClient();
   const [password, setPassword] = useState('');
+  // A telemetry request holds the radio; a login now would kill its reply.
+  const radioBusy = useRadioBusy();
   const [login, busy] = useBusyAction(async () => {
-    if (!client) return;
+    if (!client || radioBusy) return;
     const result = await api.repeaterLogin(client, contact.key, password);
     onSession(result.session);
     const via =
@@ -113,7 +116,8 @@ export function LoginTab({ contact, session, onSession }: Props) {
 
         <button
           type="submit"
-          disabled={!client || busy}
+          disabled={!client || busy || radioBusy}
+          title={radioBusy ? RADIO_BUSY_HINT : undefined}
           className="self-start rounded border border-cs-border bg-cs-accent-soft/30 px-3 py-1 text-[12px] text-cs-text transition-colors hover:bg-cs-accent-soft/50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? 'Logging in…' : deriveLoginLabel(contact, password.length === 0)}

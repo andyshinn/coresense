@@ -8,6 +8,7 @@ import { endContactWalk, noteContactWalkStreaming } from '../state/contactWalk';
 import { stateHolder } from '../state/holder';
 import { discoveredStore } from '../storage/discoveredContacts';
 import { messagesStore } from '../storage/messages';
+import { forgetRadioTelemetryPolicy, markRadioTelemetryPolicyKnown } from '../telemetry/policy';
 import { fromLibAutoAdd } from './autoAddMapping';
 import { mergeSyncedChannels } from './mergeChannels';
 
@@ -46,8 +47,18 @@ export function wireSessionEvents(session: MeshCoreSession): void {
   ev.on('deviceCapabilities', (caps) => commit.deviceCapabilities(caps));
   ev.on('deviceIdentity', (id) => commit.deviceIdentity(id));
   ev.on('radioSettings', (r) => commit.radioSettings(r));
+  // `intervalSec` is never the radio's: firmware's gps_interval is write-only
+  // (CMD_GET_CUSTOM_VARS never reports it), so the library carries it from its
+  // own mirror, which SessionAdapter seeds from the holder and keeps in step
+  // with every write made from CoreSense.
   ev.on('gpsConfig', (g) => commit.gpsConfig(g));
-  ev.on('telemetryPolicy', (t) => commit.telemetryPolicy(t));
+  // The library folds every RESP_SELF_INFO into this (the handshake's
+  // included) and emits it after a setOtherParams the radio accepted. Either
+  // way it is the radio's value (telemetry/policy.ts).
+  ev.on('telemetryPolicy', (t) => {
+    commit.telemetryPolicy(t);
+    markRadioTelemetryPolicyKnown();
+  });
   ev.on('autoAddConfig', (a) => {
     // The payload is the library's WHOLE mirror, not a delta — one emit per
     // change, carrying every other field as it stood. SessionAdapter.start()
@@ -92,6 +103,9 @@ export function wireSessionEvents(session: MeshCoreSession): void {
     // rather than on 'connected' so it can't race CMD_APP_START — the radio has
     // to have a session before it will answer anything else.
     if (finished) void session.requestAutoAddConfig();
+    // 'idle' after a handshake is the disconnect edge: the next radio may hold
+    // a different policy, and nothing may re-send ours until it is read again.
+    if (p.phase === 'idle') forgetRadioTelemetryPolicy();
   });
   // The three identity-bearing pushes below are all receptions FROM the named
   // contact, so each one is a last-heard signal (#45 item 9). A path learn in
@@ -104,10 +118,12 @@ export function wireSessionEvents(session: MeshCoreSession): void {
     noteHeard(s.contactKey);
     emit.repeaterStatus(s);
   });
-  ev.on('repeaterTelemetry', (s) => {
-    noteHeard(s.contactKey);
-    emit.repeaterTelemetry(s);
-  });
+  // A PUSH_TELEMETRY_RESPONSE (0x8B) the library resolved to a contact. Still
+  // a reception for last-heard purposes, but no longer broadcast: telemetry is
+  // requested and saved through telemetry/service.ts, which awaits the reply
+  // itself, and an unsolicited push (another client on the same radio, the
+  // legacy CMD_SEND_TELEMETRY_REQ) has nothing in the app to land in.
+  ev.on('repeaterTelemetry', (s) => noteHeard(s.contactKey));
   ev.on('contactsFull', () => emit.error('radio contact store is full — remove or favourite contacts to make room'));
 
   wireContacts(session); // Task C2

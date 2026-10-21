@@ -21,6 +21,7 @@ export const TOOL_KEYS = [
   'tool:map',
   'tool:contacts',
   'tool:macros',
+  'tool:myradio',
   'tool:bleconnect',
 ] as const;
 

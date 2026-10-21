@@ -30,6 +30,7 @@ import type {
   UpdateCheckResponse,
 } from '../../shared/api/contract';
 import type { MacroManifest, MacroTemplate, RenderResult, ValidateResult } from '../../shared/macros/types';
+import type { RequestDetailDto, SavedRequestDto } from '../../shared/telemetry/types';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -47,10 +48,12 @@ import type {
   SearchResults,
   ServerStatus,
   StateSnapshot,
+  TelemetryPerms,
   TelemetryPolicy,
   TileCacheInfo,
   UiState,
 } from '../../shared/types';
+import { withTelemetryRetention } from './telemetryRetention';
 
 export interface ApiClient {
   baseUrl: string;
@@ -153,6 +156,11 @@ export const api = {
    *  The key travels in the body — conversation keys can contain '%'. */
   putDraft: (c: ApiClient, key: string, text: string) => put<OkResponse>(c, '/api/drafts', { key, text }),
   putAppSettings: (c: ApiClient, settings: AppSettings) => put<OkResponse>(c, '/api/settings/app', settings),
+  /** Change the global per-node telemetry retention. Goes through the whole-
+   *  AppSettings PUT like every other app setting; main clamps it again and
+   *  prunes at once when it shrinks. */
+  putTelemetryRetention: (c: ApiClient, settings: AppSettings, keep: number) =>
+    put<OkResponse>(c, '/api/settings/app', withTelemetryRetention(settings, keep)),
   putRadioSettings: (c: ApiClient, settings: RadioSettingsRequest) => put<OkResponse>(c, '/api/settings/radio', settings),
   addBlockRules: (c: ApiClient, rules: NewBlockRule[]) =>
     post<AddBlockRulesResponse>(c, '/api/blocks', { rules }).then((r) => r.rules),
@@ -162,7 +170,19 @@ export const api = {
   putDeviceIdentity: (c: ApiClient, identity: Partial<DeviceIdentity>) =>
     put<OkResponse>(c, '/api/device/identity', identity),
   putAutoAddConfig: (c: ApiClient, cfg: AutoAddConfig) => put<OkResponse>(c, '/api/device/auto-add', cfg),
-  putTelemetryPolicy: (c: ApiClient, policy: TelemetryPolicy) => put<OkResponse>(c, '/api/device/telemetry-policy', policy),
+  /** Change some of the radio's telemetry policy. Send only the fields being
+   *  changed: main merges them onto the RADIO's value, so the rest of the
+   *  shared SET_OTHER_PARAMS frame isn't rewritten from a possibly stale copy. */
+  putTelemetryPolicy: (c: ApiClient, policy: Partial<TelemetryPolicy>) =>
+    put<OkResponse>(c, '/api/device/telemetry-policy', policy),
+  /** Every sensor setting the radio reports (`CMD_GET_CUSTOM_VARS`), e.g.
+   *  `{ gps: '1' }`. `{}` is a real answer: no GPS hardware reports nothing.
+   *  `gps_interval` is write-only in firmware, so it never appears here. */
+  getSensorSettings: (c: ApiClient) => get<Record<string, string>>(c, '/api/device/custom-vars'),
+  /** Write one sensor setting. One key per call so a rejected key (T1000
+   *  refuses `gps_interval`) fails alone and the UI can report a partial save. */
+  putSensorSetting: (c: ApiClient, key: string, value: string) =>
+    put<OkResponse>(c, '/api/device/custom-vars', { key, value }),
   putGpsConfig: (c: ApiClient, cfg: GpsConfig) => put<OkResponse>(c, '/api/device/gps', cfg),
   refreshDevice: (c: ApiClient) => post<OkResponse>(c, '/api/device/refresh'),
   rebootDevice: (c: ApiClient) => post<OkResponse>(c, '/api/device/reboot'),
@@ -198,7 +218,6 @@ export const api = {
   deleteContact: (c: ApiClient, key: string) => del<OkResponse>(c, apiPath`/api/contacts/${key}`),
   sendAdvert: (c: ApiClient, flood = true) => post<OkResponse>(c, '/api/transport/advert', { flood }),
   repeaterStatus: (c: ApiClient, key: string) => repeaterPost<OkResponse>(c, key, 'status'),
-  repeaterTelemetry: (c: ApiClient, key: string) => repeaterPost<OkResponse>(c, key, 'telemetry'),
   repeaterSession: (c: ApiClient, key: string) => get<RepeaterSessionResponse>(c, apiPath`/api/repeater/${key}/session`),
   repeaterLogin: (c: ApiClient, key: string, password: string) =>
     repeaterPost<RepeaterLoginResponse>(c, key, 'login', { password }),
@@ -219,6 +238,10 @@ export const api = {
   removeFromRadio: (c: ApiClient, key: string) => post<OkResponse>(c, apiPath`/api/contacts/${key}/remove-from-radio`),
   setFavourite: (c: ApiClient, key: string, favourite: boolean) =>
     put<OkResponse>(c, apiPath`/api/contacts/${key}/favourite`, { favourite }),
+  /** Per-contact telemetry permission flags on MY radio (contact flags bits
+   *  1–3). Only consulted for a mode set to "Per contact". */
+  putContactTelemetryPerms: (c: ApiClient, key: string, perms: TelemetryPerms) =>
+    put<OkResponse>(c, apiPath`/api/contacts/${key}/telemetry-perms`, perms),
   clearDiscovered: (c: ApiClient) => post<OkResponse>(c, '/api/discovered-contacts/clear'),
   repeaterLogout: (c: ApiClient, key: string) => repeaterPost<OkResponse>(c, key, 'logout'),
   repeaterAcl: (c: ApiClient, key: string) => repeaterPost<RepeaterAclResponse>(c, key, 'acl'),
@@ -243,4 +266,18 @@ export const api = {
   validateMacro: (c: ApiClient, template: string) => post<ValidateResult>(c, '/api/macros/validate', { template }),
   renderMacro: (c: ApiClient, body: MacroRenderRequest) => post<RenderResult>(c, '/api/macros/render', body),
   clearPackets: (c: ApiClient) => post<OkResponse>(c, '/api/packets/clear'),
+  /** Ask a node for telemetry, or read my own radio's when `nodeKey` is the
+   *  owner key. Resolves once the request finished, with the saved request:
+   *  200 even when `outcome` is `timeout`/`error`. Throws ApiError 409
+   *  `radio_busy` while another mesh request holds the radio, and 503/422 for
+   *  failures before anything was sent (those are not saved). A second call for
+   *  the same node joins the in-flight request. `nodeKey` is `c:<hex>` or bare. */
+  requestTelemetry: (c: ApiClient, nodeKey: string) => post<SavedRequestDto>(c, apiPath`/api/telemetry/${nodeKey}/request`),
+  /** A node's saved requests, newest first, readings decoded. */
+  listTelemetry: (c: ApiClient, nodeKey: string) => get<SavedRequestDto[]>(c, apiPath`/api/telemetry/${nodeKey}`),
+  /** One saved request plus, per reading, the most recent earlier reading with the same key. */
+  getTelemetryRequest: (c: ApiClient, id: string) => get<RequestDetailDto>(c, apiPath`/api/telemetry/request/${id}`),
+  deleteTelemetryRequest: (c: ApiClient, id: string) => del<OkResponse>(c, apiPath`/api/telemetry/request/${id}`),
+  /** Delete every saved request for one node. */
+  clearTelemetry: (c: ApiClient, nodeKey: string) => del<OkResponse>(c, apiPath`/api/telemetry/${nodeKey}`),
 };

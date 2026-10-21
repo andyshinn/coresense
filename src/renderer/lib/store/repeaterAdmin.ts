@@ -1,4 +1,4 @@
-import type { RepeaterNeighboursPage, RepeaterStatusSnapshot, RepeaterTelemetrySnapshot } from '../../../shared/types';
+import type { RepeaterNeighboursPage, RepeaterStatusSnapshot } from '../../../shared/types';
 import type { NeighbourSortKey } from '../neighbours';
 import type { SliceCreator } from './coreState';
 import type { NeighboursViewState, RepeaterAdminTab } from './types';
@@ -22,7 +22,6 @@ export interface RepeaterAdminSlice {
   // response is retained — the RightRail / RepeaterAdmin show it; we don't
   // need a full history for v1.
   repeaterStatusByKey: Record<string, RepeaterStatusSnapshot>;
-  repeaterTelemetryByKey: Record<string, RepeaterTelemetrySnapshot>;
 
   // Renderer-only deep-link intent: the detail panel's Telemetry/Permissions/
   // Remote-Mgmt buttons set this, then navigate to the repeater contact;
@@ -37,6 +36,12 @@ export interface RepeaterAdminSlice {
   repeaterAdminActiveTab: RepeaterAdminTab | null;
   setRepeaterAdminActiveTab: (tab: RepeaterAdminTab | null) => void;
 
+  // Bumped by RepeaterAdmin on every login/logout. Admin sessions live in its
+  // local state and main pushes none over WS, so this is how the rail's
+  // Telemetry section knows to re-read its "logged in?" hint. Not persisted.
+  repeaterAdminSessionRev: number;
+  bumpRepeaterAdminSessionRev: () => void;
+
   // Repeater Neighbours view (map + rail list) — see NeighboursViewState.
   neighbours: NeighboursViewState;
   setNeighboursFor: (key: string) => void;
@@ -49,17 +54,17 @@ export interface RepeaterAdminSlice {
   setNeighboursShowNames: (showNames: boolean) => void;
 
   applyRepeaterStatus: (snap: RepeaterStatusSnapshot) => void;
-  applyRepeaterTelemetry: (snap: RepeaterTelemetrySnapshot) => void;
 }
 
 export const createRepeaterAdminSlice: SliceCreator<RepeaterAdminSlice> = (set) => ({
   repeaterStatusByKey: {},
-  repeaterTelemetryByKey: {},
   repeaterAdminTab: null,
   repeaterAdminActiveTab: null,
+  repeaterAdminSessionRev: 0,
   neighbours: NB_DEFAULTS,
 
   setRepeaterAdminTab: (tab) => set(() => ({ repeaterAdminTab: tab })),
+  bumpRepeaterAdminSessionRev: () => set((s) => ({ repeaterAdminSessionRev: s.repeaterAdminSessionRev + 1 })),
   setRepeaterAdminActiveTab: (tab) =>
     set((s) => ({
       repeaterAdminActiveTab: tab,
@@ -93,9 +98,5 @@ export const createRepeaterAdminSlice: SliceCreator<RepeaterAdminSlice> = (set) 
   applyRepeaterStatus: (snap) =>
     set((s) => ({
       repeaterStatusByKey: { ...s.repeaterStatusByKey, [snap.contactKey]: snap },
-    })),
-  applyRepeaterTelemetry: (snap) =>
-    set((s) => ({
-      repeaterTelemetryByKey: { ...s.repeaterTelemetryByKey, [snap.contactKey]: snap },
     })),
 });

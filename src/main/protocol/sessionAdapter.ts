@@ -1,13 +1,32 @@
+import { Buffer } from 'node:buffer';
 import { MeshCoreSession, type Models, type Ports, Protocol } from '@andyshinn/meshcore-ts';
 import { pubkeyFromKey } from '../../shared/conversationKey';
+import type { TelemetryPerms, TelemetryPolicy } from '../../shared/types';
 import { adminSessions } from '../bridge/adminSession';
 import { child } from '../log';
 import { stateHolder } from '../state/holder';
+import { policyFromSelfInfo } from '../telemetry/policy';
 import { wireSessionEvents } from './adapterEvents';
 import { type LibAutoAddFlags, toLibAutoAdd } from './autoAddMapping';
 
 const APP_NAME = 'coresense';
 const APP_VERSION = 1;
+
+/** RESP_SENT details for a binary request (`onSent`). */
+export interface BinaryRequestSentInfo {
+  /** The radio flooded the request (no stored path). */
+  flood: boolean;
+  /** The radio's own estimate of the reply time, ms. */
+  estTimeoutMs: number;
+}
+
+export interface BinaryRequestOptions {
+  timeoutMs?: number;
+  /** Abort the wait (rejects with the signal's reason, releases the tag). */
+  signal?: AbortSignal;
+  /** Fires once RESP_SENT arrives for this request. */
+  onSent?: (info: BinaryRequestSentInfo) => void;
+}
 
 /** Owns a MeshCoreSession and bridges its events into coresense's persistence
  *  + bus, and its command methods to the API layer. */
@@ -46,6 +65,7 @@ export class SessionAdapter {
     if (this.started) return;
     this.started = true;
     this.seedAutoAddConfig();
+    this.seedGpsConfig();
     if (!this.wired) {
       this.wired = true;
       wireSessionEvents(this.session);
@@ -79,6 +99,16 @@ export class SessionAdapter {
    *  radio reporting bit 0 clear has already justified. */
   private seedAutoAddConfig(): void {
     this.session.state.setAutoAddConfig(toLibAutoAdd(stateHolder().getAutoAddConfig()));
+  }
+
+  /** Prime the library's GpsConfig mirror from our persisted copy, for the
+   *  same reason as seedAutoAddConfig. Firmware's `gps_interval` is
+   *  write-only (CMD_GET_CUSTOM_VARS never reports it), so every `gpsConfig`
+   *  emit carries the mirror's interval: left unseeded that is the library's
+   *  default (300), and the first custom-vars reply would overwrite the value
+   *  last set from CoreSense. */
+  private seedGpsConfig(): void {
+    this.session.state.setGpsConfig(stateHolder().getGpsConfig());
   }
 
   /** The library's AutoAddConfig mirror, verbatim.
@@ -139,8 +169,48 @@ export class SessionAdapter {
   sendStatusReq(key: string) {
     return this.session.sendStatusReq(key);
   }
-  sendTelemetryReq(key: string) {
-    return this.session.sendTelemetryReq(key);
+
+  // ---- Telemetry -----------------------------------------------------------
+
+  /** Read the connected radio's own telemetry: raw CayenneLPP, unpadded, no
+   *  airtime. Rejects with the library's ProtocolError on RESP_ERR (firmware
+   *  without self telemetry says "unsupported") and on timeout. */
+  async requestSelfTelemetry(opts: { timeoutMs?: number } = {}): Promise<Uint8Array> {
+    return new Uint8Array(await this.session.requestSelfTelemetry(opts));
+  }
+
+  /** CMD_SEND_BINARY_REQ to a stored contact, resolving the raw reply body
+   *  (tag stripped, mesh padding kept). `reqData` is `[REQ_TYPE, ...params]`. */
+  async sendBinaryRequest(key: string, reqData: Uint8Array, opts: BinaryRequestOptions = {}): Promise<Uint8Array> {
+    const reply: unknown = await this.session.sendBinaryRequest(key, Buffer.from(reqData), opts);
+    // A waiter resolved with anything but bytes (a RESP_SENT swapped with a
+    // foreign client's trace on the same radio resolves it with TRACE_DATA)
+    // would copy to an empty array — a fake empty `ok` reply — so refuse it.
+    if (!(reply instanceof Uint8Array)) throw new Error('binary request resolved with a non-binary reply');
+    return new Uint8Array(reply);
+  }
+
+  /** Write a contact's telemetry permissions (flags bits 1–3), keeping the
+   *  favourite bit. Resolves false when the radio refuses or times out. */
+  setContactTelemetryPerms(key: string, perms: TelemetryPerms): Promise<boolean> {
+    return this.session.setContactTelemetryPerms(key, { base: perms.base, loc: perms.loc, env: perms.env });
+  }
+
+  /** Write one sensor setting. Resolves false when the radio rejects it (T1000
+   *  refuses `gps_interval`) or doesn't answer. A `gps`/`gps_interval` write
+   *  also updates the library's GpsConfig and emits `gpsConfig`, which
+   *  adapterEvents commits. */
+  setCustomVar(key: string, value: string): Promise<boolean> {
+    return this.session.setCustomVar(key, value);
+  }
+
+  /** The telemetry modes and multi-acks the RADIO holds, read back from
+   *  RESP_SELF_INFO (bytes 44 and 46). The library folds every SELF_INFO into
+   *  its `telemetryPolicy` event, the handshake's included, so this is only
+   *  for a route that needs the policy before that has landed. APP_START is
+   *  how firmware hands it out, so this re-publishes the owner too. */
+  async readTelemetryPolicy(): Promise<TelemetryPolicy> {
+    return policyFromSelfInfo(await this.session.getSelfInfo());
   }
 
   // contacts
@@ -254,6 +324,9 @@ export class SessionAdapter {
   requestBattAndStorage() {
     return this.session.requestBattAndStorage();
   }
+  /** Every sensor setting the radio reports (CMD_GET_CUSTOM_VARS ignores the
+   *  key and returns them all), e.g. `{ gps: '1' }`. `{}` is a real answer
+   *  (no GPS hardware), not a missing reply. Also folds `gps` into GpsConfig. */
   requestCustomVars(key?: string) {
     return this.session.requestCustomVars(key);
   }

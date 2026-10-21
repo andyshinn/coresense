@@ -8,6 +8,7 @@ import { commit } from '../../state/commit';
 import { stateHolder } from '../../state/holder';
 import { discoveredStore } from '../../storage/discoveredContacts';
 import { packetStore } from '../../storage/packets';
+import { telemetryInFlightSnapshot } from '../../telemetry/service';
 import { transportManager } from '../../transport/manager';
 import { readJson } from '../body';
 import { buildTileManifest } from '../tiles';
@@ -50,6 +51,7 @@ export function registerStateRoutes(api: Hono, deps: RoutesDeps): void {
       blockRules: holder.getBlockRules(),
       macros: macrosStore.list(),
       packets: packetStore.recent(Math.min(retention.liveBufferSize, retention.storedHistorySize)),
+      telemetryInFlight: telemetryInFlightSnapshot(),
     };
     return c.json(payload);
   });

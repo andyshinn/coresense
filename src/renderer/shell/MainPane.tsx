@@ -5,7 +5,7 @@ import { logError, PanelErrorFallback } from '../components/errors/ErrorFallback
 import { useStore } from '../lib/store';
 // Placeholder is small and used as a fallback — keep eager.
 import { PlaceholderPanel } from '../panels/PlaceholderPanel';
-import { tabFromActiveKey } from '../panels/settings/routing';
+import { sectionFromActiveKey, tabFromActiveKey } from '../panels/settings/routing';
 
 // Each panel is loaded on demand; only one is visible at a time, so eagerly
 // importing them all (~1.5k LOC of forms + tables) just bloats first paint.
@@ -20,6 +20,7 @@ const Unreads = lazy(() => import('../panels/Unreads').then((m) => ({ default: m
 const LogsPanel = lazy(() => import('../panels/logs').then((m) => ({ default: m.LogsPanel })));
 const ContactManager = lazy(() => import('../panels/contacts/ContactManager').then((m) => ({ default: m.ContactManager })));
 const MacrosPanel = lazy(() => import('../panels/macros/MacrosPanel').then((m) => ({ default: m.MacrosPanel })));
+const MyRadioPanel = lazy(() => import('../panels/my-radio').then((m) => ({ default: m.MyRadioPanel })));
 
 interface MainPaneProps {
   onScan: () => void;
@@ -73,7 +74,7 @@ function MainPaneInner({ onScan, onConnect, onDisconnect, renderPacketLog }: Mai
   if (activeKey === 'tool:settings' || activeKey.startsWith('tool:settings:')) {
     // Decode the legacy "tool:settings:<id>" deep links so older menu items
     // still land on the right tab inside the new SettingsPanel.
-    return <SettingsPanel initialTab={tabFromActiveKey(activeKey)} />;
+    return <SettingsPanel initialTab={tabFromActiveKey(activeKey)} initialSection={sectionFromActiveKey(activeKey)} />;
   }
   if (activeKey === 'tool:map') {
     return <MapView />;
@@ -92,6 +93,9 @@ function MainPaneInner({ onScan, onConnect, onDisconnect, renderPacketLog }: Mai
   }
   if (activeKey === 'tool:macros') {
     return <MacrosPanel />;
+  }
+  if (activeKey === 'tool:myradio') {
+    return <MyRadioPanel />;
   }
 
   if (isChannelKey(activeKey)) {

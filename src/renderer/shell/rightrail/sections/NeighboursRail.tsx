@@ -5,6 +5,7 @@ import { useApiClient } from '../../../lib/apiClientContext';
 import type { NeighbourSortKey } from '../../../lib/neighbours';
 import { notify } from '../../../lib/notify';
 import { useStore } from '../../../lib/store';
+import { RADIO_BUSY_HINT, useRadioBusy } from '../../../lib/telemetry';
 import { NeighbourList } from './NeighbourList';
 
 // Client Order key -> firmware orderBy byte for the fetch window
@@ -32,12 +33,14 @@ export function NeighboursRailBody({ contact }: { contact: Contact }) {
   const setNeighbourSelected = useStore((s) => s.setNeighbourSelected);
   const setNeighbourHovered = useStore((s) => s.setNeighbourHovered);
   const setNeighboursShowNames = useStore((s) => s.setNeighboursShowNames);
+  // A telemetry request holds the radio; a fetch now would kill its reply.
+  const radioBusy = useRadioBusy();
 
   // mapShown is the main pane's verdict; the list uses it to decide on-map grouping.
   const { nb, page, selectedId, hoveredId, mapShown, displayed } = useNeighbourView(contact);
 
   const doFetch = async () => {
-    if (!client || nb.busy) return;
+    if (!client || nb.busy || radioBusy) return;
     setNeighboursBusy(true);
     try {
       const res = await api.repeaterNeighbours(client, contact.key, {
@@ -61,6 +64,7 @@ export function NeighboursRailBody({ contact }: { contact: Contact }) {
       sortKey={nb.sortKey}
       count={nb.count}
       busy={nb.busy}
+      blockedHint={radioBusy ? RADIO_BUSY_HINT : null}
       hasFetched={page !== null}
       onSort={setNeighboursSort}
       onCount={setNeighboursCount}

@@ -1,4 +1,5 @@
 import { Copy, Radio } from 'lucide-react';
+import { formatVoltage, lipoPercent } from '../../../shared/battery';
 import type { Owner } from '../../../shared/types';
 import { CopyButton } from '../../components/CopyButton';
 import { PathHashBadge } from '../../components/PathHashBadge';
@@ -6,7 +7,6 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/
 import { SidebarMenu, SidebarMenuItem } from '../../components/ui/sidebar';
 import { Identicon } from '../../features/quick-actions/Identicon';
 import { QuickActions } from '../../features/quick-actions/QuickActions';
-import { formatVoltage, lipoPercent } from '../../lib/battery';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
 import { OwnerCardPopover } from './OwnerCardPopover';
@@ -17,6 +17,7 @@ export function OwnerCard({ owner }: { owner: Owner | null }) {
   const deviceInfo = useStore((s) => s.deviceInfo);
   const pathHashMode = useStore((s) => s.radioSettings.pathHashMode);
   const transport = useStore((s) => s.transportState);
+  const setActiveKey = useStore((s) => s.setActiveKey);
   const connected = transport === 'connected';
 
   const battMv = deviceInfo.batteryMv;
@@ -65,30 +66,41 @@ export function OwnerCard({ owner }: { owner: Owner | null }) {
 
             {/* Detail block — hidden when the sidebar is icon-collapsed */}
             <div className="flex flex-col gap-2 group-data-[collapsible=icon]:hidden">
-              {/* Battery — grays out and prompts to connect when offline */}
-              <div className={cn('transition-opacity', !connected && 'opacity-50')}>
+              {/* Battery — grays out and prompts to connect when offline. Opens
+                  My radio, where the radio's own telemetry lives. */}
+              <button
+                type="button"
+                onClick={() => setActiveKey('tool:myradio')}
+                title="Open My radio"
+                aria-label={`${connected ? `Battery ${battText}` : 'Battery unavailable'}, open My radio`}
+                className={cn(
+                  'group/battery -mx-1 block rounded px-1 py-0.5 text-left transition-[opacity,background-color] hover:bg-cs-bg-3 focus-visible:outline-1 focus-visible:outline-cs-accent',
+                  !connected && 'opacity-50',
+                )}
+              >
                 {connected ? (
-                  <div className="flex items-center justify-between text-[10px]">
+                  <span className="flex items-center justify-between text-[10px]">
                     <span className="text-cs-text-dim">Battery</span>
                     <span className="font-mono tabular-nums text-cs-text-muted">{battText}</span>
-                  </div>
+                  </span>
                 ) : (
-                  <div className="text-[10px] text-cs-text-dim">Connect to show battery</div>
+                  <span className="block text-[10px] text-cs-text-dim">Connect to show battery</span>
                 )}
-                <div className="mt-1 h-1 overflow-hidden rounded-full bg-cs-bg-3">
-                  <div
-                    className="h-full bg-cs-accent transition-[width] duration-300"
+                {/* The track steps up a shade on hover: the button's hover fill is the track's own bg-3. */}
+                <span className="mt-1 block h-1 overflow-hidden rounded-full bg-cs-bg-3 group-hover/battery:bg-cs-border">
+                  <span
+                    className="block h-full bg-cs-accent transition-[width] duration-300"
                     style={{ width: `${connected ? (battPct ?? 0) : 0}%` }}
                   />
-                </div>
-              </div>
+                </span>
+              </button>
 
               {/* Configurable quick actions */}
               <QuickActions owner={owner} />
             </div>
           </div>
           <HoverCardContent align="start" side="right" sideOffset={8} className="w-72 p-3">
-            <OwnerCardPopover />
+            <OwnerCardPopover onOpenMyRadio={() => setActiveKey('tool:myradio')} />
           </HoverCardContent>
         </HoverCard>
       </SidebarMenuItem>

@@ -22,6 +22,9 @@ const IDENTITY: DeviceIdentity = {
   sharePositionInAdvert: false,
 };
 
+/** What the radio reports from RESP_SELF_INFO, unlike the holder's copy. */
+const RADIO_POLICY: TelemetryPolicy = { base: 2, loc: 2, env: 2, multiAcks: 0 };
+
 const put = (path: string, body: unknown) => testRoutes().request(path, json('PUT', body));
 const post = (path: string) => testRoutes().request(path, { method: 'POST' });
 
@@ -70,16 +73,17 @@ describe('PUT /api/device/identity', () => {
 
   it('sends share-position through SET_OTHER_PARAMS without the manual-add byte', async () => {
     stateHolder().setDeviceIdentity(IDENTITY);
+    // The holder's copy is stale: the frame must carry the RADIO's policy.
     stateHolder().setTelemetryPolicy(DEFAULT_TELEMETRY_POLICY);
     const setOtherParams = vi.fn((..._args: unknown[]) => Promise.resolve(true));
-    installSessionStub({ setOtherParams });
+    installSessionStub({ setOtherParams, readTelemetryPolicy: () => Promise.resolve(RADIO_POLICY) });
     transportManager.setState('connected');
 
     const res = await put('/api/device/identity', { sharePositionInAdvert: true });
 
     expect(res.status).toBe(200);
     // A third argument would rewrite the radio's auto-add master switch.
-    expect(setOtherParams.mock.calls).toEqual([[DEFAULT_TELEMETRY_POLICY, true]]);
+    expect(setOtherParams.mock.calls).toEqual([[RADIO_POLICY, true]]);
   });
 
   it('does not write fields that did not change', async () => {
@@ -156,7 +160,7 @@ describe('PUT /api/device/telemetry-policy', () => {
   it('pushes the policy with the current share-position flag and no manual-add byte when connected', async () => {
     stateHolder().setDeviceIdentity({ ...IDENTITY, sharePositionInAdvert: true });
     const setOtherParams = vi.fn((..._args: unknown[]) => Promise.resolve(true));
-    installSessionStub({ setOtherParams });
+    installSessionStub({ setOtherParams, readTelemetryPolicy: () => Promise.resolve(RADIO_POLICY) });
     transportManager.setState('connected');
 
     const res = await put('/api/device/telemetry-policy', POLICY);
@@ -166,21 +170,41 @@ describe('PUT /api/device/telemetry-policy', () => {
     expect(stateHolder().getTelemetryPolicy()).toEqual(POLICY);
   });
 
-  it('answers 503 when the radio rejects it, keeping the locally saved policy', async () => {
+  it('merges a partial body onto the radio-held policy, not the local copy', async () => {
+    stateHolder().setDeviceIdentity(IDENTITY);
     stateHolder().setTelemetryPolicy(DEFAULT_TELEMETRY_POLICY);
-    installSessionStub({ setOtherParams: () => Promise.resolve(false) });
+    const setOtherParams = vi.fn((..._args: unknown[]) => Promise.resolve(true));
+    installSessionStub({ setOtherParams, readTelemetryPolicy: () => Promise.resolve(RADIO_POLICY) });
+    transportManager.setState('connected');
+
+    const res = await put('/api/device/telemetry-policy', { env: 0 });
+
+    expect(res.status).toBe(200);
+    expect(setOtherParams.mock.calls).toEqual([[{ ...RADIO_POLICY, env: 0 }, false]]);
+    expect(stateHolder().getTelemetryPolicy()).toEqual({ ...RADIO_POLICY, env: 0 });
+  });
+
+  it('answers 503 when the radio rejects it, leaving the radio-held policy in place', async () => {
+    stateHolder().setTelemetryPolicy(DEFAULT_TELEMETRY_POLICY);
+    installSessionStub({
+      setOtherParams: () => Promise.resolve(false),
+      readTelemetryPolicy: () => Promise.resolve(RADIO_POLICY),
+    });
     transportManager.setState('connected');
 
     const res = await put('/api/device/telemetry-policy', POLICY);
 
     expect(res.status).toBe(503);
     expect((await res.json()) as ApiErrorBody).toEqual({ error: 'SET_OTHER_PARAMS rejected by radio' });
-    // Saved before the push, so a reconnect can apply it.
-    expect(stateHolder().getTelemetryPolicy()).toEqual(POLICY);
+    // The UI must not show a policy the radio refused.
+    expect(stateHolder().getTelemetryPolicy()).toEqual(RADIO_POLICY);
   });
 
   it('answers 503 with the message when the setter throws', async () => {
-    installSessionStub({ setOtherParams: () => Promise.reject(new Error('write failed')) });
+    installSessionStub({
+      setOtherParams: () => Promise.reject(new Error('write failed')),
+      readTelemetryPolicy: () => Promise.resolve(RADIO_POLICY),
+    });
     transportManager.setState('connected');
 
     const res = await put('/api/device/telemetry-policy', POLICY);
@@ -258,7 +282,7 @@ describe('PUT /api/device/gps', () => {
 });
 
 describe('POST /api/device/refresh', () => {
-  function recordingRefresh() {
+  function recordingRefresh(customVars: () => Promise<Record<string, string>> = () => Promise.resolve({})) {
     const order: string[] = [];
     const record = (name: string) => () => {
       order.push(name);
@@ -270,7 +294,7 @@ describe('POST /api/device/refresh', () => {
       requestAutoAddConfig: record('requestAutoAddConfig'),
       requestCustomVars: (key?: string) => {
         order.push(`requestCustomVars:${key}`);
-        return Promise.resolve();
+        return customVars();
       },
     });
     return order;
@@ -298,9 +322,18 @@ describe('POST /api/device/refresh', () => {
       'requestDeviceInfo',
       'requestBattAndStorage',
       'requestAutoAddConfig',
-      'requestCustomVars:gps',
-      'requestCustomVars:gps_interval',
+      // One request: firmware ignores the key and returns every setting.
+      'requestCustomVars:',
     ]);
+  });
+
+  it('does not fail the refresh when the custom-vars read rejects', async () => {
+    recordingRefresh(() => Promise.reject(new Error('unsupported')));
+    transportManager.setState('connected');
+
+    const res = await post('/api/device/refresh');
+
+    expect(res.status).toBe(200);
   });
 
   // Regression: the route had no catch, so a query that rejected (the link

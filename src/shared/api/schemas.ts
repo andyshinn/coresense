@@ -15,6 +15,7 @@ import {
   type MapSettings,
   type RadioSettings,
   type SearchOptions,
+  type TelemetryPerms,
   type TelemetryPolicy,
   type UiState,
 } from '../types';
@@ -75,6 +76,9 @@ export const appSettingsSchema = exactly<AppSettings>()(
     quickActions: z.array(z.enum(QUICK_ACTION_IDS)),
     updates: z.object({ channel: z.enum(['stable', 'development']), autoCheck: z.boolean() }),
     distanceUnit: z.enum(['metric', 'imperial']),
+    // Clamped by main (telemetry/retention.ts), not here: an out-of-range
+    // value is a hand edit to correct, not a malformed request.
+    telemetry: z.object({ retentionPerNode: z.number() }),
   }),
 );
 
@@ -180,6 +184,33 @@ export const telemetryPolicySchema = exactly<TelemetryPolicy>()(
   z.object({ base: telemetryMode, loc: telemetryMode, env: telemetryMode, multiAcks: z.number().int() }),
 );
 
+/** PUT /api/device/telemetry-policy: any non-empty subset of the policy, merged
+ *  onto the radio's value (device/deviceSettings.applyTelemetryPolicy). A
+ *  missing field would otherwise go to the radio as 0 — the library encodes it
+ *  so — and be trusted as its policy. */
+export const telemetryPolicyPatchSchema = z
+  .object({
+    base: telemetryMode.optional(),
+    loc: telemetryMode.optional(),
+    env: telemetryMode.optional(),
+    multiAcks: z.number().int().min(0).max(0xff).optional(),
+  })
+  .refine((p) => Object.values(p).some((v) => v !== undefined), {
+    message: 'one of base, loc, env or multiAcks is required',
+  });
+
+export const telemetryPermsSchema = exactly<TelemetryPerms>()(
+  z.object({ base: z.boolean(), loc: z.boolean(), env: z.boolean() }),
+);
+
+/** PUT /api/device/custom-vars: one sensor setting. The firmware frames the
+ *  write as "key:value" and the read as "k:v,k:v", so neither separator may
+ *  appear where it would split the frame. */
+export const customVarBodySchema = z.object({
+  key: z.string().regex(/^[^:,]+$/, "key must be non-empty without ':' or ','"),
+  value: z.string().regex(/^[^,]*$/, "value must not contain ','"),
+});
+
 export const gpsConfigSchema = exactly<GpsConfig>()(z.object({ enabled: z.boolean(), intervalSec: z.number() }));
 
 const channelKeySchema = z.templateLiteral(['ch:', z.string()]);
@@ -211,6 +242,7 @@ export const contactSchema = exactly<Contact>()(
     hops: z.number().optional(),
     pinned: z.boolean().optional(),
     favourite: z.boolean().optional(),
+    telemetryPerms: telemetryPermsSchema.optional(),
     muted: z.boolean().optional(),
     outPathHex: z.string().optional(),
     outPathHashSize: pathHashSize.optional(),

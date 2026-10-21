@@ -25,10 +25,8 @@ export function MessageSection() {
     eq: eqMessages,
     onSave: async (d) => {
       if (!client) throw new Error('No server connection');
-      await api.putTelemetryPolicy(client, {
-        ...useStore.getState().telemetryPolicy,
-        multiAcks: d.multiAcks,
-      });
+      // Multi-acks only: main merges it onto the radio's telemetry modes.
+      await api.putTelemetryPolicy(client, { multiAcks: d.multiAcks });
       notify.success('Message settings saved');
     },
   });

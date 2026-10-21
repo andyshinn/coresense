@@ -6,7 +6,9 @@ const hx = (b: number) => b.toString(16).toUpperCase().padStart(2, '0');
 interface Props {
   bytes: number[];
   fields: InspectField[];
-  scope: BreakdownScope;
+  /** Prefix for the hover ids, unique among the strips sharing `hovered`: a
+   *  BreakdownScope in the packet inspector, any string elsewhere. */
+  scope: BreakdownScope | (string & {});
   hovered: string | null;
   setHovered: (id: string | null) => void;
 }

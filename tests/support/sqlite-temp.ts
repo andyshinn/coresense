@@ -5,6 +5,9 @@ import { setUserDataDir } from '../../src/main/runtime/userData';
 import { resetAdvertPathState } from '../../src/main/state/advertPath';
 import { closeDb } from '../../src/main/storage/db';
 import { resetDiscoveredFlagCache } from '../../src/main/storage/discoveredContacts';
+import { resetMeshLock } from '../../src/main/telemetry/meshLock';
+import { forgetRadioTelemetryPolicy } from '../../src/main/telemetry/policy';
+import { resetTelemetryState } from '../../src/main/telemetry/service';
 
 let currentDir: string | null = null;
 
@@ -20,6 +23,11 @@ export function useTempUserData(): string {
   // against the previous database would silently skip the radio round trip the
   // next test is asserting on.
   resetAdvertPathState();
+  // Telemetry's in-flight registry, the radio-wide mesh lock and the "policy
+  // read back from the radio" flag are module state too.
+  resetTelemetryState();
+  resetMeshLock();
+  forgetRadioTelemetryPolicy();
   return currentDir;
 }
 
