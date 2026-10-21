@@ -149,7 +149,7 @@ const CASES: Array<[string, Method, string, unknown, () => unknown]> = [
   ['repeater trace (string tag)', 'POST', `${REPEATER}/trace`, { tag: '1', pathHex: 'aa' }, () => null],
   ['repeater login (no password)', 'POST', `${REPEATER}/login`, {}, () => null],
   ['repeater neighbours (fractional count)', 'POST', `${REPEATER}/neighbours`, { count: 1.5 }, () => null],
-  ['repeater local stats (unknown subtype)', 'POST', '/api/repeater/local/stats', { subtype: 'ALL' }, () => null],
+  ['device radio (empty patch)', 'PUT', '/api/device/radio', {}, () => holder().getRadioSettings()],
   ['transport advert (non-boolean flood)', 'POST', '/api/transport/advert', { flood: 'yes' }, () => null],
   [
     'messages POST (empty body text)',
@@ -315,18 +315,6 @@ describe('endpoints whose body is optional', () => {
 
     expect(res.status).toBe(200);
     expect(request).toHaveBeenCalledWith(`c:${PK}`, {});
-  });
-
-  it('repeater local stats accepts no body and asks for CORE', async () => {
-    const request = vi.fn((_subtype: Parameters<SessionAdapter['repeaterGetLocalStats']>[0]) =>
-      Promise.resolve({ kind: 'core' as const, battMv: 4000, uptimeSecs: 1, errFlags: 0, queueLen: 0 }),
-    );
-    installSessionStub({ repeaterGetLocalStats: request });
-
-    const res = await testRoutes().request('/api/repeater/local/stats', { method: 'POST' });
-
-    expect(res.status).toBe(200);
-    expect(request).toHaveBeenCalledWith('CORE');
   });
 
   // Read with `optional`, but deviceId itself is required: a missing body must

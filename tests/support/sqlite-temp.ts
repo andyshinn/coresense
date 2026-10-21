@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { resetUserCommandGate } from '../../src/main/api/middleware/userCommandGate';
 import { resetNodeCacheState } from '../../src/main/node/nodeCache';
 import { setUserDataDir } from '../../src/main/runtime/userData';
 import { resetAdvertPathState } from '../../src/main/state/advertPath';
@@ -8,7 +9,7 @@ import { closeDb } from '../../src/main/storage/db';
 import { resetDiscoveredFlagCache } from '../../src/main/storage/discoveredContacts';
 import { resetMeshLock } from '../../src/main/telemetry/meshLock';
 import { forgetRadioTelemetryPolicy } from '../../src/main/telemetry/policy';
-import { resetTelemetryState } from '../../src/main/telemetry/service';
+import { resetSelfLiveState, resetTelemetryState } from '../../src/main/telemetry/service';
 
 let currentDir: string | null = null;
 
@@ -31,6 +32,9 @@ export function useTempUserData(): string {
   forgetRadioTelemetryPolicy();
   // The node cache loads node-cache.json once and remembers the connected radio.
   resetNodeCacheState();
+  // My Node's held live read and the user-command counter.
+  resetSelfLiveState();
+  resetUserCommandGate();
   return currentDir;
 }
 

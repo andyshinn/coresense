@@ -1,10 +1,12 @@
 import type {
   AddBlockRulesResponse,
+  AdvertLinkResponse,
   AdvertPathResponse,
   ApiKeyPresenceResponse,
   BlockRulePatch,
   BlockRuleResponse,
   ContactPathRequest,
+  DeviceClockResponse,
   DiscoveredContactsResponse,
   MacroPatch,
   MacroRenderRequest,
@@ -18,8 +20,6 @@ import type {
   RefreshContactsResponse,
   RepeaterAclResponse,
   RepeaterCliResponse,
-  RepeaterLocalStatsResponse,
-  RepeaterLocalStatsSubtype,
   RepeaterLoginResponse,
   RepeaterNeighboursRequest,
   RepeaterNeighboursResponse,
@@ -31,7 +31,7 @@ import type {
   UpdateCheckResponse,
 } from '../../shared/api/contract';
 import type { MacroManifest, MacroTemplate, RenderResult, ValidateResult } from '../../shared/macros/types';
-import type { RequestDetailDto, SavedRequestDto } from '../../shared/telemetry/types';
+import type { RequestDetailDto, SavedRequestDto, SelfLiveReadDto } from '../../shared/telemetry/types';
 import type {
   AppSettings,
   AutoAddConfig,
@@ -42,6 +42,7 @@ import type {
   ChannelStats,
   Contact,
   DeviceIdentity,
+  DeviceStats,
   GpsConfig,
   MapSettings,
   Message,
@@ -256,8 +257,6 @@ export const api = {
     repeaterPost<RepeaterCliResponse>(c, key, 'cli', { command, expectReply: opts.expectReply }, { signal: opts.signal }),
   repeaterTrace: (c: ApiClient, key: string, payload: RepeaterTraceRequest) =>
     repeaterPost<RepeaterTraceResponse>(c, key, 'trace', payload),
-  repeaterLocalStats: (c: ApiClient, subtype: RepeaterLocalStatsSubtype) =>
-    post<RepeaterLocalStatsResponse>(c, '/api/repeater/local/stats', { subtype }),
   search: (c: ApiClient, opts: SearchOptions) => post<SearchResults>(c, '/api/search', opts),
   checkForUpdates: (c: ApiClient) => post<UpdateCheckResponse>(c, '/api/updates/check'),
   installUpdate: (c: ApiClient) => post<OkResponse>(c, '/api/updates/install'),
@@ -284,4 +283,14 @@ export const api = {
   deleteTelemetryRequest: (c: ApiClient, id: string) => del<OkResponse>(c, apiPath`/api/telemetry/request/${id}`),
   /** Delete every saved request for one node. */
   clearTelemetry: (c: ApiClient, nodeKey: string) => del<OkResponse>(c, apiPath`/api/telemetry/${nodeKey}`),
+  /** My Node: the companion's own telemetry now, not saved. 409 `busy_skip`
+   *  means a user command was in flight; try again next tick. */
+  readSelfTelemetryLive: (c: ApiClient) => post<SelfLiveReadDto>(c, '/api/telemetry/self/live'),
+  /** My Node "Save snapshot": store the last live read, exactly as shown. */
+  saveSelfTelemetrySnapshot: (c: ApiClient) => post<SavedRequestDto>(c, '/api/telemetry/self/snapshot'),
+  /** My Node Radio stats (CMD_GET_STATS core, radio and packets). */
+  getDeviceStats: (c: ApiClient) => post<DeviceStats>(c, '/api/device/stats'),
+  /** The radio's own signed advert, as hex and as a `meshcore://` link. */
+  getAdvertLink: (c: ApiClient) => get<AdvertLinkResponse>(c, '/api/device/advert-link'),
+  getDeviceClock: (c: ApiClient) => get<DeviceClockResponse>(c, '/api/device/clock'),
 };

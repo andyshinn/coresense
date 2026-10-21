@@ -390,9 +390,6 @@ export const repeaterTraceBodySchema = z.object({
   pathHex: z.string(),
 });
 
-/** POST /api/repeater/local/stats. `subtype` defaults to CORE. */
-export const localStatsBodySchema = z.object({ subtype: z.enum(['CORE', 'RADIO', 'PACKETS']).optional() });
-
 /** POST /api/transport/advert. `flood` defaults to true. */
 export const advertBodySchema = z.object({ flood: z.boolean().optional() });
 

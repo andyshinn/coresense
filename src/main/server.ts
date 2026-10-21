@@ -23,6 +23,7 @@ import { endContactWalk } from './state/contactWalk';
 import { stateHolder } from './state/holder';
 import { discoveredStore } from './storage/discoveredContacts';
 import { packetStore } from './storage/packets';
+import { clearSelfLiveRead } from './telemetry/service';
 import { transportManager } from './transport/manager';
 import { currentUpdateState } from './updates/controller';
 import { isMainWindowFocused } from './window/registry';
@@ -247,6 +248,7 @@ export async function startServer(
       // timeout expires.
       endContactWalk();
       clearRadioLimits();
+      clearSelfLiveRead();
     }
     // Opens or closes the connected radio's last-known entry.
     noteTransportState(state, deviceId);

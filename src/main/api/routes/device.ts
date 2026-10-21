@@ -1,4 +1,5 @@
 import type { Context, Hono } from 'hono';
+import type { AdvertLinkResponse, ApiErrorBody, DeviceClockResponse } from '../../../shared/api/contract';
 import {
   autoAddConfigSchema,
   customVarBodySchema,
@@ -10,6 +11,7 @@ import {
 } from '../../../shared/api/schemas';
 import { errorMessage } from '../../../shared/errors';
 import { validateTxPower } from '../../../shared/radio';
+import { type DeviceStats, LOCAL_STATS_MIN_VER_CODE } from '../../../shared/types';
 import {
   applyAutoAddConfig,
   applyDeviceIdentity,
@@ -18,12 +20,15 @@ import {
   applyTelemetryPolicy,
   type DeviceWriteResult,
 } from '../../device/deviceSettings';
+import { LocalStatsSkipped, readLocalStats } from '../../device/localStats';
 import { child } from '../../log';
+import { currentNodeEntry, refreshAdvertLink } from '../../node/nodeCache';
 import { protocolSession } from '../../protocol';
 import { stateHolder } from '../../state/holder';
 import { transportManager } from '../../transport/manager';
 import { InvalidBodyError, readJson } from '../body';
 import { fail503 } from '../errors';
+import { isUserCommandInFlight } from '../middleware/userCommandGate';
 
 const log = child('device');
 
@@ -126,6 +131,46 @@ export function registerDeviceRoutes(api: Hono): void {
         .requestCustomVars('')
         .catch((err: unknown) => log.warn(`custom vars refresh failed: ${errorMessage(err)}`));
       return c.json({ ok: true });
+    } catch (err) {
+      return fail503(c, err);
+    }
+  });
+
+  // My Node's Radio stats: core, radio and packets, read one after another
+  // (device/localStats.ts). Polled, so it steps aside for a user command:
+  // checked before each subtype, a busy link answers 409 `busy_skip` and the
+  // poller tries again next tick.
+  api.post('/api/device/stats', async (c) => {
+    if (!transportManager.isConnected()) return c.json({ error: 'no radio attached' }, 503);
+    if (stateHolder().getDeviceInfo().firmwareVerCode < LOCAL_STATS_MIN_VER_CODE) {
+      return c.json({ error: 'this firmware has no CMD_GET_STATS', code: 'stats_unsupported' } satisfies ApiErrorBody, 501);
+    }
+    let stats: DeviceStats;
+    try {
+      stats = await readLocalStats(protocolSession(), { shouldStop: isUserCommandInFlight });
+    } catch (err) {
+      if (err instanceof LocalStatsSkipped) {
+        return c.json({ error: 'a user command is in flight', code: 'busy_skip' } satisfies ApiErrorBody, 409);
+      }
+      return fail503(c, err);
+    }
+    return c.json(stats);
+  });
+
+  // The radio's own signed advert (CMD_EXPORT_CONTACT, no key): the contact
+  // link and QR My Node shares. Cached in the node cache, which drops it when
+  // the name or position changes; exported again here when it's missing.
+  api.get('/api/device/advert-link', async (c) => {
+    if (!transportManager.isConnected()) return c.json({ error: 'no radio attached' }, 503);
+    const hex = currentNodeEntry()?.advertLinkHex ?? (await refreshAdvertLink());
+    if (!hex) return c.json({ error: 'radio did not export its advert' }, 503);
+    return c.json({ hex, uri: `meshcore://${hex}` } satisfies AdvertLinkResponse);
+  });
+
+  api.get('/api/device/clock', async (c) => {
+    if (!transportManager.isConnected()) return c.json({ error: 'no radio attached' }, 503);
+    try {
+      return c.json({ epochSecs: await protocolSession().getDeviceTime() } satisfies DeviceClockResponse);
     } catch (err) {
       return fail503(c, err);
     }

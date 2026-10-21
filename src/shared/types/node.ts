@@ -181,3 +181,52 @@ export function evictNodeCache(cache: NodeCache, max: number, keep: string | nul
   for (const k of kept) entries[k] = cache.entries[k];
   return { ...cache, entries };
 }
+
+// ---- Local stats (CMD_GET_STATS) ------------------------------------------
+
+/** CMD_GET_STATS core subtype (firmware v8+, companion_radio MyMesh.cpp). */
+export interface LocalStatsCore {
+  kind: 'core';
+  battMv: number;
+  /** Since boot: millis() / 1000. */
+  uptimeSecs: number;
+  errFlags: number;
+  queueLen: number;
+}
+
+/** CMD_GET_STATS radio subtype. Airtimes are cumulative seconds since boot. */
+export interface LocalStatsRadio {
+  kind: 'radio';
+  noiseFloor: number;
+  lastRssi: number;
+  /** Already divided by 4 (firmware sends 0.25 dB steps). */
+  lastSnrDb: number;
+  txAirSecs: number;
+  rxAirSecs: number;
+}
+
+/** CMD_GET_STATS packets subtype. Counters since boot. */
+export interface LocalStatsPackets {
+  kind: 'packets';
+  recv: number;
+  sent: number;
+  nSentFlood: number;
+  nSentDirect: number;
+  nRecvFlood: number;
+  nRecvDirect: number;
+  nRecvErrors: number;
+}
+
+export type LocalStats = LocalStatsCore | LocalStatsRadio | LocalStatsPackets;
+
+/** POST /api/device/stats: all three subtypes, read one after another. */
+export interface DeviceStats {
+  core: LocalStatsCore;
+  radio: LocalStatsRadio;
+  packets: LocalStatsPackets;
+  /** Epoch ms when the last subtype arrived. */
+  at: number;
+}
+
+/** CMD_GET_STATS needs companion firmware ver_code 8 or later. */
+export const LOCAL_STATS_MIN_VER_CODE = 8;

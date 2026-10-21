@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { onApiError } from '../errors';
+import { userCommandGate } from '../middleware/userCommandGate';
 import { registerTileRoutes } from '../tiles';
 import { type RoutesDeps, registerAppRoutes } from './app';
 import { registerBlockRoutes } from './blocks';
@@ -23,6 +24,8 @@ export function createRoutes(deps: RoutesDeps) {
   // Installed here, not only on the server app: a sub-app's own handler is the
   // one that sees its routes' throws, and the route tests drive this app alone.
   api.onError(onApiError);
+  // Lets My Node's poll step aside for a user command (middleware/userCommandGate.ts).
+  api.use('*', userCommandGate);
 
   registerTileRoutes(api);
   registerAppRoutes(api, deps);
