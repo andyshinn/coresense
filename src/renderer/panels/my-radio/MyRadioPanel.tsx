@@ -1,4 +1,4 @@
-import { Bluetooth, Radio, RefreshCw } from 'lucide-react';
+import { Bluetooth, ChevronLeft, Radio, RefreshCw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { isGpsValue } from '../../../shared/telemetry/lpp';
 import { Identicon } from '../../features/quick-actions/Identicon';
@@ -14,10 +14,10 @@ import { PolicyCard } from './PolicyCard';
 import { GpsOffTile, SensorSettingsCard } from './SensorSettings';
 import { useSensorSettings } from './useSensorSettings';
 
-// My radio (`tool:myradio`): the connected companion's own telemetry — read
-// over the local link, no airtime — plus who may read it and its sensor
-// settings. Only the telemetry view: the radio's other settings stay in
-// Settings › Radio. The per-contact flags table lives in the right rail.
+// My Node's telemetry view (`tool:node:telemetry`, "View all" on the
+// Telemetry card): the connected companion's saved readings — read over the
+// local link, no airtime — plus who may read it and its sensor settings. The
+// per-contact flags table lives in the right rail.
 
 const LINK =
   'text-[11px] text-cs-accent underline underline-offset-2 hover:text-cs-text disabled:cursor-not-allowed disabled:opacity-50';
@@ -35,7 +35,7 @@ function NoRadio() {
       <p className="max-w-sm text-[12px] leading-[18px] text-cs-text-dim">
         No radio connected. Connect one to read its telemetry and choose who else can.
       </p>
-      <TelemetryButton onClick={() => setActiveKey('tool:bleconnect')}>Connect a radio</TelemetryButton>
+      <TelemetryButton onClick={() => setActiveKey('tool:node')}>Connect a radio</TelemetryButton>
     </div>
   );
 }
@@ -86,6 +86,7 @@ function ActionRow({ client, nodeKey, connected, logOpen, onToggleLog }: ActionR
 
 export function MyRadioPanel() {
   const client = useApiClient();
+  const setActiveKey = useStore((s) => s.setActiveKey);
   const owner = useStore((s) => s.owner);
   const connected = useStore((s) => s.transportState === 'connected');
   const gpsLat = useStore((s) => s.deviceIdentity.lat);
@@ -109,13 +110,22 @@ export function MyRadioPanel() {
   return (
     <div className="flex h-full flex-col">
       <header className="flex shrink-0 items-center gap-2.5 border-b border-cs-border bg-cs-bg-2 px-4 py-2.5">
+        <button
+          type="button"
+          onClick={() => setActiveKey('tool:node')}
+          className="flex shrink-0 items-center gap-1 rounded-sm text-[11px] text-cs-accent hover:underline focus-visible:outline-1 focus-visible:outline-cs-accent"
+        >
+          <ChevronLeft aria-hidden="true" className="size-3.5" />
+          My node
+        </button>
+        <span aria-hidden="true" className="h-5 w-px bg-cs-border" />
         {owner ? (
           <Identicon hex={owner.publicKeyHex} size={28} />
         ) : (
           <Radio size={14} aria-hidden="true" className="text-cs-text-muted" />
         )}
         <div className="flex min-w-0 flex-col">
-          <h2 className="font-medium leading-tight text-cs-text">My radio</h2>
+          <h2 className="font-medium leading-tight text-cs-text">Telemetry</h2>
           <span className="truncate font-mono text-[10px] text-cs-text-dim">
             {owner ? `${owner.name} · companion · ${owner.publicKeyHex.slice(0, 6)}` : 'companion'}
           </span>

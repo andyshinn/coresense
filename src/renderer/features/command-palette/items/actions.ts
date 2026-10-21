@@ -190,7 +190,7 @@ export function buildActionItems({
         void api.scan(client).catch((err) => {
           notify.failure('Scan', err);
         });
-        setActiveKey('tool:bleconnect');
+        setActiveKey('tool:node');
         close();
       },
     });

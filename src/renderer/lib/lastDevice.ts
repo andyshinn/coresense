@@ -24,11 +24,3 @@ export function saveLastDevice(device: LastDevice): void {
     // no-op
   }
 }
-
-export function clearLastDevice(): void {
-  try {
-    localStorage.removeItem(KEY);
-  } catch {
-    // no-op
-  }
-}

@@ -1,3 +1,4 @@
+import { NODE_TELEMETRY_KEY } from '../../../shared/keys';
 import type { Channel, Contact, Message } from '../../../shared/types';
 import { SetPathEditor } from '../../components/path/SetPathEditor';
 import type { RepeaterAdminTab } from '../../lib/store';
@@ -109,8 +110,8 @@ export function sectionsFor(
     ];
   }
 
-  // My radio's rail is the per-contact telemetry flags table.
-  if (activeKey === 'tool:myradio') {
+  // My Node's telemetry view: the rail is the per-contact telemetry flags table.
+  if (activeKey === NODE_TELEMETRY_KEY) {
     return [
       {
         id: 'rail.myradio.flags',

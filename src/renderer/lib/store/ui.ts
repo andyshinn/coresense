@@ -1,4 +1,4 @@
-import type { ActiveKey } from '../../../shared/keys';
+import { type ActiveKey, canonicalActiveKeys } from '../../../shared/keys';
 import {
   type ActivityWindowKey,
   DEFAULT_UI_STATE,
@@ -139,10 +139,13 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
       // Nothing in the app marks a conversation unread again, so read markers
       // only ever advance and this is also the correct merge between windows.
       const mergedLastRead = mergeLastRead(s.ui.lastReadByKey, incoming.lastReadByKey);
+      // Another window on an older build may still send retired tool keys.
+      const incomingPinned = canonicalActiveKeys(incoming.pinned);
+      const incomingRecents = canonicalActiveKeys(incoming.recentKeys);
       const same =
         mergedLastRead === s.ui.lastReadByKey &&
-        arraysEqual(s.ui.pinned, incoming.pinned) &&
-        arraysEqual(s.ui.recentKeys, incoming.recentKeys) &&
+        arraysEqual(s.ui.pinned, incomingPinned) &&
+        arraysEqual(s.ui.recentKeys, incomingRecents) &&
         usageMapEqual(s.ui.emojiUsage, incomingEmojiUsage) &&
         usageMapEqual(s.ui.macroUsage, incomingMacroUsage) &&
         s.ui.themePref === incoming.themePref &&
@@ -152,8 +155,8 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
         ui: {
           ...s.ui,
           lastReadByKey: mergedLastRead,
-          pinned: incoming.pinned,
-          recentKeys: incoming.recentKeys,
+          pinned: incomingPinned,
+          recentKeys: incomingRecents,
           emojiUsage: incomingEmojiUsage,
           macroUsage: incomingMacroUsage,
           themePref: incoming.themePref,
