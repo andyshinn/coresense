@@ -282,7 +282,7 @@ describe('PUT /api/device/gps', () => {
 });
 
 describe('POST /api/device/refresh', () => {
-  function recordingRefresh(customVars: () => Promise<void> = () => Promise.resolve()) {
+  function recordingRefresh(customVars: () => Promise<Record<string, string>> = () => Promise.resolve({})) {
     const order: string[] = [];
     const record = (name: string) => () => {
       order.push(name);

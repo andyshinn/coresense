@@ -239,8 +239,7 @@ export const api = {
   setFavourite: (c: ApiClient, key: string, favourite: boolean) =>
     put<OkResponse>(c, apiPath`/api/contacts/${key}/favourite`, { favourite }),
   /** Per-contact telemetry permission flags on MY radio (contact flags bits
-   *  1–3). Only consulted for a mode set to "Per contact". Answers 501
-   *  `lib_unsupported` until meshcore-ts can write them. */
+   *  1–3). Only consulted for a mode set to "Per contact". */
   putContactTelemetryPerms: (c: ApiClient, key: string, perms: TelemetryPerms) =>
     put<OkResponse>(c, apiPath`/api/contacts/${key}/telemetry-perms`, perms),
   clearDiscovered: (c: ApiClient) => post<OkResponse>(c, '/api/discovered-contacts/clear'),

@@ -17,11 +17,10 @@ import {
 } from '../../device/deviceSettings';
 import { child } from '../../log';
 import { protocolSession } from '../../protocol';
-import { commit } from '../../state/commit';
 import { stateHolder } from '../../state/holder';
 import { transportManager } from '../../transport/manager';
 import { readJson } from '../body';
-import { fail503, knownErrorResponse } from '../errors';
+import { fail503 } from '../errors';
 
 const log = child('device');
 
@@ -57,20 +56,20 @@ export function registerDeviceRoutes(api: Hono): void {
   // hardware reports nothing — so "no GPS" is `!('gps' in vars)`, distinct
   // from a failed read (503). `gps_interval` is write-only in firmware and
   // never appears; GpsConfig.intervalSec is the value last set from CoreSense.
-  // Needs meshcore-ts >= 0.9 (501 `lib_unsupported` before that).
   api.get('/api/device/custom-vars', async (c) => {
     if (!transportManager.isConnected()) return c.json({ error: 'no radio attached' }, 503);
     try {
-      return c.json(await protocolSession().requestCustomVarsMap());
+      return c.json(await protocolSession().requestCustomVars(''));
     } catch (err) {
-      return knownErrorResponse(c, err) ?? fail503(c, err);
+      return fail503(c, err);
     }
   });
 
   // Write ONE sensor setting, `{ key, value }`. One per call so a key the radio
   // rejects (T1000 refuses `gps_interval`) fails alone and the UI can report a
   // partial save. A `gps`/`gps_interval` write also lands in GpsConfig, which
-  // is where the write-only interval is remembered.
+  // is where the write-only interval is remembered: the library updates its
+  // mirror and emits `gpsConfig`, which adapterEvents commits.
   api.put('/api/device/custom-vars', async (c) => {
     const { key, value } = await readJson(c, customVarBodySchema);
     if (!transportManager.isConnected()) return c.json({ error: 'no radio attached' }, 503);
@@ -78,13 +77,9 @@ export function registerDeviceRoutes(api: Hono): void {
     try {
       ok = await protocolSession().setCustomVar(key, value);
     } catch (err) {
-      return knownErrorResponse(c, err) ?? fail503(c, err);
+      return fail503(c, err);
     }
     if (!ok) return c.json({ error: `radio rejected ${key}` }, 503);
-    const gps = stateHolder().getGpsConfig();
-    const interval = Number(value);
-    if (key === 'gps') commit.gpsConfig({ ...gps, enabled: value !== '0' });
-    else if (key === 'gps_interval' && Number.isFinite(interval)) commit.gpsConfig({ ...gps, intervalSec: interval });
     return c.json({ ok: true });
   });
 
@@ -93,7 +88,7 @@ export function registerDeviceRoutes(api: Hono): void {
   // is broadcast via WS — the caller just gets "ok" once the writes succeeded.
   //
   // Custom vars is one request, not one per key: firmware ignores the key and
-  // returns every setting. It is fired, not awaited: meshcore-ts ≥ 0.9 makes
+  // returns every setting. It is fired, not awaited: the library makes
   // requestCustomVars await RESP_CUSTOM_VARS and reject on RESP_ERR (firmware
   // without CMD_GET_CUSTOM_VARS), a timeout or a not-yet-commandable session,
   // and none of those should fail the whole refresh.

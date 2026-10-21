@@ -1,12 +1,12 @@
 import { MapPin, RotateCcw, Settings } from 'lucide-react';
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { errorMessage } from '../../../shared/errors';
 import { Skeleton } from '../../components/ui/skeleton';
 import { Switch } from '../../components/ui/switch';
 import { LABEL_CAPS, META, TelemetryButton, TelemetryCard, TelemetryChip } from '../../features/telemetry/ui';
 import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
-import { isLibUnsupportedError, NEEDS_LIB } from './libSupport';
 import type { SensorSettingsControl } from './useSensorSettings';
 
 // "Sensor settings": what the radio reports through its custom vars. The
@@ -31,12 +31,6 @@ export function revealSensorSettings(): void {
   document.getElementById(SENSOR_SETTINGS_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   document.getElementById(GPS_SWITCH_ID)?.focus({ preventScroll: true });
 }
-
-function openPositionSettings(): void {
-  useStore.getState().setActiveKey('tool:settings:position');
-}
-
-const reason = (err: unknown) => (isLibUnsupportedError(err) ? 'needs meshcore-ts 0.9' : (err as Error).message);
 
 function IntervalRow({ write, disabled }: { write: SensorSettingsControl['write']; disabled: boolean }) {
   const saved = useStore((s) => s.gpsConfig.intervalSec);
@@ -68,7 +62,7 @@ function IntervalRow({ write, disabled }: { write: SensorSettingsControl['write'
       notify.success('GPS interval saved');
     } catch (err) {
       // GPS on/off saved separately, so this is the only half lost.
-      notify.error(`GPS interval save failed: ${reason(err)}`, err);
+      notify.error(`GPS interval save failed: ${errorMessage(err)}`, err);
       setDraft(String(useStore.getState().gpsConfig.intervalSec));
     } finally {
       setSaving(false);
@@ -116,7 +110,7 @@ export function SensorSettingsCard({ control, connected }: { control: SensorSett
     try {
       await write('gps', on ? '1' : '0');
     } catch (err) {
-      notify.error(`GPS save failed: ${reason(err)}`, err);
+      notify.error(`GPS save failed: ${errorMessage(err)}`, err);
     }
   };
 
@@ -125,9 +119,7 @@ export function SensorSettingsCard({ control, connected }: { control: SensorSett
       ? count === 0
         ? 'none reported by the radio'
         : `${count} ${count === 1 ? 'setting' : 'settings'} reported by the radio`
-      : settings.status === 'unsupported'
-        ? NEEDS_LIB
-        : null;
+      : null;
 
   return (
     <TelemetryCard
@@ -151,19 +143,6 @@ export function SensorSettingsCard({ control, connected }: { control: SensorSett
             <Skeleton className="h-2.5 w-32 rounded" />
           </div>
           <Skeleton className="h-5 w-8 rounded-full" />
-        </div>
-      ) : settings.status === 'unsupported' ? (
-        <div className="flex flex-col gap-2 px-3.5 py-3">
-          <p className={COPY}>
-            Reading sensor settings from the radio needs meshcore-ts 0.9. GPS can still be switched in Settings › Radio ›
-            Position.
-          </p>
-          <div>
-            <TelemetryButton onClick={openPositionSettings}>
-              <MapPin aria-hidden="true" />
-              Position settings
-            </TelemetryButton>
-          </div>
         </div>
       ) : settings.status === 'error' ? (
         <div className="flex flex-col gap-2 px-3.5 py-3">

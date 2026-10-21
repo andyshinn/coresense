@@ -105,9 +105,9 @@ export interface Contact {
   favourite?: boolean;
   /** Which telemetry this contact may read from MY radio when that group's
    *  TelemetryPolicy mode is 1 (per contact) — firmware contact flags bits
-   *  1–3. Copied from meshcore-ts ≥ 0.9's Contact; undefined on older libs
-   *  (DiscoveredContact.telemetryPerms, read from the stored flags byte, is
-   *  always present). */
+   *  1–3. Copied from meshcore-ts's Contact; undefined on a placeholder the
+   *  radio never reported (DiscoveredContact.telemetryPerms, read from the
+   *  stored flags byte, is always present). */
   telemetryPerms?: TelemetryPerms;
   muted?: boolean;
   /** Hex-encoded out-path bytes (no separators) mirroring the firmware's
@@ -136,7 +136,7 @@ export interface Contact {
 
 /** Per-contact telemetry permissions: firmware contact flags `>> 1`, bit 1
  *  base (battery, MCU temperature), bit 2 location, bit 3 environment. Bit 0
- *  of the same byte is the favourite flag. Mirrors meshcore-ts 0.9's
+ *  of the same byte is the favourite flag. Mirrors meshcore-ts's
  *  TelemetryPerms; redeclared because the renderer can't import the library. */
 export interface TelemetryPerms {
   base: boolean;

@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoutes } from '../../../src/main/api/routes';
 import { bus } from '../../../src/main/events/bus';
 import { setProtocolSession } from '../../../src/main/protocol';
-import { LibUnsupportedError } from '../../../src/main/protocol/errors';
 import type { SessionAdapter } from '../../../src/main/protocol/sessionAdapter';
 import { flushContactSyncEmits } from '../../../src/main/state/contactSync';
 import { endContactWalk, noteContactWalkStreaming } from '../../../src/main/state/contactWalk';
@@ -54,23 +53,13 @@ const put = (path: string, body: unknown) =>
 function fakeSession(over: Record<string, unknown> = {}) {
   const session = {
     hasRadioContact: () => true,
-    binaryRequestReportsSent: () => false,
-    supportsSelfTelemetry: () => false,
     sendBinaryRequest: vi.fn(async () => hexToBytes('017401a9') as Uint8Array),
-    requestSelfTelemetry: vi.fn(async () => {
-      throw new LibUnsupportedError('requestSelfTelemetry');
-    }),
+    requestSelfTelemetry: vi.fn(async () => hexToBytes('0174019f') as Uint8Array),
     repeaterRequestAcl: vi.fn(async () => []),
     repeaterTracePath: vi.fn(async () => ({})),
-    setContactTelemetryPerms: vi.fn(async () => {
-      throw new LibUnsupportedError('setContactTelemetryPerms');
-    }),
-    requestCustomVarsMap: vi.fn(async () => {
-      throw new LibUnsupportedError('requestCustomVars');
-    }),
-    setCustomVar: vi.fn(async () => {
-      throw new LibUnsupportedError('setCustomVar');
-    }),
+    setContactTelemetryPerms: vi.fn(async () => true),
+    requestCustomVars: vi.fn(async () => ({})),
+    setCustomVar: vi.fn(async () => true),
     setOtherParams: vi.fn(async () => true),
     readTelemetryPolicy: vi.fn(async (): Promise<TelemetryPolicy> => ({ base: 2, loc: 0, env: 1, multiAcks: 0 })),
     // Read by the snapshot route.
@@ -161,7 +150,7 @@ describe('POST /api/telemetry/:nodeKey/request', () => {
     expect((await post('/api/telemetry/ch%3APublic/request')).status).toBe(400);
   });
 
-  it('maps pre-send failures to 503 / 422 / 501 / 409 and saves none of them', async () => {
+  it('maps pre-send failures to 503 / 422 / 409 and saves none of them', async () => {
     transportManager.setState('idle');
     fakeSession();
     expect((await post(`/api/telemetry/${KEY}/request`)).status).toBe(503);
@@ -172,12 +161,7 @@ describe('POST /api/telemetry/:nodeKey/request', () => {
     expect(notOnRadio.status).toBe(422);
     expect(await notOnRadio.json()).toMatchObject({ code: 'not_on_radio' });
 
-    // The owner's own key reads the companion radio, which 0.8.1 can't.
     fakeSession();
-    const self = await post(`/api/telemetry/${OWNER}/request`);
-    expect(self.status).toBe(501);
-    expect(await self.json()).toMatchObject({ code: 'lib_unsupported' });
-
     const release = tryAcquireMeshLock('cli', 'ee'.repeat(32));
     try {
       const busy = await post(`/api/telemetry/${KEY}/request`);
@@ -199,7 +183,8 @@ describe('POST /api/telemetry/:nodeKey/request', () => {
     await vi.waitFor(() => expect(session.sendBinaryRequest).toHaveBeenCalled());
 
     const snapshot = (await (await app().request('/api/state/snapshot')).json()) as StateSnapshot;
-    expect(snapshot.telemetryInFlight).toEqual([expect.objectContaining({ nodeKey: PK, deadlineAt: expect.any(Number) })]);
+    // No deadline until RESP_SENT reports the radio's estimate.
+    expect(snapshot.telemetryInFlight).toEqual([expect.objectContaining({ nodeKey: PK, deadlineAt: null })]);
 
     const acl = await post(`/api/repeater/${KEY}/acl`);
     expect(acl.status).toBe(409);
@@ -352,13 +337,6 @@ describe('PUT /api/contacts/:key/telemetry-perms', () => {
     expect(row()?.telemetryPerms).toEqual({ base: false, loc: true, env: false });
   });
 
-  it('answers 501 lib_unsupported on meshcore-ts 0.8.1', async () => {
-    fakeSession();
-    const res = await put(`/api/contacts/${KEY}/telemetry-perms`, { base: true, loc: false, env: true });
-    expect(res.status).toBe(501);
-    expect(await res.json()).toMatchObject({ code: 'lib_unsupported' });
-  });
-
   it('writes through the library, then mirrors the bits keeping the favourite bit', async () => {
     seedDiscovered(0b0001);
     const setContactTelemetryPerms = vi.fn(async () => true);
@@ -396,39 +374,32 @@ describe('PUT /api/contacts/:key/telemetry-perms', () => {
 });
 
 describe('/api/device/custom-vars', () => {
-  it('answers 501 lib_unsupported on meshcore-ts 0.8.1, and 503 offline', async () => {
-    fakeSession();
-    const res = await app().request('/api/device/custom-vars');
-    expect(res.status).toBe(501);
-    expect(await res.json()).toMatchObject({ code: 'lib_unsupported' });
-    expect((await put('/api/device/custom-vars', { key: 'gps', value: '1' })).status).toBe(501);
+  it('answers 503 offline, and 503 when the read fails', async () => {
+    fakeSession({ requestCustomVars: vi.fn(async () => Promise.reject(new Error('unsupported'))) });
+    expect((await app().request('/api/device/custom-vars')).status).toBe(503);
 
     transportManager.setState('idle');
     expect((await app().request('/api/device/custom-vars')).status).toBe(503);
+    expect((await put('/api/device/custom-vars', { key: 'gps', value: '1' })).status).toBe(503);
   });
 
   it('returns the raw map, {} meaning no GPS hardware', async () => {
-    fakeSession({ requestCustomVarsMap: vi.fn(async () => ({})) });
+    fakeSession({ requestCustomVars: vi.fn(async () => ({})) });
     expect(await (await app().request('/api/device/custom-vars')).json()).toEqual({});
-    fakeSession({ requestCustomVarsMap: vi.fn(async () => ({ gps: '1' })) });
+    fakeSession({ requestCustomVars: vi.fn(async () => ({ gps: '1' })) });
     expect(await (await app().request('/api/device/custom-vars')).json()).toEqual({ gps: '1' });
   });
 
-  it('writes one key, remembering the write-only gps_interval in GpsConfig', async () => {
+  it('writes one key, answering a refusal on its own', async () => {
     const setCustomVar = vi.fn(async (key: string) => key !== 'gps_interval');
     fakeSession({ setCustomVar });
 
     expect((await put('/api/device/custom-vars', { key: 'gps', value: '1' })).status).toBe(200);
-    expect(stateHolder().getGpsConfig().enabled).toBe(true);
+    expect(setCustomVar).toHaveBeenCalledWith('gps', '1');
 
     // T1000 refuses the interval: a partial save the UI reports on its own.
     const rejected = await put('/api/device/custom-vars', { key: 'gps_interval', value: '900' });
     expect(rejected.status).toBe(503);
-    expect(stateHolder().getGpsConfig().intervalSec).toBe(DEFAULT_GPS_CONFIG.intervalSec);
-
-    fakeSession({ setCustomVar: vi.fn(async () => true) });
-    await put('/api/device/custom-vars', { key: 'gps_interval', value: '900' });
-    expect(stateHolder().getGpsConfig().intervalSec).toBe(900);
 
     expect((await put('/api/device/custom-vars', { key: 'a:b', value: '1' })).status).toBe(400);
     expect((await put('/api/device/custom-vars', { key: 'gps', value: 1 })).status).toBe(400);
@@ -436,7 +407,7 @@ describe('/api/device/custom-vars', () => {
 });
 
 describe('POST /api/device/refresh — custom vars', () => {
-  it('asks once (firmware returns every var whatever the key) and survives a 0.9-style rejection', async () => {
+  it('asks once (firmware returns every var whatever the key) and survives a rejection', async () => {
     const requestCustomVars = vi.fn(async () => {
       throw new Error('RESP_ERR: unsupported command');
     });

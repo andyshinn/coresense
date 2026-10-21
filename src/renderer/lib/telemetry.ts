@@ -198,25 +198,18 @@ export function isTelemetryRequesting(nodeKey: string): boolean {
  * POST per node from this renderer: main joins a second click to the first,
  * so both would resolve with the same request and toast twice. A click while
  * one is out (a double click, or the rail's and the tab's buttons) is
- * dropped. `onError` handles a rejected POST before the default toast;
- * return true when it did.
+ * dropped.
  */
-export function requestTelemetryOnce(
-  client: ApiClient,
-  nodeKey: string,
-  source: TelemetrySource,
-  onError?: (err: unknown) => boolean,
-): Promise<void> {
+export function requestTelemetryOnce(client: ApiClient, nodeKey: string, source: TelemetrySource): Promise<void> {
   const key = telemetryNodeKey(nodeKey);
   if (!key) return Promise.resolve();
   const pending = requesting.get(key);
   if (pending) return pending;
   const run = api
     .requestTelemetry(client, nodeKey)
-    .then(notifyTelemetryOutcome, (err: unknown) => {
-      if (onError?.(err)) return;
-      notify.error(`${TELEMETRY_COPY[source].failed}: ${telemetryRequestError(err)}`, err);
-    })
+    .then(notifyTelemetryOutcome, (err: unknown) =>
+      notify.error(`${TELEMETRY_COPY[source].failed}: ${telemetryRequestError(err)}`, err),
+    )
     .finally(() => requesting.delete(key));
   requesting.set(key, run);
   return run;

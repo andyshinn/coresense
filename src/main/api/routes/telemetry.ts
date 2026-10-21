@@ -46,11 +46,6 @@ export function registerTelemetryRoutes(api: Hono): void {
         return c.json({ error: 'contact is not on the radio', code: 'not_on_radio' } satisfies ApiErrorBody, 422);
       case 'busy':
         return c.json(radioBusyBody(res.holder), 409);
-      case 'unsupported':
-        return c.json(
-          { error: `${res.feature} needs a newer meshcore-ts`, code: 'lib_unsupported' } satisfies ApiErrorBody,
-          501,
-        );
       default:
         return c.json({ error: res.message }, 503);
     }

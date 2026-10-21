@@ -51,9 +51,7 @@ export type ApiErrorCode =
   /** The link to the radio failed mid-request (503). */
   | 'transport'
   /** Another awaited mesh request holds the radio (409); see `owner`. */
-  | 'radio_busy'
-  /** The installed meshcore-ts lacks the API the route needs (501). */
-  | 'lib_unsupported';
+  | 'radio_busy';
 
 export interface ApiErrorBody {
   error: string;

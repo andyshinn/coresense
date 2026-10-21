@@ -13,10 +13,10 @@ importers:
     dependencies:
       '@stoprocent/noble':
         specifier: ^2.5.9
-        version: 2.5.9
+        version: 2.5.9(supports-color@7.2.0)
       electron-squirrel-startup:
         specifier: ^1.0.1
-        version: 1.0.1
+        version: 1.0.1(supports-color@7.2.0)
       ws:
         specifier: ^8.21.1
         version: 8.21.1
@@ -25,8 +25,8 @@ importers:
         specifier: ^0.1.1
         version: 0.1.1
       '@andyshinn/meshcore-ts':
-        specifier: ^0.8.1
-        version: 0.8.1
+        specifier: ^0.9.0
+        version: 0.9.0
       '@biomejs/biome':
         specifier: ^2.5.5
         version: 2.5.5
@@ -41,37 +41,37 @@ importers:
         version: 3.2.2(react@19.2.8)
       '@electron-forge/cli':
         specifier: ^8.0.1
-        version: 8.0.1(@types/react@19.2.17)
+        version: 8.0.1(@types/react@19.2.17)(supports-color@7.2.0)
       '@electron-forge/maker-deb':
         specifier: ^8.0.1
-        version: 8.0.1
+        version: 8.0.1(supports-color@7.2.0)
       '@electron-forge/maker-dmg':
         specifier: ^8.0.1
-        version: 8.0.1
+        version: 8.0.1(supports-color@7.2.0)
       '@electron-forge/maker-rpm':
         specifier: ^8.0.1
-        version: 8.0.1
+        version: 8.0.1(supports-color@7.2.0)
       '@electron-forge/maker-squirrel':
         specifier: ^8.0.1
-        version: 8.0.1
+        version: 8.0.1(supports-color@7.2.0)
       '@electron-forge/maker-zip':
         specifier: ^8.0.1
-        version: 8.0.1
+        version: 8.0.1(supports-color@7.2.0)
       '@electron-forge/plugin-auto-unpack-natives':
         specifier: ^8.0.1
-        version: 8.0.1
+        version: 8.0.1(supports-color@7.2.0)
       '@electron-forge/plugin-fuses':
         specifier: ^8.0.1
-        version: 8.0.1(@electron/fuses@2.1.3)
+        version: 8.0.1(@electron/fuses@2.1.3)(supports-color@7.2.0)
       '@electron-forge/plugin-vite':
         specifier: ^8.0.1
-        version: 8.0.1
+        version: 8.0.1(supports-color@7.2.0)
       '@electron-forge/publisher-github':
         specifier: ^8.0.1
-        version: 8.0.1
+        version: 8.0.1(supports-color@7.2.0)
       '@electron-forge/shared-types':
         specifier: ^8.0.1
-        version: 8.0.1
+        version: 8.0.1(supports-color@7.2.0)
       '@electron/fuses':
         specifier: ^2.1.3
         version: 2.1.3
@@ -143,7 +143,7 @@ importers:
         version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       electron:
         specifier: ^44.3.0
-        version: 44.3.0
+        version: 44.3.0(supports-color@7.2.0)
       emojibase-data:
         specifier: ^17.0.0
         version: 17.0.0(emojibase@17.0.0)
@@ -212,7 +212,7 @@ importers:
         version: 7.0.2
       unplugin-info:
         specifier: ^1.3.2
-        version: 1.3.2(vite@8.1.5(@types/node@24.13.3)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))(webpack@5.109.0)
+        version: 1.3.2(supports-color@7.2.0)(vite@8.1.5(@types/node@24.13.3)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))(webpack@5.109.0(lightningcss@1.33.0)(postcss@8.5.22))
       update-electron-app:
         specifier: ^3.3.0
         version: 3.3.0
@@ -246,8 +246,8 @@ packages:
     resolution: {integrity: sha512-H3XmAG1v2pN0fM1Yd0hSiIWT7EhONc3mOWlZkAMhjDfWPgHMOkTqCVCNkDMRoDpfFXl4+WfRodAWE7GJxuSpEQ==}
     engines: {node: '>=20.19.0'}
 
-  '@andyshinn/meshcore-ts@0.8.1':
-    resolution: {integrity: sha512-ZL1S6YlTxC19VtUBvDQSGuA6XJr+d6tUe7OVQQ+j72heJskvfeu0/njaMrkmJ0VVW8WEgwN0dM+8zAiPyZcUrg==}
+  '@andyshinn/meshcore-ts@0.9.0':
+    resolution: {integrity: sha512-hJ/19QOyce4tDFQRJOkCAgw1Y9KkN6VoIH9k635M8zUJXekjSP20FCUviQEkwR1BrGzE9HYMlcSe1pmF952e/g==}
     engines: {node: '>=22'}
 
   '@asamuzakjp/css-color@5.1.11':
@@ -2045,11 +2045,6 @@ packages:
 
   ajv-formats@2.1.1:
     resolution: {integrity: sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA==}
-    peerDependencies:
-      ajv: ^8.0.0
-    peerDependenciesMeta:
-      ajv:
-        optional: true
 
   ajv-keywords@5.1.0:
     resolution: {integrity: sha512-YCS/JNFAUyr5vAuhk1DWm1CBxRHW9LbJ2ozWeemrIqpbsqKjHVxYPyi5GC0rjZIT5JxJ3virVTS8wk4i/Z+krw==}
@@ -4201,7 +4196,7 @@ snapshots:
     dependencies:
       execa: 9.6.1
 
-  '@andyshinn/meshcore-ts@0.8.1': {}
+  '@andyshinn/meshcore-ts@0.9.0': {}
 
   '@asamuzakjp/css-color@5.1.11':
     dependencies:
@@ -4334,14 +4329,14 @@ snapshots:
       react: 19.2.8
       tslib: 2.8.1
 
-  '@electron-forge/cli@8.0.1(@types/react@19.2.17)':
+  '@electron-forge/cli@8.0.1(@types/react@19.2.17)(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/core': 8.0.1(@types/react@19.2.17)
-      '@electron-forge/core-utils': 8.0.1
-      '@electron-forge/shared-types': 8.0.1
-      '@electron/get': 5.1.0
+      '@electron-forge/core': 8.0.1(@types/react@19.2.17)(supports-color@7.2.0)
+      '@electron-forge/core-utils': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
+      '@electron/get': 5.1.0(supports-color@7.2.0)
       commander: 11.1.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       listr2: 11.4.0
       semver: 7.8.5
     transitivePeerDependencies:
@@ -4351,29 +4346,29 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@electron-forge/core-utils@8.0.1':
+  '@electron-forge/core-utils@8.0.1(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/shared-types': 8.0.1
-      '@electron/rebuild': 4.2.1
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
+      '@electron/rebuild': 4.2.1(supports-color@7.2.0)
       '@malept/cross-spawn-promise': 2.0.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       graceful-fs: 4.2.11
       semver: 7.8.5
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-forge/core@8.0.1(@types/react@19.2.17)':
+  '@electron-forge/core@8.0.1(@types/react@19.2.17)(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/core-utils': 8.0.1
-      '@electron-forge/maker-base': 8.0.1
-      '@electron-forge/multi-logger': 8.0.1(@types/react@19.2.17)
-      '@electron-forge/plugin-base': 8.0.1
-      '@electron-forge/publisher-base': 8.0.1
-      '@electron-forge/shared-types': 8.0.1
+      '@electron-forge/core-utils': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/maker-base': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/multi-logger': 8.0.1(@types/react@19.2.17)(supports-color@7.2.0)
+      '@electron-forge/plugin-base': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/publisher-base': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
       '@electron-forge/tracer': 8.0.1
-      '@electron/get': 5.1.0
-      '@electron/packager': 20.3.0
-      debug: 4.4.3
+      '@electron/get': 5.1.0(supports-color@7.2.0)
+      '@electron/packager': 20.3.0(supports-color@7.2.0)
+      debug: 4.4.3(supports-color@7.2.0)
       graceful-fs: 4.2.11
       jiti: 2.7.0
       listr2: 11.4.0
@@ -4385,62 +4380,62 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@electron-forge/maker-base@8.0.1':
+  '@electron-forge/maker-base@8.0.1(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/shared-types': 8.0.1
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
       which: 6.0.1
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-forge/maker-deb@8.0.1':
+  '@electron-forge/maker-deb@8.0.1(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/maker-base': 8.0.1
-      '@electron-forge/shared-types': 8.0.1
+      '@electron-forge/maker-base': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
     optionalDependencies:
-      electron-installer-debian: 4.0.0
+      electron-installer-debian: 4.0.0(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-forge/maker-dmg@8.0.1':
+  '@electron-forge/maker-dmg@8.0.1(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/maker-base': 8.0.1
-      '@electron-forge/shared-types': 8.0.1
+      '@electron-forge/maker-base': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
     optionalDependencies:
-      electron-installer-dmg: 5.0.1
+      electron-installer-dmg: 5.0.1(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-forge/maker-rpm@8.0.1':
+  '@electron-forge/maker-rpm@8.0.1(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/maker-base': 8.0.1
-      '@electron-forge/shared-types': 8.0.1
+      '@electron-forge/maker-base': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
     optionalDependencies:
-      electron-installer-redhat: 4.0.0
+      electron-installer-redhat: 4.0.0(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-forge/maker-squirrel@8.0.1':
+  '@electron-forge/maker-squirrel@8.0.1(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/core-utils': 8.0.1
-      '@electron-forge/maker-base': 8.0.1
-      '@electron-forge/shared-types': 8.0.1
+      '@electron-forge/core-utils': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/maker-base': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
     optionalDependencies:
-      electron-winstaller: 5.4.4
+      electron-winstaller: 5.4.4(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-forge/maker-zip@8.0.1':
+  '@electron-forge/maker-zip@8.0.1(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/core-utils': 8.0.1
-      '@electron-forge/maker-base': 8.0.1
-      '@electron-forge/shared-types': 8.0.1
+      '@electron-forge/core-utils': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/maker-base': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
       cross-zip: 4.0.1
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-forge/multi-logger@8.0.1(@types/react@19.2.17)':
+  '@electron-forge/multi-logger@8.0.1(@types/react@19.2.17)(supports-color@7.2.0)':
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       ink: 7.1.1(@types/react@19.2.17)(react@19.2.8)
       react: 19.2.8
       string-width: 8.3.0
@@ -4452,62 +4447,62 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@electron-forge/plugin-auto-unpack-natives@8.0.1':
+  '@electron-forge/plugin-auto-unpack-natives@8.0.1(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/plugin-base': 8.0.1
-      '@electron-forge/shared-types': 8.0.1
+      '@electron-forge/plugin-base': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-forge/plugin-base@8.0.1':
+  '@electron-forge/plugin-base@8.0.1(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/shared-types': 8.0.1
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-forge/plugin-fuses@8.0.1(@electron/fuses@2.1.3)':
+  '@electron-forge/plugin-fuses@8.0.1(@electron/fuses@2.1.3)(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/plugin-base': 8.0.1
-      '@electron-forge/shared-types': 8.0.1
+      '@electron-forge/plugin-base': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
       '@electron/fuses': 2.1.3
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-forge/plugin-vite@8.0.1':
+  '@electron-forge/plugin-vite@8.0.1(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/core-utils': 8.0.1
-      '@electron-forge/plugin-base': 8.0.1
-      '@electron-forge/shared-types': 8.0.1
-      debug: 4.4.3
+      '@electron-forge/core-utils': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/plugin-base': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
+      debug: 4.4.3(supports-color@7.2.0)
       listr2: 11.4.0
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-forge/publisher-base@8.0.1':
+  '@electron-forge/publisher-base@8.0.1(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/shared-types': 8.0.1
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-forge/publisher-github@8.0.1':
+  '@electron-forge/publisher-github@8.0.1(supports-color@7.2.0)':
     dependencies:
-      '@electron-forge/publisher-base': 8.0.1
-      '@electron-forge/shared-types': 8.0.1
+      '@electron-forge/publisher-base': 8.0.1(supports-color@7.2.0)
+      '@electron-forge/shared-types': 8.0.1(supports-color@7.2.0)
       '@octokit/core': 5.2.2
       '@octokit/plugin-retry': 6.1.0(@octokit/core@5.2.2)
       '@octokit/request-error': 5.1.1
       '@octokit/rest': 20.1.2
       '@octokit/types': 6.41.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       mime-types: 2.1.35
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-forge/shared-types@8.0.1':
+  '@electron-forge/shared-types@8.0.1(supports-color@7.2.0)':
     dependencies:
       '@electron-forge/tracer': 8.0.1
-      '@electron/packager': 20.3.0
-      '@electron/rebuild': 4.2.1
+      '@electron/packager': 20.3.0(supports-color@7.2.0)
+      '@electron/rebuild': 4.2.1(supports-color@7.2.0)
       listr2: 11.4.0
     transitivePeerDependencies:
       - supports-color
@@ -4532,61 +4527,61 @@ snapshots:
 
   '@electron/fuses@2.1.3': {}
 
-  '@electron/get@5.0.0':
+  '@electron/get@5.0.0(supports-color@7.2.0)':
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       env-paths: 3.0.0
       graceful-fs: 4.2.11
       progress: 2.0.3
       semver: 7.8.5
-      sumchecker: 3.0.1
+      sumchecker: 3.0.1(supports-color@7.2.0)
     optionalDependencies:
       undici: 7.28.0
     transitivePeerDependencies:
       - supports-color
 
-  '@electron/get@5.1.0':
+  '@electron/get@5.1.0(supports-color@7.2.0)':
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       env-paths: 3.0.0
       graceful-fs: 4.2.11
       progress: 2.0.3
       semver: 7.8.5
-      sumchecker: 3.0.1
+      sumchecker: 3.0.1(supports-color@7.2.0)
     optionalDependencies:
       undici: 7.28.0
     transitivePeerDependencies:
       - supports-color
 
-  '@electron/notarize@3.1.2':
+  '@electron/notarize@3.1.2(supports-color@7.2.0)':
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       promise-retry: 2.0.1
     transitivePeerDependencies:
       - supports-color
 
-  '@electron/osx-sign@2.7.1':
+  '@electron/osx-sign@2.7.1(supports-color@7.2.0)':
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       isbinaryfile: 4.0.10
       plist: 3.1.1
       semver: 7.8.5
     transitivePeerDependencies:
       - supports-color
 
-  '@electron/packager@20.3.0':
+  '@electron/packager@20.3.0(supports-color@7.2.0)':
     dependencies:
       '@electron-internal/extract-zip': 1.0.4
       '@electron/asar': 4.3.1
-      '@electron/get': 5.0.0
-      '@electron/notarize': 3.1.2
-      '@electron/osx-sign': 2.7.1
-      '@electron/universal': 3.0.6
-      '@electron/windows-sign': 2.1.0
+      '@electron/get': 5.0.0(supports-color@7.2.0)
+      '@electron/notarize': 3.1.2(supports-color@7.2.0)
+      '@electron/osx-sign': 2.7.1(supports-color@7.2.0)
+      '@electron/universal': 3.0.6(supports-color@7.2.0)
+      '@electron/windows-sign': 2.1.0(supports-color@7.2.0)
       '@malept/cross-spawn-promise': 2.0.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       filenamify: 6.0.0
-      galactus: 2.0.2
+      galactus: 2.0.2(supports-color@7.2.0)
       graceful-fs: 4.2.11
       junk: 4.0.1
       plist: 3.1.1
@@ -4596,29 +4591,29 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron/rebuild@4.2.1':
+  '@electron/rebuild@4.2.1(supports-color@7.2.0)':
     dependencies:
       '@malept/cross-spawn-promise': 2.0.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       node-abi: 4.38.0
       node-api-version: 0.2.1
       node-gyp: 12.4.0
-      read-binary-file-arch: 1.0.6
+      read-binary-file-arch: 1.0.6(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  '@electron/universal@3.0.6':
+  '@electron/universal@3.0.6(supports-color@7.2.0)':
     dependencies:
       '@electron/asar': 4.3.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       plist: 3.1.1
     transitivePeerDependencies:
       - supports-color
 
-  '@electron/windows-sign@1.2.2':
+  '@electron/windows-sign@1.2.2(supports-color@7.2.0)':
     dependencies:
       cross-dirname: 0.1.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       fs-extra: 11.4.0
       minimist: 1.2.8
       postject: 1.0.0-alpha.6
@@ -4626,9 +4621,9 @@ snapshots:
       - supports-color
     optional: true
 
-  '@electron/windows-sign@2.1.0':
+  '@electron/windows-sign@2.1.0(supports-color@7.2.0)':
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       graceful-fs: 4.2.11
       postject: 1.0.0-alpha.6
     transitivePeerDependencies:
@@ -4702,9 +4697,9 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@kwsites/file-exists@1.1.1':
+  '@kwsites/file-exists@1.1.1(supports-color@7.2.0)':
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -5660,19 +5655,19 @@ snapshots:
 
   '@sec-ant/readable-stream@0.4.1': {}
 
-  '@serialport/binding-mock@10.2.2':
+  '@serialport/binding-mock@10.2.2(supports-color@7.2.0)':
     dependencies:
       '@serialport/bindings-interface': 1.2.2
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
     optional: true
 
-  '@serialport/bindings-cpp@12.0.1':
+  '@serialport/bindings-cpp@12.0.1(supports-color@7.2.0)':
     dependencies:
       '@serialport/bindings-interface': 1.2.2
       '@serialport/parser-readline': 11.0.0
-      debug: 4.3.4
+      debug: 4.3.4(supports-color@7.2.0)
       node-addon-api: 7.0.0
       node-gyp-build: 4.6.0
     transitivePeerDependencies:
@@ -5722,10 +5717,10 @@ snapshots:
   '@serialport/parser-spacepacket@12.0.0':
     optional: true
 
-  '@serialport/stream@12.0.0':
+  '@serialport/stream@12.0.0(supports-color@7.2.0)':
     dependencies:
       '@serialport/bindings-interface': 1.2.2
-      debug: 4.3.4
+      debug: 4.3.4(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
     optional: true
@@ -5740,28 +5735,28 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@stoprocent/bluetooth-hci-socket@2.2.6':
+  '@stoprocent/bluetooth-hci-socket@2.2.6(supports-color@7.2.0)':
     dependencies:
       async: 3.2.6
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       node-addon-api: 8.9.0
       node-gyp-build: 4.8.4
       patch-package: 8.0.1
-      serialport: 12.0.0
+      serialport: 12.0.0(supports-color@7.2.0)
     optionalDependencies:
       usb: 2.18.0
     transitivePeerDependencies:
       - supports-color
     optional: true
 
-  '@stoprocent/noble@2.5.9':
+  '@stoprocent/noble@2.5.9(supports-color@7.2.0)':
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       node-addon-api: 8.9.0
       node-gyp-build: 4.8.4
       patch-package: 8.0.1
     optionalDependencies:
-      '@stoprocent/bluetooth-hci-socket': 2.2.6
+      '@stoprocent/bluetooth-hci-socket': 2.2.6(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -6148,8 +6143,8 @@ snapshots:
 
   acorn@8.17.0: {}
 
-  ajv-formats@2.1.1(ajv@8.20.0):
-    optionalDependencies:
+  ajv-formats@2.1.1:
+    dependencies:
       ajv: 8.20.0
     optional: true
 
@@ -6457,18 +6452,24 @@ snapshots:
     transitivePeerDependencies:
       - '@noble/hashes'
 
-  debug@2.6.9:
+  debug@2.6.9(supports-color@7.2.0):
     dependencies:
       ms: 2.0.0
+    optionalDependencies:
+      supports-color: 7.2.0
 
-  debug@4.3.4:
+  debug@4.3.4(supports-color@7.2.0):
     dependencies:
       ms: 2.1.2
+    optionalDependencies:
+      supports-color: 7.2.0
     optional: true
 
-  debug@4.4.3:
+  debug@4.4.3(supports-color@7.2.0):
     dependencies:
       ms: 2.1.3
+    optionalDependencies:
+      supports-color: 7.2.0
 
   decimal.js@10.6.0: {}
 
@@ -6507,11 +6508,11 @@ snapshots:
 
   earcut@3.2.3: {}
 
-  electron-installer-common@0.10.4:
+  electron-installer-common@0.10.4(supports-color@7.2.0):
     dependencies:
       '@electron/asar': 3.4.1
       '@malept/cross-spawn-promise': 1.1.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       fs-extra: 9.1.0
       glob: 7.2.3
       lodash: 4.18.1
@@ -6524,11 +6525,11 @@ snapshots:
       - supports-color
     optional: true
 
-  electron-installer-debian@4.0.0:
+  electron-installer-debian@4.0.0(supports-color@7.2.0):
     dependencies:
       '@malept/cross-spawn-promise': 2.0.0
-      debug: 4.4.3
-      electron-installer-common: 0.10.4
+      debug: 4.4.3(supports-color@7.2.0)
+      electron-installer-common: 0.10.4(supports-color@7.2.0)
       parse-author: 2.0.0
       word-wrap: 1.2.5
       yargs: 18.2.0
@@ -6536,10 +6537,10 @@ snapshots:
       - supports-color
     optional: true
 
-  electron-installer-dmg@5.0.1:
+  electron-installer-dmg@5.0.1(supports-color@7.2.0):
     dependencies:
       '@types/appdmg': 0.5.5
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       minimist: 1.2.8
     optionalDependencies:
       appdmg: 0.6.6
@@ -6547,11 +6548,11 @@ snapshots:
       - supports-color
     optional: true
 
-  electron-installer-redhat@4.0.0:
+  electron-installer-redhat@4.0.0(supports-color@7.2.0):
     dependencies:
       '@malept/cross-spawn-promise': 2.0.0
-      debug: 4.4.3
-      electron-installer-common: 0.10.4
+      debug: 4.4.3(supports-color@7.2.0)
+      electron-installer-common: 0.10.4(supports-color@7.2.0)
       which: 5.0.0
       word-wrap: 1.2.5
       yargs: 18.2.0
@@ -6559,33 +6560,33 @@ snapshots:
       - supports-color
     optional: true
 
-  electron-squirrel-startup@1.0.1:
+  electron-squirrel-startup@1.0.1(supports-color@7.2.0):
     dependencies:
-      debug: 2.6.9
+      debug: 2.6.9(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
   electron-to-chromium@1.5.375:
     optional: true
 
-  electron-winstaller@5.4.4:
+  electron-winstaller@5.4.4(supports-color@7.2.0):
     dependencies:
       '@electron/asar': 3.4.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       fs-extra: 7.0.1
       lodash: 4.18.1
       semver: 7.8.5
       temp: 0.9.4
     optionalDependencies:
-      '@electron/windows-sign': 1.2.2
+      '@electron/windows-sign': 1.2.2(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
     optional: true
 
-  electron@44.3.0:
+  electron@44.3.0(supports-color@7.2.0):
     dependencies:
       '@electron-internal/extract-zip': 1.0.4
-      '@electron/get': 5.0.0
+      '@electron/get': 5.0.0(supports-color@7.2.0)
       '@types/node': 24.13.3
     transitivePeerDependencies:
       - supports-color
@@ -6722,9 +6723,9 @@ snapshots:
     dependencies:
       micromatch: 4.0.8
 
-  flora-colossus@3.0.2:
+  flora-colossus@3.0.2(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -6786,10 +6787,10 @@ snapshots:
 
   function-bind@1.1.2: {}
 
-  galactus@2.0.2:
+  galactus@2.0.2(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
-      flora-colossus: 3.0.2
+      debug: 4.4.3(supports-color@7.2.0)
+      flora-colossus: 3.0.2(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -7315,13 +7316,16 @@ snapshots:
 
   minimist@1.2.8: {}
 
-  minimizer-webpack-plugin@5.6.1(webpack@5.109.0):
+  minimizer-webpack-plugin@5.6.1(lightningcss@1.33.0)(postcss@8.5.22)(webpack@5.109.0(lightningcss@1.33.0)(postcss@8.5.22)):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
       schema-utils: 4.3.3
       terser: 5.49.0
-      webpack: 5.109.0
+      webpack: 5.109.0(lightningcss@1.33.0)(postcss@8.5.22)
+    optionalDependencies:
+      lightningcss: 1.33.0
+      postcss: 8.5.22
     optional: true
 
   minipass@7.1.3: {}
@@ -7714,9 +7718,9 @@ snapshots:
 
   react@19.2.8: {}
 
-  read-binary-file-arch@1.0.6:
+  read-binary-file-arch@1.0.6(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -7785,7 +7789,7 @@ snapshots:
     dependencies:
       '@types/json-schema': 7.0.15
       ajv: 8.20.0
-      ajv-formats: 2.1.1(ajv@8.20.0)
+      ajv-formats: 2.1.1
       ajv-keywords: 5.1.0(ajv@8.20.0)
     optional: true
 
@@ -7794,10 +7798,10 @@ snapshots:
 
   semver@7.8.5: {}
 
-  serialport@12.0.0:
+  serialport@12.0.0(supports-color@7.2.0):
     dependencies:
-      '@serialport/binding-mock': 10.2.2
-      '@serialport/bindings-cpp': 12.0.1
+      '@serialport/binding-mock': 10.2.2(supports-color@7.2.0)
+      '@serialport/bindings-cpp': 12.0.1(supports-color@7.2.0)
       '@serialport/parser-byte-length': 12.0.0
       '@serialport/parser-cctalk': 12.0.0
       '@serialport/parser-delimiter': 12.0.0
@@ -7808,8 +7812,8 @@ snapshots:
       '@serialport/parser-regex': 12.0.0
       '@serialport/parser-slip-encoder': 12.0.0
       '@serialport/parser-spacepacket': 12.0.0
-      '@serialport/stream': 12.0.0
-      debug: 4.3.4
+      '@serialport/stream': 12.0.0(supports-color@7.2.0)
+      debug: 4.3.4(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
     optional: true
@@ -7843,13 +7847,13 @@ snapshots:
 
   signal-exit@4.1.0: {}
 
-  simple-git@3.36.0:
+  simple-git@3.36.0(supports-color@7.2.0):
     dependencies:
-      '@kwsites/file-exists': 1.1.1
+      '@kwsites/file-exists': 1.1.1(supports-color@7.2.0)
       '@kwsites/promise-deferred': 1.1.1
       '@simple-git/args-pathspec': 1.0.3
       '@simple-git/argv-parser': 1.1.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -7908,9 +7912,9 @@ snapshots:
 
   strip-final-newline@4.0.0: {}
 
-  sumchecker@3.0.1:
+  sumchecker@3.0.1(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -8060,15 +8064,15 @@ snapshots:
   unorm@1.6.0:
     optional: true
 
-  unplugin-info@1.3.2(vite@8.1.5(@types/node@24.13.3)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))(webpack@5.109.0):
+  unplugin-info@1.3.2(supports-color@7.2.0)(vite@8.1.5(@types/node@24.13.3)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))(webpack@5.109.0(lightningcss@1.33.0)(postcss@8.5.22)):
     dependencies:
       ci-info: 4.4.0
       git-url-parse: 16.1.0
-      simple-git: 3.36.0
+      simple-git: 3.36.0(supports-color@7.2.0)
       unplugin: 2.3.11
     optionalDependencies:
       vite: 8.1.5(@types/node@24.13.3)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0)
-      webpack: 5.109.0
+      webpack: 5.109.0(lightningcss@1.33.0)(postcss@8.5.22)
     transitivePeerDependencies:
       - supports-color
 
@@ -8185,7 +8189,7 @@ snapshots:
 
   webpack-virtual-modules@0.6.2: {}
 
-  webpack@5.109.0:
+  webpack@5.109.0(lightningcss@1.33.0)(postcss@8.5.22):
     dependencies:
       '@types/estree': 1.0.9
       '@types/json-schema': 7.0.15
@@ -8201,7 +8205,7 @@ snapshots:
       events: 3.3.0
       graceful-fs: 4.2.11
       mime-db: 1.54.0
-      minimizer-webpack-plugin: 5.6.1(webpack@5.109.0)
+      minimizer-webpack-plugin: 5.6.1(lightningcss@1.33.0)(postcss@8.5.22)(webpack@5.109.0(lightningcss@1.33.0)(postcss@8.5.22))
       neo-async: 2.6.2
       schema-utils: 4.3.3
       tapable: 2.3.3

@@ -7,11 +7,9 @@ import { TelemetryPanel, useTelemetryRequest } from '../../features/telemetry/Te
 import { LABEL_MONO, META, TelemetryButton } from '../../features/telemetry/ui';
 import type { ApiClient } from '../../lib/api';
 import { useApiClient } from '../../lib/apiClientContext';
-import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
-import { TELEMETRY_COPY, telemetryNoun, useSelectedTelemetryRequest, useTelemetryRequests } from '../../lib/telemetry';
+import { telemetryNoun, useSelectedTelemetryRequest, useTelemetryRequests } from '../../lib/telemetry';
 import { cn } from '../../lib/utils';
-import { isLibUnsupportedError, markLibUnsupported, NEEDS_LIB, useLibUnsupported } from './libSupport';
 import { PolicyCard } from './PolicyCard';
 import { GpsOffTile, SensorSettingsCard } from './SensorSettings';
 import { useSensorSettings } from './useSensorSettings';
@@ -27,29 +25,6 @@ const LINK =
 /** "BLE" / "USB", from the frames the radio last sent (BLE is the only link CoreSense opens today). */
 function useLinkName(): string {
   return useStore((s) => (s.packets[s.packets.length - 1]?.transportType === 'serial' ? 'USB' : 'BLE'));
-}
-
-/** A self read the library can't do: its own 501 handling, no generic toast. */
-function onReadError(err: unknown): boolean {
-  if (!isLibUnsupportedError(err)) return false;
-  markLibUnsupported();
-  notify.error(`${TELEMETRY_COPY.companion.failed}: needs meshcore-ts 0.9`, err);
-  return true;
-}
-
-function Unsupported() {
-  return (
-    <div
-      data-testid="myradio-unsupported"
-      className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center"
-    >
-      <Radio aria-hidden="true" className="size-5 text-cs-text-dim" />
-      <p className="max-w-sm text-[12px] leading-[18px] text-cs-text-muted">
-        Reading your radio’s telemetry needs meshcore-ts 0.9, which this build of CoreSense doesn’t include yet.
-      </p>
-      <p className="max-w-sm text-[11px] leading-4 text-cs-text-dim">Who can read it, below, still saves to the radio.</p>
-    </div>
-  );
 }
 
 function NoRadio() {
@@ -69,14 +44,13 @@ interface ActionRowProps {
   client: ApiClient | null;
   nodeKey: string;
   connected: boolean;
-  unsupported: boolean;
   logOpen: boolean;
   onToggleLog: () => void;
 }
 
 /** "MY TELEMETRY · read over BLE at 21:31:02 · no airtime used · 14 saved reads · [Read telemetry]" */
-function ActionRow({ client, nodeKey, connected, unsupported, logOpen, onToggleLog }: ActionRowProps) {
-  const control = useTelemetryRequest({ source: 'companion', nodeKey, client, onError: onReadError });
+function ActionRow({ client, nodeKey, connected, logOpen, onToggleLog }: ActionRowProps) {
+  const control = useTelemetryRequest({ source: 'companion', nodeKey, client });
   const count = useTelemetryRequests(nodeKey).length;
   const shown = useSelectedTelemetryRequest(nodeKey);
   const timeFormat = useStore((s) => s.appSettings.timeFormat);
@@ -87,7 +61,7 @@ function ActionRow({ client, nodeKey, connected, unsupported, logOpen, onToggleL
     : shown.outcome === 'ok'
       ? `read over ${link} at ${fmtClock(shown.requestedAt, timeFormat)} · no airtime used`
       : `last read failed at ${fmtClock(shown.requestedAt, timeFormat)}`;
-  const hint = unsupported ? NEEDS_LIB : !connected ? 'Connect your radio to read it' : null;
+  const hint = !connected ? 'Connect your radio to read it' : null;
 
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-cs-border px-5 py-2.5">
@@ -100,7 +74,7 @@ function ActionRow({ client, nodeKey, connected, unsupported, logOpen, onToggleL
       )}
       <TelemetryButton
         onClick={() => void control.request()}
-        disabled={control.disabled || unsupported || !connected}
+        disabled={control.disabled || !connected}
         title={hint ?? undefined}
       >
         <RefreshCw aria-hidden="true" />
@@ -116,7 +90,6 @@ export function MyRadioPanel() {
   const connected = useStore((s) => s.transportState === 'connected');
   const gpsLat = useStore((s) => s.deviceIdentity.lat);
   const gpsLon = useStore((s) => s.deviceIdentity.lon);
-  const unsupported = useLibUnsupported();
   const sensors = useSensorSettings(client, connected);
   const [logOpen, setLogOpen] = useState(false);
 
@@ -157,7 +130,6 @@ export function MyRadioPanel() {
             client={client}
             nodeKey={nodeKey}
             connected={connected}
-            unsupported={unsupported}
             logOpen={logOpen}
             onToggleLog={() => setLogOpen((o) => !o)}
           />
@@ -172,8 +144,6 @@ export function MyRadioPanel() {
               requestInLog={false}
               // Under "My telemetry" (h3); the policy and sensor cards stay h3 siblings.
               headingLevel={4}
-              onRequestError={onReadError}
-              empty={unsupported ? <Unsupported /> : undefined}
               selfTile={gpsOff ? <GpsOffTile /> : undefined}
             >
               <PolicyCard client={client} connected={connected} />

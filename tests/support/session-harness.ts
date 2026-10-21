@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { Transports } from '@andyshinn/meshcore-ts';
+import { Protocol, Transports } from '@andyshinn/meshcore-ts';
 import { setProtocolSession } from '../../src/main/protocol';
 import { SessionAdapter } from '../../src/main/protocol/sessionAdapter';
 import { transportManager } from '../../src/main/transport/manager';
@@ -13,6 +13,9 @@ export interface TestSession {
   /** Every outbound frame whose code byte is `code` (use Protocol.CMD), in
    *  send order. */
   sentWithCode(code: number): Buffer[];
+  /** Answer every later outbound frame whose code byte is in `codes` with
+   *  RESP_OK, as a radio accepting it would. */
+  ackCommands(...codes: number[]): void;
 }
 
 export interface TestSessionOptions {
@@ -52,6 +55,13 @@ export function makeTestSession(opts: TestSessionOptions = {}): TestSession {
     },
     sentWithCode(code) {
       return transport.sent.filter((f) => f[0] === code).map((f) => Buffer.from(f));
+    },
+    ackCommands(...codes) {
+      const send = transport.send.bind(transport);
+      transport.send = async (bytes: Uint8Array) => {
+        await send(bytes);
+        if (codes.includes(bytes[0])) transport.receiveHex(Buffer.from([Protocol.RESP.OK]).toString('hex'));
+      };
     },
   };
 }

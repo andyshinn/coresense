@@ -8,12 +8,11 @@ import { stateHolder } from '../state/holder';
 import { policyFromSelfInfo } from '../telemetry/policy';
 import { wireSessionEvents } from './adapterEvents';
 import { type LibAutoAddFlags, toLibAutoAdd } from './autoAddMapping';
-import { LibUnsupportedError } from './errors';
 
 const APP_NAME = 'coresense';
 const APP_VERSION = 1;
 
-/** RESP_SENT details for a binary request (meshcore-ts ≥ 0.9 `onSent`). */
+/** RESP_SENT details for a binary request (`onSent`). */
 export interface BinaryRequestSentInfo {
   /** The radio flooded the request (no stored path). */
   flood: boolean;
@@ -23,22 +22,10 @@ export interface BinaryRequestSentInfo {
 
 export interface BinaryRequestOptions {
   timeoutMs?: number;
-  /** ≥ 0.9: abort the wait (rejects with the signal's reason, releases the tag). */
+  /** Abort the wait (rejects with the signal's reason, releases the tag). */
   signal?: AbortSignal;
-  /** ≥ 0.9: fires once RESP_SENT arrives for this request. */
+  /** Fires once RESP_SENT arrives for this request. */
   onSent?: (info: BinaryRequestSentInfo) => void;
-}
-
-/** The slice of the meshcore-ts 0.9 session surface coresense calls but 0.8.1
- *  doesn't declare (MESHCORE-TS-SPEC.md). Optional members are absent on
- *  0.8.1 and are `typeof`-checked before every call. */
-interface TelemetryLib {
-  requestSelfTelemetry?: (opts?: { timeoutMs?: number }) => Promise<Buffer>;
-  sendBinaryRequest: (contactKey: string, reqData: Buffer, opts?: BinaryRequestOptions) => Promise<Buffer>;
-  setContactTelemetryPerms?: (contactKey: string, perms: TelemetryPerms) => Promise<boolean>;
-  /** 0.8.1 resolves void; ≥ 0.9 resolves the decoded key → value map. */
-  requestCustomVars: (key?: string) => Promise<unknown>;
-  setCustomVar?: (key: string, value: string) => Promise<boolean>;
 }
 
 /** Owns a MeshCoreSession and bridges its events into coresense's persistence
@@ -183,110 +170,45 @@ export class SessionAdapter {
     return this.session.sendStatusReq(key);
   }
 
-  // ---- Telemetry (meshcore-ts 0.9 surface, feature-detected) --------------
-  // These track MESHCORE-TS-SPEC.md. The library methods are reached through
-  // the local TelemetryLib view and checked with `typeof` at call time, so the
-  // app compiles and runs against 0.8.1 and lights up on 0.9 with no code
-  // change. A missing method throws LibUnsupportedError (routes → 501). If the
-  // library renames any of these, this block is the only place to update.
-
-  private get lib(): TelemetryLib {
-    return this.session as unknown as TelemetryLib;
-  }
-
-  /** Does the library offer `requestSelfTelemetry` (meshcore-ts ≥ 0.9)? */
-  supportsSelfTelemetry(): boolean {
-    return typeof this.lib.requestSelfTelemetry === 'function';
-  }
+  // ---- Telemetry -----------------------------------------------------------
 
   /** Read the connected radio's own telemetry: raw CayenneLPP, unpadded, no
    *  airtime. Rejects with the library's ProtocolError on RESP_ERR (firmware
    *  without self telemetry says "unsupported") and on timeout. */
   async requestSelfTelemetry(opts: { timeoutMs?: number } = {}): Promise<Uint8Array> {
-    const fn = this.lib.requestSelfTelemetry;
-    if (typeof fn !== 'function') throw new LibUnsupportedError('requestSelfTelemetry');
-    return new Uint8Array(await fn.call(this.session, opts));
-  }
-
-  /** Whether `sendBinaryRequest` honours `onSent` and `signal`. Neither can be
-   *  detected on the method itself — 0.8.1 accepts the options object and
-   *  silently ignores both — so this keys off `requestSelfTelemetry`, which
-   *  the same 0.9 release adds. Callers that pass `onSent` must still work
-   *  when it never fires. */
-  binaryRequestReportsSent(): boolean {
-    return this.supportsSelfTelemetry();
+    return new Uint8Array(await this.session.requestSelfTelemetry(opts));
   }
 
   /** CMD_SEND_BINARY_REQ to a stored contact, resolving the raw reply body
-   *  (tag stripped, mesh padding kept). `reqData` is `[REQ_TYPE, ...params]`.
-   *  `onSent`/`signal` only take effect on meshcore-ts ≥ 0.9 — see
-   *  binaryRequestReportsSent. */
+   *  (tag stripped, mesh padding kept). `reqData` is `[REQ_TYPE, ...params]`. */
   async sendBinaryRequest(key: string, reqData: Uint8Array, opts: BinaryRequestOptions = {}): Promise<Uint8Array> {
-    const reply: unknown = await this.lib.sendBinaryRequest(key, Buffer.from(reqData), opts);
-    // Through 0.8.x a trace racing this request can swap RESP_SENTs, and the
-    // waiter is then resolved with the TRACE_DATA object (the mesh lock now
-    // keeps trace out, but a foreign client on the same radio can't be). Copied
-    // as-is that is an empty array — a fake empty `ok` reply — so refuse it.
+    const reply: unknown = await this.session.sendBinaryRequest(key, Buffer.from(reqData), opts);
+    // A waiter resolved with anything but bytes (a RESP_SENT swapped with a
+    // foreign client's trace on the same radio resolves it with TRACE_DATA)
+    // would copy to an empty array — a fake empty `ok` reply — so refuse it.
     if (!(reply instanceof Uint8Array)) throw new Error('binary request resolved with a non-binary reply');
     return new Uint8Array(reply);
   }
 
-  /** Does the library offer `setContactTelemetryPerms` (meshcore-ts ≥ 0.9)? */
-  supportsContactTelemetryPerms(): boolean {
-    return typeof this.lib.setContactTelemetryPerms === 'function';
-  }
-
   /** Write a contact's telemetry permissions (flags bits 1–3), keeping the
    *  favourite bit. Resolves false when the radio refuses or times out. */
-  async setContactTelemetryPerms(key: string, perms: TelemetryPerms): Promise<boolean> {
-    const fn = this.lib.setContactTelemetryPerms;
-    if (typeof fn !== 'function') throw new LibUnsupportedError('setContactTelemetryPerms');
-    return fn.call(this.session, key, { base: perms.base, loc: perms.loc, env: perms.env });
-  }
-
-  /** Does the library return the custom-vars map and offer `setCustomVar`
-   *  (meshcore-ts ≥ 0.9)? 0.8.1's `requestCustomVars` resolves void, so the
-   *  generic setter is the marker for both. */
-  supportsCustomVars(): boolean {
-    return typeof this.lib.setCustomVar === 'function';
-  }
-
-  /** Every sensor setting the radio reports, e.g. `{ gps: '1' }`. `{}` is a
-   *  real answer (no GPS hardware), not a missing reply. */
-  async requestCustomVarsMap(): Promise<Record<string, string>> {
-    if (!this.supportsCustomVars()) throw new LibUnsupportedError('requestCustomVars');
-    const vars = await this.lib.requestCustomVars('');
-    // The library supports it (checked above), so no map means no answer — a
-    // radio still mid-handshake or reconnecting resolves void — not an old
-    // library: a plain error (503), never 501 "needs meshcore-ts 0.9".
-    if (!vars || typeof vars !== 'object') throw new Error('no custom vars reply from the radio');
-    const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(vars as Record<string, unknown>)) out[k] = String(v);
-    return out;
+  setContactTelemetryPerms(key: string, perms: TelemetryPerms): Promise<boolean> {
+    return this.session.setContactTelemetryPerms(key, { base: perms.base, loc: perms.loc, env: perms.env });
   }
 
   /** Write one sensor setting. Resolves false when the radio rejects it (T1000
-   *  refuses `gps_interval`) or doesn't answer. */
-  async setCustomVar(key: string, value: string): Promise<boolean> {
-    const fn = this.lib.setCustomVar;
-    if (typeof fn !== 'function') throw new LibUnsupportedError('setCustomVar');
-    const ok = await fn.call(this.session, key, value);
-    // Keep the library's GpsConfig mirror in step (see seedGpsConfig): its
-    // next `gpsConfig` emit must carry this write, not the value before it.
-    if (ok && (key === 'gps' || key === 'gps_interval')) {
-      const gps = this.session.state.getGpsConfig();
-      const interval = Number(value);
-      if (key === 'gps') this.session.state.setGpsConfig({ ...gps, enabled: value !== '0' });
-      else if (Number.isFinite(interval)) this.session.state.setGpsConfig({ ...gps, intervalSec: interval });
-    }
-    return ok;
+   *  refuses `gps_interval`) or doesn't answer. A `gps`/`gps_interval` write
+   *  also updates the library's GpsConfig and emits `gpsConfig`, which
+   *  adapterEvents commits. */
+  setCustomVar(key: string, value: string): Promise<boolean> {
+    return this.session.setCustomVar(key, value);
   }
 
   /** The telemetry modes and multi-acks the RADIO holds, read back from
-   *  RESP_SELF_INFO (bytes 44 and 46). APP_START is how firmware hands it out,
-   *  so this re-publishes the owner too — harmless, the values are the same.
-   *  Until meshcore-ts 0.9 folds SELF_INFO into its `telemetryPolicy` event,
-   *  this is the only way to learn the radio's policy rather than ours. */
+   *  RESP_SELF_INFO (bytes 44 and 46). The library folds every SELF_INFO into
+   *  its `telemetryPolicy` event, the handshake's included, so this is only
+   *  for a route that needs the policy before that has landed. APP_START is
+   *  how firmware hands it out, so this re-publishes the owner too. */
   async readTelemetryPolicy(): Promise<TelemetryPolicy> {
     return policyFromSelfInfo(await this.session.getSelfInfo());
   }
@@ -402,6 +324,9 @@ export class SessionAdapter {
   requestBattAndStorage() {
     return this.session.requestBattAndStorage();
   }
+  /** Every sensor setting the radio reports (CMD_GET_CUSTOM_VARS ignores the
+   *  key and returns them all), e.g. `{ gps: '1' }`. `{}` is a real answer
+   *  (no GPS hardware), not a missing reply. Also folds `gps` into GpsConfig. */
   requestCustomVars(key?: string) {
     return this.session.requestCustomVars(key);
   }

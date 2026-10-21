@@ -119,8 +119,7 @@ export function registerContactRoutes(api: Hono): void {
 
   // Per-contact telemetry permissions on MY radio (contact flags bits 1-3),
   // consulted only for a TelemetryPolicy mode of 1 (per contact). The library
-  // rewrites the whole contact record keeping the favourite bit; needs
-  // meshcore-ts >= 0.9 (501 `lib_unsupported` before that).
+  // rewrites the whole contact record keeping the favourite bit.
   api.put('/api/contacts/:key/telemetry-perms', async (c) => {
     const pubkey = pubkeyFromKey(c.req.param('key')).toLowerCase();
     const perms = await readJson(c, telemetryPermsSchema);

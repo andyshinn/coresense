@@ -1,5 +1,6 @@
 import { Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { errorMessage } from '../../../shared/errors';
 import type { TelemetryPerms } from '../../../shared/types';
 import { Checkbox } from '../../components/ui/checkbox';
 import { LABEL_CAPS, META } from '../../features/telemetry/ui';
@@ -9,7 +10,6 @@ import { notify } from '../../lib/notify';
 import { useStore } from '../../lib/store';
 import { cn } from '../../lib/utils';
 import { MODE_PER_CONTACT, PERM_GROUPS, type PermGroup, useFlagRows } from './flags';
-import { isLibUnsupportedError, markLibUnsupported, NEEDS_LIB, useLibUnsupported } from './libSupport';
 
 // My radio's rail: the per-contact telemetry flags of every chat contact on
 // the radio, editable inline. A column is live only while its policy mode is
@@ -34,7 +34,6 @@ export function TelemetryFlagsRail() {
   const rows = useFlagRows();
   const policy = useStore((s) => s.telemetryPolicy);
   const connected = useStore((s) => s.transportState === 'connected');
-  const unsupported = useLibUnsupported();
   const [query, setQuery] = useState('');
   // Optimistic values per contact until the store's copy catches up.
   const [pending, setPending] = useState<Record<string, TelemetryPerms>>({});
@@ -57,7 +56,7 @@ export function TelemetryFlagsRail() {
     return rows.filter((r) => r.name.toLowerCase().includes(q) || r.publicKeyHex.startsWith(q));
   }, [rows, query]);
 
-  const editable = !!client && connected && !unsupported;
+  const editable = !!client && connected;
   const live = (g: PermGroup) => policy[g] === MODE_PER_CONTACT;
 
   const toggle = async (key: string, name: string, current: TelemetryPerms, group: PermGroup, on: boolean) => {
@@ -74,27 +73,15 @@ export function TelemetryFlagsRail() {
       await api.putContactTelemetryPerms(client, key, next);
     } catch (err) {
       rollback();
-      if (isLibUnsupportedError(err)) {
-        markLibUnsupported();
-        notify.error('Telemetry flags save failed: needs meshcore-ts 0.9', err);
-      } else {
-        notify.error(`Telemetry flags save failed for ${name}: ${(err as Error).message}`, err);
-      }
+      notify.error(`Telemetry flags save failed for ${name}: ${errorMessage(err)}`, err);
     }
   };
 
   const off = PERM_GROUPS.filter((g) => !live(g.key)).map((g) => g.label);
-  const note = unsupported
-    ? 'Editing flags needs meshcore-ts 0.9. The table shows what the radio last reported.'
-    : greyedNote(off);
+  const note = greyedNote(off);
 
   return (
     <div className="flex flex-col pb-2">
-      {unsupported && (
-        <p data-testid="flags-unsupported" className={cn(META, 'px-3 pt-1 pb-2 text-cs-text-muted')}>
-          {NEEDS_LIB}
-        </p>
-      )}
       <div className="mx-3 mb-2 flex h-6.5 items-center gap-1.75 rounded-[7px] border border-cs-border bg-cs-bg-2 px-2">
         <Search size={11} aria-hidden className="shrink-0 text-cs-text-dim" />
         <input

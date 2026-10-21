@@ -56,23 +56,19 @@ interface Fake {
   lastOpts: () => BinaryRequestOptions;
 }
 
-/** A SessionAdapter double. `reportsSent` stands for meshcore-ts ≥ 0.9, whose
- *  sendBinaryRequest honours onSent/signal; without it, 0.8.1. */
+/** A SessionAdapter double; `binary` stands in for sendBinaryRequest, whose
+ *  options carry onSent/signal. */
 function fakeSession(
   opts: {
     binary?: (key: string, req: Uint8Array, o: BinaryRequestOptions) => Promise<Uint8Array>;
     self?: () => Promise<Uint8Array>;
-    reportsSent?: boolean;
     onRadio?: boolean;
-    selfSupported?: boolean;
   } = {},
 ): Fake {
   const sendBinaryRequest = vi.fn(opts.binary ?? (async () => LPP));
   const requestSelfTelemetry = vi.fn(opts.self ?? (async () => Uint8Array.from([0x01, 0x74, 0x01, 0x9f])));
   setProtocolSession({
     hasRadioContact: () => opts.onRadio ?? true,
-    binaryRequestReportsSent: () => opts.reportsSent ?? false,
-    supportsSelfTelemetry: () => opts.selfSupported ?? false,
     sendBinaryRequest,
     requestSelfTelemetry,
   } as unknown as SessionAdapter);
@@ -156,18 +152,16 @@ describe('requestTelemetry — remote node', () => {
     expect(Array.from(a.subarray(5))).not.toEqual(Array.from(b.subarray(5)));
   });
 
-  it('saves a timeout with raw = null at the 15 s fallback deadline (meshcore-ts 0.8.1)', async () => {
+  it('saves a timeout with raw = null at the 15 s fallback when RESP_SENT never comes', async () => {
     vi.useFakeTimers();
     const never = deferred<Uint8Array>();
     const fake = fakeSession({ binary: () => never.promise });
     const startedAt = Date.now();
 
     const pending = requestTelemetry(PK);
-    // The deadline is known at the click when RESP_SENT can't report one.
-    expect(telemetryInFlightSnapshot()).toEqual([
-      { nodeKey: PK, source: 'repeater', startedAt, deadlineAt: startedAt + TELEMETRY_FALLBACK_DEADLINE_MS },
-    ]);
-    expect(fake.lastOpts().timeoutMs).toBe(TELEMETRY_FALLBACK_DEADLINE_MS);
+    // Unannounced: the fallback only stands in until RESP_SENT gives a figure.
+    expect(telemetryInFlightSnapshot()).toEqual([{ nodeKey: PK, source: 'repeater', startedAt, deadlineAt: null }]);
+    expect(fake.lastOpts().signal).toBeInstanceOf(AbortSignal);
 
     await vi.advanceTimersByTimeAsync(TELEMETRY_FALLBACK_DEADLINE_MS - 1);
     expect(telemetryInFlightSnapshot()).toHaveLength(1);
@@ -284,7 +278,7 @@ describe('requestTelemetry — remote node', () => {
   it('times out at est_timeout + 2 s from RESP_SENT when the library reports it (≥ 0.9)', async () => {
     vi.useFakeTimers();
     const never = deferred<Uint8Array>();
-    const fake = fakeSession({ reportsSent: true, binary: () => never.promise });
+    const fake = fakeSession({ binary: () => never.promise });
 
     const pending = requestTelemetry(PK);
     // Unknown until the radio says how long the reply should take.
@@ -313,7 +307,7 @@ describe('requestTelemetry — remote node', () => {
     const never = deferred<Uint8Array>();
     // binaryRequestReportsSent is inferred, not detected: a library can claim
     // it and ship without onSent. The lock must not wait out its backstop.
-    const fake = fakeSession({ reportsSent: true, binary: () => never.promise });
+    const fake = fakeSession({ binary: () => never.promise });
 
     const pending = requestTelemetry(PK);
     expect(fake.lastOpts().timeoutMs).toBeLessThanOrEqual(90_000);
@@ -334,7 +328,7 @@ describe('requestTelemetry — remote node', () => {
   it('lets RESP_SENT’s estimate replace the fallback, even when it runs past 15 s', async () => {
     vi.useFakeTimers();
     const never = deferred<Uint8Array>();
-    const fake = fakeSession({ reportsSent: true, binary: () => never.promise });
+    const fake = fakeSession({ binary: () => never.promise });
 
     const pending = requestTelemetry(PK);
     await vi.advanceTimersByTimeAsync(300);
@@ -370,16 +364,9 @@ describe('requestTelemetry — remote node', () => {
 });
 
 describe('requestTelemetry — my own radio', () => {
-  it('reports unsupported on meshcore-ts 0.8.1 and saves nothing', async () => {
-    const fake = fakeSession({ selfSupported: false });
-    expect(await requestTelemetry(OWNER)).toEqual({ status: 'unsupported', feature: 'requestSelfTelemetry' });
-    expect(fake.requestSelfTelemetry).not.toHaveBeenCalled();
-    expect(telemetryStore.list(OWNER)).toEqual([]);
-  });
-
   it('saves a self read as a companion request over the local link, without the mesh lock', async () => {
     const read = deferred<Uint8Array>();
-    fakeSession({ selfSupported: true, self: () => read.promise });
+    fakeSession({ self: () => read.promise });
 
     const pending = requestTelemetry(OWNER);
     expect(meshLockHolder()).toBeNull();
@@ -401,7 +388,6 @@ describe('requestTelemetry — my own radio', () => {
 
   it('saves firmware without self telemetry (RESP_ERR) as an error', async () => {
     fakeSession({
-      selfSupported: true,
       self: async () => {
         throw new Error('self telemetry unsupported by firmware');
       },

@@ -70,8 +70,9 @@ function selectFlagRows(s: FlagSource): readonly FlagRow[] {
 
 /**
  * The radio's chat contacts with their flags, flagged first, then by name.
- * The contact's own `telemetryPerms` (meshcore-ts ≥ 0.9) wins; older libs
- * fall back to the stored flags byte on the discovered row. The same array
+ * The contact's own `telemetryPerms` wins; a placeholder contact (synthesised
+ * from a message, never reported by the radio) has none, and falls back to
+ * the stored flags byte on the discovered row. The same array
  * until a row's content changes.
  */
 export function useFlagRows(): readonly FlagRow[] {

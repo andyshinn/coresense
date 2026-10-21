@@ -20,9 +20,7 @@ vi.mock('../../../src/renderer/lib/api', async (orig) => ({
   api,
 }));
 
-import { ApiError } from '../../../src/renderer/lib/api';
 import { useStore } from '../../../src/renderer/lib/store';
-import { resetLibSupport } from '../../../src/renderer/panels/my-radio/libSupport';
 import { PolicyCard } from '../../../src/renderer/panels/my-radio/PolicyCard';
 import { SensorSettingsCard } from '../../../src/renderer/panels/my-radio/SensorSettings';
 import { useSensorSettings } from '../../../src/renderer/panels/my-radio/useSensorSettings';
@@ -44,7 +42,6 @@ const option = (label: string, mode: string) => within(seg(label)).getByText(mod
 const isOn = (label: string, mode: string) => option(label, mode).getAttribute('data-state') === 'on';
 
 beforeEach(() => {
-  resetLibSupport();
   for (const fn of [...Object.values(api), ...Object.values(notify)]) fn.mockReset();
   api.getSensorSettings.mockResolvedValue({ gps: '1' });
   api.putSensorSetting.mockResolvedValue({ ok: true });
@@ -206,15 +203,6 @@ describe('SensorSettingsCard', () => {
     expect(screen.getByText('none reported by the radio')).toBeTruthy();
     expect(gpsSwitch()).toBeNull();
     expect(screen.queryByLabelText('GPS update interval')).toBeNull();
-  });
-
-  it('points at Settings › Position when the library can’t read sensor settings', async () => {
-    seedRadio();
-    api.getSensorSettings.mockRejectedValueOnce(new ApiError('requestCustomVars', 501, 'lib_unsupported'));
-    await mountSensors();
-    expect(screen.getByText('Needs meshcore-ts 0.9')).toBeTruthy();
-    fireEvent.click(screen.getByText('Position settings'));
-    expect(useStore.getState().ui.activeKey).toBe('tool:settings:position');
   });
 
   it('offers a retry after a failed read', async () => {

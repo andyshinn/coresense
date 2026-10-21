@@ -114,8 +114,10 @@ describe('repeater administration', () => {
   });
 
   it('round-trips owner-info via the public anon OWNER request (RESP_SENT → BINARY_RESPONSE)', async () => {
-    const { adapter, receive, sentWithCode } = makeTestSession();
+    const { adapter, receive, sentWithCode, ackCommands } = makeTestSession();
     adapter.session.state.upsertContact(repeater());
+    // The transient zero-hop path and its reset each wait for RESP_OK.
+    ackCommands(Protocol.CMD.ADD_UPDATE_CONTACT, Protocol.CMD.RESET_PATH);
 
     const p = adapter.repeaterRequestOwnerInfo(`c:${PK}`);
     await tick();

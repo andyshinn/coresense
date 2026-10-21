@@ -41,15 +41,16 @@ const log = child('telemetry');
 
 /** Firmware REQ_TYPE_GET_TELEMETRY_DATA. */
 const REQ_TYPE_GET_TELEMETRY = 0x03;
-/** Overall deadline from the click when the library can't report RESP_SENT
- *  (meshcore-ts 0.8.1): the figure the mockups were drawn against. */
+/** Deadline from the click while the radio hasn't reported RESP_SENT yet: a
+ *  backstop, since RESP_SENT normally lands well inside it and replaces it
+ *  with the radio's own estimate. The figure the mockups were drawn against. */
 export const TELEMETRY_FALLBACK_DEADLINE_MS = 15_000;
 /** Slack on top of the radio's own reply estimate once RESP_SENT reports it. */
 export const TELEMETRY_SENT_MARGIN_MS = 2_000;
 /** Self reads are a local command with no airtime; the library's default. */
 export const TELEMETRY_SELF_TIMEOUT_MS = 5_000;
-/** The library's own reply wait when we enforce the deadline by aborting
- *  (≥ 0.9). Only a backstop for a library that ignores the abort: long enough
+/** The library's own reply wait; we enforce the deadline by aborting. Only a
+ *  backstop for an abort that never lands: long enough
  *  to outlast the slowest flood estimate firmware gives (~50 s on the slowest
  *  presets), short enough not to strand a reply tag for minutes. */
 const LIB_REPLY_BACKSTOP_MS = 90_000;
@@ -64,8 +65,6 @@ export type TelemetryRequestResult =
   | { status: 'notOnRadio' }
   /** Another mesh request holds the radio. */
   | { status: 'busy'; holder: MeshLockHolder }
-  /** The installed meshcore-ts can't do this (companion self read on 0.8.1). */
-  | { status: 'unsupported'; feature: string }
   /** An internal failure before a result could be saved. */
   | { status: 'failed'; message: string };
 
@@ -182,9 +181,6 @@ export function requestTelemetry(nodeKey: string): Promise<TelemetryRequestResul
   const ownerKey = stateHolder().getOwner()?.publicKeyHex.toLowerCase() ?? null;
 
   if (nodeKey === ownerKey) {
-    if (!session.supportsSelfTelemetry()) {
-      return Promise.resolve({ status: 'unsupported', feature: 'requestSelfTelemetry' });
-    }
     // No mesh lock: a self read is a local command that never touches the
     // firmware's pending-request slot.
     const startedAt = Date.now();
@@ -200,18 +196,10 @@ export function requestTelemetry(nodeKey: string): Promise<TelemetryRequestResul
   if (!release) return Promise.resolve({ status: 'busy', holder: meshLockHolder() as MeshLockHolder });
   const contact = findContact(nodeKey);
   const startedAt = Date.now();
-  // Without RESP_SENT info the deadline is known at the click; with it, it is
-  // unknown (null) until the radio says how long the reply should take.
-  const reportsSent = session.binaryRequestReportsSent();
-  return track(
-    {
-      nodeKey,
-      source: sourceFor(contact),
-      startedAt,
-      deadlineAt: reportsSent ? null : startedAt + TELEMETRY_FALLBACK_DEADLINE_MS,
-    },
-    release,
-    (entry) => runRemote(entry, contact, reportsSent),
+  // The deadline is unknown (null) until RESP_SENT says how long the reply
+  // should take.
+  return track({ nodeKey, source: sourceFor(contact), startedAt, deadlineAt: null }, release, (entry) =>
+    runRemote(entry, contact),
   );
 }
 
@@ -255,11 +243,7 @@ function roundTripFor(
 
 type Settled = { kind: 'reply'; raw: Uint8Array; at: number } | { kind: 'deadline' } | { kind: 'rejected'; err: unknown };
 
-async function runRemote(
-  entry: InFlightEntry,
-  contact: Contact | null,
-  reportsSent: boolean,
-): Promise<TelemetryRequestResult> {
+async function runRemote(entry: InFlightEntry, contact: Contact | null): Promise<TelemetryRequestResult> {
   const { nodeKey, startedAt } = entry.info;
   const session = protocolSession();
   const aclRole = aclRoleFor(nodeKey);
@@ -286,24 +270,20 @@ async function runRemote(
       }
       timer = setTimeout(
         () => {
-          // ≥ 0.9 releases the tag on abort; 0.8.1 ignores the signal and its
-          // own wait (capped at the same 15 s) runs out on its own.
+          // The library releases the reply tag on abort, so a late reply is dropped.
           ctrl.abort();
           finish({ kind: 'deadline' });
         },
         Math.max(0, at - Date.now()),
       );
     };
-    // Always armed, so the lock can't outlive the click by more than this.
-    // With RESP_SENT reporting it stays unannounced (deadlineAt null) and
-    // onSent replaces it — RESP_SENT lands well inside 15 s, so a library
-    // that only claims to report it (binaryRequestReportsSent is inferred,
-    // not detected) still times out like 0.8.1 rather than holding the radio
-    // for the library's whole backstop.
-    armDeadline(startedAt + TELEMETRY_FALLBACK_DEADLINE_MS, !reportsSent);
+    // Armed unannounced (deadlineAt stays null) until onSent replaces it, so a
+    // RESP_SENT that never comes can't hold the radio for the library's whole
+    // backstop.
+    armDeadline(startedAt + TELEMETRY_FALLBACK_DEADLINE_MS, false);
     session
       .sendBinaryRequest(`c:${nodeKey}`, buildTelemetryReqData(), {
-        timeoutMs: reportsSent ? LIB_REPLY_BACKSTOP_MS : TELEMETRY_FALLBACK_DEADLINE_MS,
+        timeoutMs: LIB_REPLY_BACKSTOP_MS,
         signal: ctrl.signal,
         onSent: ({ flood, estTimeoutMs }) => {
           // The radio's own answer beats the click-time guess.
@@ -344,7 +324,7 @@ async function runRemote(
       outcome = 'timeout';
       error = message;
     } else {
-      // RESP_ERR (≥ 0.9 maps NOT_FOUND / TABLE_FULL to a rejection), a write
+      // RESP_ERR (the library maps NOT_FOUND / TABLE_FULL to a rejection), a write
       // failure, or anything else the library reports.
       outcome = 'error';
       error = message;

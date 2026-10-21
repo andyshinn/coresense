@@ -94,14 +94,10 @@ export interface TelemetryPanelProps {
   showLog?: boolean;
   /** Put the request button above the log (default true). False when the caller renders its own via useTelemetryRequest. */
   requestInLog?: boolean;
-  /** Replaces the "No telemetry yet" empty state (My radio's unsupported-library notice). */
-  empty?: ReactNode;
   /** Appended to the ch 1 (Self) card's tiles (My radio's GPS-off tile). */
   selfTile?: ReactNode;
   /** Below the selected request, in the same scroll column (My radio's policy and sensor cards). Hidden while comparing. */
   children?: ReactNode;
-  /** Handle a failed request before the default toast; return true when handled (My radio's unsupported library). */
-  onRequestError?: (err: unknown) => boolean;
   /** Level of the selected request's / compare view's heading (default 2); My radio nests it under "My telemetry". */
   headingLevel?: HeadingLevel;
 }
@@ -124,8 +120,6 @@ interface RequestControlOptions {
   nodeKey: string;
   client: ApiClient | null;
   needsLogin?: boolean;
-  /** Handle a failed POST before the default toast; return true when handled. */
-  onError?: (err: unknown) => boolean;
 }
 
 /**
@@ -140,7 +134,6 @@ export function useTelemetryRequest({
   nodeKey,
   client,
   needsLogin,
-  onError,
 }: RequestControlOptions): TelemetryRequestControl {
   const inFlight = useTelemetryInFlight(nodeKey);
   const radioBusy = useRadioBusy();
@@ -158,7 +151,7 @@ export function useTelemetryRequest({
     setTelemetrySelected(nodeKey, null);
     setPosting(true);
     try {
-      await requestTelemetryOnce(client, nodeKey, source, onError);
+      await requestTelemetryOnce(client, nodeKey, source);
     } finally {
       setPosting(false);
     }
@@ -373,10 +366,8 @@ export function TelemetryPanel({
   canResetPath,
   showLog = true,
   requestInLog = true,
-  empty,
   selfTile,
   children,
-  onRequestError,
   headingLevel = 2,
 }: TelemetryPanelProps) {
   useEnsureTelemetryLoaded(client, nodeKey);
@@ -384,7 +375,7 @@ export function TelemetryPanel({
   const loaded = useTelemetryLoaded(nodeKey);
   const selected = useSelectedTelemetryRequest(nodeKey);
   const compareIds = useTelemetryCompare(nodeKey);
-  const control = useTelemetryRequest({ source, nodeKey, client, needsLogin, onError: onRequestError });
+  const control = useTelemetryRequest({ source, nodeKey, client, needsLogin });
   const { inFlight, blockedByOther, hint } = control;
   const retention = useTelemetryRetention();
   const key = telemetryNodeKey(nodeKey);
@@ -563,8 +554,7 @@ export function TelemetryPanel({
                 />
               ) : (
                 !inFlight &&
-                loaded &&
-                (empty ?? (
+                loaded && (
                   <TelemetryEmpty
                     actionLabel={copy.action}
                     target={target ?? copy.target}
@@ -584,7 +574,7 @@ export function TelemetryPanel({
                       ) : undefined
                     }
                   />
-                ))
+                )
               )}
               {children}
             </div>

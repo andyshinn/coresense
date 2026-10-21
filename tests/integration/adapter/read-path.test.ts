@@ -1,3 +1,4 @@
+import { Protocol } from '@andyshinn/meshcore-ts';
 import { describe, expect, it } from 'vitest';
 import { stateHolder } from '../../../src/main/state/holder';
 import { discoveredStore } from '../../../src/main/storage/discoveredContacts';
@@ -49,7 +50,9 @@ describe('SessionAdapter read-path (inject frame → persist + bus)', () => {
   });
 
   it('writes the lib discovered on_radio/favourite through to the sqlite mirror', async () => {
-    const { adapter, receive } = makeTestSession();
+    const { adapter, receive, ackCommands } = makeTestSession();
+    // Both commands below wait for the radio's RESP_OK.
+    ackCommands(Protocol.CMD.REMOVE_CONTACT, Protocol.CMD.ADD_UPDATE_CONTACT);
     const pk = 'ab'.repeat(32);
 
     // Establish an on-radio contact in coresense's mirror via the sync path:

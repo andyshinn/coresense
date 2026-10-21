@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { errorMessage } from '../../../shared/errors';
 import { type ApiClient, api } from '../../lib/api';
-import { isLibUnsupportedError, markLibUnsupported } from './libSupport';
 
 // The radio's sensor settings (CMD_GET_CUSTOM_VARS), read fresh each time My
 // radio opens or the radio reconnects. MeshCore reports at most `gps` (0/1),
@@ -12,7 +12,6 @@ const WRITE_ONLY = new Set(['gps_interval']);
 export type SensorSettings =
   | { status: 'offline' }
   | { status: 'loading' }
-  | { status: 'unsupported' }
   | { status: 'error'; error: string }
   | { status: 'ok'; vars: Readonly<Record<string, string>> };
 
@@ -48,13 +47,7 @@ export function useSensorSettings(client: ApiClient | null, connected: boolean):
         if (!cancelled) setSettings({ status: 'ok', vars });
       },
       (err: unknown) => {
-        if (cancelled) return;
-        if (isLibUnsupportedError(err)) {
-          markLibUnsupported();
-          setSettings({ status: 'unsupported' });
-        } else {
-          setSettings({ status: 'error', error: (err as Error).message });
-        }
+        if (!cancelled) setSettings({ status: 'error', error: errorMessage(err) });
       },
     );
     return () => {
@@ -69,12 +62,7 @@ export function useSensorSettings(client: ApiClient | null, connected: boolean):
       if (!client) throw new Error('No server connection');
       // Merged into `vars` it would stay there as a setting the radio "reported".
       if (WRITE_ONLY.has(key)) {
-        try {
-          await api.putSensorSetting(client, key, value);
-        } catch (err) {
-          if (isLibUnsupportedError(err)) markLibUnsupported();
-          throw err;
-        }
+        await api.putSensorSetting(client, key, value);
         return;
       }
       const shown = current.current;
@@ -84,7 +72,6 @@ export function useSensorSettings(client: ApiClient | null, connected: boolean):
       try {
         await api.putSensorSetting(client, key, value);
       } catch (err) {
-        if (isLibUnsupportedError(err)) markLibUnsupported();
         if (latest.current.get(key) === value) {
           setSettings((s) => {
             if (s.status !== 'ok') return s;

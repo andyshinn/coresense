@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // My radio's rail: per-contact telemetry flags (DECISIONS B16) — on-radio
 // chat contacts only, flagged first, search, columns live only under
-// "Per contact", optimistic writes, and the meshcore-ts 0.9 gate.
+// "Per contact" and optimistic writes.
 
 const { api, notify } = vi.hoisted(() => ({
   api: { putContactTelemetryPerms: vi.fn(async () => ({ ok: true })) },
@@ -15,10 +15,8 @@ vi.mock('../../../src/renderer/lib/api', async (orig) => ({
   api,
 }));
 
-import { ApiError } from '../../../src/renderer/lib/api';
 import { useStore } from '../../../src/renderer/lib/store';
 import { useFlagRows } from '../../../src/renderer/panels/my-radio/flags';
-import { markLibUnsupported, resetLibSupport } from '../../../src/renderer/panels/my-radio/libSupport';
 import { TelemetryFlagsRail } from '../../../src/renderer/panels/my-radio/TelemetryFlagsRail';
 import { railTitle } from '../../../src/renderer/shell/rightrail/helpers';
 import { type RailData, sectionsFor } from '../../../src/renderer/shell/rightrail/sectionsFor';
@@ -35,7 +33,6 @@ const box = (name: string, group: string) => screen.getByLabelText(`${name}: ${g
 const names = () => Array.from(document.querySelectorAll('li[data-contact-key] .truncate')).map((n) => n.textContent);
 
 beforeEach(() => {
-  resetLibSupport();
   api.putContactTelemetryPerms.mockReset();
   api.putContactTelemetryPerms.mockResolvedValue({ ok: true });
   for (const fn of Object.values(notify)) fn.mockClear();
@@ -114,28 +111,7 @@ describe('TelemetryFlagsRail', () => {
     );
   });
 
-  it('turns a 501 into the disabled "Needs meshcore-ts 0.9" state', async () => {
-    seedRadio({ contacts: [ann] });
-    api.putContactTelemetryPerms.mockRejectedValueOnce(new ApiError('setContactTelemetryPerms', 501, 'lib_unsupported'));
-    renderWithClient(<TelemetryFlagsRail />);
-    await act(async () => {
-      fireEvent.click(box('Ann', 'Location'));
-    });
-    expect(screen.getByTestId('flags-unsupported').textContent).toBe('Needs meshcore-ts 0.9');
-    expect(box('Ann', 'Location').disabled).toBe(true);
-    expect(box('Ann', 'Location').getAttribute('aria-checked')).toBe('false');
-    expect(notify.error.mock.calls[0][0]).toBe('Telemetry flags save failed: needs meshcore-ts 0.9');
-  });
-
-  it('starts disabled when the library is already known to be too old, or the radio is away', () => {
-    seedRadio({ contacts: [ann] });
-    markLibUnsupported();
-    const { unmount } = renderWithClient(<TelemetryFlagsRail />);
-    expect(box('Ann', 'Location').disabled).toBe(true);
-    expect(screen.getByText(/Editing flags needs meshcore-ts 0\.9/)).toBeTruthy();
-    unmount();
-
-    resetLibSupport();
+  it('starts disabled while the radio is away', () => {
     seedRadio({ contacts: [ann], connected: false });
     renderWithClient(<TelemetryFlagsRail />);
     expect(box('Ann', 'Location').disabled).toBe(true);

@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SavedRequestDto } from '../../../src/shared/telemetry/types';
 
 // My radio (tool:myradio): the companion's own telemetry view, the read
-// button and caption, the saved-reads toggle, and the unsupported-library
-// and GPS-off states (DECISIONS: My radio, B15, B23).
+// button and caption, the saved-reads toggle, and the GPS-off state
+// (DECISIONS: My radio, B15, B23).
 
 const { api, notify } = vi.hoisted(() => ({
   api: {
@@ -26,15 +26,12 @@ vi.mock('../../../src/renderer/lib/api', async (orig) => ({
   api,
 }));
 
-import { ApiError } from '../../../src/renderer/lib/api';
 import { useStore } from '../../../src/renderer/lib/store';
-import { resetLibSupport } from '../../../src/renderer/panels/my-radio/libSupport';
 import { MyRadioPanel } from '../../../src/renderer/panels/my-radio/MyRadioPanel';
 import { renderWithClient } from '../../support/renderWithClient';
 import { client, OWN, SELF_GPS_HEX, seedRadio, selfRead } from './helpers';
 
 const NOW = Date.now();
-const unsupported = () => new ApiError('requestSelfTelemetry needs a newer meshcore-ts', 501, 'lib_unsupported');
 const readButton = () =>
   (screen.queryByText('Read telemetry') ?? screen.getByText('Reading…')).closest('button') as HTMLButtonElement;
 const clock = (ts: number) =>
@@ -49,7 +46,6 @@ async function mount() {
 }
 
 beforeEach(() => {
-  resetLibSupport();
   for (const fn of [...Object.values(api), ...Object.values(notify)]) fn.mockClear();
   api.getSensorSettings.mockResolvedValue({ gps: '1' });
 });
@@ -146,30 +142,6 @@ describe('MyRadioPanel', () => {
     });
     expect(api.requestTelemetry).toHaveBeenCalledWith(client, OWN);
     expect(notify.success).toHaveBeenCalledWith('Telemetry saved');
-  });
-
-  it('turns a 501 on read into the unsupported state, without the generic failure toast', async () => {
-    seedRadio();
-    // A library that has custom vars but not self read would still be caught by the read's own 501.
-    api.requestTelemetry.mockRejectedValueOnce(unsupported());
-    await mount();
-    await act(async () => {
-      fireEvent.click(readButton());
-    });
-    expect(notify.error).toHaveBeenCalledTimes(1);
-    expect(notify.error.mock.calls[0][0]).toBe('Telemetry read failed: needs meshcore-ts 0.9');
-    expect(screen.getByTestId('myradio-unsupported').textContent).toContain('needs meshcore-ts 0.9');
-    expect(readButton().disabled).toBe(true);
-    expect(readButton().title).toBe('Needs meshcore-ts 0.9');
-  });
-
-  it('knows the library is too old from the sensor-settings read on mount, before any click', async () => {
-    seedRadio();
-    api.getSensorSettings.mockRejectedValueOnce(unsupported());
-    await mount();
-    expect(screen.getByTestId('myradio-unsupported')).toBeTruthy();
-    expect(readButton().disabled).toBe(true);
-    expect(screen.getAllByText('Needs meshcore-ts 0.9').length).toBeGreaterThan(0);
   });
 
   it('disables reading while disconnected, keeping the saved reads', async () => {
