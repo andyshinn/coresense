@@ -8,16 +8,31 @@ export function KeyValueRow({
   value,
   mono,
   title,
+  labelTone = 'dim',
+  valueClassName,
 }: {
   label: string;
   value: ReactNode;
   mono?: boolean;
   title?: string;
+  /** `muted` for labels someone must read on bg-2: `dim` is under 4.5:1 there. */
+  labelTone?: 'dim' | 'muted';
+  valueClassName?: string;
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-xs">
-      <span className="shrink-0 text-[10px] uppercase tracking-wider text-cs-text-dim">{label}</span>
-      <span title={title} className={cn('truncate text-right text-cs-text', mono && 'font-mono tabular-nums text-[11px]')}>
+      <span
+        className={cn(
+          'shrink-0 text-[10px] uppercase tracking-wider',
+          labelTone === 'muted' ? 'text-cs-text-muted' : 'text-cs-text-dim',
+        )}
+      >
+        {label}
+      </span>
+      <span
+        title={title}
+        className={cn('truncate text-right text-cs-text', mono && 'font-mono tabular-nums text-[11px]', valueClassName)}
+      >
         {value}
       </span>
     </div>

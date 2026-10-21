@@ -29,6 +29,67 @@ interface Props {
   advertPosition?: LatLon | null;
   /** GPS tile: "View on map". The button is hidden without it. */
   onViewOnMap?: () => void;
+  /**
+   * `panel` (default) is the repeater/history tile. `card` is My Node's
+   * compact instrument tile: caps label, big numeral, the secondary value on
+   * the right, a thin battery bar and a plain "was … at …" line.
+   */
+  variant?: 'panel' | 'card';
+}
+
+/** My Node's compact tile. Shares the reading description and the previous
+ *  lookup with the panel tile; only the layout differs. */
+function CardTile({ reading, previous }: Pick<Props, 'reading' | 'previous'>) {
+  const timeFormat = useStore((s) => s.appSettings.timeFormat);
+  const Icon = telemetryIcon(reading.icon);
+  const gps = reading.kind === 'gps' && isGpsValue(reading.reading.value);
+  const battery = reading.kind === 'battery';
+  // Battery: the charge estimate; anything else: its imperial/derived line.
+  const secondary = battery
+    ? reading.batteryPercent !== null
+      ? `${reading.batteryPercent}%`
+      : null
+    : reading.kind === 'mcuTemp' || reading.reading.typeId === 103
+      ? reading.secondary
+      : null;
+  return (
+    <div data-testid="telemetry-tile" className="flex min-w-0 flex-col gap-1 rounded-md bg-cs-bg-3 px-3 py-2.5">
+      <div className="flex min-w-0 items-center gap-1.5 text-cs-text-muted">
+        <Icon aria-hidden="true" className="size-3 shrink-0 text-cs-accent" />
+        <span className="label-caps min-w-0 truncate">{reading.label}</span>
+      </div>
+      <div className="flex min-w-0 items-baseline gap-1.5">
+        <span
+          className={cn(
+            'min-w-0 truncate text-cs-text',
+            gps ? 'font-mono text-[16px] leading-9 tabular-nums' : 'stat-numeral',
+          )}
+          title={reading.text}
+        >
+          {reading.value}
+        </span>
+        {!gps && reading.unit && <span className="shrink-0 text-[13px] text-cs-text-muted">{reading.unit}</span>}
+        {secondary && (
+          <span
+            className="ml-auto shrink-0 font-mono text-[12px] tabular-nums text-cs-text-muted"
+            title={battery ? 'Estimated from the LiPo voltage curve' : undefined}
+          >
+            {secondary}
+          </span>
+        )}
+      </div>
+      {battery && reading.batteryPercent !== null && (
+        <div data-testid="battery-bar" aria-hidden="true" className="h-[3px] overflow-hidden rounded-full bg-cs-bg-2">
+          <div className="h-full bg-cs-online" style={{ width: `${reading.batteryPercent}%` }} />
+        </div>
+      )}
+      {previous && (
+        <div data-testid="tile-delta" className="truncate font-mono text-[11px] tabular-nums text-cs-text-muted">
+          was {previousText(reading, previous.reading)} at {fmtWhen(previous.requestedAt, timeFormat)}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function DeltaLine({
@@ -96,7 +157,8 @@ function DeltaLine({
  * LiPo range); GPS adds altitude, distance from the advertised position, and
  * map/copy actions. A history line shows only when `previous` exists.
  */
-export function TelemetryTile({ reading, previous, advertPosition, onViewOnMap }: Props) {
+export function TelemetryTile({ reading, previous, advertPosition, onViewOnMap, variant = 'panel' }: Props) {
+  if (variant === 'card') return <CardTile reading={reading} previous={previous} />;
   const Icon = telemetryIcon(reading.icon);
   const gps = reading.kind === 'gps' && isGpsValue(reading.reading.value) ? reading.reading.value : null;
   const advertGap = gps && advertPosition ? fmtGap(gps, advertPosition) : null;
