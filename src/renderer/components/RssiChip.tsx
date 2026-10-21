@@ -10,7 +10,7 @@ interface Props {
   className?: string;
 }
 
-// Bars use the BLE scale (bleRssiBars): BleConnect's scan RSSI is what it was
+// Bars use the BLE scale (bleRssiBars): the BLE scan list's RSSI is what it was
 // tuned for. LoRa callers (contact RSSI) inherit those thresholds for now.
 export function RssiChip({ rssi, hops, showHops = true, className }: Props) {
   const bars = bleRssiBars(rssi);

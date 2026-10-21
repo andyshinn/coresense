@@ -58,8 +58,8 @@ export function ConnectionFooter({
   const syncing = state === 'connected' && sync.phase === 'syncing';
   const justFinished = state === 'connected' && sync.phase === 'done';
   const [reconnecting, setReconnecting] = useState(false);
-  // Re-read every render, deliberately unmemoised: BleConnect can save or
-  // forget the device while the transport state stays put, so no dep list
+  // Re-read every render, deliberately unmemoised: My Node can save the
+  // device while the transport state stays put, so no dep list
   // would catch every change. It's one small localStorage parse.
   const lastDevice = loadLastDevice();
   const canReconnect = !!client && !!lastDevice && (state === 'idle' || state === 'error') && !reconnecting;

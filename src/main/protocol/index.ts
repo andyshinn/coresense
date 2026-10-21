@@ -1,3 +1,4 @@
+import { wireNodeCacheSession } from '../node/nodeCache';
 import { wireAdvertPathSession } from '../state/advertPath';
 import { transportManager } from '../transport/manager';
 import { SessionAdapter } from './sessionAdapter';
@@ -12,6 +13,7 @@ export function protocolSession(): SessionAdapter {
 }
 
 wireAdvertPathSession(protocolSession);
+wireNodeCacheSession(protocolSession);
 
 /** Test seam: inject a SessionAdapter double, or pass null to drop the lazy
  *  singleton so the next protocolSession() rebuilds it. Mirrors the

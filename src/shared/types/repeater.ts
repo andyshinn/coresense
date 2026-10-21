@@ -90,30 +90,3 @@ export interface RepeaterTrace {
   hops: RepeaterTraceHop[];
   finalSnrDb: number;
 }
-
-export type RepeaterLocalStats =
-  | {
-      kind: 'core';
-      battMv: number;
-      uptimeSecs: number;
-      errFlags: number;
-      queueLen: number;
-    }
-  | {
-      kind: 'radio';
-      noiseFloor: number;
-      lastRssi: number;
-      lastSnrDb: number;
-      txAirSecs: number;
-      rxAirSecs: number;
-    }
-  | {
-      kind: 'packets';
-      recv: number;
-      sent: number;
-      nSentFlood: number;
-      nSentDirect: number;
-      nRecvFlood: number;
-      nRecvDirect: number;
-      nRecvErrors: number;
-    };

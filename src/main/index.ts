@@ -34,6 +34,7 @@ import { applyLoggingSettings } from './logging/apply';
 import { flushLogFile, folderPath } from './logging/fileSink';
 import { clampTileCacheMaxBytes, getTileCache } from './map/tile-cache';
 import { buildMenu } from './menu';
+import { flushNodeCache } from './node/nodeCache';
 import { startNotifications } from './notifications';
 import { protocolSession } from './protocol';
 import { openExternal, openExternalIfWeb, revealPath } from './runtime/shell';
@@ -576,6 +577,7 @@ async function shutdown() {
   // so a quit landing inside a coalesce window would drop the last change.
   // Settle it before the settings queue is drained below.
   await settle('holder flush', flushHolderPersistence());
+  flushNodeCache();
   // Drain any pending block-rule counter increments into the settings
   // write queue so flushSettings() below can await them.
   blockingStore().flushNow();

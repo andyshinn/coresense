@@ -21,8 +21,10 @@ import type {
   Message,
   MessagePath,
   MessageState,
+  NodeCache,
   Owner,
   PathLearnedEvent,
+  RadioLimits,
   RadioSettings,
   RawPacket,
   RepeaterStatusSnapshot,
@@ -101,6 +103,8 @@ export type BusEventMap = {
   gpsConfig: [cfg: GpsConfig];
   deviceInfo: [info: DeviceInfo];
   deviceCapabilities: [caps: DeviceCapabilities];
+  radioLimits: [limits: RadioLimits];
+  nodeCache: [cache: NodeCache];
   blockRules: [rules: BlockRule[]];
   macros: [macros: MacroTemplate[]];
   'log:entry': [entry: LogEntry];
@@ -175,6 +179,8 @@ export const emit = {
   gpsConfig: emitter('gpsConfig'),
   deviceInfo: emitter('deviceInfo'),
   deviceCapabilities: emitter('deviceCapabilities'),
+  radioLimits: emitter('radioLimits'),
+  nodeCache: emitter('nodeCache'),
   blockRules: emitter('blockRules'),
   macros: emitter('macros'),
   logEntry: emitter('log:entry'),

@@ -40,9 +40,17 @@ export function OwnerCard({ owner }: { owner: Owner | null }) {
                   </div>
                 )}
                 <div className="grid min-w-0 flex-1 leading-tight group-data-[collapsible=icon]:hidden">
-                  <span data-testid="owner-name" className="truncate text-sm font-medium text-cs-text">
-                    {owner?.name ?? (connected ? 'No identity' : 'Not connected')}
-                  </span>
+                  {/* The name opens My Node; the key prefix below stays its own copy target. */}
+                  <button
+                    type="button"
+                    onClick={() => setActiveKey('tool:node')}
+                    title="Open My node"
+                    className="min-w-0 rounded-sm text-left transition-colors hover:text-cs-accent focus-visible:outline-1 focus-visible:outline-cs-accent"
+                  >
+                    <span data-testid="owner-name" className="block truncate text-sm font-medium text-cs-text">
+                      {owner?.name ?? (connected ? 'No identity' : 'Not connected')}
+                    </span>
+                  </button>
                   {owner ? (
                     <div className="flex w-fit items-center gap-1.5">
                       <CopyButton
@@ -67,12 +75,12 @@ export function OwnerCard({ owner }: { owner: Owner | null }) {
             {/* Detail block — hidden when the sidebar is icon-collapsed */}
             <div className="flex flex-col gap-2 group-data-[collapsible=icon]:hidden">
               {/* Battery — grays out and prompts to connect when offline. Opens
-                  My radio, where the radio's own telemetry lives. */}
+                  My Node, where the radio's own telemetry lives. */}
               <button
                 type="button"
-                onClick={() => setActiveKey('tool:myradio')}
-                title="Open My radio"
-                aria-label={`${connected ? `Battery ${battText}` : 'Battery unavailable'}, open My radio`}
+                onClick={() => setActiveKey('tool:node')}
+                title="Open My node"
+                aria-label={`${connected ? `Battery ${battText}` : 'Battery unavailable'}, open My node`}
                 className={cn(
                   'group/battery -mx-1 block rounded px-1 py-0.5 text-left transition-[opacity,background-color] hover:bg-cs-bg-3 focus-visible:outline-1 focus-visible:outline-cs-accent',
                   !connected && 'opacity-50',
@@ -100,7 +108,7 @@ export function OwnerCard({ owner }: { owner: Owner | null }) {
             </div>
           </div>
           <HoverCardContent align="start" side="right" sideOffset={8} className="w-72 p-3">
-            <OwnerCardPopover onOpenMyRadio={() => setActiveKey('tool:myradio')} />
+            <OwnerCardPopover onOpenMyNode={() => setActiveKey('tool:node')} />
           </HoverCardContent>
         </HoverCard>
       </SidebarMenuItem>

@@ -1,16 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import {
-  Braces,
-  Cog,
-  FileText,
-  Inbox,
-  Map as MapIcon,
-  Radio,
-  ScrollText,
-  Search,
-  ThermometerSun,
-  Users,
-} from 'lucide-react';
+import { Braces, Cog, FileText, Inbox, Map as MapIcon, Radio, ScrollText, Search, Users } from 'lucide-react';
 import type { ToolKey } from '../../shared/keys';
 
 export { TOOL_KEYS, type ToolKey } from '../../shared/keys';
@@ -38,6 +27,5 @@ export const TOOL_DEFS: Record<ToolKey, ToolDef> = {
   'tool:map': { label: 'Map', hint: 'Contact locations', icon: MapIcon },
   'tool:contacts': { label: 'Contact Management', hint: 'Add / edit contacts', icon: Users },
   'tool:macros': { label: 'Macros', hint: 'Reusable message templates', icon: Braces },
-  'tool:myradio': { label: 'My radio', hint: 'Telemetry, sensors, who can read them', icon: ThermometerSun },
-  'tool:bleconnect': { label: 'BLE Connect', hint: 'Scan + connect a radio', icon: Radio },
+  'tool:node': { label: 'My node', hint: 'Your radio: connection, telemetry, stats, position', icon: Radio },
 };

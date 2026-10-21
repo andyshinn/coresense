@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { isChannelKey, isContactKey } from '../../shared/conversationKey';
+import { NODE_TELEMETRY_KEY } from '../../shared/keys';
 import { logError, PanelErrorFallback } from '../components/errors/ErrorFallback';
 import { useStore } from '../lib/store';
 // Placeholder is small and used as a fallback — keep eager.
@@ -10,7 +11,7 @@ import { sectionFromActiveKey, tabFromActiveKey } from '../panels/settings/routi
 // Each panel is loaded on demand; only one is visible at a time, so eagerly
 // importing them all (~1.5k LOC of forms + tables) just bloats first paint.
 const SettingsPanel = lazy(() => import('../panels/settings/SettingsPanel').then((m) => ({ default: m.SettingsPanel })));
-const BleConnect = lazy(() => import('../panels/BleConnect').then((m) => ({ default: m.BleConnect })));
+const MyNodePage = lazy(() => import('../panels/my-node').then((m) => ({ default: m.MyNodePage })));
 const ChannelView = lazy(() => import('../panels/ChannelView').then((m) => ({ default: m.ChannelView })));
 const DMView = lazy(() => import('../panels/DMView').then((m) => ({ default: m.DMView })));
 const MapView = lazy(() => import('../panels/MapView').then((m) => ({ default: m.MapView })));
@@ -44,27 +45,15 @@ export function MainPane(props: MainPaneProps) {
 
 function MainPaneInner({ onScan, onConnect, onDisconnect, renderPacketLog }: MainPaneProps) {
   const activeKey = useStore((s) => s.ui.activeKey);
-  const transportState = useStore((s) => s.transportState);
-  const connectedDeviceId = useStore((s) => s.connectedDeviceId);
-  const devices = useStore((s) => s.devices);
-  const busy = useStore((s) => s.busy);
   const channels = useStore((s) => s.channels);
   const contacts = useStore((s) => s.contacts);
 
-  if (activeKey === 'tool:bleconnect') {
-    return (
-      <div className="h-full w-full">
-        <BleConnect
-          state={transportState}
-          devices={devices}
-          connectedDeviceId={connectedDeviceId}
-          onScan={onScan}
-          onConnect={onConnect}
-          onDisconnect={onDisconnect}
-          busy={busy}
-        />
-      </div>
-    );
+  if (activeKey === 'tool:node') {
+    return <MyNodePage onScan={onScan} onConnect={onConnect} onDisconnect={onDisconnect} />;
+  }
+  // My Node's saved telemetry, sharing policy and sensor settings ("View all").
+  if (activeKey === NODE_TELEMETRY_KEY) {
+    return <MyRadioPanel />;
   }
 
   if (activeKey === 'tool:packetlog') {
@@ -93,9 +82,6 @@ function MainPaneInner({ onScan, onConnect, onDisconnect, renderPacketLog }: Mai
   }
   if (activeKey === 'tool:macros') {
     return <MacrosPanel />;
-  }
-  if (activeKey === 'tool:myradio') {
-    return <MyRadioPanel />;
   }
 
   if (isChannelKey(activeKey)) {

@@ -16,8 +16,7 @@ describe('tool registry', () => {
       ['tool:map', 'Map'],
       ['tool:contacts', 'Contact Management'],
       ['tool:macros', 'Macros'],
-      ['tool:myradio', 'My radio'],
-      ['tool:bleconnect', 'BLE Connect'],
+      ['tool:node', 'My node'],
     ]);
   });
 

@@ -21,6 +21,7 @@ import type {
   SyncProgress,
 } from './domain';
 import type { MapSettings, MapTileStatus, TileManifest } from './map';
+import type { NodeCache } from './node';
 import type { BleDevice, BridgeStatus, Capabilities, LogEntry, ThemePush, TransportState, UpdateState } from './platform';
 import type { RepeaterStatusSnapshot } from './repeater';
 import type {
@@ -30,6 +31,7 @@ import type {
   DeviceIdentity,
   DeviceInfo,
   GpsConfig,
+  RadioLimits,
   RadioSettings,
   TelemetryPolicy,
 } from './settings';
@@ -69,6 +71,12 @@ export interface StateSnapshot {
   gpsConfig: GpsConfig;
   deviceInfo: DeviceInfo;
   deviceCapabilities: DeviceCapabilities;
+  /** The connected radio's TX power range. Optional so a renderer hydrating
+   *  from an older main reads it as unknown. */
+  radioLimits?: RadioLimits;
+  /** Last-known state per connected radio, for My Node while disconnected.
+   *  Optional so a renderer hydrating from an older main reads it as empty. */
+  nodeCache?: NodeCache;
   blockRules: BlockRule[];
   macros: MacroTemplate[];
   /** Newest persisted packets (min(liveBufferSize, storedHistorySize)), oldest→newest. */
@@ -149,6 +157,8 @@ export type WsMessage =
   | { type: 'gpsConfig'; payload: GpsConfig }
   | { type: 'deviceInfo'; payload: DeviceInfo }
   | { type: 'deviceCapabilities'; payload: DeviceCapabilities }
+  | { type: 'radioLimits'; payload: RadioLimits }
+  | { type: 'nodeCache'; payload: NodeCache }
   | { type: 'uiState'; payload: UiStateUpdate }
   // Authoritative window focus, sourced from BrowserWindow focus/blur events in
   // main. The renderer gates view-driven auto-mark-read on this so messages
