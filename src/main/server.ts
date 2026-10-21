@@ -17,6 +17,7 @@ import { type BusEventMap, bus } from './events/bus';
 import { listenOnPort } from './http-listen';
 import { resolveHttpPort } from './http-port';
 import { child, getLogBuffer } from './log';
+import { noteTransportState } from './node/nodeCache';
 import { startContactAutoRefresh, stopContactAutoRefresh } from './state/contactRefresh';
 import { endContactWalk } from './state/contactWalk';
 import { stateHolder } from './state/holder';
@@ -83,6 +84,7 @@ const WS_FORWARDS: WsForwards = {
   deviceInfo: (info) => ({ type: 'deviceInfo', payload: info }),
   deviceCapabilities: (caps) => ({ type: 'deviceCapabilities', payload: caps }),
   radioLimits: (limits) => ({ type: 'radioLimits', payload: limits }),
+  nodeCache: (cache) => ({ type: 'nodeCache', payload: cache }),
   blockRules: (rules) => ({ type: 'blockRules', payload: rules }),
   macros: (macros) => ({ type: 'macros', payload: macros }),
   uiState: (state) => ({ type: 'uiState', payload: state }),
@@ -246,6 +248,8 @@ export async function startServer(
       endContactWalk();
       clearRadioLimits();
     }
+    // Opens or closes the connected radio's last-known entry.
+    noteTransportState(state, deviceId);
     broadcast({ type: 'transportState', payload: { state, deviceId } });
   };
   const onBridgeStatus = () => broadcast({ type: 'bridgeStatus', payload: bridge.getStatus() });

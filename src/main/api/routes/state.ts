@@ -3,6 +3,7 @@ import { draftBodySchema, uiStateBodySchema } from '../../../shared/api/schemas'
 import { clampRetention } from '../../../shared/packetLog';
 import type { StateSnapshot, UiState } from '../../../shared/types';
 import { macrosStore } from '../../macros/store';
+import { nodeCacheSnapshot } from '../../node/nodeCache';
 import { protocolSession } from '../../protocol';
 import { commit } from '../../state/commit';
 import { stateHolder } from '../../state/holder';
@@ -49,6 +50,7 @@ export function registerStateRoutes(api: Hono, deps: RoutesDeps): void {
       deviceInfo: holder.getDeviceInfo(),
       deviceCapabilities: holder.getDeviceCapabilities(),
       radioLimits: holder.getRadioLimits(),
+      nodeCache: nodeCacheSnapshot(),
       blockRules: holder.getBlockRules(),
       macros: macrosStore.list(),
       packets: packetStore.recent(Math.min(retention.liveBufferSize, retention.storedHistorySize)),

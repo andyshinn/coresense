@@ -318,6 +318,15 @@ export class SessionAdapter {
   sendSelfAdvert(flood?: boolean) {
     return this.session.sendSelfAdvert(flood);
   }
+  /** CMD_EXPORT_CONTACT. With no key the radio exports its OWN signed advert
+   *  (the `meshcore://` contact link), as hex; null when it refused. */
+  exportContact(destPublicKeyHex?: string) {
+    return this.session.exportContact(destPublicKeyHex);
+  }
+  /** CMD_GET_DEVICE_TIME: the radio's RTC, unix seconds. */
+  getDeviceTime() {
+    return this.session.getDeviceTime();
+  }
   requestDeviceInfo() {
     return this.session.requestDeviceInfo();
   }

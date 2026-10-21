@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { resetNodeCacheState } from '../../src/main/node/nodeCache';
 import { setUserDataDir } from '../../src/main/runtime/userData';
 import { resetAdvertPathState } from '../../src/main/state/advertPath';
 import { closeDb } from '../../src/main/storage/db';
@@ -28,6 +29,8 @@ export function useTempUserData(): string {
   resetTelemetryState();
   resetMeshLock();
   forgetRadioTelemetryPolicy();
+  // The node cache loads node-cache.json once and remembers the connected radio.
+  resetNodeCacheState();
   return currentDir;
 }
 

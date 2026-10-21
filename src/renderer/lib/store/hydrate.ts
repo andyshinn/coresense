@@ -9,6 +9,7 @@ import {
   DEFAULT_RADIO_LIMITS,
   DEFAULT_SYNC_PROGRESS,
   DEFAULT_TELEMETRY_POLICY,
+  EMPTY_NODE_CACHE,
   type StateSnapshot,
 } from '../../../shared/types';
 import { setRendererLogLevel } from '../logger';
@@ -73,6 +74,7 @@ export const createHydrateSlice: SliceCreator<HydrateSlice> = (set) => ({
       deviceInfo: snapshot.deviceInfo ?? DEFAULT_DEVICE_INFO,
       deviceCapabilities: snapshot.deviceCapabilities ?? DEFAULT_DEVICE_CAPABILITIES,
       radioLimits: snapshot.radioLimits ?? DEFAULT_RADIO_LIMITS,
+      nodeCache: snapshot.nodeCache ?? EMPTY_NODE_CACHE,
       // Merge snapshot over defaults so any fields added to MapSettings in
       // newer builds get sensible values when reading older persisted state.
       mapSettings: { ...DEFAULT_MAP_SETTINGS, ...snapshot.mapSettings },

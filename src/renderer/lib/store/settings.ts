@@ -18,10 +18,12 @@ import {
   type DeviceCapabilities,
   type DeviceIdentity,
   type DeviceInfo,
+  EMPTY_NODE_CACHE,
   type GpsConfig,
   type MapSettings,
   type MapTileStatus,
   type Message,
+  type NodeCache,
   type RadioLimits,
   type RadioSettings,
   type TelemetryPolicy,
@@ -61,6 +63,8 @@ export interface SettingsSlice {
   /** The connected radio's TX power range; the maximum is null until its
    *  SELF_INFO arrives and after a disconnect. */
   radioLimits: RadioLimits;
+  /** Last-known state per radio CoreSense has connected to (main/node). */
+  nodeCache: NodeCache;
   mapSettings: MapSettings;
   /** Snapshot of which bundled PMTiles extracts are available on disk.
    *  Pushed by the snapshot endpoint; the Map panel uses it to gate mounting
@@ -80,6 +84,7 @@ export interface SettingsSlice {
   applyDeviceInfo: (info: DeviceInfo) => void;
   applyDeviceCapabilities: (caps: DeviceCapabilities) => void;
   applyRadioLimits: (limits: RadioLimits) => void;
+  applyNodeCache: (cache: NodeCache) => void;
   applyMapSettings: (settings: MapSettings) => void;
   applyMapManifest: (manifest: TileManifest) => void;
   applyMapTileStatus: (status: MapTileStatus) => void;
@@ -99,6 +104,7 @@ export const createSettingsSlice: SliceCreator<SettingsSlice> = (set) => ({
   deviceInfo: DEFAULT_DEVICE_INFO,
   deviceCapabilities: DEFAULT_DEVICE_CAPABILITIES,
   radioLimits: DEFAULT_RADIO_LIMITS,
+  nodeCache: EMPTY_NODE_CACHE,
   mapSettings: DEFAULT_MAP_SETTINGS,
   mapManifest: DEFAULT_MAP_MANIFEST,
   mapTileStatus: DEFAULT_MAP_TILE_STATUS,
@@ -145,6 +151,7 @@ export const createSettingsSlice: SliceCreator<SettingsSlice> = (set) => ({
   applyDeviceInfo: (info) => set(() => ({ deviceInfo: info })),
   applyDeviceCapabilities: (caps) => set(() => ({ deviceCapabilities: caps })),
   applyRadioLimits: (limits) => set(() => ({ radioLimits: limits })),
+  applyNodeCache: (cache) => set(() => ({ nodeCache: cache })),
   // Over the defaults, as hydrate does, so a broadcast from a main that
   // predates a MapSettings field still leaves that field with a usable value.
   applyMapSettings: (settings) => set(() => ({ mapSettings: { ...DEFAULT_MAP_SETTINGS, ...settings } })),

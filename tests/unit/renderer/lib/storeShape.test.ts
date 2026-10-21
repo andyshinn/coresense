@@ -15,6 +15,7 @@ import {
   DEFAULT_SYNC_PROGRESS,
   DEFAULT_TELEMETRY_POLICY,
   DEFAULT_UI_STATE,
+  EMPTY_NODE_CACHE,
   type Message,
 } from '../../../../src/shared/types';
 
@@ -50,6 +51,7 @@ describe('store shape', () => {
         'applyContacts',
         'applyDeviceCapabilities',
         'applyRadioLimits',
+        'applyNodeCache',
         'applyDeviceIdentity',
         'applyDeviceInfo',
         'applyDevices',
@@ -105,6 +107,7 @@ describe('store shape', () => {
         'decoderOpen',
         'deviceCapabilities',
         'radioLimits',
+        'nodeCache',
         'deviceIdentity',
         'deviceInfo',
         'devices',
@@ -284,6 +287,7 @@ describe('store shape', () => {
       deviceInfo: DEFAULT_DEVICE_INFO,
       deviceCapabilities: DEFAULT_DEVICE_CAPABILITIES,
       radioLimits: DEFAULT_RADIO_LIMITS,
+      nodeCache: EMPTY_NODE_CACHE,
       mapSettings: DEFAULT_MAP_SETTINGS,
       mapManifest: { missing: true, basemap: null },
       mapTileStatus: DEFAULT_MAP_TILE_STATUS,
