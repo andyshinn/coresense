@@ -40,6 +40,30 @@ describe('inbound messages are timed by reception, not the packet', () => {
     expect(row).toMatchObject({ ts: RECEIVED, sentTs: FUTURE_PACKET, meta: { timesHeard: 2 } });
   });
 
+  it('keeps sentTs through state and path updates', () => {
+    const holder = stateHolder();
+    holder.recordLibMessage(libMsg(), RECEIVED);
+    holder.setMessageState(libMsg().id, 'heard');
+    holder.appendMessagePath(libMsg().id, { id: 'p1', hashMode: 1, finalSnr: 0, hops: [] });
+    expect(messagesStore.findById(libMsg().id)).toMatchObject({ ts: RECEIVED, sentTs: FUTURE_PACKET, state: 'heard' });
+  });
+
+  it('does not null sent_ts when a re-insert omits it', () => {
+    stateHolder().recordLibMessage(libMsg(), RECEIVED);
+    const { sentTs: _drop, ...partial } = messagesStore.findById(libMsg().id) as Message;
+    messagesStore.insert({ ...partial, body: 'edited' });
+    expect(messagesStore.findById(libMsg().id)).toMatchObject({ body: 'edited', sentTs: FUTURE_PACKET });
+  });
+
+  it('leaves a legacy row without sentTs when its packet is re-heard', () => {
+    // Stored before sent_ts existed: ts is the packet time, sentTs unknown.
+    messagesStore.insert({ ...libMsg(), ts: FUTURE_PACKET });
+    stateHolder().recordLibMessage(libMsg({ meta: { timesHeard: 2 } }), RECEIVED);
+    const row = messagesStore.findById(libMsg().id);
+    expect(row?.ts).toBe(FUTURE_PACKET);
+    expect(row).not.toHaveProperty('sentTs');
+  });
+
   it('round-trips a row with no sentTs (own and legacy messages)', () => {
     messagesStore.insert({ id: 'own-1', key: 'ch:General', ts: RECEIVED, body: 'mine', state: 'sent' });
     const row = messagesStore.findById('own-1');

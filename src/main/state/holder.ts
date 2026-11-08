@@ -333,7 +333,17 @@ class StateHolder {
     // deterministic id) keeps the FIRST reception's time, so a merge never
     // moves the row. Note "received" means received by this app: messages the
     // radio queued while disconnected get the time they were drained.
-    const message: Message = { ...libMessage, sentTs: libMessage.ts, ts: existing?.ts ?? receivedAt };
+    //
+    // A re-heard copy of an EXISTING row keeps that row's sentTs as-is. For a
+    // legacy row (stored before sentTs) that means leaving it unset: its `ts`
+    // is already the packet time, and writing that into sentTs too would claim
+    // "sender clock == received" and hide the skew. The lib's Message has no
+    // sentTs of its own, so overriding it here clobbers nothing.
+    const message: Message = {
+      ...libMessage,
+      ts: existing?.ts ?? receivedAt,
+      sentTs: existing ? existing.sentTs : libMessage.ts,
+    };
     if (isNew) {
       const rules = blockingStore().list();
       if (rules.length > 0) {

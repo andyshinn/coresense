@@ -108,12 +108,15 @@ export const messagesStore = {
     const kind = kindFromKey(message.key);
     // Idempotent on app-level id (`mid`). The integer rowid is assigned by
     // SQLite and is internal — FTS5 uses it as the anchor. Updating an
-    // existing row triggers the AU sync to messages_fts.
+    // existing row triggers the AU sync to messages_fts. `sent_ts` is
+    // write-once: a re-insert built without it (a state or path update from a
+    // partial Message) must not null out the packet time.
     db.prepare(
       `INSERT INTO messages (mid, kind, key, ts, sent_ts, from_pk, body, state, meta)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(mid) DO UPDATE SET
-         kind=excluded.kind, key=excluded.key, ts=excluded.ts, sent_ts=excluded.sent_ts,
+         kind=excluded.kind, key=excluded.key, ts=excluded.ts,
+         sent_ts=COALESCE(excluded.sent_ts, messages.sent_ts),
          from_pk=excluded.from_pk, body=excluded.body, state=excluded.state,
          meta=excluded.meta`,
     ).run(

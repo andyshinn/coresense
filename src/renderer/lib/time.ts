@@ -132,11 +132,23 @@ export function fmtClockSkew(sentTs: number, receivedTs: number): string | null 
   return `${diff > 0 ? '+' : '-'}${Math.floor(abs / unit[1])}${unit[0]}`;
 }
 
+/** Row labels shared by the timestamp tooltip and the Message Info rail. */
+export const RECEIVED_LABEL = 'Received';
+export const SENDER_CLOCK_LABEL = 'Sender clock';
+
+/** fmtClockSkew for a message, or null when it has no packet time. */
+export function messageClockSkew(message: Pick<Message, 'ts' | 'sentTs'>): string | null {
+  return message.sentTs == null ? null : fmtClockSkew(message.sentTs, message.ts);
+}
+
 /** Hover text for a message timestamp. The row shows `ts` (when we received
  *  it); when the packet carried its own time, both are spelled out so a
  *  sender with a wrong clock is visible rather than silently reordered. */
 export function fmtMessageTimeTitle(message: Pick<Message, 'ts' | 'sentTs'>, pref: TimeFormatPref): string {
   if (message.sentTs == null) return fmtDateTime(message.ts, pref);
-  const skew = fmtClockSkew(message.sentTs, message.ts);
-  return `Received: ${fmtDateTime(message.ts, pref)}\nSender clock: ${fmtDateTime(message.sentTs, pref)}${skew ? ` (${skew})` : ''}`;
+  const skew = messageClockSkew(message);
+  return (
+    `${RECEIVED_LABEL}: ${fmtDateTime(message.ts, pref)}\n` +
+    `${SENDER_CLOCK_LABEL}: ${fmtDateTime(message.sentTs, pref)}${skew ? ` (${skew})` : ''}`
+  );
 }
