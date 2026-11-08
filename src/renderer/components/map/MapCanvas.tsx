@@ -45,6 +45,9 @@ interface MapCanvasProps {
   // Initial camera. Defaults to pickInitialView (persisted viewport / freshest
   // contact / extract centre).
   initialView?: InitialView;
+  // 'none' leaves out MapLibre's navigation cluster, for a small embedded map
+  // that draws its own zoom buttons as an overlay.
+  controls?: 'full' | 'none';
 }
 
 export function MapCanvas({
@@ -54,6 +57,7 @@ export function MapCanvas({
   renderOverlays,
   persistViewport = true,
   initialView,
+  controls = 'full',
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -131,7 +135,7 @@ export function MapCanvas({
 
     // MapLibre's built-in pan/zoom/pitch/compass cluster. `visualizePitch`
     // rotates the compass to show the current pitch — useful once 3D is on.
-    map.addControl(new NavigationControl({ visualizePitch: true }), 'top-left');
+    if (controls === 'full') map.addControl(new NavigationControl({ visualizePitch: true }), 'top-left');
 
     return () => {
       map.remove();

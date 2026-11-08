@@ -192,3 +192,49 @@
   z-index: 25;
   filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.55));
 }
+
+/* My Node's draggable position pin (DraggableNodeMarker). The box is just the
+ * halo, so `anchor: 'center'` centres the dot on the position; the name chip
+ * hangs below it out of flow. Unlike .cs-map-local it takes the pointer. */
+.cs-map-drag {
+  position: relative;
+  display: block;
+  pointer-events: auto;
+  cursor: grab;
+  z-index: 26;
+  filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.55));
+}
+.cs-map-drag:active {
+  cursor: grabbing;
+}
+.cs-map-drag__halo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9999px;
+  background: rgb(var(--cs-accent) / 0.22);
+  box-shadow: 0 0 0 1.5px rgb(var(--cs-accent) / 0.85);
+}
+.cs-map-drag__chip {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  color: rgb(var(--cs-text));
+  background: rgb(var(--cs-bg) / 0.92);
+  border: 1px solid rgb(var(--cs-border));
+}
+.cs-map-drag--fixed {
+  cursor: default;
+}

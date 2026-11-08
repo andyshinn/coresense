@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
+import { UnsavedPill } from '../ui/UnsavedPill';
 
 interface SettingsSectionProps {
   /** Stable id — also the `data-section` anchor for scroll-spy / jump rail. */
@@ -46,12 +47,7 @@ export function SettingsSection({
         </div>
         {onSave && (
           <div className="flex shrink-0 items-center gap-2">
-            {dirty && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-cs-warn/40 bg-cs-warn/10 px-1.5 py-0.5 text-[10px] font-medium text-cs-warn">
-                <span className="size-1.5 rounded-full bg-cs-warn" aria-hidden />
-                Unsaved
-              </span>
-            )}
+            {dirty && <UnsavedPill />}
             <button
               type="button"
               onClick={onSave}

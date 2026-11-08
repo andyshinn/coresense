@@ -63,4 +63,55 @@ describe('FileReplayTransport', () => {
     expect(t.sent).toHaveLength(1);
     expect([...t.sent[0]]).toEqual([1, 2, 3]);
   });
+
+  it('accepts the object form and answers its auto-OK opcodes with RESP_OK', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'replay-test-'));
+    const fixture = join(dir, 'frames.json');
+    writeFileSync(fixture, JSON.stringify({ frames: ['0d0babcd'], autoOkOpcodes: [14] }));
+    const cap = captureBus('packet');
+    const t = new FileReplayTransport(fixture);
+    const received: number[][] = [];
+    t.libTransport.onData((chunk) => received.push([...chunk]));
+    await t.connect('replay');
+    expect(cap.values).toHaveLength(1);
+    const replayed = [[0x0d, 0x0b, 0xab, 0xcd]];
+
+    // CMD_SET_ADVERT_LATLON is listed: answered with a bare RESP_OK.
+    await t.libTransport.send(Uint8Array.of(14, 1, 2, 3));
+    await new Promise((r) => setTimeout(r, 5));
+    expect(received).toEqual([...replayed, [0x00]]);
+    expect(cap.values.at(-1)?.code).toBe(0x00);
+
+    // Anything else still goes unanswered.
+    await t.libTransport.send(Uint8Array.of(8));
+    await new Promise((r) => setTimeout(r, 5));
+    expect(received).toEqual([...replayed, [0x00]]);
+  });
+
+  it('drops a pending auto-OK when the link goes down first', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'replay-test-'));
+    const fixture = join(dir, 'frames.json');
+    writeFileSync(fixture, JSON.stringify({ frames: [], autoOkOpcodes: [14] }));
+    const t = new FileReplayTransport(fixture);
+    const received: number[][] = [];
+    t.libTransport.onData((chunk) => received.push([...chunk]));
+    await t.connect('replay');
+    await t.libTransport.send(Uint8Array.of(14, 1, 2, 3));
+    await t.disconnect();
+    await new Promise((r) => setTimeout(r, 5));
+    expect(received).toEqual([]);
+  });
+
+  it('answers nothing for a plain array fixture', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'replay-test-'));
+    const fixture = join(dir, 'frames.json');
+    writeFileSync(fixture, JSON.stringify([]));
+    const t = new FileReplayTransport(fixture);
+    const received: number[][] = [];
+    t.libTransport.onData((chunk) => received.push([...chunk]));
+    await t.connect('replay');
+    await t.libTransport.send(Uint8Array.of(14, 1, 2, 3));
+    await new Promise((r) => setTimeout(r, 5));
+    expect(received).toEqual([]);
+  });
 });

@@ -13,13 +13,39 @@ const log = child('replay');
  *  `hex` field (extra fields like `name`/`code` are ignored). */
 type FixtureFrame = string | { hex: string };
 
-function loadFrames(path: string): Buffer[] {
-  const parsed = JSON.parse(readFileSync(path, 'utf8')) as FixtureFrame[];
-  if (!Array.isArray(parsed)) {
-    throw new Error(`replay fixture ${path} must be a JSON array of frames`);
+/** RESP_CODE_OK: a bare one-byte "done" from the radio. */
+const RESP_OK = 0x00;
+
+/**
+ * A replay fixture: a JSON array of frames, or `{ frames, autoOkOpcodes }`.
+ * `autoOkOpcodes` lists command codes the double answers with RESP_OK, so an
+ * E2E flow can save a setting and see it succeed (e.g. 14,
+ * CMD_SET_ADVERT_LATLON). Any other command still goes unanswered.
+ */
+interface Fixture {
+  frames: Buffer[];
+  autoOk: ReadonlySet<number>;
+}
+
+function loadFixture(path: string): Fixture {
+  const parsed = JSON.parse(readFileSync(path, 'utf8')) as
+    | FixtureFrame[]
+    | { frames?: FixtureFrame[]; autoOkOpcodes?: number[] };
+  const list = Array.isArray(parsed) ? parsed : parsed?.frames;
+  if (!Array.isArray(list)) {
+    throw new Error(`replay fixture ${path} must be a JSON array of frames, or { frames, autoOkOpcodes }`);
   }
+  const autoOk = new Set(
+    (Array.isArray(parsed) ? [] : (parsed.autoOkOpcodes ?? [])).filter(
+      (n): n is number => Number.isInteger(n) && n >= 0 && n <= 0xff,
+    ),
+  );
+  return { frames: parseFrames(list), autoOk };
+}
+
+function parseFrames(list: FixtureFrame[]): Buffer[] {
   const frames: Buffer[] = [];
-  for (const f of parsed) {
+  for (const f of list) {
     const str = typeof f === 'string' ? f : f.hex;
     const buf = Buffer.from(str, 'hex');
     // Buffer.from(hex) silently yields a short/empty buffer on malformed hex;
@@ -37,9 +63,10 @@ function loadFrames(path: string): Buffer[] {
  * Production-resident, env-gated transport double for E2E. Reads a fixture of
  * captured companion frames and replays them onto the event bus exactly as a
  * real transport would after receiving bytes. Selected only when
- * CORESENSE_FAKE_TRANSPORT is set (see ./select). `sendBytes` is a recording
- * no-op: outbound byte layout is covered by the integration suite, and E2E
- * asserts UI behavior rather than wire bytes.
+ * CORESENSE_FAKE_TRANSPORT is set (see ./select). Outbound frames are
+ * recorded, not interpreted: byte layout is covered by the integration suite,
+ * and E2E asserts UI behavior rather than wire bytes. The one exception is the
+ * fixture's `autoOkOpcodes`, which get a RESP_OK back (see loadFixture).
  */
 export class FileReplayTransport implements ITransport {
   // Deliberately impersonates BLE (and stamps packets transportType 'ble'): a
@@ -51,8 +78,20 @@ export class FileReplayTransport implements ITransport {
   // Transports.Loopback lets us push state transitions (drives the handshake) and
   // deliver each recorded frame into the session via receive().
   private readonly loopback = new Transports.Loopback();
-  readonly libTransport: Ports.Transport = this.loopback;
+  // The loopback, with sends passed through answerIfAutoOk.
+  readonly libTransport: Ports.Transport = {
+    send: async (bytes) => {
+      await this.loopback.send(bytes);
+      this.answerIfAutoOk(bytes);
+    },
+    onData: (cb) => this.loopback.onData(cb),
+    onStateChange: (cb) => this.loopback.onStateChange(cb),
+    getState: () => this.loopback.getState(),
+  };
   private readonly fixturePath: string;
+  private autoOk: ReadonlySet<number> = new Set();
+  // Pending auto-OK replies, cancelled on disconnect so none lands after it.
+  private readonly pendingOk = new Set<ReturnType<typeof setTimeout>>();
 
   constructor(fixturePath: string) {
     this.fixturePath = fixturePath;
@@ -66,13 +105,15 @@ export class FileReplayTransport implements ITransport {
     // drives the MeshCoreSession's post-connect handshake.
     emit.transportState('connected', deviceId);
     this.loopback.setState('connected');
-    let frames: Buffer[];
+    let fixture: Fixture;
     try {
-      frames = loadFrames(this.fixturePath);
+      fixture = loadFixture(this.fixturePath);
     } catch (err) {
       log.error(`failed to load replay fixture: ${errorMessage(err)}`);
       return;
     }
+    this.autoOk = fixture.autoOk;
+    const { frames } = fixture;
     for (const frame of frames) {
       // Tap the packet bus (kept for any inspector/observation consumers) AND
       // feed the session through its lib Transport so the adapter ingests it.
@@ -83,12 +124,31 @@ export class FileReplayTransport implements ITransport {
   }
 
   async disconnect(): Promise<void> {
+    for (const timer of this.pendingOk) clearTimeout(timer);
+    this.pendingOk.clear();
     emit.transportState('idle');
     this.loopback.setState('idle');
   }
 
   async sendBytes(bytes: Buffer): Promise<void> {
     this.sent.push(Buffer.from(bytes));
+  }
+
+  /** Answer a fixture-listed command with RESP_OK, as the radio would once
+   *  it applied it. Deferred, so the session has registered its waiter. */
+  private answerIfAutoOk(bytes: Uint8Array): void {
+    if (bytes.length === 0 || !this.autoOk.has(bytes[0])) return;
+    const timer = setTimeout(() => {
+      this.pendingOk.delete(timer);
+      if (this.loopback.getState() !== 'connected') return;
+      const ok = Buffer.of(RESP_OK);
+      // Both paths, as for fixture frames in connect(): the packet bus tap
+      // (Packet Log, inspectors) and the session's own ingest, which resolves
+      // the command's ack waiter.
+      this.dispatch(ok);
+      this.loopback.receive(Uint8Array.from(ok));
+    }, 0);
+    this.pendingOk.add(timer);
   }
 
   /** Mirror BleTransport.onData: parse the frame and emit the matching packet.
