@@ -33,6 +33,15 @@ describe('aggregator', () => {
     expect(h.summaries).toHaveLength(0);
   });
 
+  it('judges staleness by the packet time, so a drained backlog still summarizes', () => {
+    const h = harness();
+    // Received just now (drained on reconnect), but sent ten minutes ago.
+    h.agg.ingest(msg({ id: 'm1', ts: NOW, sentTs: NOW - 10 * 60_000 }), 'Alice');
+    expect(h.individual).toHaveLength(0);
+    vi.advanceTimersByTime(1_000);
+    expect(h.summaries).toHaveLength(1);
+  });
+
   it('debounces stale messages into one per-conversation summary', () => {
     const h = harness();
     const stale = NOW - 10 * 60_000;

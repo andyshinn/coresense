@@ -64,7 +64,10 @@ export function createAggregator(deps: {
 
   return {
     ingest(msg, senderName) {
-      if (now() - msg.ts <= config.staleThresholdMs) {
+      // Staleness reads the packet's own timestamp, not `ts`: `ts` is when we
+      // received it, so a backlog the radio queued while we were disconnected
+      // would all look brand new and fire one banner per message.
+      if (now() - (msg.sentTs ?? msg.ts) <= config.staleThresholdMs) {
         callbacks.onIndividual(msg);
         return;
       }

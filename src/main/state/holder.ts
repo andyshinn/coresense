@@ -318,14 +318,22 @@ class StateHolder {
   /** Persist a message the library already merged (idempotent by id). Bumps a
    *  block-rule match counter on genuinely-new ids, but does NOT merge
    *  paths/timesHeard itself (the lib owns that). */
-  recordLibMessage(message: Message): void {
+  recordLibMessage(libMessage: Message, receivedAt: number = Date.now()): void {
     // The user deleted this id — do not let a re-heard packet re-create it.
     // Channel-message ids are deterministic, and messagesStore.insert upserts
     // on mid. Guard runs before the block-rule bump below so a resurrect
     // attempt doesn't also inflate a rule's matchCount.
     // Removed once andyshinn/meshcore-ts#2 lands a suppression API.
-    if (messagesStore.isDeleted(message.id)) return;
-    const isNew = !messagesStore.findById(message.id);
+    if (messagesStore.isDeleted(libMessage.id)) return;
+    const existing = messagesStore.findById(libMessage.id);
+    const isNew = !existing;
+    // The lib's `ts` is the packet's timestamp — the sender's clock, which is
+    // often wildly off and so cannot order the timeline. Keep it as `sentTs`
+    // and stamp `ts` with when we received it. A re-heard flood copy (same
+    // deterministic id) keeps the FIRST reception's time, so a merge never
+    // moves the row. Note "received" means received by this app: messages the
+    // radio queued while disconnected get the time they were drained.
+    const message: Message = { ...libMessage, sentTs: libMessage.ts, ts: existing?.ts ?? receivedAt };
     if (isNew) {
       const rules = blockingStore().list();
       if (rules.length > 0) {

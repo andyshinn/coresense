@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { dayKey, fmtDate, fmtMessageTime, fmtRelative, fmtTime } from '../../../../src/renderer/lib/time';
+import {
+  dayKey,
+  fmtClockSkew,
+  fmtDate,
+  fmtDateTime,
+  fmtMessageTime,
+  fmtMessageTimeTitle,
+  fmtRelative,
+  fmtTime,
+} from '../../../../src/renderer/lib/time';
 
 // Only locale-independent branches are asserted here, so the test is stable
 // regardless of the CI runner's locale/timezone.
@@ -116,5 +125,35 @@ describe('fmtMessageTime', () => {
     expect(out.startsWith('Yesterday')).toBe(false);
     expect(out.includes(fmtTime(tomorrow, 'auto'))).toBe(true);
     expect(out).not.toBe(fmtTime(tomorrow, 'auto')); // carries a date
+  });
+});
+
+describe('fmtClockSkew', () => {
+  const at = 1_800_000_000_000;
+  it('is null under a minute', () => {
+    expect(fmtClockSkew(at + 59_000, at)).toBeNull();
+    expect(fmtClockSkew(at - 59_000, at)).toBeNull();
+  });
+  it('signs and truncates to the coarsest whole unit', () => {
+    expect(fmtClockSkew(at + 11.9 * 3_600_000, at)).toBe('+11h');
+    expect(fmtClockSkew(at - 3 * 86_400_000, at)).toBe('-3d');
+    expect(fmtClockSkew(at + 32 * 365 * 86_400_000, at)).toBe('+32y');
+    expect(fmtClockSkew(at - 5 * 60_000, at)).toBe('-5m');
+  });
+});
+
+describe('fmtMessageTimeTitle', () => {
+  const ts = 1_800_000_000_000;
+  it('is the plain date-time without a packet time', () => {
+    expect(fmtMessageTimeTitle({ ts }, 'auto')).toBe(fmtDateTime(ts, 'auto'));
+  });
+  it('spells out both times and the skew when the packet carried one', () => {
+    const sentTs = ts + 2 * 3_600_000;
+    expect(fmtMessageTimeTitle({ ts, sentTs }, 'auto')).toBe(
+      `Received: ${fmtDateTime(ts, 'auto')}\nSender clock: ${fmtDateTime(sentTs, 'auto')} (+2h)`,
+    );
+  });
+  it('omits the skew when the clocks agree', () => {
+    expect(fmtMessageTimeTitle({ ts, sentTs: ts - 2_000 }, 'auto')).not.toContain('(');
   });
 });

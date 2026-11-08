@@ -191,7 +191,16 @@ export interface Message {
   key: string; // channel or contact key the message belongs to
   fromPublicKeyHex?: string; // omitted when sent by the owner
   body: string;
+  /** Epoch ms when this message entered the app's timeline: when coresense
+   *  received an inbound message, or when the user sent an outgoing one. This
+   *  is the sort key everywhere (SQL ORDER BY, the renderer merge, day
+   *  separators, stats) and the time shown on the row. Rows stored before
+   *  `sentTs` existed carry the sender's packet time here instead. */
   ts: number;
+  /** Epoch ms from the packet itself — the SENDING node's clock, which is
+   *  routinely wrong (unset RTCs, years in the future). Display-only; never
+   *  sort on it. Absent on messages this app originated and on legacy rows. */
+  sentTs?: number;
   state: MessageState;
   meta?: MessageMeta;
 }

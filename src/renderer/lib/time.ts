@@ -1,5 +1,5 @@
 import { DAY_MS, HOUR_MS, MINUTE_MS, WEEK_MS } from '../../shared/time';
-import type { TimeFormatPref } from '../../shared/types';
+import type { Message, TimeFormatPref } from '../../shared/types';
 
 // All timestamp rendering flows through here so the user's 12/24-hour
 // preference is honored consistently. Electron ships full ICU, so the native
@@ -81,9 +81,10 @@ export function fmtDate(ts: number): string {
 // PM"). Buckets by local calendar day via dayKey (the same helper the date
 // separators use, so a message's timestamp and the separator above it always
 // agree). Matching on exact day — rather than "on or after today" — means a
-// message whose ts is a *future* day (message.ts is the sending node's clock,
-// which this app treats as unreliable — see shared/contacts/discovered.ts)
-// shows its date instead of masquerading as "today", surfacing the skew. The
+// timestamp on a *future* day (legacy message rows still carry the sending
+// node's clock in `ts`, which this app treats as unreliable — see
+// shared/contacts/discovered.ts) shows its date instead of masquerading as
+// "today", surfacing the skew. The
 // time portion goes through fmtTime so the 12/24-hour preference is honored;
 // the full date+time stays available via fmtDateTime on hover. `now` is
 // injectable for deterministic tests. Yesterday's key is derived from local
@@ -110,4 +111,32 @@ export function fmtAgoShort(ts: number, now: number = Date.now()): string {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
+}
+
+const SKEW_UNITS: [string, number][] = [
+  ['y', 365 * DAY_MS],
+  ['d', DAY_MS],
+  ['h', HOUR_MS],
+  ['m', MINUTE_MS],
+];
+
+/** Signed offset of a sender's packet clock from when we received the message:
+ *  "+11h" (sender's clock ahead), "-3d" (behind, or a backlog drained late).
+ *  Coarsest whole unit, truncated. Null under a minute — that much is ordinary
+ *  drift plus airtime and not worth calling out. */
+export function fmtClockSkew(sentTs: number, receivedTs: number): string | null {
+  const diff = sentTs - receivedTs;
+  const abs = Math.abs(diff);
+  const unit = SKEW_UNITS.find(([, ms]) => abs >= ms);
+  if (!unit) return null;
+  return `${diff > 0 ? '+' : '-'}${Math.floor(abs / unit[1])}${unit[0]}`;
+}
+
+/** Hover text for a message timestamp. The row shows `ts` (when we received
+ *  it); when the packet carried its own time, both are spelled out so a
+ *  sender with a wrong clock is visible rather than silently reordered. */
+export function fmtMessageTimeTitle(message: Pick<Message, 'ts' | 'sentTs'>, pref: TimeFormatPref): string {
+  if (message.sentTs == null) return fmtDateTime(message.ts, pref);
+  const skew = fmtClockSkew(message.sentTs, message.ts);
+  return `Received: ${fmtDateTime(message.ts, pref)}\nSender clock: ${fmtDateTime(message.sentTs, pref)}${skew ? ` (${skew})` : ''}`;
 }
