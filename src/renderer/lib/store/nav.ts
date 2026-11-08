@@ -14,10 +14,12 @@ const DEFAULT_SETTINGS_UI: SettingsUiState = {
 
 /** Navigation (the active view and back/forward history) together with the
  *  Settings panel's UI state. They share a slice because they are one piece of
- *  behaviour: leaving a dirty Settings panel parks the target in `settingsUi`
+ *  behaviour: leaving a surface with unsaved edits (a dirty Settings section,
+ *  or My Node's position draft) parks the target in `settingsUi.pendingTarget`
  *  instead of navigating, and resolving the prompt commits that move through
  *  the same history/recents logic as an unguarded one. This is the slice that
- *  writes `settingsUi`; its navigation also writes `ui` and the selections. */
+ *  writes `settingsUi` and `myNodeUi`; its navigation also writes `ui` and the
+ *  selections. */
 export interface NavSlice {
   // Browser-style back/forward stacks. Session-only (deliberately NOT in
   // UiState/persisted) — a restart starts fresh, and entries pointing at
@@ -26,8 +28,11 @@ export interface NavSlice {
   navPast: ActiveKey[];
   navFuture: ActiveKey[];
 
-  // Settings panel UI (active tab, registered sections, dirty map, prompts)
+  // Settings panel UI (active tab, registered sections, dirty map, prompts).
+  // `pendingTarget` is shared: My Node parks a blocked move there too.
   settingsUi: SettingsUiState;
+  // My Node's unsaved edits. Only the Location card's position draft for now.
+  myNodeUi: { locationDirty: boolean };
 
   // `skipHistory` opts out of pushing the prior activeKey onto navPast — used
   // by goBack/goForward themselves and by the few "restore previous view"
@@ -56,6 +61,8 @@ export interface NavSlice {
   commitPendingTarget: () => void;
   /** Reset settings UI state when the panel unmounts. */
   clearSettingsUi: () => void;
+  /** The Location card reports its draft here (the leave guard and quit read it). */
+  setLocationDirty: (dirty: boolean) => void;
 }
 
 const RECENT_KEYS_MAX = 10;
@@ -106,12 +113,18 @@ function anyDirty(dirtyById: Record<string, boolean>): boolean {
   return Object.values(dirtyById).some(Boolean);
 }
 
-// Guard for setActiveKey, goBack and goForward: if the user is leaving the
-// Settings panel with unsaved section changes, stash the target and let the
-// panel raise the prompt instead of navigating. Null when the move may proceed.
-function guardLeaveSettings(s: CoreState, target: ActiveKey): Partial<CoreState> | null {
-  const leavingSettings = s.ui.activeKey.startsWith('tool:settings') && !target.startsWith('tool:settings');
-  if (!leavingSettings || !anyDirty(s.settingsUi.dirtyById)) return null;
+// Guard for setActiveKey, goBack and goForward: if the user is leaving a
+// surface with unsaved edits, stash the target and let that surface raise the
+// prompt instead of navigating. Null when the move may proceed. The surfaces:
+// - Settings, with a dirty section, left for anything outside Settings;
+// - My Node, with a position draft, left for anything else (its telemetry
+//   view included: the Location card unmounts there and would lose the draft).
+function guardLeave(s: CoreState, target: ActiveKey): Partial<CoreState> | null {
+  const from = s.ui.activeKey;
+  const leavingSettings =
+    from.startsWith('tool:settings') && !target.startsWith('tool:settings') && anyDirty(s.settingsUi.dirtyById);
+  const leavingMyNode = from === 'tool:node' && target !== 'tool:node' && s.myNodeUi.locationDirty;
+  if (!leavingSettings && !leavingMyNode) return null;
   return { settingsUi: { ...s.settingsUi, pendingTarget: { kind: 'nav', key: target } } };
 }
 
@@ -119,6 +132,7 @@ export const createNavSlice: SliceCreator<NavSlice> = (set) => ({
   navPast: [],
   navFuture: [],
   settingsUi: DEFAULT_SETTINGS_UI,
+  myNodeUi: { locationDirty: false },
 
   setActiveKey: (requested, opts) =>
     set((s) => {
@@ -130,7 +144,7 @@ export const createNavSlice: SliceCreator<NavSlice> = (set) => ({
       if (key === s.ui.activeKey) return {};
       // recentKeys + nav stacks stay untouched until a blocked move commits
       // via commitPendingTarget.
-      const blocked = guardLeaveSettings(s, key);
+      const blocked = guardLeave(s, key);
       if (blocked) return blocked;
       // Forward navigation: push current onto past, clear future. Restore-from-
       // search-Esc and goBack/goForward itself opt out via skipHistory.
@@ -144,10 +158,10 @@ export const createNavSlice: SliceCreator<NavSlice> = (set) => ({
     set((s) => {
       if (s.navPast.length === 0) return {};
       const target = s.navPast[s.navPast.length - 1];
-      // Same Settings unsaved-guard as forward nav — back through a dirty
-      // Settings panel still needs the prompt. The deferred commit replays
+      // Same unsaved-guard as forward nav — back through a dirty
+      // surface still needs the prompt. The deferred commit replays
       // the goBack by routing through navStateUpdate with swapped stacks.
-      const blocked = guardLeaveSettings(s, target);
+      const blocked = guardLeave(s, target);
       if (blocked) return blocked;
       return navStateUpdate(s, target, {
         navPast: s.navPast.slice(0, -1),
@@ -158,7 +172,7 @@ export const createNavSlice: SliceCreator<NavSlice> = (set) => ({
     set((s) => {
       if (s.navFuture.length === 0) return {};
       const target = s.navFuture[s.navFuture.length - 1];
-      const blocked = guardLeaveSettings(s, target);
+      const blocked = guardLeave(s, target);
       if (blocked) return blocked;
       return navStateUpdate(s, target, {
         navPast: pushPast(s.navPast, s.ui.activeKey),
@@ -218,6 +232,13 @@ export const createNavSlice: SliceCreator<NavSlice> = (set) => ({
       return { settingsUi: { ...s.settingsUi, pendingTarget: null } };
     }),
   clearSettingsUi: () => set(() => ({ settingsUi: DEFAULT_SETTINGS_UI })),
+  setLocationDirty: (dirty) =>
+    set((s) => (s.myNodeUi.locationDirty === dirty ? {} : { myNodeUi: { ...s.myNodeUi, locationDirty: dirty } })),
 });
 
 export const selectAnySettingsDirty = (s: CoreState) => anyDirty(s.settingsUi.dirtyById);
+
+/** Any unsaved edit a quit should prompt for: a dirty Settings section or My
+ *  Node's position draft. Only the surface on screen can be dirty (each clears
+ *  its flags on unmount), so the prompt it raises is that surface's. */
+export const selectAnyUnsaved = (s: CoreState) => selectAnySettingsDirty(s) || s.myNodeUi.locationDirty;

@@ -26,7 +26,7 @@ import { createUiSlice } from './ui';
 export { selectIsConnected } from './connection';
 export { selectActiveMessages } from './conversations';
 export type { CoreState } from './coreState';
-export { selectAnySettingsDirty } from './nav';
+export { selectAnySettingsDirty, selectAnyUnsaved } from './nav';
 export { mergeHydratedPackets, migratePacketLogFilter } from './packets';
 export type {
   CmHeard,

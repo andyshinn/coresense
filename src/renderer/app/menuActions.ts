@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import { getApiClient } from '../lib/apiClientContext';
 import { loadLastDevice } from '../lib/lastDevice';
 import { notify } from '../lib/notify';
-import { selectAnySettingsDirty, selectIsConnected, useStore } from '../lib/store';
+import { selectAnyUnsaved, selectIsConnected, useStore } from '../lib/store';
 import { firstUnreadMessageId } from '../lib/utils';
 import { flushDrafts } from './useDraftsPersistence';
 import { flushUiState } from './useUiStatePersistence';
@@ -63,11 +63,12 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         setActiveKey('tool:settings:app');
         break;
       case 'requestQuit': {
-        // Main deferred a quit/close. If a Settings section is dirty, raise
-        // the unsaved-changes dialog; otherwise tell main it's safe to quit.
+        // Main deferred a quit/close. With unsaved edits (a Settings section,
+        // My Node's position) the surface on screen raises its unsaved-changes
+        // dialog; otherwise tell main it's safe to quit.
         const st = useStore.getState();
         const client = getApiClient();
-        if (selectAnySettingsDirty(st)) {
+        if (selectAnyUnsaved(st)) {
           st.setPendingTarget({ kind: 'quit' });
         } else if (client) {
           // Last boundary: main quits ~immediately after confirmQuit, so get
