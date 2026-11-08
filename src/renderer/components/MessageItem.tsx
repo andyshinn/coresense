@@ -5,7 +5,7 @@ import { DeleteConfirmPopover } from '../features/message-actions/DeleteConfirmP
 import { MessageQuickBar } from '../features/message-actions/MessageQuickBar';
 import { useIdentityHash } from '../hooks/useIdentityHash';
 import { isKnownHashMode } from '../lib/hopWarmth';
-import { fmtDateTime, fmtMessageTime } from '../lib/time';
+import { fmtMessageTime, fmtMessageTimeTitle } from '../lib/time';
 import { cn } from '../lib/utils';
 import type { BlockSenderDialogPrefill } from './BlockSenderDialog';
 import { ColoredUsername } from './ColoredUsername';
@@ -106,7 +106,7 @@ export function MessageItem({
     style === 'compact' ? (
       <>
         <span
-          title={fmtDateTime(message.ts, timeFormat)}
+          title={fmtMessageTimeTitle(message, timeFormat)}
           className="shrink-0 font-mono text-[10px] text-cs-text-dim tabular-nums"
         >
           {fmtMessageTime(message.ts, timeFormat)}
@@ -139,7 +139,7 @@ export function MessageItem({
             <MessageBody body={message.body} />
           </div>
           <div className="flex flex-row items-center gap-2 font-mono text-[10px] text-cs-text-dim">
-            <span title={fmtDateTime(message.ts, timeFormat)}>{fmtMessageTime(message.ts, timeFormat)}</span>
+            <span title={fmtMessageTimeTitle(message, timeFormat)}>{fmtMessageTime(message.ts, timeFormat)}</span>
             <StateChip message={message} />
             <PathStatsMeta stats={stats} />
             {/* TODO: nothing writes meta.rssi yet; this lights up once the pending meshcore-ts RSSI work lands. */}

@@ -41,7 +41,8 @@ function initSchema(conn: DatabaseSync): void {
       from_pk TEXT,                        -- hex; NULL when sent by self
       body    TEXT NOT NULL,
       state   TEXT NOT NULL,               -- MessageState: 'sending' | 'sent' | 'heard' | 'ack' | 'failed' | 'received'
-      meta    TEXT                         -- JSON-encoded MessageMeta
+      meta    TEXT,                        -- JSON-encoded MessageMeta
+      sent_ts INTEGER                      -- sender's packet clock; ts is local receive time
     );
     CREATE INDEX IF NOT EXISTS messages_by_key_ts  ON messages (key, ts DESC);
     -- messages_by_state was never read by any query (state is only ever
@@ -193,6 +194,9 @@ function initSchema(conn: DatabaseSync): void {
     'ALTER TABLE discovered_contacts ADD COLUMN observed_hops INTEGER NOT NULL DEFAULT -1',
     "ALTER TABLE discovered_contacts ADD COLUMN observed_path_hex TEXT NOT NULL DEFAULT ''",
     'ALTER TABLE discovered_contacts ADD COLUMN observed_at_unix INTEGER NOT NULL DEFAULT 0',
+    // Sender's packet timestamp; `ts` is the local receive time. NULL on rows
+    // written before this column, whose `ts` is still the packet time.
+    'ALTER TABLE messages ADD COLUMN sent_ts INTEGER',
   ]) {
     addColumnIfMissing(conn, ddl);
   }

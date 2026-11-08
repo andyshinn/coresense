@@ -253,13 +253,18 @@ export class InboxRouter {
       return;
     }
     const tsMs = tsBytes.readUInt32LE(0) * 1000;
-    const id = `proxy-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    // One clock read, so the id and `ts` agree.
+    const receivedAt = Date.now();
+    const id = `proxy-${receivedAt.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     // Omit fromPublicKeyHex: the renderer treats that as the "self" marker for
     // own-message styling. Proxy-originated sends still belong to this radio.
+    // `ts` is when it entered our timeline; the proxy client's own clock is
+    // kept as `sentTs`, same split as radio-received messages.
     holder.insertMessage({
       id,
       key: channel.key,
-      ts: tsMs,
+      ts: receivedAt,
+      sentTs: tsMs,
       body: textBytes.toString('utf8'),
       state: 'sent',
     });

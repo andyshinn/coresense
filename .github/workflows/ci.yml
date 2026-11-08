@@ -86,7 +86,11 @@ jobs:
           - os: windows-latest
             platform: win32
             make: pnpm make:win
-          - os: ubuntu-latest
+          # Pinned: ubuntu-latest moved to 26.04, whose rpm builds in a
+          # per-package BUILD/<name>-<ver>-build dir. electron-installer-redhat's
+          # spec template copies `usr/*` relative to the old cwd and fails with
+          # "cannot stat 'usr/*'". Unpin once the maker's spec handles it.
+          - os: ubuntu-24.04
             platform: linux
             make: pnpm make
     steps:

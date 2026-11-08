@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createAggregator, type StaleDescriptor } from '../../../src/main/notifications/aggregator';
+import {
+  createAggregator,
+  SENT_TS_MAX_BACKLOG_MS,
+  type StaleDescriptor,
+  stalenessTs,
+} from '../../../src/main/notifications/aggregator';
 import type { Message } from '../../../src/shared/types';
 
 const NOW = 1_000_000_000_000;
@@ -33,6 +38,32 @@ describe('aggregator', () => {
     expect(h.summaries).toHaveLength(0);
   });
 
+  it('judges staleness by the packet time, so a drained backlog still summarizes', () => {
+    const h = harness();
+    // Received just now (drained on reconnect), but sent ten minutes ago.
+    h.agg.ingest(msg({ id: 'm1', ts: NOW, sentTs: NOW - 10 * 60_000 }), 'Alice');
+    expect(h.individual).toHaveLength(0);
+    vi.advanceTimersByTime(1_000);
+    expect(h.summaries).toHaveLength(1);
+  });
+
+  it('does not trust a sender clock running in the future', () => {
+    // +32y RTC: believing it would read as "fresh" forever. It falls back to
+    // the receive time instead — here ten minutes ago, so it summarizes.
+    const h = harness();
+    h.agg.ingest(msg({ id: 'm1', ts: NOW - 10 * 60_000, sentTs: NOW + 32 * 365 * 86_400_000 }), 'Alice');
+    expect(h.individual).toHaveLength(0);
+    vi.advanceTimersByTime(1_000);
+    expect(h.summaries).toHaveLength(1);
+  });
+
+  it('does not trust an unset (1970) sender clock', () => {
+    // Believing it would summarize every live message from this node.
+    const h = harness();
+    h.agg.ingest(msg({ id: 'm1', ts: NOW, sentTs: 5_000 }), 'Alice');
+    expect(h.individual).toHaveLength(1);
+  });
+
   it('debounces stale messages into one per-conversation summary', () => {
     const h = harness();
     const stale = NOW - 10 * 60_000;
@@ -64,5 +95,19 @@ describe('aggregator', () => {
     h.agg.clear('ch:a');
     vi.advanceTimersByTime(1_000);
     expect(h.summaries).toHaveLength(0);
+  });
+});
+
+describe('stalenessTs', () => {
+  it('uses ts when there is no packet time', () => {
+    expect(stalenessTs({ ts: NOW })).toBe(NOW);
+  });
+  it('believes the packet time inside the plausible window', () => {
+    expect(stalenessTs({ ts: NOW, sentTs: NOW - 3_600_000 })).toBe(NOW - 3_600_000);
+    expect(stalenessTs({ ts: NOW, sentTs: NOW + 30_000 })).toBe(NOW + 30_000);
+  });
+  it('falls back to ts outside it', () => {
+    expect(stalenessTs({ ts: NOW, sentTs: NOW + 120_000 })).toBe(NOW);
+    expect(stalenessTs({ ts: NOW, sentTs: NOW - SENT_TS_MAX_BACKLOG_MS - 1 })).toBe(NOW);
   });
 });

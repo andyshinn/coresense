@@ -5,13 +5,14 @@ import type { ActivityBand, ChannelActivity, ChannelStats, Message, MessageMeta,
 import { all, clampLimit, get, openDb, withTransaction } from './db';
 
 /** The columns every Message read selects; keep in step with Row. */
-const MESSAGE_COLUMNS = 'mid, kind, key, ts, from_pk, body, state, meta';
+const MESSAGE_COLUMNS = 'mid, kind, key, ts, sent_ts, from_pk, body, state, meta';
 
 interface Row {
   mid: string;
   kind: string;
   key: string;
   ts: number;
+  sent_ts: number | null;
   from_pk: string | null;
   body: string;
   state: string;
@@ -26,6 +27,7 @@ function rowToMessage(row: Row): Message {
     fromPublicKeyHex: row.from_pk ?? undefined,
     body: row.body,
     ts: row.ts,
+    ...(row.sent_ts != null ? { sentTs: row.sent_ts } : {}),
     state: row.state as MessageState,
     meta,
   };
@@ -106,12 +108,15 @@ export const messagesStore = {
     const kind = kindFromKey(message.key);
     // Idempotent on app-level id (`mid`). The integer rowid is assigned by
     // SQLite and is internal — FTS5 uses it as the anchor. Updating an
-    // existing row triggers the AU sync to messages_fts.
+    // existing row triggers the AU sync to messages_fts. `sent_ts` is
+    // write-once: a re-insert built without it (a state or path update from a
+    // partial Message) must not null out the packet time.
     db.prepare(
-      `INSERT INTO messages (mid, kind, key, ts, from_pk, body, state, meta)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO messages (mid, kind, key, ts, sent_ts, from_pk, body, state, meta)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(mid) DO UPDATE SET
          kind=excluded.kind, key=excluded.key, ts=excluded.ts,
+         sent_ts=COALESCE(excluded.sent_ts, messages.sent_ts),
          from_pk=excluded.from_pk, body=excluded.body, state=excluded.state,
          meta=excluded.meta`,
     ).run(
@@ -119,6 +124,7 @@ export const messagesStore = {
       kind,
       message.key,
       message.ts,
+      message.sentTs ?? null,
       message.fromPublicKeyHex ?? null,
       sanitizeBody(message.body),
       message.state,
