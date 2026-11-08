@@ -35,6 +35,58 @@ export function compassPoint(deg: number): string {
   return POINTS[idx];
 }
 
+export type CoordAxis = 'lat' | 'lon';
+
+const AXIS: Record<CoordAxis, { label: string; limit: number }> = {
+  lat: { label: 'Latitude', limit: 90 },
+  lon: { label: 'Longitude', limit: 180 },
+};
+
+/** A parsed coordinate, or why it was refused. */
+export type CoordResult<T> = { ok: true; value: T } | { ok: false; error: string };
+
+/** True iff `value` is a finite coordinate inside its axis range. The same
+ *  range firmware enforces on CMD_SET_ADVERT_LATLON (companion_radio
+ *  MyMesh.cpp), so anything this accepts the radio does too. */
+export function isValidCoord(value: number, axis: CoordAxis): boolean {
+  return Number.isFinite(value) && Math.abs(value) <= AXIS[axis].limit;
+}
+
+// A plain decimal: optional sign, digits, optional fraction. No exponent, no
+// hex, no thousands separators — Number() would accept some of those.
+const DECIMAL = /^[+-]?(\d+(\.\d*)?|\.\d+)$/;
+
+/** Parse a coordinate typed by the user. `maxDecimals` caps the fraction
+ *  digits: My Node edits 5 (about a metre); the radio itself keeps 6. */
+export function parseCoord(text: string, axis: CoordAxis, opts: { maxDecimals?: number } = {}): CoordResult<number> {
+  const { label, limit } = AXIS[axis];
+  const trimmed = text.trim();
+  if (trimmed === '') return { ok: false, error: `${label} is required` };
+  if (!DECIMAL.test(trimmed)) return { ok: false, error: `${label} must be a number` };
+  const fraction = trimmed.split('.')[1] ?? '';
+  if (opts.maxDecimals !== undefined && fraction.length > opts.maxDecimals) {
+    return { ok: false, error: `${label} allows at most ${opts.maxDecimals} decimal places` };
+  }
+  const value = Number(trimmed);
+  if (!isValidCoord(value, axis)) return { ok: false, error: `${label} must be between -${limit} and ${limit}` };
+  // Normalise -0 so "-0" and "0" compare equal against a saved position.
+  return { ok: true, value: value === 0 ? 0 : value };
+}
+
+/** My Node's position fields: both required, at most 5 decimal places unless
+ *  the caller says otherwise. */
+export function validateLatLon(
+  latText: string,
+  lonText: string,
+  opts: { maxDecimals?: number } = { maxDecimals: 5 },
+): CoordResult<LatLon> {
+  const lat = parseCoord(latText, 'lat', opts);
+  if (!lat.ok) return lat;
+  const lon = parseCoord(lonText, 'lon', opts);
+  if (!lon.ok) return lon;
+  return { ok: true, value: { lat: lat.value, lon: lon.value } };
+}
+
 /** True iff the contact carries a usable WGS84 fix: both coords present, not
  *  the 0/0 "no GPS" sentinel, and within valid lat/lon ranges. Corrupt adverts
  *  can yield out-of-range coords — treat those as no fix rather than letting

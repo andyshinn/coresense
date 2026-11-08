@@ -5,6 +5,7 @@ export type { LogLevel } from '../logLevels';
 export type { MacroTemplate } from '../macros/types';
 export * from './domain';
 export * from './map';
+export * from './node';
 export * from './platform';
 export * from './repeater';
 export * from './search';

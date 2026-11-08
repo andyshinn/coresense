@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { uiStateSchema } from '../../../src/shared/api/schemas';
-import { isActiveKey, isConversationKey, isSettingsKey, isToolKey } from '../../../src/shared/keys';
+import {
+  canonicalActiveKey,
+  canonicalActiveKeys,
+  isActiveKey,
+  isConversationKey,
+  isMyNodeKey,
+  isSettingsKey,
+  isToolKey,
+  NODE_TELEMETRY_KEY,
+} from '../../../src/shared/keys';
 import { DEFAULT_UI_STATE } from '../../../src/shared/types';
 
 describe('key guards', () => {
@@ -18,6 +27,30 @@ describe('key guards', () => {
   it('accepts only key-shaped strings as an active key', () => {
     for (const key of ['ch:x', 'c:ab', 'tool:packetlog', 'tool:settings:app']) expect(isActiveKey(key)).toBe(true);
     for (const key of ['', 'packetlog', 'nb:ab', 'site:c:aa']) expect(isActiveKey(key)).toBe(false);
+  });
+});
+
+describe('retired tool keys', () => {
+  it('maps the Radio Connection and My radio keys to My node', () => {
+    expect(canonicalActiveKey('tool:bleconnect' as never)).toBe('tool:node');
+    expect(canonicalActiveKey('tool:myradio' as never)).toBe('tool:node');
+    expect(canonicalActiveKey('tool:map')).toBe('tool:map');
+    expect(canonicalActiveKey(NODE_TELEMETRY_KEY)).toBe(NODE_TELEMETRY_KEY);
+  });
+
+  it('dedupes the list it maps, keeping the first occurrence’s place', () => {
+    expect(canonicalActiveKeys(['ch:0', 'tool:myradio', 'tool:map', 'tool:bleconnect', 'tool:node'] as never)).toEqual([
+      'ch:0',
+      'tool:node',
+      'tool:map',
+    ]);
+  });
+
+  it('counts the telemetry sub-view as My node', () => {
+    expect(isMyNodeKey('tool:node')).toBe(true);
+    expect(isMyNodeKey(NODE_TELEMETRY_KEY)).toBe(true);
+    expect(isMyNodeKey('tool:map')).toBe(false);
+    expect(isActiveKey(NODE_TELEMETRY_KEY)).toBe(true);
   });
 });
 

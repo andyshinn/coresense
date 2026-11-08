@@ -3,7 +3,6 @@ import type {
   ApiErrorBody,
   RepeaterAclResponse,
   RepeaterCliResponse,
-  RepeaterLocalStatsResponse,
   RepeaterLoginResponse,
   RepeaterNeighboursResponse,
   RepeaterOwnerResponse,
@@ -11,7 +10,6 @@ import type {
   RepeaterTraceResponse,
 } from '../../../shared/api/contract';
 import {
-  localStatsBodySchema,
   repeaterCliBodySchema,
   repeaterLoginBodySchema,
   repeaterNeighboursBodySchema,
@@ -186,15 +184,5 @@ export function registerRepeaterRoutes(api: Hono): void {
         return fail503(c, err);
       }
     });
-  });
-
-  api.post('/api/repeater/local/stats', async (c) => {
-    const { subtype = 'CORE' } = await readJson(c, localStatsBodySchema, { optional: true });
-    try {
-      const stats = await protocolSession().repeaterGetLocalStats(subtype);
-      return c.json({ ok: true, stats } satisfies RepeaterLocalStatsResponse);
-    } catch (err) {
-      return fail503(c, err);
-    }
   });
 }

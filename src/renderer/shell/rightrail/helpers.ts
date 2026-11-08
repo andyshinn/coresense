@@ -1,4 +1,5 @@
 import { isChannelKey, isContactKey } from '../../../shared/conversationKey';
+import { NODE_TELEMETRY_KEY } from '../../../shared/keys';
 
 /** View "kind" derived from activeKey. Each kind has its own rail section set. */
 export type ViewKind = 'channel' | 'dm' | 'packetlog' | 'tool' | 'none';
@@ -8,7 +9,8 @@ export function viewKindFor(activeKey: string): ViewKind {
   if (isChannelKey(activeKey)) return 'channel';
   if (isContactKey(activeKey)) return 'dm';
   if (activeKey === 'tool:packetlog') return 'packetlog';
-  if (activeKey === 'tool:bleconnect') return 'none';
+  // My Node is a full-width dashboard; its telemetry sub-view has a rail.
+  if (activeKey === 'tool:node') return 'none';
   if (activeKey.startsWith('tool:')) return 'tool';
   return 'none';
 }
@@ -19,7 +21,7 @@ export function railTitle(activeKey: string): string {
   if (activeKey === 'tool:contacts') return 'Contacts';
   if (activeKey === 'tool:map') return 'Map';
   if (activeKey === 'tool:macros') return 'Reference';
-  if (activeKey === 'tool:myradio') return 'My radio';
+  if (activeKey === NODE_TELEMETRY_KEY) return 'Telemetry sharing';
   const kind = viewKindFor(activeKey);
   switch (kind) {
     case 'channel':

@@ -5,7 +5,6 @@ import type {
   ApiErrorBody,
   OkResponse,
   RepeaterAclResponse,
-  RepeaterLocalStatsResponse,
   RepeaterLoginResponse,
   RepeaterNeighboursResponse,
   RepeaterOwnerResponse,
@@ -239,44 +238,5 @@ describe('POST /api/repeater/:key/owner', () => {
 
     expect(res.status).toBe(503);
     expect((await res.json()) as ApiErrorBody).toEqual({ error: 'timed out' });
-  });
-});
-
-describe('POST /api/repeater/local/stats', () => {
-  const CORE = { kind: 'core', battMv: 4100, uptimeSecs: 3600, errFlags: 0, queueLen: 0 } as const;
-
-  function statsStub() {
-    const request = vi.fn((_subtype: Parameters<SessionAdapter['repeaterGetLocalStats']>[0]) =>
-      Promise.resolve({ ...CORE }),
-    );
-    installSessionStub({ repeaterGetLocalStats: request });
-    return request;
-  }
-
-  it('asks for CORE stats by default and answers with them', async () => {
-    const request = statsStub();
-
-    const res = await post('/api/repeater/local/stats');
-
-    expect(res.status).toBe(200);
-    expect((await res.json()) as RepeaterLocalStatsResponse).toEqual({ ok: true, stats: CORE });
-    expect(request).toHaveBeenCalledWith('CORE');
-  });
-
-  it('asks for the requested subtype', async () => {
-    const request = statsStub();
-
-    await post('/api/repeater/local/stats', json('POST', { subtype: 'PACKETS' }));
-
-    expect(request).toHaveBeenCalledWith('PACKETS');
-  });
-
-  it('answers 503 with the message when the request fails', async () => {
-    installSessionStub({ repeaterGetLocalStats: () => Promise.reject(new Error('RESP_ERR')) });
-
-    const res = await post('/api/repeater/local/stats');
-
-    expect(res.status).toBe(503);
-    expect((await res.json()) as ApiErrorBody).toEqual({ error: 'RESP_ERR' });
   });
 });

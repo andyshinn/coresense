@@ -1,4 +1,4 @@
-import type { ActiveKey } from '../../../shared/keys';
+import { type ActiveKey, canonicalActiveKey } from '../../../shared/keys';
 import type { CoreState, SliceCreator } from './coreState';
 import type { SettingsPendingTarget, SettingsSectionMeta, SettingsTab, SettingsUiState } from './types';
 
@@ -75,8 +75,10 @@ function navStateUpdate(
       ...s.ui,
       activeKey: key,
       // The Contact Manager keeps its bulk/list actions in the right rail, so
-      // open it on arrival. Other destinations preserve the user's choice.
-      rightOpen: key === 'tool:contacts' ? true : s.ui.rightOpen,
+      // open it on arrival; My Node is a full-width dashboard with nothing in
+      // the rail, so close it (⌘. still reopens it). Other destinations
+      // preserve the user's choice.
+      rightOpen: key === 'tool:contacts' ? true : key === 'tool:node' ? false : s.ui.rightOpen,
       selectedContactKey: null,
       selectedSiteKey: null,
       recentKeys,
@@ -118,8 +120,10 @@ export const createNavSlice: SliceCreator<NavSlice> = (set) => ({
   navFuture: [],
   settingsUi: DEFAULT_SETTINGS_UI,
 
-  setActiveKey: (key, opts) =>
+  setActiveKey: (requested, opts) =>
     set((s) => {
+      // A retired key (an old menu item, recent or pin) lands where it moved.
+      const key = canonicalActiveKey(requested);
       // No-op when the user clicks the already-active entry. Avoids polluting
       // history with a dedupe-able entry, and short-circuits the unsaved-guard
       // check that would otherwise trigger on Settings → Settings.

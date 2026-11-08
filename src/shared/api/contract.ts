@@ -5,7 +5,6 @@ import type {
   BlockRule,
   RepeaterAclEntry,
   RepeaterAdminSession,
-  RepeaterLocalStats,
   RepeaterLoginResult,
   RepeaterNeighboursPage,
   RepeaterOwnerInfo,
@@ -19,6 +18,7 @@ import type {
   macroPatchBodySchema,
   newBlockRuleSchema,
   newMacroBodySchema,
+  radioPatchBodySchema,
   radioSettingsBodySchema,
   repeaterNeighboursBodySchema,
   repeaterTraceBodySchema,
@@ -51,7 +51,17 @@ export type ApiErrorCode =
   /** The link to the radio failed mid-request (503). */
   | 'transport'
   /** Another awaited mesh request holds the radio (409); see `owner`. */
-  | 'radio_busy';
+  | 'radio_busy'
+  /** A My Node poll stepped aside for a user command (409); retry next tick. */
+  | 'busy_skip'
+  /** The radio's firmware can't report its own telemetry (501). */
+  | 'self_telemetry_unsupported'
+  /** The radio's firmware predates CMD_GET_STATS (501). */
+  | 'stats_unsupported'
+  /** "Save snapshot" with no live read from the connected radio yet (409). */
+  | 'no_live_read'
+  /** "Save snapshot" with a live read too old to save (409). */
+  | 'stale_live_read';
 
 export interface ApiErrorBody {
   error: string;
@@ -74,6 +84,8 @@ export interface OkResponse {
 // ---- Requests ---------------------------------------------------------------
 
 export type RadioSettingsRequest = z.input<typeof radioSettingsBodySchema>;
+/** PUT /api/device/radio: the radio fields to change; the rest stay as the radio holds them. */
+export type RadioPatchRequest = z.input<typeof radioPatchBodySchema>;
 export type NewBlockRule = z.output<typeof newBlockRuleSchema>;
 export type AddBlockRulesRequest = z.input<typeof addBlockRulesBodySchema>;
 export type BlockRulePatch = z.output<typeof blockRulePatchSchema>;
@@ -93,8 +105,6 @@ export interface MacroRenderRequest {
   channelKey?: string;
   placeholder?: string;
 }
-
-export type RepeaterLocalStatsSubtype = 'CORE' | 'RADIO' | 'PACKETS';
 
 // ---- Responses --------------------------------------------------------------
 
@@ -183,8 +193,17 @@ export interface RepeaterTraceResponse extends OkResponse {
   trace: RepeaterTrace;
 }
 
-export interface RepeaterLocalStatsResponse extends OkResponse {
-  stats: RepeaterLocalStats;
+/** GET /api/device/advert-link: the radio's own signed advert. */
+export interface AdvertLinkResponse {
+  hex: string;
+  /** `meshcore://<hex>`: what the MeshCore apps scan or open to add a contact. */
+  uri: string;
+}
+
+/** GET /api/device/clock. */
+export interface DeviceClockResponse {
+  /** The radio's RTC, unix seconds. */
+  epochSecs: number;
 }
 
 export interface MacroResponse {

@@ -1,5 +1,6 @@
 import { Plus } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
+import { isMyNodeKey } from '../../../shared/keys';
 import { ContextMenu, menuItem } from '../../components/ContextMenu';
 import {
   Sidebar,
@@ -116,8 +117,8 @@ export function LeftNav() {
         <ConnectionFooter
           state={transport}
           sync={syncProgress}
-          onClick={() => setActiveKey('tool:bleconnect')}
-          active={activeKey === 'tool:bleconnect'}
+          onClick={() => setActiveKey('tool:node')}
+          active={isMyNodeKey(activeKey)}
         />
       </SidebarFooter>
 

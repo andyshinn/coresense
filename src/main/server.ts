@@ -12,15 +12,18 @@ import { onApiError } from './api/errors';
 import { apiKeyAuth, checkWsKey } from './api/middleware/auth';
 import { createRoutes } from './api/routes';
 import type { BridgeHandle } from './bridge';
+import { clearRadioLimits, observeRadioLimits } from './device/radioLimits';
 import { type BusEventMap, bus } from './events/bus';
 import { listenOnPort } from './http-listen';
 import { resolveHttpPort } from './http-port';
 import { child, getLogBuffer } from './log';
+import { noteTransportState } from './node/nodeCache';
 import { startContactAutoRefresh, stopContactAutoRefresh } from './state/contactRefresh';
 import { endContactWalk } from './state/contactWalk';
 import { stateHolder } from './state/holder';
 import { discoveredStore } from './storage/discoveredContacts';
 import { packetStore } from './storage/packets';
+import { clearSelfLiveRead } from './telemetry/service';
 import { transportManager } from './transport/manager';
 import { currentUpdateState } from './updates/controller';
 import { isMainWindowFocused } from './window/registry';
@@ -81,6 +84,8 @@ const WS_FORWARDS: WsForwards = {
   gpsConfig: (cfg) => ({ type: 'gpsConfig', payload: cfg }),
   deviceInfo: (info) => ({ type: 'deviceInfo', payload: info }),
   deviceCapabilities: (caps) => ({ type: 'deviceCapabilities', payload: caps }),
+  radioLimits: (limits) => ({ type: 'radioLimits', payload: limits }),
+  nodeCache: (cache) => ({ type: 'nodeCache', payload: cache }),
   blockRules: (rules) => ({ type: 'blockRules', payload: rules }),
   macros: (macros) => ({ type: 'macros', payload: macros }),
   uiState: (state) => ({ type: 'uiState', payload: state }),
@@ -224,6 +229,8 @@ export async function startServer(
       log.warn(`packet persist failed: ${errorMessage(err)}`);
     }
     broadcast({ type: 'packet', payload: p });
+    // The handshake's RESP_SELF_INFO carries the board's TX power maximum.
+    observeRadioLimits(p);
   };
   const onTransportState = (state: TransportState, deviceId?: string) => {
     transportManager.setState(state, deviceId);
@@ -240,7 +247,11 @@ export async function startServer(
       // connect's refresh button answers "already syncing" until the stale
       // timeout expires.
       endContactWalk();
+      clearRadioLimits();
+      clearSelfLiveRead();
     }
+    // Opens or closes the connected radio's last-known entry.
+    noteTransportState(state, deviceId);
     broadcast({ type: 'transportState', payload: { state, deviceId } });
   };
   const onBridgeStatus = () => broadcast({ type: 'bridgeStatus', payload: bridge.getStatus() });

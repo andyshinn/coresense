@@ -1,3 +1,4 @@
+import { canonicalActiveKey, canonicalActiveKeys } from '../../../shared/keys';
 import {
   DEFAULT_AUTO_ADD_CONFIG,
   DEFAULT_DEVICE_CAPABILITIES,
@@ -6,8 +7,10 @@ import {
   DEFAULT_GPS_CONFIG,
   DEFAULT_MAP_SETTINGS,
   DEFAULT_MAP_TILE_STATUS,
+  DEFAULT_RADIO_LIMITS,
   DEFAULT_SYNC_PROGRESS,
   DEFAULT_TELEMETRY_POLICY,
+  EMPTY_NODE_CACHE,
   type StateSnapshot,
 } from '../../../shared/types';
 import { setRendererLogLevel } from '../logger';
@@ -71,12 +74,21 @@ export const createHydrateSlice: SliceCreator<HydrateSlice> = (set) => ({
       gpsConfig: snapshot.gpsConfig ?? DEFAULT_GPS_CONFIG,
       deviceInfo: snapshot.deviceInfo ?? DEFAULT_DEVICE_INFO,
       deviceCapabilities: snapshot.deviceCapabilities ?? DEFAULT_DEVICE_CAPABILITIES,
+      radioLimits: snapshot.radioLimits ?? DEFAULT_RADIO_LIMITS,
+      nodeCache: snapshot.nodeCache ?? EMPTY_NODE_CACHE,
       // Merge snapshot over defaults so any fields added to MapSettings in
       // newer builds get sensible values when reading older persisted state.
       mapSettings: { ...DEFAULT_MAP_SETTINGS, ...snapshot.mapSettings },
       mapManifest: snapshot.mapManifest,
       mapTileStatus: snapshot.mapTileStatus ?? DEFAULT_MAP_TILE_STATUS,
-      ui: { ...snapshot.uiState, packetLogFilter: migratePacketLogFilter(snapshot.uiState.packetLogFilter) },
+      ui: {
+        ...snapshot.uiState,
+        // Retired tool keys (shared/keys.ts) land where they moved.
+        activeKey: canonicalActiveKey(snapshot.uiState.activeKey),
+        recentKeys: canonicalActiveKeys(snapshot.uiState.recentKeys),
+        pinned: canonicalActiveKeys(snapshot.uiState.pinned),
+        packetLogFilter: migratePacketLogFilter(snapshot.uiState.packetLogFilter),
+      },
       // `??` for the same reason the fields above use it (see DevSkewField):
       // an older main serving a newer renderer during dev has no drafts in its
       // snapshot.

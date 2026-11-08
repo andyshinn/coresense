@@ -21,8 +21,7 @@ export const TOOL_KEYS = [
   'tool:map',
   'tool:contacts',
   'tool:macros',
-  'tool:myradio',
-  'tool:bleconnect',
+  'tool:node',
 ] as const;
 
 export type ToolKey = (typeof TOOL_KEYS)[number];
@@ -31,8 +30,40 @@ export type ToolKey = (typeof TOOL_KEYS)[number];
  *  resolves the tab, including legacy aliases. */
 export type SettingsKey = 'tool:settings' | `tool:settings:${string}`;
 
+/** My Node's saved-telemetry view, the destination of "View all". A sub-view
+ *  of `tool:node` rather than a tool of its own, so it isn't in TOOL_KEYS. */
+export const NODE_TELEMETRY_KEY = 'tool:node:telemetry';
+export type NodeTelemetryKey = typeof NODE_TELEMETRY_KEY;
+
 /** What the main pane shows: UiState.activeKey, recents and history. */
-export type ActiveKey = ConversationKey | ToolKey | SettingsKey;
+export type ActiveKey = ConversationKey | ToolKey | SettingsKey | NodeTelemetryKey;
+
+/** Tool keys that moved. My Node replaced both the Radio Connection panel
+ *  (`tool:bleconnect`) and My radio (`tool:myradio`); a ui-state.json, recent
+ *  or pin written before that still holds them. */
+const RETIRED_KEYS: Readonly<Record<string, ActiveKey>> = {
+  'tool:bleconnect': 'tool:node',
+  'tool:myradio': 'tool:node',
+};
+
+/** The key a retired one moved to, or `key` itself. */
+export function canonicalActiveKey(key: ActiveKey): ActiveKey {
+  return RETIRED_KEYS[key] ?? key;
+}
+
+/** `canonicalActiveKey` over a list, dropping the duplicates it can create
+ *  (a pin on both retired keys becomes one pin). First occurrence wins, so a
+ *  recents list keeps its order. */
+export function canonicalActiveKeys(keys: readonly ActiveKey[]): ActiveKey[] {
+  const out: ActiveKey[] = [];
+  for (const k of keys.map(canonicalActiveKey)) if (!out.includes(k)) out.push(k);
+  return out;
+}
+
+/** True on My Node and its sub-views. */
+export function isMyNodeKey(key: string): boolean {
+  return key === 'tool:node' || key === NODE_TELEMETRY_KEY;
+}
 
 /** True iff `key` is a tool or Settings key rather than a conversation. */
 export function isToolKey(key: string): key is ToolKey | SettingsKey {

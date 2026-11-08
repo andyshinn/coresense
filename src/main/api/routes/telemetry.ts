@@ -7,8 +7,11 @@ import {
   deleteTelemetryRequest,
   getTelemetryDetail,
   listTelemetry,
+  readSelfLive,
   requestTelemetry,
+  saveSelfSnapshot,
 } from '../../telemetry/service';
+import { isUserCommandInFlight } from '../middleware/userCommandGate';
 
 /** Saved telemetry requests (telemetry/service.ts).
  *
@@ -18,6 +21,50 @@ import {
  *  registered first: `/api/telemetry/request/:id` has two segments and can't
  *  match `/:nodeKey` today, but a later `/:nodeKey/...` route could shadow it. */
 export function registerTelemetryRoutes(api: Hono): void {
+  // My Node's live reading of the companion's own telemetry: not saved. A
+  // poll, so it steps aside for a user command (409 `busy_skip`).
+  api.post('/api/telemetry/self/live', async (c) => {
+    if (isUserCommandInFlight()) {
+      return c.json({ error: 'a user command is in flight', code: 'busy_skip' } satisfies ApiErrorBody, 409);
+    }
+    const res = await readSelfLive();
+    switch (res.status) {
+      case 'ok':
+        return c.json(res.read);
+      case 'offline':
+        return c.json({ error: 'no radio attached' }, 503);
+      case 'noOwner':
+        return c.json({ error: 'radio identity not known yet' }, 503);
+      case 'unsupported':
+        return c.json({ error: res.message, code: 'self_telemetry_unsupported' } satisfies ApiErrorBody, 501);
+      default:
+        return c.json({ error: res.message }, 503);
+    }
+  });
+
+  // "Save snapshot": store the live read above, exactly as shown, in the same
+  // saved-request history every telemetry request uses.
+  api.post('/api/telemetry/self/snapshot', (c) => {
+    const res = saveSelfSnapshot();
+    switch (res.status) {
+      case 'saved':
+        return c.json(res.request);
+      case 'stale':
+        return c.json(
+          {
+            error: `the last reading is ${Math.round(res.ageMs / 1000)} s old`,
+            code: 'stale_live_read',
+          } satisfies ApiErrorBody,
+          409,
+        );
+      default:
+        return c.json(
+          { error: 'no reading from the connected radio yet', code: 'no_live_read' } satisfies ApiErrorBody,
+          409,
+        );
+    }
+  });
+
   api.get('/api/telemetry/request/:id', (c) => {
     const detail = getTelemetryDetail(c.req.param('id'));
     if (!detail) return c.json({ error: 'not found' }, 404);

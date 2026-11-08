@@ -1,5 +1,7 @@
 import { UserCircle } from 'lucide-react';
 import { useMemo } from 'react';
+import { parseCoord } from '../../../../shared/geo';
+import { validateNodeName } from '../../../../shared/radio';
 import type { DeviceIdentity } from '../../../../shared/types';
 import { Row, TextInput, Toggle } from '../../../components/settings/Field';
 import { SettingsSection } from '../../../components/settings/SettingsSection';
@@ -40,15 +42,23 @@ export function PublicInfoSection() {
     eq: eqPublicInfo,
     onSave: async (d) => {
       if (!client) throw new Error('No server connection');
-      const patch: Partial<DeviceIdentity> = { name: d.name, sharePositionInAdvert: d.share };
-      if (d.latText.trim() || d.lonText.trim()) {
-        const lat = Number(d.latText);
-        const lon = Number(d.lonText);
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-          throw new Error('Latitude and longitude must be numbers');
-        }
-        patch.lat = lat;
-        patch.lon = lon;
+      const patch: Partial<DeviceIdentity> = { sharePositionInAdvert: d.share };
+      // Only a changed name is sent, so an identity with no name yet (a radio
+      // never connected) can still save its position.
+      if (d.name !== saved.name) {
+        const name = validateNodeName(d.name);
+        if (!name.ok) throw new Error(name.error);
+        patch.name = name.value;
+      }
+      const positionEdited = d.latText !== saved.latText || d.lonText !== saved.lonText;
+      if (positionEdited && (d.latText.trim() || d.lonText.trim())) {
+        // The radio keeps 6 decimal places (1e-6 degrees on the wire).
+        const lat = parseCoord(d.latText, 'lat', { maxDecimals: 6 });
+        if (!lat.ok) throw new Error(lat.error);
+        const lon = parseCoord(d.lonText, 'lon', { maxDecimals: 6 });
+        if (!lon.ok) throw new Error(lon.error);
+        patch.lat = lat.value;
+        patch.lon = lon.value;
       }
       await api.putDeviceIdentity(client, patch);
       notify.success(connected ? 'Public info saved to radio' : 'Public info saved app-side');

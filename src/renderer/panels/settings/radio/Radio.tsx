@@ -35,6 +35,11 @@ export function RadioSection() {
   const saved = useStore((s) => s.radioSettings);
   const connected = useStore((s) => s.transportState === 'connected');
   const caps = useStore((s) => s.deviceCapabilities);
+  const limits = useStore((s) => s.radioLimits);
+  // The radio's own range once its SELF_INFO has reported it; before that (or
+  // offline) the firmware minimum and the common 22 dBm board ceiling. Main
+  // checks the same range on save.
+  const txMax = limits.maxTxPowerDbm ?? 22;
 
   const { draft, setDraft, sectionProps } = useSettingsSection({
     id: 'radio-radio',
@@ -137,8 +142,8 @@ export function RadioSection() {
         control={
           <NumberInput
             value={draft.txPowerDbm}
-            min={-3}
-            max={22}
+            min={limits.minTxPowerDbm}
+            max={txMax}
             suffix="dBm"
             onChange={(v) => setDraft((d) => ({ ...d, txPowerDbm: v }))}
           />

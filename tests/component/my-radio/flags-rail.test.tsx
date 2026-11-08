@@ -1,5 +1,6 @@
 import { act, fireEvent, renderHook, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NODE_TELEMETRY_KEY } from '../../../src/shared/keys';
 
 // My radio's rail: per-contact telemetry flags (DECISIONS B16) — on-radio
 // chat contacts only, flagged first, search, columns live only under
@@ -117,7 +118,7 @@ describe('TelemetryFlagsRail', () => {
     expect(box('Ann', 'Location').disabled).toBe(true);
   });
 
-  it('is the rail for tool:myradio', () => {
+  it('is the rail for My Node’s telemetry view', () => {
     const data: RailData = {
       channel: null,
       contact: null,
@@ -127,10 +128,10 @@ describe('TelemetryFlagsRail', () => {
       repeaterAdminActiveTab: null,
       cardPublicKeyHex: null,
     };
-    const sections = sectionsFor('tool:myradio', data, { clearMentionedContact: () => {} });
+    const sections = sectionsFor(NODE_TELEMETRY_KEY, data, { clearMentionedContact: () => {} });
     expect(sections.map((s) => s.id)).toEqual(['rail.myradio.flags']);
     expect(sections[0].label).toBe('Telemetry flags per contact');
-    expect(railTitle('tool:myradio')).toBe('My radio');
+    expect(railTitle(NODE_TELEMETRY_KEY)).toBe('Telemetry sharing');
   });
 });
 

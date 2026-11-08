@@ -23,6 +23,8 @@ import {
   type DeviceInfo,
   type GpsConfig,
   type MapSettings,
+  type NodeCache,
+  parseNodeCache,
   type RadioSettings,
   type TelemetryPolicy,
   type UiState,
@@ -52,6 +54,7 @@ const FILES = {
   deviceInfo: 'device-info.json',
   blockRules: 'block-rules.json',
   macros: 'macros.json',
+  nodeCache: 'node-cache.json',
 } as const;
 
 function pathFor(file: string): string {
@@ -309,6 +312,17 @@ export const settingsStore = {
 
   loadMacros: (): MacroTemplate[] => readJson(FILES.macros, isList<MacroTemplate>) ?? [],
   saveMacros: (v: MacroTemplate[]): void => writeJson(FILES.macros, v),
+
+  /** The last-known node cache (main/node/nodeCache.ts). Versioned, and
+   *  tolerant entry by entry rather than through mergeDefaults: its entries
+   *  are keyed by public key, so there is no default shape to merge onto. */
+  loadNodeCache: (): NodeCache => {
+    const { cache, dropped, futureVersion } = parseNodeCache(readJson(FILES.nodeCache, isPlainObject));
+    if (futureVersion) log.warn(`${FILES.nodeCache} is from a newer CoreSense; starting with an empty node cache`);
+    if (dropped > 0) log.warn(`dropped ${dropped} malformed entr${dropped === 1 ? 'y' : 'ies'} from ${FILES.nodeCache}`);
+    return cache;
+  },
+  saveNodeCache: (v: NodeCache): void => writeJson(FILES.nodeCache, v),
 };
 
 // Recursive merge so new fields added in code get default values when reading

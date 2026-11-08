@@ -12,11 +12,13 @@
 
 import { randomBytes, randomUUID } from 'node:crypto';
 import { toSavedRequestDto } from '../../shared/telemetry/dto';
+import { bytesToHex, decodeLpp } from '../../shared/telemetry/lpp';
 import { previousForRequest } from '../../shared/telemetry/previous';
 import {
   type RequestDetailDto,
   type SavedRequest,
   type SavedRequestDto,
+  type SelfLiveReadDto,
   TELEM_PERM_BASE,
   TELEM_PERM_ENVIRONMENT,
   TELEM_PERM_LOCATION,
@@ -29,6 +31,7 @@ import type { Contact, RepeaterAclRole } from '../../shared/types';
 import { adminSessions } from '../bridge/adminSession';
 import { emit } from '../events/bus';
 import { child } from '../log';
+import { recordLiveRead } from '../node/nodeCache';
 import { protocolSession } from '../protocol';
 import { noteHeard } from '../state/contactSync';
 import { stateHolder } from '../state/holder';
@@ -402,6 +405,115 @@ function save(req: SavedRequest): TelemetryRequestResult {
   emit.telemetrySaved({ request });
   if (pruned.length > 0) emit.telemetryDeleted({ nodeKey: req.nodeKey, ids: pruned });
   return { status: 'saved', request };
+}
+
+// ---- My Node live reads ------------------------------------------------------
+//
+// My Node polls the companion's own telemetry while its page is open. A poll
+// is not a saved request: the history holds only what the user chose to keep.
+// The latest read is held here so "Save snapshot" stores exactly the values
+// on screen. It belongs to one radio and is only good while fresh: a read from
+// a radio that has since disconnected, or one left over after polling paused
+// (window hidden), is refused rather than saved under the wrong name or time.
+
+/** A live read older than this can't be saved: two of My Node's 10 s polls. */
+export const SELF_LIVE_MAX_AGE_MS = 20_000;
+
+interface LiveRead {
+  ownerKey: string;
+  at: number;
+  raw: Uint8Array;
+  roundTripMs: number;
+}
+
+let lastLive: LiveRead | null = null;
+let liveInFlight: Promise<SelfLiveResult> | null = null;
+
+export type SelfLiveResult =
+  | { status: 'ok'; read: SelfLiveReadDto }
+  | { status: 'offline' }
+  /** SELF_INFO hasn't named the radio yet. */
+  | { status: 'noOwner' }
+  /** Firmware without the self-telemetry branch (RESP_ERR UNSUPPORTED_CMD). */
+  | { status: 'unsupported'; message: string }
+  | { status: 'failed'; message: string };
+
+function ownerKeyNow(): string | null {
+  return stateHolder().getOwner()?.publicKeyHex.toLowerCase() ?? null;
+}
+
+/** Read the companion's own telemetry without saving it. A second call while
+ *  one is pending joins it. Never rejects. */
+export function readSelfLive(): Promise<SelfLiveResult> {
+  if (liveInFlight) return liveInFlight;
+  if (!isConnected()) return Promise.resolve({ status: 'offline' });
+  const ownerKey = ownerKeyNow();
+  if (!ownerKey) return Promise.resolve({ status: 'noOwner' });
+  const startedAt = Date.now();
+  liveInFlight = (async (): Promise<SelfLiveResult> => {
+    try {
+      const raw = await protocolSession().requestSelfTelemetry({ timeoutMs: TELEMETRY_SELF_TIMEOUT_MS });
+      const at = Date.now();
+      // Dropped if the link went down, or another radio came up, mid-read.
+      if (!isConnected() || ownerKeyNow() !== ownerKey) return { status: 'offline' };
+      lastLive = { ownerKey, at, raw, roundTripMs: at - startedAt };
+      const rawHex = bytesToHex(raw);
+      recordLiveRead(at, rawHex);
+      return { status: 'ok', read: { at, rawHex, readings: decodeLpp(raw).readings } };
+    } catch (err) {
+      const message = errorMessage(err);
+      if (!isConnected() || isDisconnectError(message)) return { status: 'offline' };
+      if (/unsupported/i.test(message)) return { status: 'unsupported', message };
+      return { status: 'failed', message };
+    } finally {
+      liveInFlight = null;
+    }
+  })();
+  return liveInFlight;
+}
+
+/** Forget the held live read: the link dropped. */
+export function clearSelfLiveRead(): void {
+  lastLive = null;
+}
+
+export type SelfSnapshotResult =
+  | { status: 'saved'; request: SavedRequestDto }
+  /** Nothing read from the connected radio yet. */
+  | { status: 'noLiveRead' }
+  /** The held read is older than SELF_LIVE_MAX_AGE_MS. */
+  | { status: 'stale'; ageMs: number };
+
+/** Save the held live read as a companion request: the same history and
+ *  format as every other saved telemetry request, holding exactly the values
+ *  My Node showed. */
+export function saveSelfSnapshot(now = Date.now()): SelfSnapshotResult {
+  const live = lastLive;
+  if (!live || !isConnected() || live.ownerKey !== ownerKeyNow()) return { status: 'noLiveRead' };
+  const ageMs = now - live.at;
+  if (ageMs > SELF_LIVE_MAX_AGE_MS) return { status: 'stale', ageMs };
+  const result = save({
+    id: randomUUID(),
+    nodeKey: live.ownerKey,
+    source: 'companion',
+    requestedAt: live.at - live.roundTripMs,
+    repliedAt: live.at,
+    outcome: 'ok',
+    roundTripMs: live.roundTripMs,
+    hops: null,
+    route: 'local',
+    aclRole: null,
+    permsGranted: ALL_PERMS,
+    raw: live.raw,
+  });
+  if (result.status !== 'saved') return { status: 'noLiveRead' };
+  return result;
+}
+
+/** Test seam. */
+export function resetSelfLiveState(): void {
+  lastLive = null;
+  liveInFlight = null;
 }
 
 // ---- Reads and deletes ----------------------------------------------------

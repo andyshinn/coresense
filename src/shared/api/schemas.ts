@@ -1,8 +1,10 @@
 import { z } from 'zod';
+import { type CoordAxis, isValidCoord } from '../geo';
 import { type ActiveKey, isActiveKey } from '../keys';
 import { LOG_LEVELS } from '../logLevels';
 import type { MacroTemplate } from '../macros/types';
 import { QUICK_ACTION_IDS } from '../quickActions';
+import { validateNodeName } from '../radio';
 import {
   type AppSettings,
   type AutoAddConfig,
@@ -303,8 +305,49 @@ export const blockRulePatchSchema = newBlockRuleSchema
   .pick({ pattern: true, tsFrom: true, enabled: true, note: true })
   .partial();
 
-/** PUT /api/device/identity: any subset of the identity. */
-export const deviceIdentityPatchSchema = deviceIdentitySchema.partial();
+/** A node name, validated and normalised (trimmed, NFC) as shared/radio.ts
+ *  defines it; the parsed value is what goes to the radio. */
+const nodeNameSchema = z.string().transform((raw, ctx) => {
+  const r = validateNodeName(raw);
+  if (!r.ok) {
+    ctx.addIssue({ code: 'custom', message: r.error });
+    return z.NEVER;
+  }
+  return r.value;
+});
+
+const coordSchema = (axis: CoordAxis) =>
+  z.number().refine((v) => isValidCoord(v, axis), {
+    message: axis === 'lat' ? 'Latitude must be between -90 and 90' : 'Longitude must be between -180 and 180',
+  });
+
+/** PUT /api/device/identity: any subset of the identity. The name and position
+ *  are held to the limits the firmware enforces, so a value the radio would
+ *  truncate or refuse is a 400 here rather than a silent change on the air.
+ *  Decimal places are not capped: the radio keeps 6, and only My Node's own
+ *  fields limit input to 5. */
+export const deviceIdentityPatchSchema = deviceIdentitySchema
+  .extend({ name: nodeNameSchema, lat: coordSchema('lat').nullable(), lon: coordSchema('lon').nullable() })
+  .partial();
+
+/** PUT /api/device/radio: a subset of the radio params, merged by the server
+ *  onto the radio's current values (routes/device.ts).
+ *  A PATCH in all but verb, like /api/device/telemetry-policy: a full body
+ *  built from a stale renderer copy would write old modulation back. TX power
+ *  is checked against the connected radio's range in the route. */
+export const radioPatchBodySchema = radioSettingsSchema
+  .pick({
+    frequencyHz: true,
+    bandwidthHz: true,
+    spreadingFactor: true,
+    codingRate: true,
+    txPowerDbm: true,
+    repeatMode: true,
+  })
+  .partial()
+  .refine((p) => Object.values(p).some((v) => v !== undefined), {
+    message: 'at least one radio field is required',
+  });
 
 /** PUT /api/radio/path-hash-mode. */
 export const pathHashModeBodySchema = z.object({ size: pathHashSize });
@@ -346,9 +389,6 @@ export const repeaterTraceBodySchema = z.object({
   flags: z.number().int().optional(),
   pathHex: z.string(),
 });
-
-/** POST /api/repeater/local/stats. `subtype` defaults to CORE. */
-export const localStatsBodySchema = z.object({ subtype: z.enum(['CORE', 'RADIO', 'PACKETS']).optional() });
 
 /** POST /api/transport/advert. `flood` defaults to true. */
 export const advertBodySchema = z.object({ flood: z.boolean().optional() });

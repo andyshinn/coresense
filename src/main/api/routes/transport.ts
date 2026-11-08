@@ -1,5 +1,6 @@
 import type { Hono } from 'hono';
 import { advertBodySchema, connectBodySchema } from '../../../shared/api/schemas';
+import { recordSelfAdvert } from '../../node/nodeCache';
 import { protocolSession } from '../../protocol';
 import { transportManager } from '../../transport/manager';
 import { readJson } from '../body';
@@ -12,6 +13,9 @@ export function registerTransportRoutes(api: Hono): void {
     const body = await readJson(c, advertBodySchema, { optional: true });
     const result = await protocolSession().sendSelfAdvert(body.flood ?? true);
     if (!result.ok) return c.json({ error: result.error }, 503);
+    // The radio doesn't report when it last adverted, so My Node shows the
+    // last one sent from here.
+    recordSelfAdvert(body.flood ?? true);
     return c.json({ ok: true });
   });
 

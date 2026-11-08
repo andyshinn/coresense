@@ -332,3 +332,32 @@ body {
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 }
+
+/* Type vocabulary from the CoreSense design system, so code and canvas use the
+   same names. Colour is applied separately (text-cs-text-muted for labels on
+   bg-2: text-cs-text-dim is under 4.5:1 there). */
+@utility label-caps {
+  font-size: 10px;
+  line-height: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+@utility label-caps-mono {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+@utility section-title {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+/* The big instrument numeral: tiles' main value. */
+@utility stat-numeral {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  line-height: 36px;
+  font-variant-numeric: tabular-nums;
+}

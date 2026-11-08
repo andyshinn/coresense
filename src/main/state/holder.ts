@@ -8,6 +8,7 @@ import {
   type ChannelStats,
   type Contact,
   DEFAULT_DEVICE_CAPABILITIES,
+  DEFAULT_RADIO_LIMITS,
   type DeviceCapabilities,
   type DeviceIdentity,
   type DeviceInfo,
@@ -18,6 +19,7 @@ import {
   type MessageMeta,
   type MessagePath,
   type Owner,
+  type RadioLimits,
   type RadioSettings,
   type TelemetryPolicy,
   type UiState,
@@ -66,6 +68,9 @@ class StateHolder {
   // we don't persist them — the renderer resets to DEFAULT when the device
   // disconnects.
   private deviceCapabilities: DeviceCapabilities = { ...DEFAULT_DEVICE_CAPABILITIES };
+  // The connected radio's TX power range (device/radioLimits.ts). Live-only,
+  // like capabilities: a different radio may connect next.
+  private radioLimits: RadioLimits = { ...DEFAULT_RADIO_LIMITS };
 
   constructor() {
     // Drop the deprecated first-run "ch:public" seed if an earlier version
@@ -270,6 +275,13 @@ class StateHolder {
   setDeviceInfo(next: DeviceInfo): void {
     this.deviceInfo = next;
     settingsStore.saveDeviceInfo(next);
+  }
+
+  getRadioLimits(): RadioLimits {
+    return this.radioLimits;
+  }
+  setRadioLimits(next: RadioLimits): void {
+    this.radioLimits = next;
   }
 
   getDeviceCapabilities(): DeviceCapabilities {

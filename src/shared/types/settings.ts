@@ -364,3 +364,19 @@ export const DEFAULT_DEVICE_CAPABILITIES: DeviceCapabilities = {
   identityKeyIO: false,
   repeatMode: false,
 };
+
+/** The TX power range the connected radio accepts. Firmware rejects
+ *  CMD_SET_RADIO_TX_POWER outside `-9..MAX_LORA_TX_POWER` (companion_radio
+ *  MyMesh.cpp), and reports that board maximum in RESP_SELF_INFO byte 3.
+ *  Derived from the live connection, so never persisted: `maxTxPowerDbm` is
+ *  null until this connection's SELF_INFO arrives, and again after a
+ *  disconnect. */
+export interface RadioLimits {
+  minTxPowerDbm: number;
+  maxTxPowerDbm: number | null;
+}
+
+export const DEFAULT_RADIO_LIMITS: RadioLimits = {
+  minTxPowerDbm: -9,
+  maxTxPowerDbm: null,
+};

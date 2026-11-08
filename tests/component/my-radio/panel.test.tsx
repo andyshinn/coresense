@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SavedRequestDto } from '../../../src/shared/telemetry/types';
 
-// My radio (tool:myradio): the companion's own telemetry view, the read
+// My Node's telemetry view (tool:node:telemetry): the companion's own telemetry, the read
 // button and caption, the saved-reads toggle, and the GPS-off state
 // (DECISIONS: My radio, B15, B23).
 
@@ -54,10 +54,10 @@ describe('MyRadioPanel', () => {
   it('asks for a radio when there is no owner identity', () => {
     seedRadio({ owner: false, connected: false });
     renderWithClient(<MyRadioPanel />);
-    expect(screen.getByText('My radio')).toBeTruthy();
+    expect(screen.getByText('Telemetry')).toBeTruthy();
     expect(screen.getByText(/No radio connected/)).toBeTruthy();
     fireEvent.click(screen.getByText('Connect a radio'));
-    expect(useStore.getState().ui.activeKey).toBe('tool:bleconnect');
+    expect(useStore.getState().ui.activeKey).toBe('tool:node');
   });
 
   it('shows the latest read with the link caption, and hides the log until "N saved reads" is clicked', async () => {

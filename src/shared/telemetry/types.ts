@@ -106,3 +106,13 @@ export interface TelemetryDeletedPayload {
 export interface TelemetryInFlightPayload {
   inFlight: TelemetryInFlight[];
 }
+
+/** POST /api/telemetry/self/live: the companion's own reading right now. Not
+ *  saved: only "Save snapshot" (POST /api/telemetry/self/snapshot) stores one,
+ *  and it stores exactly this read. */
+export interface SelfLiveReadDto {
+  /** Epoch ms when the radio answered. */
+  at: number;
+  rawHex: string;
+  readings: Reading[];
+}
