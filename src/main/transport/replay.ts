@@ -90,6 +90,8 @@ export class FileReplayTransport implements ITransport {
   };
   private readonly fixturePath: string;
   private autoOk: ReadonlySet<number> = new Set();
+  // Pending auto-OK replies, cancelled on disconnect so none lands after it.
+  private readonly pendingOk = new Set<ReturnType<typeof setTimeout>>();
 
   constructor(fixturePath: string) {
     this.fixturePath = fixturePath;
@@ -122,6 +124,8 @@ export class FileReplayTransport implements ITransport {
   }
 
   async disconnect(): Promise<void> {
+    for (const timer of this.pendingOk) clearTimeout(timer);
+    this.pendingOk.clear();
     emit.transportState('idle');
     this.loopback.setState('idle');
   }
@@ -134,11 +138,17 @@ export class FileReplayTransport implements ITransport {
    *  it applied it. Deferred, so the session has registered its waiter. */
   private answerIfAutoOk(bytes: Uint8Array): void {
     if (bytes.length === 0 || !this.autoOk.has(bytes[0])) return;
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      this.pendingOk.delete(timer);
+      if (this.loopback.getState() !== 'connected') return;
       const ok = Buffer.of(RESP_OK);
+      // Both paths, as for fixture frames in connect(): the packet bus tap
+      // (Packet Log, inspectors) and the session's own ingest, which resolves
+      // the command's ack waiter.
       this.dispatch(ok);
       this.loopback.receive(Uint8Array.from(ok));
     }, 0);
+    this.pendingOk.add(timer);
   }
 
   /** Mirror BleTransport.onData: parse the frame and emit the matching packet.

@@ -7,8 +7,7 @@ import { loadLastDevice } from '../lib/lastDevice';
 import { notify } from '../lib/notify';
 import { selectAnyUnsaved, selectIsConnected, useStore } from '../lib/store';
 import { firstUnreadMessageId } from '../lib/utils';
-import { flushDrafts } from './useDraftsPersistence';
-import { flushUiState } from './useUiStatePersistence';
+import { flushAndConfirmQuit } from './quit';
 
 /** The client is not a dep: actions that call the API read the current one
  *  from getApiClient() when they run, so the handler never holds a stale one. */
@@ -71,12 +70,7 @@ export function createMenuActionHandler(deps: MenuActionHandlerDeps): (action: M
         if (selectAnyUnsaved(st)) {
           st.setPendingTarget({ kind: 'quit' });
         } else if (client) {
-          // Last boundary: main quits ~immediately after confirmQuit, so get
-          // any coalesced ui change and any unwritten draft onto disk first.
-          void (async () => {
-            await Promise.all([flushUiState(), flushDrafts()]);
-            await api.confirmQuit(client);
-          })();
+          void flushAndConfirmQuit(client);
         }
         break;
       }

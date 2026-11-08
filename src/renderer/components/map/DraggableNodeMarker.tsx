@@ -61,7 +61,9 @@ export function DraggableNodeMarker({ map, position, name, draggable, onDragEnd 
     if (!marker) {
       const created = new Marker({ element: buildElement(name), anchor: 'center' });
       created.on('dragend', () => {
-        const at = created.getLngLat();
+        // A drag across the antimeridian on a wrapped world reports a
+        // longitude past ±180; bring it back into range.
+        const at = created.getLngLat().wrap();
         onDragEndRef.current(at.lat, at.lng);
       });
       marker = created.setLngLat([lon, lat]).addTo(map);

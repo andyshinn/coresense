@@ -1,7 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { flushDrafts } from '../app/useDraftsPersistence';
-import { flushUiState } from '../app/useUiStatePersistence';
-import { api } from '../lib/api';
+import { flushAndConfirmQuit } from '../app/quit';
 import { useApiClient } from '../lib/apiClientContext';
 import { notify } from '../lib/notify';
 import { useStore } from '../lib/store';
@@ -39,12 +37,7 @@ export function LeaveGuardDialog({ title, description, children, saveLabel, onSa
   const finish = () => {
     if (pendingTarget?.kind === 'quit') {
       clearPendingTarget();
-      // Same boundary as menuActions' requestQuit: flush before main exits.
-      if (client)
-        void (async () => {
-          await Promise.all([flushUiState(), flushDrafts()]);
-          await api.confirmQuit(client);
-        })();
+      if (client) void flushAndConfirmQuit(client);
     } else {
       commitPendingTarget();
     }

@@ -216,6 +216,9 @@ export function LocationCard({ className }: { className?: string }) {
     setBusy(true);
     try {
       await QUICK_ACTIONS_BY_ID[id].run({ client, owner });
+    } catch (err) {
+      // The actions toast their own API failures; this catches anything else.
+      notify.failure(QUICK_ACTIONS_BY_ID[id].label, err);
     } finally {
       setBusy(false);
     }

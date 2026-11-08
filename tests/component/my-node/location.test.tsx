@@ -47,7 +47,9 @@ vi.mock('maplibre-gl', () => ({
       return this;
     }
     getLngLat() {
-      return { lng: this.rec.lngLat[0], lat: this.rec.lngLat[1] };
+      const [lng, lat] = this.rec.lngLat;
+      // LngLat.wrap(): longitude back into [-180, 180).
+      return { lng, lat, wrap: () => ({ lng: ((((lng + 180) % 360) + 360) % 360) - 180, lat }) };
     }
     setDraggable(d: boolean) {
       this.rec.draggable = d;
@@ -160,6 +162,22 @@ describe('Location card', () => {
     expect(screen.getByText('Unsaved')).toBeTruthy();
     expect(useStore.getState().myNodeUi.locationDirty).toBe(true);
     expect(saveButton().disabled).toBe(false);
+  });
+
+  it('a drop past the antimeridian wraps the longitude back into range', () => {
+    renderWithClient(<LocationCard />);
+    act(() => pin()?.drop(10, 190.5));
+    expect(lon().value).toBe('-169.5');
+    expect(screen.queryByText(/Longitude must be between/)).toBeNull();
+  });
+
+  it('a switch whose action throws says so instead of failing silently', async () => {
+    const { QUICK_ACTIONS_BY_ID } = await import('../../../src/renderer/features/quick-actions/catalog');
+    const spy = vi.spyOn(QUICK_ACTIONS_BY_ID.gps, 'run').mockRejectedValueOnce(new Error('boom'));
+    renderWithClient(<LocationCard />);
+    fireEvent.click(screen.getByRole('switch', { name: 'GPS' }));
+    await waitFor(() => expect(notify.failure).toHaveBeenCalledWith('Toggle GPS', expect.any(Error)));
+    spy.mockRestore();
   });
 
   it('typing moves the pin; a bad value shows its error and blocks Save', () => {
